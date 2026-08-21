@@ -1,0 +1,6 @@
+name = "travel-connect-professional"
+compatibility_date = "2026-08-21"
+pages_build_output_dir = "."
+
+# Production bindings will be added after the Cloudflare D1 database
+# and real-time Network Worker are provisioned.

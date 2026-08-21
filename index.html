@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#082b49">
+<meta name="description" content="Travel Connect Professional — travel business management platform">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Travel Connect Professional</title>
+<link rel="stylesheet" href="/src/app.css">
+</head>
+<body>
+<header class="top">
+  <div><b>TRAVEL CONNECT</b><small>Professional Travel Business Platform</small></div>
+  <button id="networkBtn" class="round">S</button>
+</header>
+
+<nav class="tabs">
+  <button data-view="dashboard">Dashboard</button>
+  <button data-view="enquiries">Enquiries</button>
+  <button data-view="quotations">Quotations</button>
+  <button data-view="trips">Trips</button>
+  <button data-view="billing">Billing</button>
+  <button data-view="master">Master Data</button>
+  <button data-view="accounts">Accounts</button>
+  <button data-view="admin">Admin</button>
+</nav>
+
+<main id="app"></main>
+
+<div id="modal" class="modal hidden"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalBody"></div></div></div>
+<div id="toast"></div>
+<script src="/src/app.js"></script>
+<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));</script>
+</body>
+</html>
