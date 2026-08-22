@@ -1,4 +1,4 @@
-# Travel Connect Professional — V1 Foundation
+# Travel Connect Professional — V1 Foundation 
 
 This is a NEW application codebase. It is not a repair/update of the old Travel Connect HTML apps.
 
