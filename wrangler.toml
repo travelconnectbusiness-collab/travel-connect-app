@@ -1,4 +1,4 @@
-name = "travel-connect-app"
+name = "travel-connect-app" 
 compatibility_date = "2026-08-21"
 pages_build_output_dir = "."
 
