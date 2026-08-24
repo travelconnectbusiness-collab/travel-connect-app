@@ -79,7 +79,14 @@ function money(n){return "₹"+Number(n||0).toLocaleString("en-IN",{maximumFract
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function toast(s){let e=document.querySelector("#toast");e.textContent=s;e.style.display="block";setTimeout(()=>e.style.display="none",2600)}
 function app(){return document.querySelector("#app")}
-function card(title,body){return `<section class="container"><div class="card"><h2>${title}</h2>${body}</div></section>`}
+/* Every page gets a "← Back" link (except Dashboard itself) so the user is
+   never stuck on a page with no way back, regardless of how they arrived. */
+function card(title,body){
+ const isDashboard=(location.hash===""||location.hash==="#dashboard");
+ const back=isDashboard?"":`<button class="backbtn" onclick="goBack()">&larr; Back to Dashboard</button>`;
+ return `<section class="container"><div class="card">${back}<h2>${title}</h2>${body}</div></section>`;
+}
+function goBack(){ view("dashboard") }
 function view(v){location.hash=v;render()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
 document.querySelector("#networkBtn").onclick=()=>network();
@@ -96,6 +103,8 @@ function render(){
  else if(v==="admin") admin();
  else network();
 }
+/* Makes the phone's/browser's own Back button work correctly inside the app too. */
+window.addEventListener("hashchange",render);
 
 /* ---------- ADMIN PASSWORD GATE ---------- */
 /* Protects rate-master edits and business/local-trip-rule settings.
@@ -387,12 +396,13 @@ function loadBill(){
   ${r.discountAmount?`<div>Discount: -${money(r.discountAmount)}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
   <div class="total">FINAL BILL: ${money(final)}</div>
-  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}`:""}
+  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
   <div><b>Total paid: ${money(paid)}</b></div>
   <div class="total">Balance due: ${money(balance)}</div>
   ${balance>0?`
+  <p class="danger" style="margin:6px 0"><b>⚠️ Enter only the amount actually received now — it does not fill in automatically.</b></p>
   <div class="grid" style="margin-top:8px">
-   <label>Payment amount<input id="payAmt" type="number" value="${balance}"></label>
+   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
    <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
   </div>
   <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
@@ -409,10 +419,22 @@ function recordPayment(tripId){
  if(amt<=0){toast("Enter a valid amount");return}
  const t=db.trips.find(x=>x.id===tripId);
  t.payments=t.payments||[];
- t.payments.push({amount:amt,method,at:new Date().toISOString()});
- db.bills.unshift({id:crypto.randomUUID(),tripId,amount:amt,method,created:new Date().toISOString()});
+ const at=new Date().toISOString();
+ t.payments.push({amount:amt,method,at});
+ db.bills.unshift({id:crypto.randomUUID(),tripId,amount:amt,method,created:at});
  save();
  toast("Payment recorded: "+money(amt));
+ loadBill();
+}
+/* Removes the most recent payment entry — for correcting an accidental or wrong entry. */
+function undoLastPayment(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ if(!t||!t.payments||!t.payments.length){toast("No payment to undo");return}
+ const removed=t.payments.pop();
+ const idx=db.bills.findIndex(b=>b.tripId===tripId&&b.created===removed.at&&b.amount===removed.amount);
+ if(idx>-1) db.bills.splice(idx,1);
+ save();
+ toast("Removed: "+money(removed.amount)+" ("+removed.method+")");
  loadBill();
 }
 
@@ -436,50 +458,83 @@ function renderBillQR(amount,billNo){
 }
 
 /* ---------- PDF EXPORT ---------- */
-function pdfFromLines(filename,title,lines){
- if(!window.jspdf){toast("PDF library not loaded");return}
- const {jsPDF}=window.jspdf;
- const doc=new jsPDF();
- let y=15;
- doc.setFontSize(14);doc.text(title,15,y);y+=8;
- doc.setFontSize(10);
- lines.filter(l=>l!=="").forEach(l=>{ if(y>280){doc.addPage();y=15;} doc.text(String(l),15,y); y+=6; });
- doc.save(filename);
+/* jsPDF's built-in fonts cannot render the ₹ glyph (it prints as a broken
+   character), so PDF/print-safe amounts use "Rs." instead. On-screen the app
+   still shows ₹ via money(), since the browser renders that fine. */
+function pdfMoney(n){return "Rs. "+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2})}
+
+function pdfDoc(){ if(!window.jspdf){toast("PDF library not loaded");return null} return new window.jspdf.jsPDF(); }
+
+function pdfHeader(doc,title){
+ let y=18;
+ doc.setFont(undefined,"bold");doc.setFontSize(16);
+ doc.text(db.business.name||"Travel Connect",15,y);y+=7;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ if(db.business.phone){doc.text("Phone: "+db.business.phone,15,y);y+=5;}
+ if(db.business.gstin){doc.text("GSTIN: "+db.business.gstin,15,y);y+=5;}
+ y+=2;doc.setDrawColor(180);doc.line(15,y,195,y);y+=9;
+ doc.setFont(undefined,"bold");doc.setFontSize(13);doc.text(title,15,y);y+=9;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ return y;
 }
+function pdfRow(doc,y,label,value,bold){
+ if(y>280){doc.addPage();y=18;}
+ doc.setFont(undefined,bold?"bold":"normal");doc.setFontSize(bold?12:10);
+ doc.text(String(label),15,y);
+ doc.text(String(value),195,y,{align:"right"});
+ return y+(bold?8:6);
+}
+function pdfDivider(doc,y){doc.setDrawColor(210);doc.line(15,y,195,y+0.01);return y+6}
+
 function downloadQuotePDF(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const doc=pdfDoc();if(!doc)return;
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
- pdfFromLines("Quotation-"+q.no+".pdf","Travel Quotation",[
-  db.business.name, db.business.phone?("Phone: "+db.business.phone):"", db.business.gstin?("GSTIN: "+db.business.gstin):"","",
-  "QUOTATION "+q.no,"Date: "+(q.created||"").slice(0,10),"",
-  "Customer: "+q.customer,"Mobile: "+q.mobile,
-  "Vehicle Category: "+q.category,"Vehicle: "+(q.vehicle||"-")+" "+(q.vehicleNo||""),
-  "Pickup: "+q.pickup,
-  ...dests.map((d,i)=>"Destination "+(i+1)+": "+d),
-  "Return point: "+(q.returnPoint||"-"),
-  "Trip type: "+q.type+"  |  Rate plan: "+q.ratePlan,
-  "Estimated KM: "+q.estimatedKm+"  |  Estimated Hours: "+q.estimatedHours,"",
-  "Subtotal: "+money(q.subtotal??q.quotedAmount),
-  q.discountAmount?("Discount: -"+money(q.discountAmount)):"",
-  q.roundAdjustment?("Round off: "+(q.roundAdjustment>=0?"+":"")+money(q.roundAdjustment)):"","",
-  "QUOTED AMOUNT: "+money(q.quotedAmount)
- ]);
+ let y=pdfHeader(doc,"QUOTATION "+q.no);
+ y=pdfRow(doc,y,"Date",(q.created||"").slice(0,10));
+ y=pdfRow(doc,y,"Customer",q.customer);
+ y=pdfRow(doc,y,"Mobile",q.mobile);
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Vehicle Category",q.category);
+ y=pdfRow(doc,y,"Vehicle",(q.vehicle||"-")+" "+(q.vehicleNo||""));
+ y=pdfRow(doc,y,"Pickup",q.pickup);
+ dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
+ if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
+ y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
+ y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Subtotal",pdfMoney(q.subtotal??q.quotedAmount));
+ if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
+ if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"QUOTED AMOUNT",pdfMoney(q.quotedAmount),true);
+ doc.save("Quotation-"+q.no+".pdf");
 }
+
 function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const r=billFinalAmount(t,q,c);
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
- pdfFromLines("Bill-"+(q.no||tripId.slice(0,8))+".pdf","Final Bill",[
-  db.business.name, db.business.phone?("Phone: "+db.business.phone):"","",
-  "Customer: "+t.customer,"Trip: "+(q.no||""),"",
-  "Subtotal: "+money(r.subtotal),
-  r.discountAmount?("Discount: -"+money(r.discountAmount)):"",
-  r.roundAdjustment?("Round off: "+(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment)):"",
-  "FINAL BILL: "+money(r.final),"",
-  ...(t.payments||[]).map(p=>p.method+": "+money(p.amount)+" ("+(p.at||"").slice(0,10)+")"),
-  "","Total paid: "+money(paid),"Balance due: "+money(balance)
- ]);
+ const doc=pdfDoc();if(!doc)return;
+ let y=pdfHeader(doc,"FINAL BILL");
+ y=pdfRow(doc,y,"Trip",q.no||tripId.slice(0,8));
+ y=pdfRow(doc,y,"Customer",t.customer);
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Subtotal",pdfMoney(r.subtotal));
+ if(r.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(r.discountAmount));
+ if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"FINAL BILL",pdfMoney(r.final),true);
+ y=pdfDivider(doc,y);
+ if((t.payments||[]).length){
+  doc.setFont(undefined,"bold");doc.text("Payments received",15,y);y+=7;doc.setFont(undefined,"normal");
+  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
+  y=pdfDivider(doc,y);
+ }
+ y=pdfRow(doc,y,"Total paid",pdfMoney(paid));
+ y=pdfRow(doc,y,"Balance due",pdfMoney(balance),true);
+ doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
 }
 
 /* ---------- PRINT ---------- */
