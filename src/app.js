@@ -7,7 +7,7 @@ function rateBlock(rate,incKm,incHours,addKm,addHour){
 }
 
 const defaults={
- business:{name:"Krishna Tours & Travels",phone:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
+ business:{name:"Krishna Tours & Travels",tagline:"Your Best Travel Partner",address:"",phone:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
  categories:[
   {name:"Mini / Hatchback",
    standard:rateBlock(2200,80,8,18,220), competitive:rateBlock(1900,80,8,18,220),
@@ -71,6 +71,8 @@ function migrate(){
  if(!db.settings) db.settings={localMaxKm:50,localMaxHours:5};
  (db.trips||[]).forEach(t=>{ if(!Array.isArray(t.payments)) t.payments = t.payment ? [{...t.payment}] : []; });
  (db.quotes||[]).forEach(q=>{ if(!Array.isArray(q.destinations)) q.destinations = q.destination ? [q.destination] : []; });
+ if(db.business.address===undefined){db.business.address="";changed=true;}
+ if(db.business.tagline===undefined){db.business.tagline="Your Best Travel Partner";changed=true;}
  if(changed) save();
 }
 
@@ -195,6 +197,7 @@ function quoteForm(){
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
+ <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
  <label>Rate<select id="qRate">
    <option value="standard">Standard Rate</option>
    <option value="competitive" selected>Competitive Rate</option>
@@ -337,7 +340,7 @@ function saveQuote(){
  const q={id:crypto.randomUUID(),no:"QTN-"+Date.now(),customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
   pickup:qPickup.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
   estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
-  ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
+  service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
   discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
   subtotal:r.total,quotedAmount:r.final,created:new Date().toISOString(),status:"quoted"};
  db.quotes.unshift(q);save();toast("Quotation saved: "+q.no);quotations();
@@ -345,7 +348,12 @@ function saveQuote(){
 
 function quotations(){
  app().innerHTML=card("Quotations",`${quoteForm()}<hr><h3>Saved Quotations</h3>${db.quotes.map(q=>`<div class="listitem"><b>${esc(q.no)}</b> — ${esc(q.customer)} — ${money(q.quotedAmount)}<br>${esc(q.pickup)} → ${esc((q.destinations||[q.destination]).join(" → "))}
- <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+ <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button><button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+}
+function deleteQuote(id){
+ if(!confirm("Delete this quotation? This cannot be undone.")) return;
+ db.quotes=db.quotes.filter(x=>x.id!==id);
+ save();toast("Quotation deleted");quotations();
 }
 function openQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -356,7 +364,7 @@ function openQuote(id){
   const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
   qDest.value=dests[0]||"";
   dests.slice(1).forEach(d=>addStopField(d));
-  qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
+  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   calcQuote();
  },0);
@@ -364,10 +372,15 @@ function openQuote(id){
 function convertTrip(id){const q=db.quotes.find(x=>x.id===id);db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments:[],created:new Date().toISOString()});q.status="confirmed";save();toast("Trip confirmed");trips()}
 
 function trips(){
- app().innerHTML=card("Trip Management",`${db.trips.map(t=>{const q=db.quotes.find(x=>x.id===t.quoteId)||{};return `<div class="listitem"><b>${esc(q.no||"Trip")}</b> — ${esc(t.customer)}<br>Status: <b>${esc(t.status)}</b><div class="actions"><button onclick="editTrip('${t.id}')">Open Trip</button><button onclick="makeBillFromTrip('${t.id}')">Final Bill</button></div></div>`}).join("")||"<p class='muted'>Confirm a quotation to create a trip.</p>"}`);
+ app().innerHTML=card("Trip Management",`${db.trips.map(t=>{const q=db.quotes.find(x=>x.id===t.quoteId)||{};return `<div class="listitem"><b>${esc(q.no||"Trip")}</b> — ${esc(t.customer)}<br>Status: <b>${esc(t.status)}</b><div class="actions"><button onclick="editTrip('${t.id}')">Open Trip</button><button onclick="makeBillFromTrip('${t.id}')">Final Bill</button><button class="danger" onclick="deleteTrip('${t.id}')">Delete</button></div></div>`}).join("")||"<p class='muted'>Confirm a quotation to create a trip.</p>"}`);
+}
+function deleteTrip(id){
+ if(!confirm("Delete this trip? Payment history already recorded will stay in Accounts, but this trip and its bill link will be removed.")) return;
+ db.trips=db.trips.filter(x=>x.id!==id);
+ save();toast("Trip deleted");trips();
 }
 function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div><button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
-function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed"});save();closeModal();toast("Trip updated")}
+function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed"});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
 function makeBillFromTrip(id){view("billing");setTimeout(()=>{billTrip.value=id;loadBill()},0)}
 
 /* ---------- BILLING (advance / balance tracking + UPI QR + PDF/Print) ---------- */
@@ -391,6 +404,7 @@ function loadBill(){
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
  const balance=Math.max(0,final-paid);
  billBox.innerHTML=`<div class="ratebox">
+  <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates)</button></div>
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours • Additional KM: ${money(r.addKm)}/KM • Additional Hour: ${money(r.addHour)}/hour</div>`:""}
   <div>Subtotal: ${money(r.subtotal)}</div>
   ${r.discountAmount?`<div>Discount: -${money(r.discountAmount)}</div>`:""}
@@ -438,6 +452,31 @@ function undoLastPayment(tripId){
  loadBill();
 }
 
+/* Looks up the driver currently assigned to a vehicle (by vehicle number) so the
+   bill can show driver name/mobile the same way the reference invoice does. */
+function findDriverForVehicleNo(vehicleNo){
+ if(!vehicleNo) return null;
+ const vIdx=db.vehicles.findIndex(v=>v.no===vehicleNo);
+ if(vIdx<0) return null;
+ return db.drivers.find(d=>+d.vehicle===vIdx)||null;
+}
+function buildUpiLink(amount,billNo){
+ return "upi://pay?pa="+encodeURIComponent(db.business.upiId)+"&pn="+encodeURIComponent(db.business.upiName||db.business.name)+"&am="+amount+"&cu=INR&tn="+encodeURIComponent("Bill "+billNo);
+}
+/* Renders a QR into an offscreen element and returns it as a PNG data URL, so the
+   same QR image can be embedded in the PDF and the Print output — not just shown
+   on screen. Returns null if the QR library isn't ready or no UPI ID is set. */
+function getQRDataURL(text,size){
+ if(typeof QRCode==="undefined"||!text) return null;
+ const holder=document.createElement("div");
+ holder.style.position="absolute";holder.style.left="-9999px";
+ document.body.appendChild(holder);
+ new QRCode(holder,{text,width:size||220,height:size||220});
+ const canvas=holder.querySelector("canvas");
+ const dataUrl=canvas?canvas.toDataURL("image/png"):null;
+ document.body.removeChild(holder);
+ return dataUrl;
+}
 /* Shows a UPI QR only for the current remaining balance; once settled it disappears
    automatically so an old QR/screenshot can never be reused to overpay. */
 function renderBillQR(amount,billNo){
@@ -452,7 +491,7 @@ function renderBillQR(amount,billNo){
   box.innerHTML="<p class='muted'>QR library not loaded.</p>";
   return;
  }
- const upiLink="upi://pay?pa="+encodeURIComponent(db.business.upiId)+"&pn="+encodeURIComponent(db.business.upiName||db.business.name)+"&am="+amount+"&cu=INR&tn="+encodeURIComponent("Bill "+billNo);
+ const upiLink=buildUpiLink(amount,billNo);
  new QRCode(box,{text:upiLink,width:180,height:180});
  box.insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">Scan to pay balance: ${money(amount)}</div>`);
 }
@@ -514,26 +553,93 @@ function downloadQuotePDF(id){
 function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const standardRaw=calcFare(c,"standard",km,h);
  const r=billFinalAmount(t,q,c);
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
+
  const doc=pdfDoc();if(!doc)return;
- let y=pdfHeader(doc,"FINAL BILL");
- y=pdfRow(doc,y,"Trip",q.no||tripId.slice(0,8));
- y=pdfRow(doc,y,"Customer",t.customer);
+ let y=18;
+ doc.setFont(undefined,"bold");doc.setFontSize(18);
+ doc.text(db.business.name||"Travel Connect",105,y,{align:"center"});y+=6;
+ doc.setFont(undefined,"normal");doc.setFontSize(9);
+ if(db.business.tagline){doc.text(db.business.tagline,105,y,{align:"center"});y+=5;}
+ if(db.business.address){doc.text(db.business.address,105,y,{align:"center"});y+=5;}
+ if(db.business.phone){doc.text("Phone: "+db.business.phone,105,y,{align:"center"});y+=5;}
+ y+=2;doc.setDrawColor(180,150,60);doc.setLineWidth(0.6);doc.line(15,y,195,y);doc.setLineWidth(0.2);doc.setDrawColor(210);y+=8;
+ doc.setFont(undefined,"bold");doc.setFontSize(13);
+ doc.text("FINAL TRIP BILL",105,y,{align:"center"});y+=8;
+ doc.setFont(undefined,"normal");doc.setFontSize(9);
+
+ const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
+ if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
+ if(q.service) detailRows.push(["Service",q.service]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"],["Included Coverage",r.incKm!=null?(r.incKm+" KM / "+r.incHours+" hrs"):"-"],["Additional KM",r.addKm!=null?pdfMoney(r.addKm)+" / KM":"-"],["Additional Hour",r.addHour!=null?pdfMoney(r.addHour)+" / hour":"-"]);
+
+ detailRows.forEach(([label,value])=>{
+  if(y>270){doc.addPage();y=18;}
+  doc.setTextColor(90);doc.text(label,15,y);
+  doc.setTextColor(0);doc.text(String(value),195,y,{align:"right"});
+  y+=6;
+ });
+
+ y+=2;
+ doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=6;doc.setFont(undefined,"normal");
+ const routeLine=[q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
+ const routeWrapped=doc.splitTextToSize(routeLine,180);
+ doc.text(routeWrapped,15,y);y+=routeWrapped.length*5+4;
+
  y=pdfDivider(doc,y);
- y=pdfRow(doc,y,"Subtotal",pdfMoney(r.subtotal));
- if(r.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(r.discountAmount));
+ doc.setFont(undefined,"bold");doc.text("Fare Details",15,y);y+=7;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Standard Rate",pdfMoney(standardRaw.invalid?0:standardRaw.total));
+ y=pdfRow(doc,y,"Selected / Agreed Rate",pdfMoney(r.subtotal));
+ if(saving>0) y=pdfRow(doc,y,"Customer Saving vs Standard","- "+pdfMoney(saving));
+ if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
  y=pdfDivider(doc,y);
- y=pdfRow(doc,y,"FINAL BILL",pdfMoney(r.final),true);
- y=pdfDivider(doc,y);
- if((t.payments||[]).length){
-  doc.setFont(undefined,"bold");doc.text("Payments received",15,y);y+=7;doc.setFont(undefined,"normal");
-  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
-  y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
+ y+=4;
+
+ if(y>230){doc.addPage();y=18;}
+ const boxTop=y, boxHeight=42;
+ doc.setFillColor(255,248,232);
+ doc.rect(15,boxTop,180,boxHeight,"F");
+ doc.setDrawColor(210,180,120);doc.rect(15,boxTop,180,boxHeight);doc.setDrawColor(210);
+ doc.setFont(undefined,"bold");doc.setFontSize(10);
+ doc.text("PAYMENT INFORMATION",20,boxTop+8);
+ doc.setFont(undefined,"normal");doc.setFontSize(9);
+ doc.text("Final Bill Amount",20,boxTop+16);
+ doc.text(pdfMoney(r.final),20,boxTop+22);
+ doc.text("Balance Due",20,boxTop+30);
+ doc.setFont(undefined,"bold");
+ doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+36);
+ doc.setFont(undefined,"normal");
+
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData){
+   doc.setFontSize(8);doc.text("SCAN & PAY",170,boxTop+7,{align:"center"});
+   doc.addImage(qrData,"PNG",150,boxTop+9,40,40);
+  }
  }
- y=pdfRow(doc,y,"Total paid",pdfMoney(paid));
- y=pdfRow(doc,y,"Balance due",pdfMoney(balance),true);
+ y=boxTop+boxHeight+8;
+
+ if((t.payments||[]).length){
+  if(y>260){doc.addPage();y=18;}
+  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=7;doc.setFont(undefined,"normal");
+  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
+  y=pdfRow(doc,y,"Total Paid",pdfMoney(paid),true);
+  y+=4;
+ }
+
+ if(y>270){doc.addPage();y=18;}
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
+ doc.setTextColor(0);
+
  doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
 }
 
@@ -560,13 +666,69 @@ function printQuote(id){
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const standardRaw=calcFare(c,"standard",km,h);
  const r=billFinalAmount(t,q,c);
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
- printContent("Bill "+(q.no||""),`<h2>${esc(db.business.name)}</h2><p>${esc(db.business.phone||"")}</p><hr>
- <h3>Final Bill — ${esc(q.no||"")}</h3><p>Customer: ${esc(t.customer)}</p>
- <p>Final Bill Amount: <b>${money(r.final)}</b></p>
- ${(t.payments||[]).map(p=>`<p>${esc(p.method)}: ${money(p.amount)}</p>`).join("")}
- <p>Total paid: ${money(paid)}</p><h3>Balance due: ${money(balance)}</h3>`);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
+
+ let qrHtml="";
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:150px;height:150px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+ }
+
+ const row=(label,value)=>`<tr><td style="padding:3px 0;color:#555">${esc(label)}</td><td style="padding:3px 0;text-align:right">${esc(value)}</td></tr>`;
+
+ let detailRows="";
+ detailRows+=row("Customer",t.customer||q.customer);
+ detailRows+=row("Customer Mobile",q.mobile||"-");
+ detailRows+=row("Trip Type",q.type||"-");
+ detailRows+=row("Vehicle Category",q.category||"-");
+ detailRows+=row("Vehicle",q.vehicle||"Not specified");
+ detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
+ if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
+ if(q.service) detailRows+=row("Service",q.service);
+ detailRows+=row("Trip Date",q.startDate||"-");
+ detailRows+=row("Pickup Point",q.pickup||"-");
+ detailRows+=row("Destination",dests[dests.length-1]||"-");
+ detailRows+=row("Return / Closing Point",q.returnPoint||"-");
+ detailRows+=row("Included Coverage",r.incKm!=null?(r.incKm+" KM / "+r.incHours+" hrs"):"-");
+
+ printContent("Bill "+(q.no||""),`
+ <div style="text-align:center">
+  <h2 style="margin:0">${esc(db.business.name)}</h2>
+  ${db.business.tagline?`<div style="color:#666;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px">${esc(db.business.address)}</div>`:""}
+  ${db.business.phone?`<div style="font-size:12px">${esc(db.business.phone)}</div>`:""}
+ </div>
+ <hr style="border-top:2px solid #b8860b;margin:10px 0">
+ <h3 style="text-align:center">FINAL TRIP BILL</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:13px">${detailRows}</table>
+ <p style="margin-top:10px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
+ <hr>
+ <h3>Fare Details</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:13px">
+  ${row("Standard Rate",money(standardRaw.invalid?0:standardRaw.total))}
+  ${row("Selected / Agreed Rate",money(r.subtotal))}
+  ${saving>0?row("Customer Saving vs Standard","- "+money(saving)):""}
+  ${r.discountAmount?row("Discount","- "+money(r.discountAmount)):""}
+  ${r.roundAdjustment?row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment)):""}
+ </table>
+ <h2 style="text-align:right">FINAL BILL AMOUNT: ${money(r.final)}</h2>
+ <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div>
+   <b>PAYMENT INFORMATION</b><br>
+   Final Bill Amount: ${money(r.final)}<br>
+   Balance Due: <b>${balance>0?money(balance):"FULLY PAID"}</b>
+  </div>
+  ${qrHtml}
+ </div>
+ ${(t.payments||[]).length?`<h3>Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid))}</table>`:""}
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:16px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ `);
 }
 
 /* ---------- MASTER RATE TABLE (password protected) ---------- */
@@ -579,7 +741,7 @@ function master(){
   <td>${money(c.local.rate)}</td>
   <td><button onclick="editCat(${i})">Edit</button></td>
  </tr>`).join("");
- app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
+ app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
 }
 
 function rateFields(prefix,label,r){
@@ -647,15 +809,58 @@ function saveNewCat(){
  db.categories.push(c);save();closeModal();master();toast("Category added");
 }
 
+/* ---------- EXPORT / IMPORT RATE SHEET ----------
+   Lets the owner copy the current device's full rate table as text (e.g. via
+   WhatsApp/Notes) and paste it into "Import rate sheet" on any other device
+   running this app, so everyone ends up on the same rates without needing a
+   fresh code deployment. */
+function exportRates(){
+ const text=JSON.stringify(db.categories,null,2);
+ modal(`<h2>Export Rate Sheet</h2>
+  <p class="muted">Copy this text and share it (WhatsApp, Notes, email). On another device, open "Import rate sheet" and paste it there to apply the same rates.</p>
+  <textarea id="exportBox" rows="14" readonly>${esc(text)}</textarea>
+  <div class="actions"><button class="primary" onclick="copyExport()">Copy</button></div>`);
+}
+function copyExport(){
+ const box=document.querySelector("#exportBox");
+ box.focus();box.select();box.setSelectionRange(0,999999);
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+  navigator.clipboard.writeText(box.value).then(()=>toast("Copied — now paste it into WhatsApp or Notes")).catch(()=>toast("Text selected — use your keyboard's Copy option"));
+ }else{
+  toast("Text selected — use your keyboard's Copy option");
+ }
+}
+function importRates(){ requireAdmin(openImportModal); }
+function openImportModal(){
+ modal(`<h2>Import Rate Sheet</h2>
+  <p class="muted">Paste a rate sheet exported from another device. This replaces all vehicle categories and rates on THIS device.</p>
+  <textarea id="importBox" rows="14" placeholder="Paste the exported rate sheet text here"></textarea>
+  <div class="actions"><button class="primary" onclick="applyImport()">Apply</button></div>
+  <div id="impErr" class="danger"></div>`);
+}
+function applyImport(){
+ try{
+  const parsed=JSON.parse(document.querySelector("#importBox").value);
+  if(!Array.isArray(parsed)||!parsed.length||typeof parsed[0].standard!=="object") throw new Error("bad format");
+  db.categories=parsed;
+  save();
+  closeModal();
+  master();
+  toast("Rate sheet imported successfully");
+ }catch(e){
+  document.querySelector("#impErr").textContent="Could not read this text — make sure the entire exported text was pasted, unedited.";
+ }
+}
+
 function addVehicle(){db.vehicles.push({name:vName.value,no:vNo.value,cat:+vCat.value,seats:+vSeats.value||0});save();master();toast("Vehicle added")}
 function addDriver(){db.drivers.push({name:dName.value,mobile:dMobile.value,vehicle:+dVehicle.value});save();master();toast("Driver added")}
 
 function accounts(){const income=db.bills.reduce((a,b)=>a+b.amount,0),expense=db.expenses.reduce((a,e)=>a+e.amount,0);app().innerHTML=card("Accounts",`<div class="grid"><div class="metric">Recorded billing<b>${money(income)}</b></div><div class="metric">Expenses<b>${money(expense)}</b></div><div class="metric">Net before other adjustments<b>${money(income-expense)}</b></div></div><p class="muted">This is the foundation. GST, tax reports, driver payments, fuel, toll, parking and profit reports will use the same ledger.</p><div class="grid"><label>Expense category<input id="exCat"></label><label>Description<input id="exDesc"></label><label>Amount<input id="exAmt" type="number"></label></div><button class="primary" onclick="addExpense()">Add expense</button>`)}
 function addExpense(){db.expenses.push({category:exCat.value,description:exDesc.value,amount:+exAmt.value||0,created:new Date().toISOString()});save();toast("Expense recorded");accounts()}
 
-function admin(){app().innerHTML=card("Admin / Business Settings",`<p class="muted">Password-protected — changes save instantly for this device.</p><div class="grid"><label>Business name<input id="bName" value="${esc(db.business.name)}"></label><label>Business phone<input id="bPhone" value="${esc(db.business.phone)}"></label><label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}"></label><label>UPI ID<input id="bUpi" value="${esc(db.business.upiId)}"></label><label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}"></label><label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label><label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label></div><button class="primary" onclick="saveAdmin()">Save settings</button><hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`)}
+function admin(){app().innerHTML=card("Admin / Business Settings",`<p class="muted">Password-protected — changes save instantly for this device.</p><div class="grid"><label>Business name<input id="bName" value="${esc(db.business.name)}"></label><label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}"></label><label>Address<input id="bAddress" value="${esc(db.business.address)}"></label><label>Business phone<input id="bPhone" value="${esc(db.business.phone)}"></label><label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}"></label><label>UPI ID<input id="bUpi" value="${esc(db.business.upiId)}"></label><label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}"></label><label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label><label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label></div><button class="primary" onclick="saveAdmin()">Save settings</button><hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`)}
 function saveAdmin(){ requireAdmin(doSaveAdmin); }
-function doSaveAdmin(){Object.assign(db.business,{name:bName.value,phone:bPhone.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;save();toast("Settings saved");admin();}
+function doSaveAdmin(){Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,phone:bPhone.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;save();toast("Settings saved");admin();}
 
 function network(){app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
 function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
@@ -669,3 +874,4 @@ window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}r
 
 migrate();
 render();
+I
