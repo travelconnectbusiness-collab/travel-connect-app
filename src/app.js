@@ -9,7 +9,7 @@ function rateBlock(rate,incKm,incHours,addKm,addHour){
 }
 
 const defaults={
- platform:{name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:""},
+ platform:{name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"},
  business:{name:"Krishna Tours & Travels",tagline:"Your Best Travel Partner",address:"",phone:"",phone2:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
  categories:[
   {name:"Mini / Hatchback",
@@ -77,7 +77,8 @@ function migrate(){
  if(db.business.address===undefined){db.business.address="";changed=true;}
  if(db.business.tagline===undefined){db.business.tagline="Your Best Travel Partner";changed=true;}
  if(db.business.phone2===undefined){db.business.phone2="";changed=true;}
- if(!db.platform){db.platform={name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:""};changed=true;}
+ if(!db.platform){db.platform={name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"};changed=true;}
+ if(db.platform&&db.platform.email===undefined){db.platform.email="travelconnect.business@gmail.com";changed=true;}
  if(changed) save();
 }
 
@@ -390,7 +391,11 @@ function makeBillFromTrip(id){view("billing");setTimeout(()=>{billTrip.value=id;
 
 /* ---------- BILLING (advance / balance tracking + UPI QR + PDF/Print) ---------- */
 function billing(){
- app().innerHTML=card("Final Billing",`<label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} — ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label><div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
+ app().innerHTML=card("Final Billing",`<label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} — ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label><label>Bill print date (optional, defaults to today)<input id="billDateInput" type="date"></label><div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
+}
+function billPrintDate(){
+ const v=document.querySelector("#billDateInput")?.value;
+ return v||new Date().toISOString().slice(0,10);
 }
 
 function billFinalAmount(t,q,c){
@@ -565,107 +570,120 @@ function downloadBillPDF(tripId){
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
+ const billDate=billPrintDate();
 
  const doc=pdfDoc();if(!doc)return;
- let y=16;
- /* Travel Connect — the platform — shown small and plain at the very top */
- try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-2,12,12); }catch(e){}
- doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(11);
- doc.text((db.platform.name||"Travel Connect").toUpperCase(),30,y+3);
- doc.setFont(undefined,"normal");doc.setFontSize(8);doc.setTextColor(120);
- if(db.platform.tagline) doc.text(db.platform.tagline,30,y+7);
+ let y=15;
+ try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(10.5);
+ doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
+ if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.setFont(undefined,"bold");doc.setFontSize(8);doc.setTextColor(70);
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
- if(platformPhones) doc.text(platformPhones,195,y+3,{align:"right"});
+ if(platformPhones) doc.text(platformPhones,195,y+1,{align:"right"});
  doc.setTextColor(0);
- y+=14;
- doc.setDrawColor(210);doc.line(15,y,195,y);y+=8;
+ y+=12;
+ doc.setDrawColor(210);doc.line(15,y,195,y);y+=6;
 
- /* Travel partner (the actual business) — highlighted, since this is who the customer contacts */
  const partnerBoxTop=y;
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean);
- const partnerBoxHeight=18+(db.business.address?5:0)+(partnerPhones.length?6:0);
+ const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhones.length?5.5:0);
  doc.setFillColor(232,245,244);
  doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
  doc.setDrawColor(20,120,110);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
- let py=partnerBoxTop+8;
- doc.setFont(undefined,"bold");doc.setFontSize(15);doc.setTextColor(15,90,85);
- doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=6;
- doc.setFont(undefined,"normal");doc.setFontSize(9);doc.setTextColor(60);
- if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=5;}
- if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=5;}
+ let py=partnerBoxTop+7;
+ doc.setFont(undefined,"bold");doc.setFontSize(14);doc.setTextColor(15,90,85);
+ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=5;
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
+ if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
+ if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=4.5;}
  if(partnerPhones.length){
-  doc.setFont(undefined,"bold");doc.setFontSize(10);doc.setTextColor(15,90,85);
-  doc.text("Contact: "+partnerPhones.join("   |   "),105,py,{align:"center"});py+=5;
+  doc.setFont(undefined,"bold");doc.setFontSize(10.5);doc.setTextColor(15,90,85);
+  doc.text("Contact: "+partnerPhones.join("   |   "),105,py,{align:"center"});py+=5.5;
  }
  doc.setTextColor(0);
- y=partnerBoxTop+partnerBoxHeight+8;
+ y=partnerBoxTop+partnerBoxHeight+6;
 
- doc.setFont(undefined,"bold");doc.setFontSize(13);
- doc.text("FINAL TRIP BILL",105,y,{align:"center"});y+=8;
- doc.setFont(undefined,"normal");doc.setFontSize(9);
+ doc.setFont(undefined,"bold");doc.setFontSize(12.5);
+ doc.text("FINAL TRIP BILL",105,y,{align:"center"});
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ doc.text("Bill printed on: "+billDate,195,y,{align:"right"});doc.setTextColor(0);
+ y+=7;
+ doc.setFontSize(8.5);
 
  const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
  if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
  if(q.service) detailRows.push(["Service",q.service]);
- detailRows.push(["Trip Date",q.startDate||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"],["Included Coverage",r.incKm!=null?(r.incKm+" KM / "+r.incHours+" hrs"):"-"],["Additional KM",r.addKm!=null?pdfMoney(r.addKm)+" / KM":"-"],["Additional Hour",r.addHour!=null?pdfMoney(r.addHour)+" / hour":"-"]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
 
  detailRows.forEach(([label,value])=>{
-  if(y>270){doc.addPage();y=18;}
+  if(y>272){doc.addPage();y=18;}
   doc.setTextColor(90);doc.text(label,15,y);
   doc.setTextColor(0);doc.text(String(value),195,y,{align:"right"});
-  y+=6;
+  y+=5;
  });
 
- y+=2;
- doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=6;doc.setFont(undefined,"normal");
+ y+=1;
+ doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=5;doc.setFont(undefined,"normal");
  const routeLine=[q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
  const routeWrapped=doc.splitTextToSize(routeLine,180);
- doc.text(routeWrapped,15,y);y+=routeWrapped.length*5+4;
+ doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
 
  y=pdfDivider(doc,y);
- doc.setFont(undefined,"bold");doc.text("Fare Details",15,y);y+=7;doc.setFont(undefined,"normal");
- y=pdfRow(doc,y,"Standard Rate",pdfMoney(standardRaw.invalid?0:standardRaw.total));
- y=pdfRow(doc,y,"Selected / Agreed Rate",pdfMoney(r.subtotal));
+ doc.setFont(undefined,"bold");doc.text("Fare Details",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Standard Rate (for comparison)",pdfMoney(standardRaw.invalid?0:standardRaw.total));
+ y=pdfRow(doc,y,"Base Rate (Selected / Agreed Plan)",pdfMoney(r.base));
+ if(r.incKm!=null){
+  y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  y=pdfRow(doc,y,"Actual Usage",km+" KM / "+h+" hrs");
+  y=pdfRow(doc,y,"Additional KM Charge ("+pdfMoney(r.addKm)+"/KM)",pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Additional Hour Charge ("+pdfMoney(r.addHour)+"/hr)",pdfMoney(r.hourExtra||0));
+  y=pdfRow(doc,y,"Applicable Additional Charge (higher of the two)",pdfMoney(r.extra||0),true);
+ }
  if(saving>0) y=pdfRow(doc,y,"Customer Saving vs Standard","- "+pdfMoney(saving));
+ y=pdfRow(doc,y,"Subtotal (Base + Additional)",pdfMoney(r.subtotal));
  if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
- y+=4;
+ y+=3;
 
- if(y>230){doc.addPage();y=18;}
- const boxTop=y, boxHeight=42;
+ const boxHeight=38;
+ if(y+boxHeight+18>282){doc.addPage();y=18;}
+ const boxTop=y;
  doc.setFillColor(255,248,232);
  doc.rect(15,boxTop,180,boxHeight,"F");
  doc.setDrawColor(210,180,120);doc.rect(15,boxTop,180,boxHeight);doc.setDrawColor(210);
- doc.setFont(undefined,"bold");doc.setFontSize(10);
- doc.text("PAYMENT INFORMATION",20,boxTop+8);
- doc.setFont(undefined,"normal");doc.setFontSize(9);
- doc.text("Final Bill Amount",20,boxTop+16);
- doc.text(pdfMoney(r.final),20,boxTop+22);
- doc.text("Balance Due",20,boxTop+30);
+ doc.setFont(undefined,"bold");doc.setFontSize(9.5);
+ doc.text("PAYMENT INFORMATION",20,boxTop+7);
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);
+ doc.text("Final Bill Amount",20,boxTop+14);
+ doc.text(pdfMoney(r.final),20,boxTop+19.5);
+ doc.text("Balance Due",20,boxTop+27);
  doc.setFont(undefined,"bold");
- doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+36);
+ doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+32.5);
  doc.setFont(undefined,"normal");
 
  if(balance>0&&db.business.upiId){
   const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
   if(qrData){
-   doc.setFontSize(8);doc.text("SCAN & PAY",170,boxTop+7,{align:"center"});
-   doc.addImage(qrData,"PNG",150,boxTop+9,40,40);
+   doc.setFontSize(7.5);doc.text("SCAN & PAY",170,boxTop+6,{align:"center"});
+   doc.addImage(qrData,"PNG",151,boxTop+8,36,36);
   }
  }
- y=boxTop+boxHeight+8;
+ y=boxTop+boxHeight+6;
 
  if((t.payments||[]).length){
-  if(y>260){doc.addPage();y=18;}
-  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=7;doc.setFont(undefined,"normal");
+  if(y>265){doc.addPage();y=18;}
+  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=6;doc.setFont(undefined,"normal");
   t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
   y=pdfRow(doc,y,"Total Paid",pdfMoney(paid),true);
-  y+=4;
+  y+=3;
  }
 
- if(y>270){doc.addPage();y=18;}
+ if(y>276){doc.addPage();y=18;}
  doc.setFontSize(8);doc.setTextColor(120);
  doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
  doc.setTextColor(0);
@@ -703,14 +721,15 @@ function printBill(tripId){
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
+ const billDate=billPrintDate();
 
  let qrHtml="";
  if(balance>0&&db.business.upiId){
   const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
-  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:150px;height:150px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
  }
 
- const row=(label,value)=>`<tr><td style="padding:3px 0;color:#555">${esc(label)}</td><td style="padding:3px 0;text-align:right">${esc(value)}</td></tr>`;
+ const row=(label,value,bold)=>`<tr><td style="padding:2px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${esc(value)}</td></tr>`;
 
  let detailRows="";
  detailRows+=row("Customer",t.customer||q.customer);
@@ -725,41 +744,53 @@ function printBill(tripId){
  detailRows+=row("Pickup Point",q.pickup||"-");
  detailRows+=row("Destination",dests[dests.length-1]||"-");
  detailRows+=row("Return / Closing Point",q.returnPoint||"-");
- detailRows+=row("Included Coverage",r.incKm!=null?(r.incKm+" KM / "+r.incHours+" hrs"):"-");
+
+ let fareRows="";
+ fareRows+=row("Standard Rate (for comparison)",money(standardRaw.invalid?0:standardRaw.total));
+ fareRows+=row("Base Rate (Selected / Agreed Plan)",money(r.base));
+ if(r.incKm!=null){
+  fareRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  fareRows+=row("Actual Usage",km+" KM / "+h+" hrs");
+  fareRows+=row("Additional KM Charge ("+money(r.addKm)+"/KM)",money(r.kmExtra||0));
+  fareRows+=row("Additional Hour Charge ("+money(r.addHour)+"/hr)",money(r.hourExtra||0));
+  fareRows+=row("Applicable Additional Charge (higher of the two)",money(r.extra||0),true);
+ }
+ if(saving>0) fareRows+=row("Customer Saving vs Standard","- "+money(saving));
+ fareRows+=row("Subtotal (Base + Additional)",money(r.subtotal));
+ if(r.discountAmount) fareRows+=row("Discount","- "+money(r.discountAmount));
+ if(r.roundAdjustment) fareRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  printContent("Bill "+(q.no||""),`
- <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:8px">
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
   <div style="display:flex;align-items:center;gap:8px">
-   <img src="${LOGO_DATA_URI}" style="width:30px;height:30px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
    <div>
-    <div style="font-weight:bold;color:#444;font-size:14px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
-    ${db.platform.tagline?`<div style="color:#888;font-size:11px">${esc(db.platform.tagline)}</div>`:""}
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
    </div>
   </div>
-  <div style="color:#888;font-size:11px;text-align:right">${platformPhones}</div>
+  <div style="color:#444;font-weight:bold;font-size:11px;text-align:right">${platformPhones}</div>
  </div>
- <div style="background:#e8f5f4;border:1px solid #148c76;border-radius:8px;padding:14px;text-align:center;margin:14px 0">
-  <div style="font-weight:bold;font-size:20px;color:#0f5a55">${esc(db.business.name)}</div>
-  ${db.business.tagline?`<div style="color:#555;font-size:13px">${esc(db.business.tagline)}</div>`:""}
-  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
-  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+ <div style="background:#e8f5f4;border:1px solid #148c76;border-radius:8px;padding:10px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:11px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:3px">Contact: ${partnerPhones}</div>`:""}
  </div>
- <h3 style="text-align:center;color:#143c5a">FINAL TRIP BILL</h3>
- <table style="width:100%;border-collapse:collapse;font-size:13px">${detailRows}</table>
- <p style="margin-top:10px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
+ <div style="display:flex;justify-content:space-between;align-items:baseline">
+  <h3 style="color:#143c5a;margin:4px 0">FINAL TRIP BILL</h3>
+  <span style="color:#888;font-size:11px">Bill printed on: ${esc(billDate)}</span>
+ </div>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${detailRows}</table>
+ <p style="margin-top:8px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
  <hr>
- <h3>Fare Details</h3>
- <table style="width:100%;border-collapse:collapse;font-size:13px">
-  ${row("Standard Rate",money(standardRaw.invalid?0:standardRaw.total))}
-  ${row("Selected / Agreed Rate",money(r.subtotal))}
-  ${saving>0?row("Customer Saving vs Standard","- "+money(saving)):""}
-  ${r.discountAmount?row("Discount","- "+money(r.discountAmount)):""}
-  ${r.roundAdjustment?row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment)):""}
- </table>
- <h2 style="text-align:right">FINAL BILL AMOUNT: ${money(r.final)}</h2>
- <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+ <h3 style="margin:6px 0">Fare Details</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${fareRows}</table>
+ <h2 style="text-align:right;margin:8px 0">FINAL BILL AMOUNT: ${money(r.final)}</h2>
+ <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
   <div>
    <b>PAYMENT INFORMATION</b><br>
    Final Bill Amount: ${money(r.final)}<br>
@@ -767,8 +798,8 @@ function printBill(tripId){
   </div>
   ${qrHtml}
  </div>
- ${(t.payments||[]).length?`<h3>Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid))}</table>`:""}
- <p style="text-align:center;color:#888;font-size:12px;margin-top:16px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ ${(t.payments||[]).length?`<h3 style="margin:8px 0 4px">Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:12.5px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ <p style="text-align:center;color:#888;font-size:11px;margin-top:12px">Thank you for travelling with ${esc(db.business.name)}.</p>
  `);
 }
 
@@ -899,36 +930,50 @@ function addDriver(){db.drivers.push({name:dName.value,mobile:dMobile.value,vehi
 function accounts(){const income=db.bills.reduce((a,b)=>a+b.amount,0),expense=db.expenses.reduce((a,e)=>a+e.amount,0);app().innerHTML=card("Accounts",`<div class="grid"><div class="metric">Recorded billing<b>${money(income)}</b></div><div class="metric">Expenses<b>${money(expense)}</b></div><div class="metric">Net before other adjustments<b>${money(income-expense)}</b></div></div><p class="muted">This is the foundation. GST, tax reports, driver payments, fuel, toll, parking and profit reports will use the same ledger.</p><div class="grid"><label>Expense category<input id="exCat"></label><label>Description<input id="exDesc"></label><label>Amount<input id="exAmt" type="number"></label></div><button class="primary" onclick="addExpense()">Add expense</button>`)}
 function addExpense(){db.expenses.push({category:exCat.value,description:exDesc.value,amount:+exAmt.value||0,created:new Date().toISOString()});save();toast("Expense recorded");accounts()}
 
-function admin(){app().innerHTML=card("Admin / Business Settings",`<p class="muted">Password-protected — changes save instantly for this device, and appear on every quotation and bill.</p>
- <h3>Travel Connect (platform contact — shown at the top of every bill)</h3>
- <div class="grid">
-  <label>Platform name<input id="pName" value="${esc(db.platform.name)}"></label>
-  <label>Platform tagline<input id="pTagline" value="${esc(db.platform.tagline)}"></label>
-  <label>Contact number 1<input id="pPhone1" value="${esc(db.platform.phone1)}"></label>
-  <label>Contact number 2<input id="pPhone2" value="${esc(db.platform.phone2)}"></label>
+function admin(){app().innerHTML=card("Admin / Business Settings",`
+ <div class="card" style="background:#f5fbfa">
+  <h3>Your Travel Business Profile</h3>
+  <p class="muted">No password needed — every travel partner using this app enters their own details here. This is what customers see highlighted on every bill, and where your own UPI ID goes for payment QR codes.</p>
+  <div class="grid">
+   <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}"></label>
+   <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}"></label>
+   <label>Address<input id="bAddress" value="${esc(db.business.address)}"></label>
+   <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}"></label>
+   <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}"></label>
+   <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}"></label>
+   <label>UPI ID (for payment QR)<input id="bUpi" value="${esc(db.business.upiId)}"></label>
+   <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}"></label>
+  </div>
+  <button class="primary" onclick="saveBusinessProfile()">Save business profile</button>
  </div>
  <hr>
- <h3>Travel Partner (your business — highlighted on every bill)</h3>
- <div class="grid">
-  <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}"></label>
-  <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}"></label>
-  <label>Address<input id="bAddress" value="${esc(db.business.address)}"></label>
-  <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}"></label>
-  <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}"></label>
-  <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}"></label>
-  <label>UPI ID<input id="bUpi" value="${esc(db.business.upiId)}"></label>
-  <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}"></label>
+ <div class="card">
+  <h3>Travel Connect Platform Settings <span class="muted">(owner only — password protected)</span></h3>
+  <div class="grid">
+   <label>Platform name<input id="pName" value="${esc(db.platform.name)}"></label>
+   <label>Platform tagline<input id="pTagline" value="${esc(db.platform.tagline)}"></label>
+   <label>Contact number 1<input id="pPhone1" value="${esc(db.platform.phone1)}"></label>
+   <label>Contact number 2<input id="pPhone2" value="${esc(db.platform.phone2)}"></label>
+   <label>Support email<input id="pEmail" value="${esc(db.platform.email)}"></label>
+   <label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label>
+   <label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label>
+  </div>
+  <button class="primary" onclick="saveAdmin()">Save platform settings</button>
  </div>
- <hr>
- <h3>Local Trip rule</h3>
- <div class="grid"><label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label><label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label></div>
- <button class="primary" onclick="saveAdmin()">Save settings</button><hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`)}
+ <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`)}
+
+/* Business profile (name/address/UPI etc.) is deliberately NOT password-gated — every
+   travel partner using this app needs to be able to enter their own details and UPI ID
+   without knowing the owner's rate-editing password. */
+function saveBusinessProfile(){
+ Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
+ save();toast("Business profile saved");admin();
+}
 function saveAdmin(){ requireAdmin(doSaveAdmin); }
 function doSaveAdmin(){
- Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,phone1:pPhone1.value,phone2:pPhone2.value});
- Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
+ Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
  db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
- save();toast("Settings saved");admin();
+ save();toast("Platform settings saved");admin();
 }
 
 function network(){app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
