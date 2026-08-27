@@ -9,8 +9,8 @@ function rateBlock(rate,incKm,incHours,addKm,addHour){
 }
 
 const defaults={
- platform:{name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"},
- business:{name:"Krishna Tours & Travels",tagline:"Your Best Travel Partner",address:"",phone:"",phone2:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
+ platform:{name:"Travel Connect",tagline:"Travel & Trip Management Platform",address:"",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"},
+ business:{name:"Krishna Tours & Travels",tagline:"Your Best Travel Partner",address:"",officeLocation:"",phone:"",phone2:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
  categories:[
   {name:"Mini / Hatchback",
    standard:rateBlock(2200,80,8,18,220), competitive:rateBlock(1900,80,8,18,220),
@@ -49,7 +49,7 @@ const defaults={
    standard:rateBlock(16000,80,8,70,900), competitive:rateBlock(14800,80,8,70,900),
    safety:rateBlock(15400,80,8,70,900),  local:rateBlock(12500,40,4,70,900)}
  ],
- settings:{localMaxKm:50,localMaxHours:5}
+ settings:{localMaxKm:50,localMaxHours:5,businessProfileLocked:true}
 };
 
 let db=JSON.parse(localStorage.getItem(KEY)||"null")||{...defaults,vehicles:[],drivers:[],customers:[],enquiries:[],quotes:[],trips:[],bills:[],expenses:[]};
@@ -79,6 +79,9 @@ function migrate(){
  if(db.business.phone2===undefined){db.business.phone2="";changed=true;}
  if(!db.platform){db.platform={name:"Travel Connect",tagline:"Travel & Trip Management Platform",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"};changed=true;}
  if(db.platform&&db.platform.email===undefined){db.platform.email="travelconnect.business@gmail.com";changed=true;}
+ if(db.platform&&db.platform.address===undefined){db.platform.address="";changed=true;}
+ if(db.settings.businessProfileLocked===undefined){db.settings.businessProfileLocked=true;changed=true;}
+ if(db.business.officeLocation===undefined){db.business.officeLocation="";changed=true;}
  if(changed) save();
 }
 
@@ -197,8 +200,9 @@ function quoteForm(){
   <button type="button" onclick="openRoute()">🗺️ Open route in Google Maps</button>
  </div>
  <div class="grid">
- <label>Return / closing point<input id="qReturn"></label>
+ <label>Return / closing point<input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
  <label>Estimated KM<input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
+ <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
@@ -242,6 +246,15 @@ function collectDestinations(){
  const rest=Array.from(document.querySelectorAll(".stop-input")).map(i=>i.value);
  return [first,...rest].map(v=>v.trim()).filter(Boolean);
 }
+/* One tap to turn a one-way distance into a round-trip distance — handy for Drop
+   trips, where the vehicle still has to drive back empty. */
+function doubleKm(){
+ const current=+qKm.value||0;
+ if(current<=0){toast("Enter the one-way KM first");return}
+ qKm.value=current*2;
+ toast("KM doubled to "+qKm.value+" (up & down)");
+ handleLocalCheck();calcQuote();
+}
 function openRoute(){
  const origin=qPickup.value, stops=collectDestinations();
  if(!origin||!stops.length){toast("Enter pickup and at least one destination first");return}
@@ -258,11 +271,7 @@ function handleTripTypeChange(){
  if(type==="local"){
   qRate.value="local";
  }else if(type==="drop"){
-  qRate.value="custom";
-  if(qCustom.dataset.auto!=="0"||!qCustom.value){
-   qCustom.value=c.safety.rate;
-   qCustom.dataset.auto="1";
-  }
+  if(qRate.value==="local"||qRate.value==="custom") qRate.value="safety";
  }else if(qRate.value==="local"){
   qRate.value="competitive";
  }
@@ -403,7 +412,35 @@ function billFinalAmount(t,q,c){
  const r=calcFare(c,q.ratePlan,km,h);
  const subtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
  const dr=applyDiscountRound(subtotal,q.discountType||"none",q.discountValue||0,q.roundOff||0);
- return {...r,subtotal,...dr};
+ const adjAmount=(t.adjustment&&Number(t.adjustment.amount))||0;
+ const finalAdjusted=Math.max(0,dr.final+adjAmount);
+ return {...r,subtotal,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||""};
+}
+
+/* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
+   mistake discovered later, or a goodwill adjustment — without reopening the quotation or
+   category rates. Stored on the trip, applied on top of the normal calculation everywhere
+   (screen, PDF, print) so it always stays visible and reversible. */
+function openAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ const adj=t.adjustment||{amount:0,note:""};
+ modal(`<h2>Adjust Final Bill Amount</h2>
+  <p class="muted">This adds to (or subtracts from) the automatically calculated amount — it does not replace the calculation. Use a negative number to reduce the bill.</p>
+  <label>Adjustment amount (e.g. -1000 or 250)<input id="adjAmt" type="number" value="${adj.amount||0}"></label>
+  <label>Reason / note<input id="adjNote" value="${esc(adj.note||"")}" placeholder="e.g. Corrected rate sheet mistake"></label>
+  <div class="actions"><button class="primary" onclick="saveAdjustBill('${tripId}')">Apply Adjustment</button>${adj.amount?`<button onclick="clearAdjustBill('${tripId}')">Remove Adjustment</button>`:""}</div>`);
+}
+function saveAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ const amt=+document.querySelector("#adjAmt").value||0;
+ const note=document.querySelector("#adjNote").value;
+ t.adjustment=amt?{amount:amt,note}:null;
+ save();closeModal();toast("Bill amount adjusted");loadBill();
+}
+function clearAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ t.adjustment=null;
+ save();closeModal();toast("Adjustment removed");loadBill();
 }
 
 function loadBill(){
@@ -414,11 +451,12 @@ function loadBill(){
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
  const balance=Math.max(0,final-paid);
  billBox.innerHTML=`<div class="ratebox">
-  <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates)</button></div>
+  <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates)</button><button onclick="openAdjustBill('${t.id}')">Adjust Final Bill Amount</button></div>
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours • Additional KM: ${money(r.addKm)}/KM • Additional Hour: ${money(r.addHour)}/hour</div>`:""}
   <div>Subtotal: ${money(r.subtotal)}</div>
   ${r.discountAmount?`<div>Discount: -${money(r.discountAmount)}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
+  ${r.manualAdjustment?`<div>Manual adjustment: ${r.manualAdjustment>=0?"+":""}${money(r.manualAdjustment)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   <div class="total">FINAL BILL: ${money(final)}</div>
   ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
   <div><b>Total paid: ${money(paid)}</b></div>
@@ -646,6 +684,7 @@ function downloadBillPDF(tripId){
  y=pdfRow(doc,y,"Subtotal (Base + Additional)",pdfMoney(r.subtotal));
  if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ if(r.manualAdjustment) y=pdfRow(doc,y,"Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+pdfMoney(r.manualAdjustment));
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
  y+=3;
@@ -759,6 +798,7 @@ function printBill(tripId){
  fareRows+=row("Subtotal (Base + Additional)",money(r.subtotal));
  if(r.discountAmount) fareRows+=row("Discount","- "+money(r.discountAmount));
  if(r.roundAdjustment) fareRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+ if(r.manualAdjustment) fareRows+=row("Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+money(r.manualAdjustment));
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
@@ -930,28 +970,38 @@ function addDriver(){db.drivers.push({name:dName.value,mobile:dMobile.value,vehi
 function accounts(){const income=db.bills.reduce((a,b)=>a+b.amount,0),expense=db.expenses.reduce((a,e)=>a+e.amount,0);app().innerHTML=card("Accounts",`<div class="grid"><div class="metric">Recorded billing<b>${money(income)}</b></div><div class="metric">Expenses<b>${money(expense)}</b></div><div class="metric">Net before other adjustments<b>${money(income-expense)}</b></div></div><p class="muted">This is the foundation. GST, tax reports, driver payments, fuel, toll, parking and profit reports will use the same ledger.</p><div class="grid"><label>Expense category<input id="exCat"></label><label>Description<input id="exDesc"></label><label>Amount<input id="exAmt" type="number"></label></div><button class="primary" onclick="addExpense()">Add expense</button>`)}
 function addExpense(){db.expenses.push({category:exCat.value,description:exDesc.value,amount:+exAmt.value||0,created:new Date().toISOString()});save();toast("Expense recorded");accounts()}
 
-function admin(){app().innerHTML=card("Admin / Business Settings",`
- <div class="card" style="background:#f5fbfa">
+function admin(){
+ const locked=db.settings.businessProfileLocked;
+ app().innerHTML=card("Admin / Business Settings",`
+ <div class="card" style="background:${locked?"#f5f5f5":"#f5fbfa"}">
   <h3>Your Travel Business Profile</h3>
-  <p class="muted">No password needed — every travel partner using this app enters their own details here. This is what customers see highlighted on every bill, and where your own UPI ID goes for payment QR codes.</p>
-  <div class="grid">
-   <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}"></label>
-   <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}"></label>
-   <label>Address<input id="bAddress" value="${esc(db.business.address)}"></label>
-   <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}"></label>
-   <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}"></label>
-   <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}"></label>
-   <label>UPI ID (for payment QR)<input id="bUpi" value="${esc(db.business.upiId)}"></label>
-   <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}"></label>
+  ${locked?`
+   <div class="notice">🔒 <b>Locked.</b> The app owner must unlock this section (with the password) before a travel partner's name, contact numbers, or UPI ID can be entered or changed.</div>
+   <button onclick="unlockBusinessProfile()">Unlock (password required)</button>
+  `:`
+   <div class="ok">🔓 <b>Unlocked</b> — this section can currently be edited without a password. Lock it again once the details are set.</div>
+   <button onclick="lockBusinessProfile()">Lock now</button>
+  `}
+  <div class="grid" style="margin-top:8px">
+   <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}" ${locked?"disabled":""}></label>
+   <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}" ${locked?"disabled":""}></label>
+   <label>Address<input id="bAddress" value="${esc(db.business.address)}" ${locked?"disabled":""}></label>
+   <label>Office location (used to auto-fill "Return point" on new quotations)<input id="bOffice" value="${esc(db.business.officeLocation)}" ${locked?"disabled":""}></label>
+   <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}" ${locked?"disabled":""}></label>
+   <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}" ${locked?"disabled":""}></label>
+   <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}" ${locked?"disabled":""}></label>
+   <label>UPI ID (for payment QR)<input id="bUpi" value="${esc(db.business.upiId)}" ${locked?"disabled":""}></label>
+   <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}" ${locked?"disabled":""}></label>
   </div>
-  <button class="primary" onclick="saveBusinessProfile()">Save business profile</button>
+  <button class="primary" onclick="saveBusinessProfile()" ${locked?"disabled":""}>Save business profile</button>
  </div>
  <hr>
  <div class="card">
-  <h3>Travel Connect Platform Settings <span class="muted">(owner only — password protected)</span></h3>
+  <h3>Travel Connect Platform Settings <span class="muted">(owner only — always password protected)</span></h3>
   <div class="grid">
    <label>Platform name<input id="pName" value="${esc(db.platform.name)}"></label>
    <label>Platform tagline<input id="pTagline" value="${esc(db.platform.tagline)}"></label>
+   <label>Platform address<input id="pAddress" value="${esc(db.platform.address)}"></label>
    <label>Contact number 1<input id="pPhone1" value="${esc(db.platform.phone1)}"></label>
    <label>Contact number 2<input id="pPhone2" value="${esc(db.platform.phone2)}"></label>
    <label>Support email<input id="pEmail" value="${esc(db.platform.email)}"></label>
@@ -960,18 +1010,24 @@ function admin(){app().innerHTML=card("Admin / Business Settings",`
   </div>
   <button class="primary" onclick="saveAdmin()">Save platform settings</button>
  </div>
- <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`)}
+ <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`);
+}
 
-/* Business profile (name/address/UPI etc.) is deliberately NOT password-gated — every
-   travel partner using this app needs to be able to enter their own details and UPI ID
-   without knowing the owner's rate-editing password. */
+/* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
+   unlocks it with the password — once unlocked, it can be filled in without re-entering the
+   password each time, until locked again. Vehicle categories & rates remain separately
+   password-gated at all times (via requireAdmin in editCat/addCat), regardless of this toggle. */
+function unlockBusinessProfile(){ requireAdmin(()=>{ db.settings.businessProfileLocked=false; save(); toast("Business profile unlocked"); admin(); }); }
+function lockBusinessProfile(){ db.settings.businessProfileLocked=true; save(); toast("Business profile locked"); admin(); }
+
 function saveBusinessProfile(){
- Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
+ if(db.settings.businessProfileLocked){ toast("Unlock this section first (password required)"); return; }
+ Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,officeLocation:bOffice.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
  save();toast("Business profile saved");admin();
 }
 function saveAdmin(){ requireAdmin(doSaveAdmin); }
 function doSaveAdmin(){
- Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
+ Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,address:pAddress.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
  db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
  save();toast("Platform settings saved");admin();
 }
