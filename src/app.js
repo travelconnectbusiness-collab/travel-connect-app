@@ -14,42 +14,119 @@ const defaults={
  categories:[
   {name:"Mini / Hatchback",
    standard:rateBlock(2200,80,8,18,220), competitive:rateBlock(1900,80,8,18,220),
-   safety:rateBlock(2050,80,8,18,220),   local:rateBlock(1500,40,4,18,220)},
+   safety:rateBlock(2050,80,8,18,220),   local:rateBlock(1500,40,4,20,220),
+   drop:rateBlock(1500,40,4,20,220)},
   {name:"Sedan",
    standard:rateBlock(2500,80,8,21,250), competitive:rateBlock(2200,80,8,21,250),
-   safety:rateBlock(2350,80,8,21,250),   local:rateBlock(1700,40,4,21,250)},
+   safety:rateBlock(2350,80,8,21,250),   local:rateBlock(1700,40,4,21,250),
+   drop:rateBlock(1700,40,4,21,250)},
   {name:"Taxi Jeep / Off-road",
    standard:rateBlock(2800,80,8,22,250), competitive:rateBlock(2400,80,8,22,250),
-   safety:rateBlock(2600,80,8,22,250),   local:rateBlock(1900,40,4,22,250)},
+   safety:rateBlock(2600,80,8,22,250),   local:rateBlock(1900,40,4,22,250),
+   drop:rateBlock(1900,40,4,22,250)},
   {name:"Standard MUV",
    standard:rateBlock(3000,80,8,22,300), competitive:rateBlock(2600,80,8,22,300),
-   safety:rateBlock(2800,80,8,22,300),   local:rateBlock(2100,40,4,22,300)},
+   safety:rateBlock(2800,80,8,22,300),   local:rateBlock(2100,40,4,22,300),
+   drop:rateBlock(2100,40,4,22,300)},
   {name:"Premium MUV",
    standard:rateBlock(3200,80,8,24,300), competitive:rateBlock(2800,80,8,24,300),
-   safety:rateBlock(3000,80,8,24,300),   local:rateBlock(2300,40,4,24,300)},
-  {name:"Innova Crysta / Innova Hycross",
-   standard:rateBlock(3800,80,8,26,350), competitive:rateBlock(3400,80,8,26,350),
-   safety:rateBlock(3600,80,8,26,350),   local:rateBlock(2800,40,4,26,350)},
+   safety:rateBlock(3000,80,8,24,300),   local:rateBlock(2300,40,4,24,300),
+   drop:rateBlock(2300,40,4,24,300)},
   {name:"Compact SUV",
    standard:rateBlock(3300,80,8,24,300), competitive:rateBlock(2900,80,8,24,300),
-   safety:rateBlock(3100,80,8,24,300),   local:rateBlock(2500,40,4,24,300)},
+   safety:rateBlock(3100,80,8,24,300),   local:rateBlock(2500,40,4,24,300),
+   drop:rateBlock(2500,40,4,24,300)},
   {name:"Premium SUV",
    standard:rateBlock(4800,80,8,30,400), competitive:rateBlock(4300,80,8,30,400),
-   safety:rateBlock(4550,80,8,30,400),   local:rateBlock(3600,40,4,30,400)},
-  {name:"Traveller / Urbania (12-17 seater)",
-   standard:rateBlock(6500,80,8,35,450), competitive:rateBlock(5800,80,8,35,450),
-   safety:rateBlock(6100,80,8,35,450),   local:rateBlock(4800,40,4,35,450)},
-  {name:"Mini Bus (20-25 seater)",
-   standard:rateBlock(9000,80,8,45,600), competitive:rateBlock(8200,80,8,45,600),
-   safety:rateBlock(8600,80,8,45,600),   local:rateBlock(6800,40,4,45,600)},
-  {name:"Bus (32-40 seater)",
-   standard:rateBlock(13000,80,8,60,800), competitive:rateBlock(12000,80,8,60,800),
-   safety:rateBlock(12500,80,8,60,800),  local:rateBlock(10000,40,4,60,800)},
-  {name:"Bus (49 seater)",
-   standard:rateBlock(16000,80,8,70,900), competitive:rateBlock(14800,80,8,70,900),
-   safety:rateBlock(15400,80,8,70,900),  local:rateBlock(12500,40,4,70,900)}
+   safety:rateBlock(4550,80,8,30,400),   local:rateBlock(3600,40,4,30,400),
+   drop:rateBlock(3600,40,4,30,400)},
+  {name:"49 Seat A/C",
+   standard:rateBlock(14000,80,8,60,780), competitive:rateBlock(12600,80,8,60,780),
+   safety:rateBlock(13300,80,8,60,780),   drop:rateBlock(7700,10,1,60,780),
+   local:rateBlock(7700,10,1,60,780)},
+  {name:"49 Seat Non A/C",
+   standard:rateBlock(10500,80,8,50,650), competitive:rateBlock(9450,80,8,50,650),
+   safety:rateBlock(9980,80,8,50,650),   drop:rateBlock(5780,10,1,50,650),
+   local:rateBlock(5780,10,1,50,650)},
+  {name:"45 Seat Bharat Benz (F A/C)",
+   standard:rateBlock(16500,80,8,70,910), competitive:rateBlock(14850,80,8,70,910),
+   safety:rateBlock(15680,80,8,70,910),   drop:rateBlock(9080,10,1,70,910),
+   local:rateBlock(9080,10,1,70,910)},
+  {name:"35 Seat Bharat Benz",
+   standard:rateBlock(12500,80,8,50,650), competitive:rateBlock(11250,80,8,50,650),
+   safety:rateBlock(11880,80,8,50,650),   drop:rateBlock(6880,10,1,50,650),
+   local:rateBlock(6880,10,1,50,650)},
+  {name:"34 Seat A/C",
+   standard:rateBlock(12000,80,8,50,650), competitive:rateBlock(10800,80,8,50,650),
+   safety:rateBlock(11400,80,8,50,650),   drop:rateBlock(6600,10,1,50,650),
+   local:rateBlock(6600,10,1,50,650)},
+  {name:"34 Seat Non A/C",
+   standard:rateBlock(9000,80,8,40,520), competitive:rateBlock(8100,80,8,40,520),
+   safety:rateBlock(8550,80,8,40,520),   drop:rateBlock(4950,10,1,40,520),
+   local:rateBlock(4950,10,1,40,520)},
+  {name:"27 Seat A/C",
+   standard:rateBlock(9500,80,8,40,520), competitive:rateBlock(8550,80,8,40,520),
+   safety:rateBlock(9020,80,8,40,520),   drop:rateBlock(5220,10,1,40,520),
+   local:rateBlock(5220,10,1,40,520)},
+  {name:"27 Seat Non A/C",
+   standard:rateBlock(8000,80,8,35,460), competitive:rateBlock(7200,80,8,35,460),
+   safety:rateBlock(7600,80,8,35,460),   drop:rateBlock(4400,10,1,35,460),
+   local:rateBlock(4400,10,1,35,460)},
+  {name:"26 Seat A/C",
+   standard:rateBlock(8500,80,8,40,520), competitive:rateBlock(7650,80,8,40,520),
+   safety:rateBlock(8080,80,8,40,520),   drop:rateBlock(4680,10,1,40,520),
+   local:rateBlock(4680,10,1,40,520)},
+  {name:"26 Seat Non A/C",
+   standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
+   safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
+   local:rateBlock(4120,10,1,35,460)},
+  {name:"24 Seat A/C",
+   standard:rateBlock(8500,80,8,40,520), competitive:rateBlock(7650,80,8,40,520),
+   safety:rateBlock(8080,80,8,40,520),   drop:rateBlock(4680,10,1,40,520),
+   local:rateBlock(4680,10,1,40,520)},
+  {name:"24 Seat Non A/C",
+   standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
+   safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
+   local:rateBlock(4120,10,1,35,460)},
+  {name:"20 Seat A/C",
+   standard:rateBlock(7000,80,8,35,460), competitive:rateBlock(6300,80,8,35,460),
+   safety:rateBlock(6650,80,8,35,460),   drop:rateBlock(3850,10,1,35,460),
+   local:rateBlock(3850,10,1,35,460)},
+  {name:"20 Seat Non A/C",
+   standard:rateBlock(6000,80,8,30,390), competitive:rateBlock(5400,80,8,30,390),
+   safety:rateBlock(5700,80,8,30,390),   drop:rateBlock(3300,10,1,30,390),
+   local:rateBlock(3300,10,1,30,390)},
+  {name:"17 Seat Urbania",
+   standard:rateBlock(8000,80,8,40,520), competitive:rateBlock(7200,80,8,40,520),
+   safety:rateBlock(7600,80,8,40,520),   drop:rateBlock(4400,10,1,40,520),
+   local:rateBlock(4400,10,1,40,520)},
+  {name:"14 Seat Urbania",
+   standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
+   safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
+   local:rateBlock(4120,10,1,35,460)},
+  {name:"17 Seat A/C",
+   standard:rateBlock(6500,80,8,30,390), competitive:rateBlock(5850,80,8,30,390),
+   safety:rateBlock(6180,80,8,30,390),   drop:rateBlock(3580,10,1,30,390),
+   local:rateBlock(3580,10,1,30,390)},
+  {name:"17 Seat Non A/C",
+   standard:rateBlock(5500,80,8,27,350), competitive:rateBlock(4950,80,8,27,350),
+   safety:rateBlock(5220,80,8,27,350),   drop:rateBlock(3030,10,1,27,350),
+   local:rateBlock(3030,10,1,27,350)},
+  {name:"12 & 14 Seat A/C",
+   standard:rateBlock(6000,80,8,27,350), competitive:rateBlock(5400,80,8,27,350),
+   safety:rateBlock(5700,80,8,27,350),   drop:rateBlock(3300,10,1,27,350),
+   local:rateBlock(3300,10,1,27,350)},
+  {name:"12 & 14 Seat Non A/C",
+   standard:rateBlock(5000,80,8,25,320), competitive:rateBlock(4500,80,8,25,320),
+   safety:rateBlock(4750,80,8,25,320),   drop:rateBlock(2750,10,1,25,320),
+   local:rateBlock(2750,10,1,25,320)},
+  {name:"Innova / Crysta",
+   standard:rateBlock(3500,80,8,25,320), competitive:rateBlock(3150,80,8,25,320),
+   safety:rateBlock(3320,80,8,25,320),   drop:rateBlock(1930,10,1,25,320),
+   local:rateBlock(1930,10,1,25,320)}
  ],
- settings:{localMaxKm:50,localMaxHours:5,businessProfileLocked:true}
+ settings:{localMaxKm:50,localMaxHours:5,businessProfileLocked:true,
+  visibleRates:{standard:true,competitive:true,safety:true,drop:true,local:true,custom:true}}
 };
 
 let db=JSON.parse(localStorage.getItem(KEY)||"null")||{...defaults,vehicles:[],drivers:[],customers:[],enquiries:[],quotes:[],trips:[],bills:[],expenses:[]};
@@ -58,6 +135,10 @@ let db=JSON.parse(localStorage.getItem(KEY)||"null")||{...defaults,vehicles:[],d
 function migrate(){
  let changed=false;
  (db.categories||[]).forEach(c=>{
+  if(c.local&&!c.drop){
+   c.drop=rateBlock(c.local.rate,c.local.incKm,c.local.incHours,c.local.addKm,c.local.addHour);
+   changed=true;
+  }
   if(typeof c.standard==="number"){
    const incKm=c.incKm??80, incHours=c.incHours??8, addKm=c.addKm??0, addHour=c.addHour??0;
    const localIncKm=Math.min(incKm, db.settings?.localMaxKm||50);
@@ -81,6 +162,7 @@ function migrate(){
  if(db.platform&&db.platform.email===undefined){db.platform.email="travelconnect.business@gmail.com";changed=true;}
  if(db.platform&&db.platform.address===undefined){db.platform.address="";changed=true;}
  if(db.settings.businessProfileLocked===undefined){db.settings.businessProfileLocked=true;changed=true;}
+ if(!db.settings.visibleRates){db.settings.visibleRates={standard:true,competitive:true,safety:true,drop:true,local:true,custom:true};changed=true;}
  if(db.business.officeLocation===undefined){db.business.officeLocation="";changed=true;}
  if(changed) save();
 }
@@ -208,13 +290,7 @@ function quoteForm(){
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
  <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
- <label>Rate<select id="qRate">
-   <option value="standard">Standard Rate</option>
-   <option value="competitive" selected>Competitive Rate</option>
-   <option value="safety">Minimum Safety Rate</option>
-   <option value="local">Local Rate</option>
-   <option value="custom">Custom / Manual Amount</option>
- </select></label>
+ <label>Rate<select id="qRate">${rateOptions()}</select></label>
  <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
  <label>Discount type<select id="qDiscType">
    <option value="none">No discount</option>
@@ -232,6 +308,15 @@ function quoteForm(){
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
 }
 
+/* Only rate types the owner has switched ON appear here — this is what travel
+   partners/customers can actually see and pick when creating a quotation. */
+function rateOptions(){
+ const labels={standard:"Standard Rate",competitive:"Competitive Rate",safety:"Minimum Safety Rate",drop:"Drop Rate",local:"Local Rate",custom:"Custom / Manual Amount"};
+ const v=db.settings.visibleRates||{};
+ let opts=Object.keys(labels).filter(k=>v[k]!==false).map(k=>`<option value="${k}"${k==="competitive"?" selected":""}>${labels[k]}</option>`).join("");
+ if(!opts) opts=`<option value="custom">Custom / Manual Amount</option>`;
+ return opts;
+}
 function addStopField(value=""){
  const c=document.querySelector("#qStopsContainer");
  if(!c) return;
@@ -271,8 +356,8 @@ function handleTripTypeChange(){
  if(type==="local"){
   qRate.value="local";
  }else if(type==="drop"){
-  if(qRate.value==="local"||qRate.value==="custom") qRate.value="safety";
- }else if(qRate.value==="local"){
+  qRate.value="drop";
+ }else if(qRate.value==="local"||qRate.value==="drop"){
   qRate.value="competitive";
  }
  handleLocalCheck();
@@ -850,10 +935,11 @@ function master(){
   <td>${money(c.standard.rate)}</td>
   <td>${money(c.competitive.rate)}</td>
   <td>${money(c.safety.rate)}</td>
+  <td>${money(c.drop.rate)}</td>
   <td>${money(c.local.rate)}</td>
   <td><button onclick="editCat(${i})">Edit</button></td>
  </tr>`).join("");
- app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
+ app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
 }
 
 function rateFields(prefix,label,r){
@@ -886,6 +972,7 @@ function openEditCatModal(i){
   ${rateFields("ec_std","Standard Rate",c.standard)}
   ${rateFields("ec_comp","Competitive Rate",c.competitive)}
   ${rateFields("ec_saf","Minimum Safety Rate",c.safety)}
+  ${rateFields("ec_drop","Drop Rate (its own formula — no cliff, applies at any distance)",c.drop)}
   ${rateFields("ec_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",c.local)}
   <button class="primary" onclick="saveCat(${i})">Save Rate</button>`);
 }
@@ -895,6 +982,7 @@ function saveCat(i){
  c.standard=readRateFields("ec_std");
  c.competitive=readRateFields("ec_comp");
  c.safety=readRateFields("ec_saf");
+ c.drop=readRateFields("ec_drop");
  c.local=readRateFields("ec_loc");
  save();closeModal();master();toast("Rate updated");
 }
@@ -907,6 +995,7 @@ function openAddCatModal(){
   ${rateFields("nc_std","Standard Rate",blank)}
   ${rateFields("nc_comp","Competitive Rate",blank)}
   ${rateFields("nc_saf","Minimum Safety Rate",blank)}
+  ${rateFields("nc_drop","Drop Rate (its own formula — no cliff, applies at any distance)",blankLocal)}
   ${rateFields("nc_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",blankLocal)}
   <button class="primary" onclick="saveNewCat()">Add Category</button>`);
 }
@@ -916,6 +1005,7 @@ function saveNewCat(){
   standard:readRateFields("nc_std"),
   competitive:readRateFields("nc_comp"),
   safety:readRateFields("nc_saf"),
+  drop:readRateFields("nc_drop"),
   local:readRateFields("nc_loc")
  };
  db.categories.push(c);save();closeModal();master();toast("Category added");
@@ -1008,6 +1098,11 @@ function admin(){
    <label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label>
    <label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label>
   </div>
+  <h4>Rate types visible to travel partners / customers</h4>
+  <p class="muted">Switch off any rate type you don't want offered right now — it disappears from the "Rate" choice on every quotation, without deleting its numbers.</p>
+  <div class="grid">
+   ${(()=>{const labels={standard:"Standard Rate",competitive:"Competitive Rate",safety:"Minimum Safety Rate",drop:"Drop Rate",local:"Local Rate",custom:"Custom / Manual Amount"};const v=db.settings.visibleRates||{};return Object.keys(labels).map(k=>`<label><input type="checkbox" id="vis_${k}" ${v[k]!==false?"checked":""}> ${labels[k]}</label>`).join("");})()}
+  </div>
   <button class="primary" onclick="saveAdmin()">Save platform settings</button>
  </div>
  <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`);
@@ -1028,6 +1123,10 @@ function saveBusinessProfile(){
 function saveAdmin(){ requireAdmin(doSaveAdmin); }
 function doSaveAdmin(){
  Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,address:pAddress.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
+ ["standard","competitive","safety","drop","local","custom"].forEach(k=>{
+  const el=document.querySelector("#vis_"+k);
+  if(el) db.settings.visibleRates[k]=el.checked;
+ });
  db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
  save();toast("Platform settings saved");admin();
 }
