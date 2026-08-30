@@ -576,21 +576,58 @@ function clearAdjustBill(tripId){
  save();closeModal();toast("Adjustment removed");loadBill();
 }
 
+/* Builds the 4-section bill breakdown (Usage / Standard-vs-Offer / Savings / Payment Summary)
+   shared by the on-screen view, the PDF, and the Print output — so all three always agree. */
+function billBreakdown(t,q,c){
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const standardRaw=calcFare(c,"standard",km,h);
+ const r=billFinalAmount(t,q,c);
+ const offerFareTotal=r.base+(r.extra||0);
+ const rateSaving=(!standardRaw.invalid)?Math.max(0,standardRaw.total-offerFareTotal):0;
+ const quoteDiscount=r.discountAmount||0;
+ const manualDiscount=r.manualAdjustment<0?-r.manualAdjustment:0;
+ const manualAddition=r.manualAdjustment>0?r.manualAdjustment:0;
+ const totalSavings=rateSaving+quoteDiscount+manualDiscount;
+ return {km,h,standardRaw,r,offerFareTotal,rateSaving,quoteDiscount,manualDiscount,manualAddition,totalSavings};
+}
+
 function loadBill(){
  const t=db.trips.find(x=>x.id===billTrip.value);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
- const r=billFinalAmount(t,q,c);
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
  const final=r.final;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
  const balance=Math.max(0,final-paid);
  billBox.innerHTML=`<div class="ratebox">
   <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates)</button><button onclick="openAdjustBill('${t.id}')">Adjust Final Bill Amount</button></div>
-  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours • Additional KM: ${money(r.addKm)}/KM • Additional Hour: ${money(r.addHour)}/hour</div>`:""}
-  <div>Subtotal: ${money(r.subtotal)}</div>
-  ${r.discountAmount?`<div>Discount: -${money(r.discountAmount)}</div>`:""}
+
+  <h3>1. Usage Details</h3>
+  <div>Total KM: <b>${km}</b> &nbsp; Total Hours: <b>${h}</b></div>
+  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
+  <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
+
+  <h3>2. Standard vs Offer Rate</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+   <tr style="color:#666"><td></td><td style="text-align:right;padding:2px 4px">Standard Rate</td><td style="text-align:right;padding:2px 4px">Offer Rate</td></tr>
+   <tr><td>Base Rate</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.base)}</td><td style="text-align:right;padding:2px 4px">${money(r.base)}</td></tr>
+   <tr><td>Additional Charge</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.extra)}</td><td style="text-align:right;padding:2px 4px">${money(r.extra||0)}</td></tr>
+   <tr style="border-top:1px solid #ccc;font-weight:bold"><td>Total</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.total)}</td><td style="text-align:right;padding:2px 4px">${money(r.base+(r.extra||0))}</td></tr>
+  </table>
+
+  ${totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
+   <div style="font-weight:bold;font-size:16px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+   <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div></div>`:""}
+
+  <h3>4. Final Payment Summary</h3>
+  <div>Base Rate: ${money(r.base)}</div>
+  <div>Additional Charge (higher of KM/Hour): ${money(r.extra||0)}</div>
+  ${r.driverBata?`<div>Driver Bata: ${money(r.driverBata)}</div>`:""}
+  ${manualDiscount?`<div>Manual Discount: -${money(manualDiscount)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
+  ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
-  ${r.manualAdjustment?`<div>Manual adjustment: ${r.manualAdjustment>=0?"+":""}${money(r.manualAdjustment)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
-  <div class="total">FINAL BILL: ${money(final)}</div>
+  <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
+
   ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
   <div><b>Total paid: ${money(paid)}</b></div>
   <div class="total">Balance due: ${money(balance)}</div>
@@ -734,13 +771,11 @@ function downloadQuotePDF(id){
 function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
- const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
- const standardRaw=calcFare(c,"standard",km,h);
- const r=billFinalAmount(t,q,c);
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
- const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
  const billDate=billPrintDate();
 
  const doc=pdfDoc();if(!doc)return;
@@ -802,23 +837,58 @@ function downloadBillPDF(tripId){
  const routeWrapped=doc.splitTextToSize(routeLine,180);
  doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
 
+ /* SECTION 1: Usage Details */
  y=pdfDivider(doc,y);
- doc.setFont(undefined,"bold");doc.text("Fare Details",15,y);y+=6;doc.setFont(undefined,"normal");
- y=pdfRow(doc,y,"Standard Rate (for comparison)",pdfMoney(standardRaw.invalid?0:standardRaw.total));
- y=pdfRow(doc,y,"Base Rate (Selected / Agreed Plan)",pdfMoney(r.base));
+ doc.setFont(undefined,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
  if(r.incKm!=null){
   y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
-  y=pdfRow(doc,y,"Actual Usage",km+" KM / "+h+" hrs");
-  y=pdfRow(doc,y,"Additional KM Charge ("+pdfMoney(r.addKm)+"/KM)",pdfMoney(r.kmExtra||0));
-  y=pdfRow(doc,y,"Additional Hour Charge ("+pdfMoney(r.addHour)+"/hr)",pdfMoney(r.hourExtra||0));
-  y=pdfRow(doc,y,"Applicable Additional Charge (higher of the two)",pdfMoney(r.extra||0),true);
+  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
  }
- if(saving>0) y=pdfRow(doc,y,"Customer Saving vs Standard","- "+pdfMoney(saving));
+
+ /* SECTION 2: Standard vs Offer Rate */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("2. Standard vs Offer Rate",15,y);y+=6;
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});
+ doc.setTextColor(0);doc.setFontSize(8.5);y+=5;
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ doc.setFont(undefined,"normal");
+ [["Base Rate",stdBase,offBase],["Additional Charge",stdExtra,offExtra]].forEach(([label,sv,ov])=>{
+  doc.text(label,15,y);doc.text(pdfMoney(sv),140,y,{align:"right"});doc.text(pdfMoney(ov),195,y,{align:"right"});y+=5;
+ });
+ doc.setFont(undefined,"bold");
+ doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
+ doc.setFont(undefined,"normal");
+
+ /* SECTION 3: Customer Savings (green highlight) */
+ if(totalSavings>0){
+  if(y+16+8>282){doc.addPage();y=18;}
+  doc.setFillColor(230,247,233);doc.rect(15,y,180,16,"F");
+  doc.setDrawColor(46,158,68);doc.rect(15,y,180,16);doc.setDrawColor(210);
+  doc.setTextColor(28,107,44);doc.setFont(undefined,"bold");doc.setFontSize(11);
+  doc.text("Your Total Savings: "+pdfMoney(totalSavings),20,y+7);
+  doc.setFont(undefined,"normal");doc.setFontSize(8);
+  let noteParts=[];
+  if(rateSaving) noteParts.push("Offer discount "+pdfMoney(rateSaving));
+  if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
+  if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
+  doc.setTextColor(0);
+  y+=20;
+ }
+
+ /* SECTION 4: Final Payment Summary */
+ y=pdfDivider(doc,y);
+ doc.setFontSize(8.5);
+ doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
+ y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
  if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
- y=pdfRow(doc,y,"Subtotal"+(r.driverBata?" (Base + Additional + Driver Bata)":" (Base + Additional)"),pdfMoney(r.subtotal));
- if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
+ if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
+ if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
- if(r.manualAdjustment) y=pdfRow(doc,y,"Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+pdfMoney(r.manualAdjustment));
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
  y+=3;
@@ -887,13 +957,11 @@ function printQuote(id){
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
- const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
- const standardRaw=calcFare(c,"standard",km,h);
- const r=billFinalAmount(t,q,c);
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
- const saving=(!standardRaw.invalid)?(standardRaw.total-r.subtotal):0;
  const billDate=billPrintDate();
 
  let qrHtml="";
@@ -918,22 +986,40 @@ function printBill(tripId){
  detailRows+=row("Destination",dests[dests.length-1]||"-");
  detailRows+=row("Return / Closing Point",q.returnPoint||"-");
 
- let fareRows="";
- fareRows+=row("Standard Rate (for comparison)",money(standardRaw.invalid?0:standardRaw.total));
- fareRows+=row("Base Rate (Selected / Agreed Plan)",money(r.base));
+ /* SECTION 1: Usage Details */
+ let usageRows="";
+ usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs");
  if(r.incKm!=null){
-  fareRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
-  fareRows+=row("Actual Usage",km+" KM / "+h+" hrs");
-  fareRows+=row("Additional KM Charge ("+money(r.addKm)+"/KM)",money(r.kmExtra||0));
-  fareRows+=row("Additional Hour Charge ("+money(r.addHour)+"/hr)",money(r.hourExtra||0));
-  fareRows+=row("Applicable Additional Charge (higher of the two)",money(r.extra||0),true);
+  usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
+  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+money(r.hourExtra||0));
  }
- if(saving>0) fareRows+=row("Customer Saving vs Standard","- "+money(saving));
- if(r.driverBata) fareRows+=row("Driver Bata",money(r.driverBata));
- fareRows+=row("Subtotal"+(r.driverBata?" (Base + Additional + Driver Bata)":" (Base + Additional)"),money(r.subtotal));
- if(r.discountAmount) fareRows+=row("Discount","- "+money(r.discountAmount));
- if(r.roundAdjustment) fareRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
- if(r.manualAdjustment) fareRows+=row("Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+money(r.manualAdjustment));
+
+ /* SECTION 2: Standard vs Offer Rate */
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:2px 0;font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(sv)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(ov)}</td></tr>`;
+ const compareTable=`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
+  <tr style="color:#888"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  ${cmpRow("Base Rate",stdBase,offBase)}
+  ${cmpRow("Additional Charge",stdExtra,offExtra)}
+  <tr style="border-top:1px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
+ </table>`;
+
+ /* SECTION 3: Savings highlight */
+ const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:17px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+  <div style="font-size:11px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
+ </div>`:"";
+
+ /* SECTION 4: Final Payment Summary */
+ let summaryRows="";
+ summaryRows+=row("Base Rate",money(r.base));
+ summaryRows+=row("Additional Charge (higher of KM/Hour)",money(r.extra||0));
+ if(r.driverBata) summaryRows+=row("Driver Bata",money(r.driverBata));
+ if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
+ if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
+ if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
@@ -962,8 +1048,13 @@ function printBill(tripId){
  <table style="width:100%;border-collapse:collapse;font-size:12.5px">${detailRows}</table>
  <p style="margin-top:8px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
  <hr>
- <h3 style="margin:6px 0">Fare Details</h3>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${fareRows}</table>
+ <h3 style="margin:6px 0">1. Usage Details</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${usageRows}</table>
+ <h3 style="margin:10px 0 4px">2. Standard vs Offer Rate</h3>
+ ${compareTable}
+ ${savingsHtml}
+ <h3 style="margin:10px 0 4px">4. Final Payment Summary</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${summaryRows}</table>
  <h2 style="text-align:right;margin:8px 0">FINAL BILL AMOUNT: ${money(r.final)}</h2>
  <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
   <div>
@@ -1188,13 +1279,4 @@ function doSaveAdmin(){
 
 function network(){app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
 function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
-function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:new Date().toISOString()};fetch("/api/network",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(p)}).catch(()=>{});toast("Network request submitted (not yet delivered to other devices — multi-user sync is a future phase)")}
-function sos(){getLocation();setTimeout(()=>{const msg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;navigator.share?.({title:"Travel Connect SOS",text:msg}).catch(()=>{});toast("SOS message prepared")},800)}
-
-function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
-function closeModal(){document.querySelector("#modal").classList.add("hidden")}
-
-window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}return false};
-
-migrate();
-render();
+function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:n
