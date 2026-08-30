@@ -1026,4 +1026,264 @@ function printBill(tripId){
   <div style="display:flex;align-items:center;gap:8px">
    <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
    <div>
-    <div style="font-weight:bold;color:#444;font-size:13px"
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:11px;text-align:right">${platformPhones}</div>
+ </div>
+ <div style="background:#e8f5f4;border:1px solid #148c76;border-radius:8px;padding:10px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:11px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:3px">Contact: ${partnerPhones}</div>`:""}
+ </div>
+ <div style="display:flex;justify-content:space-between;align-items:baseline">
+  <h3 style="color:#143c5a;margin:4px 0">FINAL TRIP BILL</h3>
+  <span style="color:#888;font-size:11px">Bill printed on: ${esc(billDate)}</span>
+ </div>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${detailRows}</table>
+ <p style="margin-top:8px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
+ <hr>
+ <h3 style="margin:6px 0">1. Usage Details</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${usageRows}</table>
+ <h3 style="margin:10px 0 4px">2. Standard vs Offer Rate</h3>
+ ${compareTable}
+ ${savingsHtml}
+ <h3 style="margin:10px 0 4px">4. Final Payment Summary</h3>
+ <table style="width:100%;border-collapse:collapse;font-size:12.5px">${summaryRows}</table>
+ <h2 style="text-align:right;margin:8px 0">FINAL BILL AMOUNT: ${money(r.final)}</h2>
+ <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div>
+   <b>PAYMENT INFORMATION</b><br>
+   Final Bill Amount: ${money(r.final)}<br>
+   Balance Due: <b>${balance>0?money(balance):"FULLY PAID"}</b>
+  </div>
+  ${qrHtml}
+ </div>
+ ${(t.payments||[]).length?`<h3 style="margin:8px 0 4px">Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:12.5px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ <p style="text-align:center;color:#888;font-size:11px;margin-top:12px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ `);
+}
+
+/* ---------- MASTER RATE TABLE (password protected) ---------- */
+function master(){
+ const rows=db.categories.map((c,i)=>`<tr>
+  <td>${esc(c.name)}</td>
+  <td>${c.driverBata?money(c.driverBata):"—"}</td>
+  <td>${money(c.standard.rate)}</td>
+  <td>${money(c.competitive.rate)}</td>
+  <td>${money(c.safety.rate)}</td>
+  <td>${money(c.drop.rate)}</td>
+  <td>${money(c.local.rate)}</td>
+  <td><button onclick="editCat(${i})">Edit</button></td>
+ </tr>`).join("");
+ app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Driver Bata</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
+}
+
+function rateFields(prefix,label,r){
+ return `<div class="card" style="margin:8px 0;background:#f5f8fa">
+  <h3 style="margin:0 0 8px">${label}</h3>
+  <div class="grid">
+   <label>Rate (₹)<input id="${prefix}_rate" type="number" value="${r.rate}"></label>
+   <label>Included KM<input id="${prefix}_incKm" type="number" value="${r.incKm}"></label>
+   <label>Included Hours<input id="${prefix}_incHours" type="number" value="${r.incHours}"></label>
+   <label>Additional KM charge (₹/KM)<input id="${prefix}_addKm" type="number" value="${r.addKm}"></label>
+   <label>Additional Hour charge (₹/hr)<input id="${prefix}_addHour" type="number" value="${r.addHour}"></label>
+  </div>
+ </div>`;
+}
+function readRateFields(prefix){
+ return rateBlock(
+  document.querySelector("#"+prefix+"_rate").value,
+  document.querySelector("#"+prefix+"_incKm").value,
+  document.querySelector("#"+prefix+"_incHours").value,
+  document.querySelector("#"+prefix+"_addKm").value,
+  document.querySelector("#"+prefix+"_addHour").value
+ );
+}
+
+function editCat(i){ requireAdmin(()=>openEditCatModal(i)); }
+function openEditCatModal(i){
+ const c=db.categories[i];
+ modal(`<h2>Edit Rate: ${esc(c.name)}</h2>
+  <label>Category name<input id="ec_name" value="${esc(c.name)}"></label>
+  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="ec_bata" type="number" value="${c.driverBata||0}"></label>
+  ${rateFields("ec_std","Standard Rate",c.standard)}
+  ${rateFields("ec_comp","Competitive Rate",c.competitive)}
+  ${rateFields("ec_saf","Minimum Safety Rate",c.safety)}
+  ${rateFields("ec_drop","Drop Rate (its own formula — no cliff, applies at any distance)",c.drop)}
+  ${rateFields("ec_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",c.local)}
+  <button class="primary" onclick="saveCat(${i})">Save Rate</button>`);
+}
+function saveCat(i){
+ const c=db.categories[i];
+ c.name=document.querySelector("#ec_name").value;
+ c.driverBata=+document.querySelector("#ec_bata").value||0;
+ c.standard=readRateFields("ec_std");
+ c.competitive=readRateFields("ec_comp");
+ c.safety=readRateFields("ec_saf");
+ c.drop=readRateFields("ec_drop");
+ c.local=readRateFields("ec_loc");
+ save();closeModal();master();toast("Rate updated");
+}
+
+function addCat(){ requireAdmin(openAddCatModal); }
+function openAddCatModal(){
+ const blank=rateBlock(0,80,8,0,0), blankLocal=rateBlock(0,40,4,0,0);
+ modal(`<h2>New Vehicle Category</h2>
+  <label>Category name<input id="nc_name"></label>
+  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="nc_bata" type="number" value="0"></label>
+  ${rateFields("nc_std","Standard Rate",blank)}
+  ${rateFields("nc_comp","Competitive Rate",blank)}
+  ${rateFields("nc_saf","Minimum Safety Rate",blank)}
+  ${rateFields("nc_drop","Drop Rate (its own formula — no cliff, applies at any distance)",blankLocal)}
+  ${rateFields("nc_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",blankLocal)}
+  <button class="primary" onclick="saveNewCat()">Add Category</button>`);
+}
+function saveNewCat(){
+ const c={
+  name:document.querySelector("#nc_name").value,
+  driverBata:+document.querySelector("#nc_bata").value||0,
+  standard:readRateFields("nc_std"),
+  competitive:readRateFields("nc_comp"),
+  safety:readRateFields("nc_saf"),
+  drop:readRateFields("nc_drop"),
+  local:readRateFields("nc_loc")
+ };
+ db.categories.push(c);save();closeModal();master();toast("Category added");
+}
+
+/* ---------- EXPORT / IMPORT RATE SHEET ----------
+   Lets the owner copy the current device's full rate table as text (e.g. via
+   WhatsApp/Notes) and paste it into "Import rate sheet" on any other device
+   running this app, so everyone ends up on the same rates without needing a
+   fresh code deployment. */
+function exportRates(){
+ const text=JSON.stringify(db.categories,null,2);
+ modal(`<h2>Export Rate Sheet</h2>
+  <p class="muted">Copy this text and share it (WhatsApp, Notes, email). On another device, open "Import rate sheet" and paste it there to apply the same rates.</p>
+  <textarea id="exportBox" rows="14" readonly>${esc(text)}</textarea>
+  <div class="actions"><button class="primary" onclick="copyExport()">Copy</button></div>`);
+}
+function copyExport(){
+ const box=document.querySelector("#exportBox");
+ box.focus();box.select();box.setSelectionRange(0,999999);
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+  navigator.clipboard.writeText(box.value).then(()=>toast("Copied — now paste it into WhatsApp or Notes")).catch(()=>toast("Text selected — use your keyboard's Copy option"));
+ }else{
+  toast("Text selected — use your keyboard's Copy option");
+ }
+}
+function importRates(){ requireAdmin(openImportModal); }
+function openImportModal(){
+ modal(`<h2>Import Rate Sheet</h2>
+  <p class="muted">Paste a rate sheet exported from another device. This replaces all vehicle categories and rates on THIS device.</p>
+  <textarea id="importBox" rows="14" placeholder="Paste the exported rate sheet text here"></textarea>
+  <div class="actions"><button class="primary" onclick="applyImport()">Apply</button></div>
+  <div id="impErr" class="danger"></div>`);
+}
+function applyImport(){
+ try{
+  const parsed=JSON.parse(document.querySelector("#importBox").value);
+  if(!Array.isArray(parsed)||!parsed.length||typeof parsed[0].standard!=="object") throw new Error("bad format");
+  db.categories=parsed;
+  save();
+  closeModal();
+  master();
+  toast("Rate sheet imported successfully");
+ }catch(e){
+  document.querySelector("#impErr").textContent="Could not read this text — make sure the entire exported text was pasted, unedited.";
+ }
+}
+
+function addVehicle(){db.vehicles.push({name:vName.value,no:vNo.value,cat:+vCat.value,seats:+vSeats.value||0});save();master();toast("Vehicle added")}
+function addDriver(){db.drivers.push({name:dName.value,mobile:dMobile.value,vehicle:+dVehicle.value});save();master();toast("Driver added")}
+
+function accounts(){const income=db.bills.reduce((a,b)=>a+b.amount,0),expense=db.expenses.reduce((a,e)=>a+e.amount,0);app().innerHTML=card("Accounts",`<div class="grid"><div class="metric">Recorded billing<b>${money(income)}</b></div><div class="metric">Expenses<b>${money(expense)}</b></div><div class="metric">Net before other adjustments<b>${money(income-expense)}</b></div></div><p class="muted">This is the foundation. GST, tax reports, driver payments, fuel, toll, parking and profit reports will use the same ledger.</p><div class="grid"><label>Expense category<input id="exCat"></label><label>Description<input id="exDesc"></label><label>Amount<input id="exAmt" type="number"></label></div><button class="primary" onclick="addExpense()">Add expense</button>`)}
+function addExpense(){db.expenses.push({category:exCat.value,description:exDesc.value,amount:+exAmt.value||0,created:new Date().toISOString()});save();toast("Expense recorded");accounts()}
+
+function admin(){
+ const locked=db.settings.businessProfileLocked;
+ app().innerHTML=card("Admin / Business Settings",`
+ <div class="card" style="background:${locked?"#f5f5f5":"#f5fbfa"}">
+  <h3>Your Travel Business Profile</h3>
+  ${locked?`
+   <div class="notice">🔒 <b>Locked.</b> The app owner must unlock this section (with the password) before a travel partner's name, contact numbers, or UPI ID can be entered or changed.</div>
+   <button onclick="unlockBusinessProfile()">Unlock (password required)</button>
+  `:`
+   <div class="ok">🔓 <b>Unlocked</b> — this section can currently be edited without a password. Lock it again once the details are set.</div>
+   <button onclick="lockBusinessProfile()">Lock now</button>
+  `}
+  <div class="grid" style="margin-top:8px">
+   <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}" ${locked?"disabled":""}></label>
+   <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}" ${locked?"disabled":""}></label>
+   <label>Address<input id="bAddress" value="${esc(db.business.address)}" ${locked?"disabled":""}></label>
+   <label>Office location (used to auto-fill "Return point" on new quotations)<input id="bOffice" value="${esc(db.business.officeLocation)}" ${locked?"disabled":""}></label>
+   <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}" ${locked?"disabled":""}></label>
+   <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}" ${locked?"disabled":""}></label>
+   <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}" ${locked?"disabled":""}></label>
+   <label>UPI ID (for payment QR)<input id="bUpi" value="${esc(db.business.upiId)}" ${locked?"disabled":""}></label>
+   <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}" ${locked?"disabled":""}></label>
+  </div>
+  <button class="primary" onclick="saveBusinessProfile()" ${locked?"disabled":""}>Save business profile</button>
+ </div>
+ <hr>
+ <div class="card">
+  <h3>Travel Connect Platform Settings <span class="muted">(owner only — always password protected)</span></h3>
+  <div class="grid">
+   <label>Platform name<input id="pName" value="${esc(db.platform.name)}"></label>
+   <label>Platform tagline<input id="pTagline" value="${esc(db.platform.tagline)}"></label>
+   <label>Platform address<input id="pAddress" value="${esc(db.platform.address)}"></label>
+   <label>Contact number 1<input id="pPhone1" value="${esc(db.platform.phone1)}"></label>
+   <label>Contact number 2<input id="pPhone2" value="${esc(db.platform.phone2)}"></label>
+   <label>Support email<input id="pEmail" value="${esc(db.platform.email)}"></label>
+   <label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label>
+   <label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label>
+  </div>
+  <h4>Rate types visible to travel partners / customers</h4>
+  <p class="muted">Switch off any rate type you don't want offered right now — it disappears from the "Rate" choice on every quotation, without deleting its numbers.</p>
+  <div class="grid">
+   ${(()=>{const labels={standard:"Standard Rate",competitive:"Competitive Rate",safety:"Minimum Safety Rate",drop:"Drop Rate",local:"Local Rate",custom:"Custom / Manual Amount"};const v=db.settings.visibleRates||{};return Object.keys(labels).map(k=>`<label><input type="checkbox" id="vis_${k}" ${v[k]!==false?"checked":""}> ${labels[k]}</label>`).join("");})()}
+  </div>
+  <button class="primary" onclick="saveAdmin()">Save platform settings</button>
+ </div>
+ <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`);
+}
+
+/* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
+   unlocks it with the password — once unlocked, it can be filled in without re-entering the
+   password each time, until locked again. Vehicle categories & rates remain separately
+   password-gated at all times (via requireAdmin in editCat/addCat), regardless of this toggle. */
+function unlockBusinessProfile(){ requireAdmin(()=>{ db.settings.businessProfileLocked=false; save(); toast("Business profile unlocked"); admin(); }); }
+function lockBusinessProfile(){ db.settings.businessProfileLocked=true; save(); toast("Business profile locked"); admin(); }
+
+function saveBusinessProfile(){
+ if(db.settings.businessProfileLocked){ toast("Unlock this section first (password required)"); return; }
+ Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,officeLocation:bOffice.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
+ save();toast("Business profile saved");admin();
+}
+function saveAdmin(){ requireAdmin(doSaveAdmin); }
+function doSaveAdmin(){
+ Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,address:pAddress.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
+ ["standard","competitive","safety","drop","local","custom"].forEach(k=>{
+  const el=document.querySelector("#vis_"+k);
+  if(el) db.settings.visibleRates[k]=el.checked;
+ });
+ db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
+ save();toast("Platform settings saved");admin();
+}
+
+function network(){app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
+function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
+function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:new Date().toISOString()};fetch("/api/network",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(p)}).catch(()=>{});toast("Network request submitted (not yet delivered to other devices — multi-user sync is a future phase)")}
+function sos(){getLocation();setTimeout(()=>{const msg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;navigator.share?.({title:"Travel Connect SOS",text:msg}).catch(()=>{});toast("SOS message prepared")},800)}
+
+function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
+function closeModal(){document.querySelector("#modal").classList.add("hidden")}
+
+window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}return false};
+
+migrate();
+render();
