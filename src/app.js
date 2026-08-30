@@ -12,115 +12,115 @@ const defaults={
  platform:{name:"Travel Connect",tagline:"Travel & Trip Management Platform",address:"",phone1:"",phone2:"",email:"travelconnect.business@gmail.com"},
  business:{name:"Krishna Tours & Travels",tagline:"Your Best Travel Partner",address:"",officeLocation:"",phone:"",phone2:"",gstin:"",upiId:"",upiName:"Krishna Tours & Travels"},
  categories:[
-  {name:"Mini / Hatchback",
+  {name:"Mini / Hatchback",driverBata:0,
    standard:rateBlock(2200,80,8,18,220), competitive:rateBlock(1900,80,8,18,220),
    safety:rateBlock(2050,80,8,18,220),   local:rateBlock(1500,40,4,20,220),
    drop:rateBlock(1500,40,4,20,220)},
-  {name:"Sedan",
+  {name:"Sedan",driverBata:0,
    standard:rateBlock(2500,80,8,21,250), competitive:rateBlock(2200,80,8,21,250),
    safety:rateBlock(2350,80,8,21,250),   local:rateBlock(1700,40,4,21,250),
    drop:rateBlock(1700,40,4,21,250)},
-  {name:"Taxi Jeep / Off-road",
+  {name:"Taxi Jeep / Off-road",driverBata:0,
    standard:rateBlock(2800,80,8,22,250), competitive:rateBlock(2400,80,8,22,250),
    safety:rateBlock(2600,80,8,22,250),   local:rateBlock(1900,40,4,22,250),
    drop:rateBlock(1900,40,4,22,250)},
-  {name:"Standard MUV",
+  {name:"Standard MUV",driverBata:0,
    standard:rateBlock(3000,80,8,22,300), competitive:rateBlock(2600,80,8,22,300),
    safety:rateBlock(2800,80,8,22,300),   local:rateBlock(2100,40,4,22,300),
    drop:rateBlock(2100,40,4,22,300)},
-  {name:"Premium MUV",
+  {name:"Premium MUV",driverBata:0,
    standard:rateBlock(3200,80,8,24,300), competitive:rateBlock(2800,80,8,24,300),
    safety:rateBlock(3000,80,8,24,300),   local:rateBlock(2300,40,4,24,300),
    drop:rateBlock(2300,40,4,24,300)},
-  {name:"Compact SUV",
+  {name:"Compact SUV",driverBata:0,
    standard:rateBlock(3300,80,8,24,300), competitive:rateBlock(2900,80,8,24,300),
    safety:rateBlock(3100,80,8,24,300),   local:rateBlock(2500,40,4,24,300),
    drop:rateBlock(2500,40,4,24,300)},
-  {name:"Premium SUV",
+  {name:"Premium SUV",driverBata:0,
    standard:rateBlock(4800,80,8,30,400), competitive:rateBlock(4300,80,8,30,400),
    safety:rateBlock(4550,80,8,30,400),   local:rateBlock(3600,40,4,30,400),
    drop:rateBlock(3600,40,4,30,400)},
-  {name:"49 Seat A/C",
+  {name:"49 Seat A/C",driverBata:500,
    standard:rateBlock(14000,80,8,60,780), competitive:rateBlock(12600,80,8,60,780),
    safety:rateBlock(13300,80,8,60,780),   drop:rateBlock(7700,10,1,60,780),
    local:rateBlock(7700,10,1,60,780)},
-  {name:"49 Seat Non A/C",
+  {name:"49 Seat Non A/C",driverBata:500,
    standard:rateBlock(10500,80,8,50,650), competitive:rateBlock(9450,80,8,50,650),
    safety:rateBlock(9980,80,8,50,650),   drop:rateBlock(5780,10,1,50,650),
    local:rateBlock(5780,10,1,50,650)},
-  {name:"45 Seat Bharat Benz (F A/C)",
+  {name:"45 Seat Bharat Benz (F A/C)",driverBata:500,
    standard:rateBlock(16500,80,8,70,910), competitive:rateBlock(14850,80,8,70,910),
    safety:rateBlock(15680,80,8,70,910),   drop:rateBlock(9080,10,1,70,910),
    local:rateBlock(9080,10,1,70,910)},
-  {name:"35 Seat Bharat Benz",
+  {name:"35 Seat Bharat Benz",driverBata:500,
    standard:rateBlock(12500,80,8,50,650), competitive:rateBlock(11250,80,8,50,650),
    safety:rateBlock(11880,80,8,50,650),   drop:rateBlock(6880,10,1,50,650),
    local:rateBlock(6880,10,1,50,650)},
-  {name:"34 Seat A/C",
+  {name:"34 Seat A/C",driverBata:500,
    standard:rateBlock(12000,80,8,50,650), competitive:rateBlock(10800,80,8,50,650),
    safety:rateBlock(11400,80,8,50,650),   drop:rateBlock(6600,10,1,50,650),
    local:rateBlock(6600,10,1,50,650)},
-  {name:"34 Seat Non A/C",
+  {name:"34 Seat Non A/C",driverBata:500,
    standard:rateBlock(9000,80,8,40,520), competitive:rateBlock(8100,80,8,40,520),
    safety:rateBlock(8550,80,8,40,520),   drop:rateBlock(4950,10,1,40,520),
    local:rateBlock(4950,10,1,40,520)},
-  {name:"27 Seat A/C",
+  {name:"27 Seat A/C",driverBata:500,
    standard:rateBlock(9500,80,8,40,520), competitive:rateBlock(8550,80,8,40,520),
    safety:rateBlock(9020,80,8,40,520),   drop:rateBlock(5220,10,1,40,520),
    local:rateBlock(5220,10,1,40,520)},
-  {name:"27 Seat Non A/C",
+  {name:"27 Seat Non A/C",driverBata:500,
    standard:rateBlock(8000,80,8,35,460), competitive:rateBlock(7200,80,8,35,460),
    safety:rateBlock(7600,80,8,35,460),   drop:rateBlock(4400,10,1,35,460),
    local:rateBlock(4400,10,1,35,460)},
-  {name:"26 Seat A/C",
+  {name:"26 Seat A/C",driverBata:300,
    standard:rateBlock(8500,80,8,40,520), competitive:rateBlock(7650,80,8,40,520),
    safety:rateBlock(8080,80,8,40,520),   drop:rateBlock(4680,10,1,40,520),
    local:rateBlock(4680,10,1,40,520)},
-  {name:"26 Seat Non A/C",
+  {name:"26 Seat Non A/C",driverBata:300,
    standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
    safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
    local:rateBlock(4120,10,1,35,460)},
-  {name:"24 Seat A/C",
+  {name:"24 Seat A/C",driverBata:300,
    standard:rateBlock(8500,80,8,40,520), competitive:rateBlock(7650,80,8,40,520),
    safety:rateBlock(8080,80,8,40,520),   drop:rateBlock(4680,10,1,40,520),
    local:rateBlock(4680,10,1,40,520)},
-  {name:"24 Seat Non A/C",
+  {name:"24 Seat Non A/C",driverBata:300,
    standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
    safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
    local:rateBlock(4120,10,1,35,460)},
-  {name:"20 Seat A/C",
+  {name:"20 Seat A/C",driverBata:300,
    standard:rateBlock(7000,80,8,35,460), competitive:rateBlock(6300,80,8,35,460),
    safety:rateBlock(6650,80,8,35,460),   drop:rateBlock(3850,10,1,35,460),
    local:rateBlock(3850,10,1,35,460)},
-  {name:"20 Seat Non A/C",
+  {name:"20 Seat Non A/C",driverBata:300,
    standard:rateBlock(6000,80,8,30,390), competitive:rateBlock(5400,80,8,30,390),
    safety:rateBlock(5700,80,8,30,390),   drop:rateBlock(3300,10,1,30,390),
    local:rateBlock(3300,10,1,30,390)},
-  {name:"17 Seat Urbania",
+  {name:"17 Seat Urbania",driverBata:300,
    standard:rateBlock(8000,80,8,40,520), competitive:rateBlock(7200,80,8,40,520),
    safety:rateBlock(7600,80,8,40,520),   drop:rateBlock(4400,10,1,40,520),
    local:rateBlock(4400,10,1,40,520)},
-  {name:"14 Seat Urbania",
+  {name:"14 Seat Urbania",driverBata:300,
    standard:rateBlock(7500,80,8,35,460), competitive:rateBlock(6750,80,8,35,460),
    safety:rateBlock(7120,80,8,35,460),   drop:rateBlock(4120,10,1,35,460),
    local:rateBlock(4120,10,1,35,460)},
-  {name:"17 Seat A/C",
+  {name:"17 Seat A/C",driverBata:300,
    standard:rateBlock(6500,80,8,30,390), competitive:rateBlock(5850,80,8,30,390),
    safety:rateBlock(6180,80,8,30,390),   drop:rateBlock(3580,10,1,30,390),
    local:rateBlock(3580,10,1,30,390)},
-  {name:"17 Seat Non A/C",
+  {name:"17 Seat Non A/C",driverBata:300,
    standard:rateBlock(5500,80,8,27,350), competitive:rateBlock(4950,80,8,27,350),
    safety:rateBlock(5220,80,8,27,350),   drop:rateBlock(3030,10,1,27,350),
    local:rateBlock(3030,10,1,27,350)},
-  {name:"12 & 14 Seat A/C",
+  {name:"12 & 14 Seat A/C",driverBata:300,
    standard:rateBlock(6000,80,8,27,350), competitive:rateBlock(5400,80,8,27,350),
    safety:rateBlock(5700,80,8,27,350),   drop:rateBlock(3300,10,1,27,350),
    local:rateBlock(3300,10,1,27,350)},
-  {name:"12 & 14 Seat Non A/C",
+  {name:"12 & 14 Seat Non A/C",driverBata:300,
    standard:rateBlock(5000,80,8,25,320), competitive:rateBlock(4500,80,8,25,320),
    safety:rateBlock(4750,80,8,25,320),   drop:rateBlock(2750,10,1,25,320),
    local:rateBlock(2750,10,1,25,320)},
-  {name:"Innova / Crysta",
+  {name:"Innova / Crysta",driverBata:300,
    standard:rateBlock(3500,80,8,25,320), competitive:rateBlock(3150,80,8,25,320),
    safety:rateBlock(3320,80,8,25,320),   drop:rateBlock(1930,10,1,25,320),
    local:rateBlock(1930,10,1,25,320)}
@@ -139,6 +139,7 @@ function migrate(){
    c.drop=rateBlock(c.local.rate,c.local.incKm,c.local.incHours,c.local.addKm,c.local.addHour);
    changed=true;
   }
+  if(c.driverBata===undefined){ c.driverBata=0; changed=true; }
   if(typeof c.standard==="number"){
    const incKm=c.incKm??80, incHours=c.incHours??8, addKm=c.addKm??0, addHour=c.addHour??0;
    const localIncKm=Math.min(incKm, db.settings?.localMaxKm||50);
@@ -289,9 +290,12 @@ function quoteForm(){
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
+ <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
  <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
  <label>Rate<select id="qRate">${rateOptions()}</select></label>
  <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
+ <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
+ <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
  <label>Discount type<select id="qDiscType">
    <option value="none">No discount</option>
    <option value="percent">Percentage (%)</option>
@@ -340,6 +344,21 @@ function doubleKm(){
  toast("KM doubled to "+qKm.value+" (up & down)");
  handleLocalCheck();calcQuote();
 }
+/* Estimated Hours is never auto-derived from Start/Closing time by default (they can
+   differ from what actually gets billed) — this button lets the user fill it in from the
+   dates/times on demand, instead of leaving the "8" default unnoticed. */
+function calcHoursFromTimes(){
+ if(!qStart.value||!qStartTime.value||!qClose.value||!qCloseTime.value){
+  toast("Fill in start date/time and closing date/time first");return;
+ }
+ const startDt=new Date(qStart.value+"T"+qStartTime.value);
+ const closeDt=new Date(qClose.value+"T"+qCloseTime.value);
+ const diffHours=(closeDt-startDt)/3600000;
+ if(isNaN(diffHours)||diffHours<=0){toast("Closing time must be after start time");return;}
+ qHours.value=Math.round(diffHours*100)/100;
+ toast("Estimated hours set to "+qHours.value);
+ handleLocalCheck();calcQuote();
+}
 function openRoute(){
  const origin=qPickup.value, stops=collectDestinations();
  if(!origin||!stops.length){toast("Enter pickup and at least one destination first");return}
@@ -360,7 +379,21 @@ function handleTripTypeChange(){
  }else if(qRate.value==="local"||qRate.value==="drop"){
   qRate.value="competitive";
  }
+ if(qBataOn.checked&&qBata.dataset.auto!=="0") qBata.value=c.driverBata||0;
  handleLocalCheck();
+ calcQuote();
+}
+/* Driver Bata is off by default — an owner switches it on per-trip when it actually applies
+   (larger contract vehicles in town, per the union rate sheet), rather than it being forced
+   onto every quotation. */
+function toggleBata(){
+ const c=db.categories[+qCat.value];
+ if(qBataOn.checked){
+  qBata.disabled=false;
+  if(!qBata.value||qBata.value==="0"){ qBata.value=c.driverBata||0; qBata.dataset.auto="1"; }
+ }else{
+  qBata.disabled=true;
+ }
  calcQuote();
 }
 
@@ -422,16 +455,20 @@ function calcQuote(){
   qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
   return r;
  }
- const dr=applyDiscountRound(r.total,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
+ const bata=(document.querySelector("#qBataOn")?.checked)?(+qBata.value||0):0;
+ const preDiscount=r.total+bata;
+ const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
  qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
  <div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>
  <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
- <div>Subtotal: ${money(r.total)}</div>
+ <div>Fare Subtotal: ${money(r.total)}</div>
+ ${bata?`<div>Driver Bata: ${money(bata)}</div>`:""}
+ <div>Subtotal: ${money(preDiscount)}</div>
  ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
  ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
  <div class="total">Final quoted fare: ${money(dr.final)}</div>`;
- return {...r,...dr};
+ return {...r,...dr,driverBata:bata};
 }
 
 function saveQuote(){
@@ -441,8 +478,9 @@ function saveQuote(){
   pickup:qPickup.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
   estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
   service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
+  driverBata:r.driverBata||0,
   discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
-  subtotal:r.total,quotedAmount:r.final,created:new Date().toISOString(),status:"quoted"};
+  subtotal:r.total+(r.driverBata||0),quotedAmount:r.final,created:new Date().toISOString(),status:"quoted"};
  db.quotes.unshift(q);save();toast("Quotation saved: "+q.no);quotations();
 }
 
@@ -466,6 +504,7 @@ function openQuote(id){
   dests.slice(1).forEach(d=>addStopField(d));
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
+  qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
   calcQuote();
  },0);
 }
@@ -495,11 +534,13 @@ function billPrintDate(){
 function billFinalAmount(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
  const r=calcFare(c,q.ratePlan,km,h);
- const subtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
+ const fareSubtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
+ const bata=q.driverBata||0;
+ const subtotal=fareSubtotal+bata;
  const dr=applyDiscountRound(subtotal,q.discountType||"none",q.discountValue||0,q.roundOff||0);
  const adjAmount=(t.adjustment&&Number(t.adjustment.amount))||0;
  const finalAdjusted=Math.max(0,dr.final+adjAmount);
- return {...r,subtotal,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||""};
+ return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||""};
 }
 
 /* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
@@ -509,17 +550,24 @@ function billFinalAmount(t,q,c){
 function openAdjustBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);
  const adj=t.adjustment||{amount:0,note:""};
+ const adjType=adj.amount<0?"discount":"addition";
  modal(`<h2>Adjust Final Bill Amount</h2>
-  <p class="muted">This adds to (or subtracts from) the automatically calculated amount — it does not replace the calculation. Use a negative number to reduce the bill.</p>
-  <label>Adjustment amount (e.g. -1000 or 250)<input id="adjAmt" type="number" value="${adj.amount||0}"></label>
+  <p class="muted">This adds to or subtracts from the automatically calculated amount — it does not replace the calculation.</p>
+  <label>This adjustment is a<select id="adjType">
+   <option value="discount" ${adjType==="discount"?"selected":""}>Discount (reduces the bill)</option>
+   <option value="addition" ${adjType==="addition"?"selected":""}>Addition (increases the bill)</option>
+  </select></label>
+  <label>Amount (always enter as positive)<input id="adjAmt" type="number" value="${Math.abs(adj.amount||0)}"></label>
   <label>Reason / note<input id="adjNote" value="${esc(adj.note||"")}" placeholder="e.g. Corrected rate sheet mistake"></label>
   <div class="actions"><button class="primary" onclick="saveAdjustBill('${tripId}')">Apply Adjustment</button>${adj.amount?`<button onclick="clearAdjustBill('${tripId}')">Remove Adjustment</button>`:""}</div>`);
 }
 function saveAdjustBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);
- const amt=+document.querySelector("#adjAmt").value||0;
+ const rawAmt=+document.querySelector("#adjAmt").value||0;
+ const isDiscount=document.querySelector("#adjType").value==="discount";
+ const amt=isDiscount?-Math.abs(rawAmt):Math.abs(rawAmt);
  const note=document.querySelector("#adjNote").value;
- t.adjustment=amt?{amount:amt,note}:null;
+ t.adjustment=rawAmt?{amount:amt,note}:null;
  save();closeModal();toast("Bill amount adjusted");loadBill();
 }
 function clearAdjustBill(tripId){
@@ -766,7 +814,8 @@ function downloadBillPDF(tripId){
   y=pdfRow(doc,y,"Applicable Additional Charge (higher of the two)",pdfMoney(r.extra||0),true);
  }
  if(saving>0) y=pdfRow(doc,y,"Customer Saving vs Standard","- "+pdfMoney(saving));
- y=pdfRow(doc,y,"Subtotal (Base + Additional)",pdfMoney(r.subtotal));
+ if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
+ y=pdfRow(doc,y,"Subtotal"+(r.driverBata?" (Base + Additional + Driver Bata)":" (Base + Additional)"),pdfMoney(r.subtotal));
  if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
  if(r.manualAdjustment) y=pdfRow(doc,y,"Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+pdfMoney(r.manualAdjustment));
@@ -880,7 +929,8 @@ function printBill(tripId){
   fareRows+=row("Applicable Additional Charge (higher of the two)",money(r.extra||0),true);
  }
  if(saving>0) fareRows+=row("Customer Saving vs Standard","- "+money(saving));
- fareRows+=row("Subtotal (Base + Additional)",money(r.subtotal));
+ if(r.driverBata) fareRows+=row("Driver Bata",money(r.driverBata));
+ fareRows+=row("Subtotal"+(r.driverBata?" (Base + Additional + Driver Bata)":" (Base + Additional)"),money(r.subtotal));
  if(r.discountAmount) fareRows+=row("Discount","- "+money(r.discountAmount));
  if(r.roundAdjustment) fareRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
  if(r.manualAdjustment) fareRows+=row("Manual Adjustment"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),(r.manualAdjustment>=0?"+":"")+money(r.manualAdjustment));
@@ -932,6 +982,7 @@ function printBill(tripId){
 function master(){
  const rows=db.categories.map((c,i)=>`<tr>
   <td>${esc(c.name)}</td>
+  <td>${c.driverBata?money(c.driverBata):"—"}</td>
   <td>${money(c.standard.rate)}</td>
   <td>${money(c.competitive.rate)}</td>
   <td>${money(c.safety.rate)}</td>
@@ -939,7 +990,7 @@ function master(){
   <td>${money(c.local.rate)}</td>
   <td><button onclick="editCat(${i})">Edit</button></td>
  </tr>`).join("");
- app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
+ app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Driver Bata</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
 }
 
 function rateFields(prefix,label,r){
@@ -969,6 +1020,7 @@ function openEditCatModal(i){
  const c=db.categories[i];
  modal(`<h2>Edit Rate: ${esc(c.name)}</h2>
   <label>Category name<input id="ec_name" value="${esc(c.name)}"></label>
+  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="ec_bata" type="number" value="${c.driverBata||0}"></label>
   ${rateFields("ec_std","Standard Rate",c.standard)}
   ${rateFields("ec_comp","Competitive Rate",c.competitive)}
   ${rateFields("ec_saf","Minimum Safety Rate",c.safety)}
@@ -979,6 +1031,7 @@ function openEditCatModal(i){
 function saveCat(i){
  const c=db.categories[i];
  c.name=document.querySelector("#ec_name").value;
+ c.driverBata=+document.querySelector("#ec_bata").value||0;
  c.standard=readRateFields("ec_std");
  c.competitive=readRateFields("ec_comp");
  c.safety=readRateFields("ec_saf");
@@ -992,6 +1045,7 @@ function openAddCatModal(){
  const blank=rateBlock(0,80,8,0,0), blankLocal=rateBlock(0,40,4,0,0);
  modal(`<h2>New Vehicle Category</h2>
   <label>Category name<input id="nc_name"></label>
+  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="nc_bata" type="number" value="0"></label>
   ${rateFields("nc_std","Standard Rate",blank)}
   ${rateFields("nc_comp","Competitive Rate",blank)}
   ${rateFields("nc_saf","Minimum Safety Rate",blank)}
@@ -1002,6 +1056,7 @@ function openAddCatModal(){
 function saveNewCat(){
  const c={
   name:document.querySelector("#nc_name").value,
+  driverBata:+document.querySelector("#nc_bata").value||0,
   standard:readRateFields("nc_std"),
   competitive:readRateFields("nc_comp"),
   safety:readRateFields("nc_saf"),
