@@ -445,6 +445,7 @@ function applyDiscountRound(subtotal,discType,discValue,roundStep){
  }
  return {discountAmount,afterDiscount,roundAdjustment,final};
 }
+
 function calcQuote(){
  handleLocalCheck();
  const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
@@ -873,7 +874,10 @@ function downloadBillPDF(tripId){
   if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
   if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
   doc.setTextColor(0);
-  y+=20; /* SECTION 4: Final Payment Summary */
+  y+=20;
+ }
+
+ /* SECTION 4: Final Payment Summary */
  y=pdfDivider(doc,y);
  doc.setFontSize(8.5);
  doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
@@ -1296,7 +1300,3 @@ window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}r
 
 migrate();
 render();
-
- }
-
-
