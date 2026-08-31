@@ -445,7 +445,6 @@ function applyDiscountRound(subtotal,discType,discValue,roundStep){
  }
  return {discountAmount,afterDiscount,roundAdjustment,final};
 }
-
 function calcQuote(){
  handleLocalCheck();
  const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
@@ -874,10 +873,7 @@ function downloadBillPDF(tripId){
   if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
   if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
   doc.setTextColor(0);
-  y+=20;
- }
-
- /* SECTION 4: Final Payment Summary */
+  y+=20; /* SECTION 4: Final Payment Summary */
  y=pdfDivider(doc,y);
  doc.setFontSize(8.5);
  doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
@@ -933,12 +929,25 @@ function downloadBillPDF(tripId){
 }
 
 /* ---------- PRINT ---------- */
+/* Prints via a hidden same-page iframe instead of window.open() — opening a separate
+   tab/window causes some mobile browsers (notably Chrome on Android) to show a reduced
+   print dialog without the full printer/destination chooser. A same-page iframe reliably
+   shows the complete native print sheet, including nearby Bluetooth/USB printers. */
 function printContent(title,html){
- const w=window.open("","_blank");
- if(!w){toast("Please allow pop-ups to print");return}
- w.document.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111}h2,h3{margin:6px 0}hr{margin:10px 0}</style></head><body>${html}</body></html>`);
- w.document.close();w.focus();
- setTimeout(()=>w.print(),300);
+ let frame=document.querySelector("#printFrame");
+ if(frame) frame.remove();
+ frame=document.createElement("iframe");
+ frame.id="printFrame";
+ frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width="0";frame.style.height="0";frame.style.border="0";
+ document.body.appendChild(frame);
+ const doc=frame.contentWindow.document;
+ doc.open();
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111}h2,h3{margin:6px 0}hr{margin:10px 0}</style></head><body>${html}</body></html>`);
+ doc.close();
+ setTimeout(()=>{
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+ },300);
 }
 function printQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -1287,3 +1296,7 @@ window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}r
 
 migrate();
 render();
+
+ }
+
+
