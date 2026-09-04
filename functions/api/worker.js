@@ -1,5 +1,5 @@
 import { onRequestGet as configGet, onRequestPost as configPost } from "./functions/api/config.js";
-import { onRequestGet as authGet, onRequestPost as authPost } from "./config.js";
+import { onRequestGet as authGet, onRequestPost as authPost } from "./functions/api/auth.js";
 
 /* This project deploys as a Cloudflare Worker (not Pages), so file-based routing under
    functions/api/ doesn't happen automatically — this router does it by hand:
