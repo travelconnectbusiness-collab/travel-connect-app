@@ -1,6 +1,6 @@
 name = "travel-connect-app"
 compatibility_date = "2026-08-21"
-main = "functions/api/worker.js"
+main = "worker.js"
 
 [assets]
 directory = "."
