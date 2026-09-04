@@ -183,7 +183,81 @@ function view(v){location.hash=v;render()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
 document.querySelector("#networkBtn").onclick=()=>network();
 
+function getCurrentUser(){
+ try{ return JSON.parse(localStorage.getItem("tc_user")||"null"); }catch(e){ return null; }
+}
+
+/* Every device using this app link must "log in" with a name and mobile number before
+   seeing anything else. This is NOT SMS-verified (no OTP) — it's a self-declared identity
+   check, recorded centrally in D1, so misuse can be traced back to a name/mobile and that
+   number can be blocked. render() enforces this on every navigation, not just on load. */
+function renderLogin(){
+ const inviteToken=new URLSearchParams(location.search).get("invite")||"";
+ document.querySelector("#app").innerHTML=`<section class="container"><div class="card">
+  <h2>Welcome to Travel Connect</h2>
+  <p class="muted">Please enter your name and mobile number to continue.</p>
+  <div class="grid">
+   <label>Your name<input id="loginName"></label>
+   <label>Mobile number<input id="loginMobile" type="tel"></label>
+  </div>
+  <div id="loginError" class="danger"></div>
+  <button class="primary" onclick="submitLogin('${inviteToken}')">Continue</button>
+ </div></section>`;
+}
+
+async function submitLogin(inviteToken){
+ const name=document.querySelector("#loginName").value.trim();
+ const mobile=document.querySelector("#loginMobile").value.trim();
+ const errBox=document.querySelector("#loginError");
+ if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,invite_token:inviteToken||undefined})});
+  const data=await res.json();
+  if(!data.ok){
+   errBox.textContent=data.error==="blocked"?"Access has been blocked for this number. Contact the app owner.":"Login failed. Please try again.";
+   return;
+  }
+  localStorage.setItem("tc_user",JSON.stringify({name,mobile}));
+  await syncConfigFromServer();
+  location.hash="dashboard";
+  render();
+ }catch(e){
+  errBox.textContent="Network error — check your connection and try again.";
+ }
+}
+
+function logout(){
+ if(!confirm("Log out of Travel Connect on this device?")) return;
+ localStorage.removeItem("tc_user");
+ location.hash="";
+ renderLogin();
+}
+
+/* Pulls the shared rates/platform config (set by the owner) and applies it locally,
+   so a rate change made on one device shows up here too. Silently does nothing if
+   offline or the backend isn't reachable — the app still works from local data. */
+async function syncConfigFromServer(){
+ try{
+  const res=await fetch("/api/config");
+  const data=await res.json();
+  if(data.ok&&data.config){
+   if(data.config.categories) db.categories=data.config.categories;
+   if(data.config.platform) db.platform=data.config.platform;
+   if(data.config.settings) Object.assign(db.settings,data.config.settings);
+   save();
+  }
+ }catch(e){}
+}
+/* Pushes the current rates/platform config to the server so every other device picks
+   it up. Called right after the owner saves rates or platform settings. */
+async function pushConfigToServer(){
+ try{
+  await fetch("/api/config",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:ADMIN_PASSWORD,config:{categories:db.categories,platform:db.platform,settings:db.settings}})});
+ }catch(e){}
+}
+
 function render(){
+ if(!getCurrentUser()){ renderLogin(); return; }
  const v=location.hash.slice(1)||"dashboard";
  if(v==="dashboard") dashboard();
  else if(v==="enquiries") enquiries();
@@ -1262,7 +1336,70 @@ function admin(){
   </div>
   <button class="primary" onclick="saveAdmin()">Save platform settings</button>
  </div>
+ <hr>
+ <div class="card">
+  <h3>Logged-in Users <span class="muted">(owner only — password protected)</span></h3>
+  <p class="muted">Everyone who has opened this app link and logged in. Not SMS-verified — this is what they typed in.</p>
+  <div class="actions"><button onclick="loadUsersList()">Load list</button><button onclick="openCreateInvite()">+ Generate one-time invite link</button></div>
+  <div id="usersList"></div>
+ </div>
+ <hr>
+ <div class="card">
+  <h3>This device</h3>
+  <p class="muted">Logged in as: <b>${esc((getCurrentUser()||{}).name||"-")}</b> (${esc((getCurrentUser()||{}).mobile||"-")})</p>
+  <button onclick="logout()">Log out on this device</button>
+ </div>
  <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`);
+}
+
+/* Owner-only: lists everyone who has ever logged in, with a Block/Unblock action per row. */
+function loadUsersList(){ requireAdmin(doLoadUsersList); }
+async function doLoadUsersList(){
+ const box=document.querySelector("#usersList");
+ box.innerHTML="<p class='muted'>Loading...</p>";
+ try{
+  const res=await fetch("/api/auth?action=users&password="+encodeURIComponent(ADMIN_PASSWORD));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load users.</p>"; return; }
+  if(!data.users.length){ box.innerHTML="<p class='muted'>No one has logged in yet.</p>"; return; }
+  box.innerHTML=data.users.map(u=>`<div class="listitem">
+   <b>${esc(u.name)}</b> — ${esc(u.mobile)} ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
+   <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} • Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} • Logins: ${u.login_count}</span>
+   <div class="actions">${u.blocked?`<button onclick="setUserBlocked('${esc(u.mobile)}',false)">Unblock</button>`:`<button class="danger" onclick="setUserBlocked('${esc(u.mobile)}',true)">Block</button>`}</div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function setUserBlocked(mobile,blocked){
+ if(!confirm((blocked?"Block ":"Unblock ")+mobile+"?")) return;
+ try{
+  await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:blocked?"block":"unblock",mobile,password:ADMIN_PASSWORD})});
+  toast(blocked?"User blocked":"User unblocked");
+  doLoadUsersList();
+ }catch(e){ toast("Network error"); }
+}
+
+/* Owner-only: creates a one-time invite link tied to a specific recipient. The link
+   still works like a normal login the first time it's opened, but the server records
+   who used it and when, closing the loop on "who did I send this to". */
+function openCreateInvite(){ requireAdmin(doOpenCreateInvite); }
+function doOpenCreateInvite(){
+ modal(`<h2>Generate Invite Link</h2>
+  <p class="muted">Optional — helps you know exactly who a link was sent to.</p>
+  <label>Recipient name (optional)<input id="invName"></label>
+  <label>Recipient mobile (optional)<input id="invMobile"></label>
+  <div class="actions"><button class="primary" onclick="doCreateInvite()">Generate</button></div>
+  <div id="invResult"></div>`);
+}
+async function doCreateInvite(){
+ const name=document.querySelector("#invName").value;
+ const mobile=document.querySelector("#invMobile").value;
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"create_invite",recipient_name:name,recipient_mobile:mobile,password:ADMIN_PASSWORD})});
+  const data=await res.json();
+  if(!data.ok){ document.querySelector("#invResult").innerHTML="<p class='danger'>Could not create invite.</p>"; return; }
+  const link=location.origin+"/?invite="+data.token;
+  document.querySelector("#invResult").innerHTML=`<p><b>Share this link:</b></p><textarea rows="3" readonly onclick="this.select()">${esc(link)}</textarea>`;
+ }catch(e){ document.querySelector("#invResult").innerHTML="<p class='danger'>Network error.</p>"; }
 }
 
 /* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
@@ -1288,7 +1425,7 @@ function doSaveAdmin(){
  save();toast("Platform settings saved");admin();
 }
 
-function network(){app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
+function network(){if(!getCurrentUser()){renderLogin();return;}app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
 function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
 function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:new Date().toISOString()};fetch("/api/network",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(p)}).catch(()=>{});toast("Network request submitted (not yet delivered to other devices — multi-user sync is a future phase)")}
 function sos(){getLocation();setTimeout(()=>{const msg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;navigator.share?.({title:"Travel Connect SOS",text:msg}).catch(()=>{});toast("SOS message prepared")},800)}
