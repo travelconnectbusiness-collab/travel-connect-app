@@ -1,12 +1,12 @@
 name = "travel-connect-app"
 compatibility_date = "2026-08-21"
+main = "worker.js"
 
 [assets]
 directory = "."
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "travel-connect-db"
 database_id = "2bee7770-d4d9-4d23-b985-8572d9e24d80"
-# Production bindings will be added after the Cloudflare D1 database
-# and real-time Network Worker are provisioned.
