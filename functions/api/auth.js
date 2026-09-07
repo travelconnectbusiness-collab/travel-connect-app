@@ -1,8 +1,7 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 
-/* GET ?action=users&token=...        — owner-only list of everyone who has logged in.
-   GET ?action=check&mobile=...       — anyone; used by every device to silently confirm
-                                          it hasn't been blocked since it last logged in. */
+/* GET ?action=users&token=...        — owner: list all logged-in users
+   GET ?action=check&mobile=...&device=... — is this mobile OR this device blocked? */
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -22,15 +21,24 @@ export async function onRequestGet({ request, env }) {
 
   if (action === "check") {
     const mobile = url.searchParams.get("mobile");
-    if (!mobile) return Response.json({ ok: false }, { status: 400 });
+    const device = url.searchParams.get("device");
+    if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
     const row = await env.DB
       .prepare("SELECT blocked FROM app_users WHERE mobile=?")
       .bind(mobile)
       .first();
-    return Response.json({ ok: true, blocked: row ? !!row.blocked : false });
+    let blocked = !!(row && row.blocked);
+    if (!blocked && device) {
+      const devRow = await env.DB
+        .prepare("SELECT device_token FROM blocked_devices WHERE device_token=?")
+        .bind(device)
+        .first();
+      if (devRow) blocked = true;
+    }
+    return Response.json({ ok: true, blocked });
   }
 
-  return Response.json({ ok: false, error: "unknown action" }, { status: 400 });
+  return Response.json({ ok: false, error: "unknown_action" });
 }
 
 export async function onRequestPost({ request, env }) {
@@ -42,23 +50,35 @@ export async function onRequestPost({ request, env }) {
   }
   const action = body.action;
 
-  /* Checks the password (a Cloudflare Secret, never exposed to the browser) and, if
-     correct, issues a temporary session token for the admin-only actions below. */
+  /* Checks the password (a Cloudflare Secret) — on success issues a temporary session
+     token instead of ever sending the password itself back to the browser. */
   if (action === "admin_login") {
     if (body.password !== env.ADMIN_PASSWORD) {
-      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+      return Response.json({ ok: false, error: "wrong_password" }, { status: 401 });
     }
     const token = await createAdminSession(env);
     return Response.json({ ok: true, token });
   }
 
-  /* Anyone can call this — it just records who is using the app (self-declared name/mobile,
-     not SMS-verified). A blocked mobile number is rejected here before any session is granted. */
+  /* Anyone can call this — it just records who is using the app on which device
+     (not SMS-verified). A blocked mobile OR a blocked device is rejected immediately,
+     even if the person types in a brand-new name/mobile from the same device. */
   if (action === "login") {
     const name = (body.name || "").trim();
     const mobile = (body.mobile || "").trim();
+    const deviceToken = (body.device_token || "").trim();
     if (!name || !mobile) {
-      return Response.json({ ok: false, error: "name_mobile_required" }, { status: 400 });
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+
+    if (deviceToken) {
+      const blockedDevice = await env.DB
+        .prepare("SELECT device_token FROM blocked_devices WHERE device_token=?")
+        .bind(deviceToken)
+        .first();
+      if (blockedDevice) {
+        return Response.json({ ok: false, error: "blocked" }, { status: 403 });
+      }
     }
 
     const existing = await env.DB
@@ -73,15 +93,17 @@ export async function onRequestPost({ request, env }) {
     const now = new Date().toISOString();
     if (existing) {
       await env.DB
-        .prepare("UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1 WHERE mobile=?")
-        .bind(name, now, mobile)
+        .prepare(
+          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=? WHERE mobile=?"
+        )
+        .bind(name, now, deviceToken || existing.device_token || null, mobile)
         .run();
     } else {
       await env.DB
         .prepare(
-          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count) VALUES (?,?,?,?,?,1)"
+          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token) VALUES (?,?,?,?,?,1,0,?)"
         )
-        .bind(name, mobile, body.invite_token || null, now, now)
+        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null)
         .run();
     }
 
@@ -101,6 +123,9 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, name, mobile });
   }
 
+  /* Owner-only: blocking a mobile ALSO blocks the device token last used by that
+     mobile (if any is on record), so the same phone can't just re-register with a
+     different name/number to get back in immediately. */
   if (action === "block" || action === "unblock") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -109,6 +134,22 @@ export async function onRequestPost({ request, env }) {
       .prepare("UPDATE app_users SET blocked=? WHERE mobile=?")
       .bind(action === "block" ? 1 : 0, body.mobile)
       .run();
+
+    if (action === "block") {
+      const row = await env.DB
+        .prepare("SELECT device_token FROM app_users WHERE mobile=?")
+        .bind(body.mobile)
+        .first();
+      if (row && row.device_token) {
+        const now = new Date().toISOString();
+        await env.DB
+          .prepare(
+            "INSERT INTO blocked_devices (device_token, blocked_at, note) VALUES (?,?,?) ON CONFLICT(device_token) DO NOTHING"
+          )
+          .bind(row.device_token, now, "blocked via mobile " + body.mobile)
+          .run();
+      }
+    }
     return Response.json({ ok: true });
   }
 
@@ -127,5 +168,5 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, token });
   }
 
-  return Response.json({ ok: false, error: "unknown action" }, { status: 400 });
+  return Response.json({ ok: false, error: "unknown_action" });
 }
