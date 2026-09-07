@@ -1,4 +1,4 @@
-const ADMIN_PASSWORD = "Krishna@123";
+import { verifyAdminToken } from "./_auth_helper.js";
 
 /* Public read — every device fetches the current shared rates/platform config on load. */
 export async function onRequestGet({ env }) {
@@ -18,11 +18,12 @@ export async function onRequestGet({ env }) {
 }
 
 /* Owner-only write — pushes the current rates/platform config to every device.
-   Protected by the same admin password used for rate editing in the app. */
+   Protected by a short-lived admin session token (see auth.js action=admin_login),
+   not by sending the password itself on every request. */
 export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
-    if (body.password !== ADMIN_PASSWORD) {
+    if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     const configJson = JSON.stringify(body.config || {});
