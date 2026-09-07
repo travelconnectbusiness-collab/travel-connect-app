@@ -1,5 +1,4 @@
 const KEY="tcp_v1";
-const ADMIN_PASSWORD="Krishna@123";
 
 /* ---------- DEFAULT DATA ---------- */
 function rateBlock(rate,incKm,incHours,addKm,addHour){
@@ -249,15 +248,34 @@ async function syncConfigFromServer(){
  }catch(e){}
 }
 /* Pushes the current rates/platform config to the server so every other device picks
-   it up. Called right after the owner saves rates or platform settings. */
+   it up. Called right after the owner saves rates or platform settings. Uses the admin
+   session token (not the password) — see requireAdmin()/adminToken(). */
 async function pushConfigToServer(){
  try{
-  await fetch("/api/config",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:ADMIN_PASSWORD,config:{categories:db.categories,platform:db.platform,settings:db.settings}})});
+  await fetch("/api/config",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:adminToken(),config:{categories:db.categories,platform:db.platform,settings:db.settings}})});
+ }catch(e){}
+}
+
+/* Silently checks with the server on every page view whether this mobile number has
+   been blocked meanwhile — if so, logs the device out immediately instead of waiting
+   for the person to log in again. */
+async function checkStillAllowed(){
+ const user=getCurrentUser();
+ if(!user) return;
+ try{
+  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(data.ok && data.blocked){
+   localStorage.removeItem("tc_user");
+   toast("Your access has been blocked. Please contact the app owner.");
+   renderLogin();
+  }
  }catch(e){}
 }
 
 function render(){
  if(!getCurrentUser()){ renderLogin(); return; }
+ checkStillAllowed();
  const v=location.hash.slice(1)||"dashboard";
  if(v==="dashboard") dashboard();
  else if(v==="enquiries") enquiries();
@@ -266,32 +284,43 @@ function render(){
  else if(v==="billing") billing();
  else if(v==="master") master();
  else if(v==="accounts") accounts();
- else if(v==="admin") admin();
+ else if(v==="admin") requireAdmin(admin);
  else network();
 }
 /* Makes the phone's/browser's own Back button work correctly inside the app too. */
 window.addEventListener("hashchange",render);
 
-/* ---------- ADMIN PASSWORD GATE ---------- */
-/* Protects rate-master edits and business/local-trip-rule settings.
-   Unlocks once per browser session after the correct password is entered. */
+/* ---------- ADMIN AUTHENTICATION ----------
+   The password itself is now a Cloudflare Secret and never sent to or stored in the
+   browser. Entering it correctly gets a short-lived session token from the server
+   (12 hours), which is what's actually stored (in sessionStorage) and sent along with
+   every subsequent admin action. Opening the Admin tab itself now requires this too —
+   not just individual actions inside it. */
+function adminToken(){ return sessionStorage.getItem("tc_admin_token")||""; }
+
 function requireAdmin(action){
- if(sessionStorage.getItem("tc_admin")==="1"){ action(); return; }
+ if(adminToken()){ action(); return; }
  window._pendingAdminAction=action;
  modal(`<h2>Admin Password Required</h2>
-  <p class="muted">Enter the admin password to edit rates or business rules.</p>
+  <p class="muted">Enter the admin password to continue.</p>
   <input id="apPass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')verifyAdmin()">
   <div class="actions"><button class="primary" onclick="verifyAdmin()">Unlock</button></div>
   <div id="apErr" class="danger"></div>`);
 }
-function verifyAdmin(){
- if(document.querySelector("#apPass").value===ADMIN_PASSWORD){
-  sessionStorage.setItem("tc_admin","1");
+async function verifyAdmin(){
+ const pass=document.querySelector("#apPass").value;
+ const errBox=document.querySelector("#apErr");
+ errBox.textContent="";
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"admin_login",password:pass})});
+  const data=await res.json();
+  if(!data.ok){ errBox.textContent="Incorrect password."; return; }
+  sessionStorage.setItem("tc_admin_token",data.token);
   closeModal();
   const action=window._pendingAdminAction; window._pendingAdminAction=null;
-  if(action) action();
- }else{
-  document.querySelector("#apErr").textContent="Incorrect password.";
+  if(action) action(); else render();
+ }catch(e){
+  errBox.textContent="Network error — check your connection and try again.";
  }
 }
 
@@ -465,11 +494,7 @@ function toggleBata(){
   if(!qBata.value||qBata.value==="0"){ qBata.value=c.driverBata||0; qBata.dataset.auto="1"; }
  }else{
   qBata.disabled=true;
- }
- calcQuote();
-}
-
-function handleLocalCheck(){
+ }function handleLocalCheck(){
  if(!document.getElementById("qType")) return;
  if(qType.value==="local"){
   const km=+qKm.value||0, h=+qHours.value||0;
@@ -480,7 +505,6 @@ function handleLocalCheck(){
   }
  }
 }
-
 /* ---------- FARE CALCULATION ---------- */
 function calcFare(c,plan,km,h){
  if(plan==="local"){
@@ -785,7 +809,6 @@ function renderBillQR(amount,billNo){
  new QRCode(box,{text:upiLink,width:180,height:180});
  box.insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">Scan to pay balance: ${money(amount)}</div>`);
 }
-
 /* ---------- PDF EXPORT ---------- */
 /* jsPDF's built-in fonts cannot render the ₹ glyph (it prints as a broken
    character), so PDF/print-safe amounts use "Rs." instead. On-screen the app
@@ -965,81 +988,378 @@ function downloadBillPDF(tripId){
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
  y+=3;
 
- const boxHeight=38;
- if(y+boxHeight+18>282){doc.addPage();y=18;}
- const boxTop=y;
- doc.setFillColor(255,248,232);
- doc.rect(15,boxTop,180,boxHeight,"F");
- doc.setDrawColor(210,180,120);doc.rect(15,boxTop,180,boxHeight);doc.setDrawColor(210);
- doc.setFont(undefined,"bold");doc.setFontSize(9.5);
- doc.text("PAYMENT INFORMATION",20,boxTop+7);
- doc.setFont(undefined,"normal");doc.setFontSize(8.5);
- doc.text("Final Bill Amount",20,boxTop+14);
- doc.text(pdfMoney(r.final),20,boxTop+19.5);
- doc.text("Balance Due",20,boxTop+27);
- doc.setFont(undefined,"bold");
- doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+32.5);
- doc.setFont(undefined,"normal");
-
- if(balance>0&&db.business.upiId){
-  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
-  if(qrData){
-   doc.setFontSize(7.5);doc.text("SCAN & PAY",170,boxTop+6,{align:"center"});
-   doc.addImage(qrData,"PNG",151,boxTop+8,36,36);
+ calcQuote(); 
+} 
+ function handleLocalCheck(){
+ if(!document.getElementById("qType")) return;
+ if(qType.value==="local"){
+  const km=+qKm.value||0, h=+qHours.value||0;
+  if(km>db.settings.localMaxKm||h>db.settings.localMaxHours){
+   qType.value="one_day";
+   qRate.value="standard";
+   toast(`Exceeds Local Trip limit (${db.settings.localMaxKm} KM / ${db.settings.localMaxHours} hrs) — switched to One Day tariff.`);
   }
  }
- y=boxTop+boxHeight+6;
-
- if((t.payments||[]).length){
-  if(y>265){doc.addPage();y=18;}
-  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=6;doc.setFont(undefined,"normal");
-  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
-  y=pdfRow(doc,y,"Total Paid",pdfMoney(paid),true);
-  y+=3;
+}
+/* ---------- FARE CALCULATION ---------- */
+function calcFare(c,plan,km,h){
+ if(plan==="local"){
+  if(km>db.settings.localMaxKm||h>db.settings.localMaxHours){
+   return {invalid:true,reason:`Local limit exceeded: maximum ${db.settings.localMaxKm} KM and ${db.settings.localMaxHours} hours.`};
+  }
+  const L=c.local;
+  const kmExtra=Math.max(0,km-L.incKm)*L.addKm;
+  const hourExtra=Math.max(0,h-L.incHours)*L.addHour;
+  const extra=Math.max(kmExtra,hourExtra);
+  return {base:L.rate,extra,kmExtra,hourExtra,total:L.rate+extra,incKm:L.incKm,incHours:L.incHours,addKm:L.addKm,addHour:L.addHour};
  }
-
- if(y>276){doc.addPage();y=18;}
- doc.setFontSize(8);doc.setTextColor(120);
- doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
- doc.setTextColor(0);
-
- doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
+ if(plan==="custom"){
+  const base=Number(document.querySelector("#qCustom")?.value||0);
+  return {base,extra:0,kmExtra:0,hourExtra:0,total:base,incKm:null,incHours:null,addKm:null,addHour:null};
+ }
+ const R=c[plan];
+ const kmExtra=Math.max(0,km-R.incKm)*R.addKm;
+ const hourExtra=Math.max(0,h-R.incHours)*R.addHour;
+ const extra=Math.max(kmExtra,hourExtra);
+ return {base:R.rate,extra,kmExtra,hourExtra,total:R.rate+extra,incKm:R.incKm,incHours:R.incHours,addKm:R.addKm,addHour:R.addHour};
 }
 
-/* ---------- PRINT ---------- */
-/* Prints via a hidden same-page iframe instead of window.open() — opening a separate
-   tab/window causes some mobile browsers (notably Chrome on Android) to show a reduced
-   print dialog without the full printer/destination chooser. A same-page iframe reliably
-   shows the complete native print sheet, including nearby Bluetooth/USB printers. */
-function printContent(title,html){
- let frame=document.querySelector("#printFrame");
- if(frame) frame.remove();
- frame=document.createElement("iframe");
- frame.id="printFrame";
- frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width="0";frame.style.height="0";frame.style.border="0";
- document.body.appendChild(frame);
- const doc=frame.contentWindow.document;
- doc.open();
- doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111}h2,h3{margin:6px 0}hr{margin:10px 0}</style></head><body>${html}</body></html>`);
- doc.close();
- setTimeout(()=>{
-  frame.contentWindow.focus();
-  frame.contentWindow.print();
- },300);
+/* Applies discount then round-off on top of a subtotal; used by both quotation and billing */
+function applyDiscountRound(subtotal,discType,discValue,roundStep){
+ let discountAmount=0;
+ if(discType==="percent") discountAmount=subtotal*(Number(discValue)||0)/100;
+ else if(discType==="fixed") discountAmount=Number(discValue)||0;
+ discountAmount=Math.min(discountAmount,subtotal);
+ const afterDiscount=Math.max(0,subtotal-discountAmount);
+ let roundAdjustment=0, final=afterDiscount;
+ const step=Number(roundStep)||0;
+ if(step>0){
+  final=Math.round(afterDiscount/step)*step;
+  roundAdjustment=final-afterDiscount;
+ }
+ return {discountAmount,afterDiscount,roundAdjustment,final};
 }
-function printQuote(id){
+
+function calcQuote(){
+ handleLocalCheck();
+ const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
+ if(r.invalid){
+  qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
+  return r;
+ }
+ const bata=(document.querySelector("#qBataOn")?.checked)?(+qBata.value||0):0;
+ const preDiscount=r.total+bata;
+ const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
+ qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+ ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
+ <div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>
+ <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
+ <div>Fare Subtotal: ${money(r.total)}</div>
+ ${bata?`<div>Driver Bata: ${money(bata)}</div>`:""}
+ <div>Subtotal: ${money(preDiscount)}</div>
+ ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
+ ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
+ <div class="total">Final quoted fare: ${money(dr.final)}</div>`;
+ return {...r,...dr,driverBata:bata};
+}
+
+function saveQuote(){
+ const r=calcQuote();if(r.invalid){toast("Correct Local Trip limits first");return}
+ const c=db.categories[+qCat.value];
+ const q={id:crypto.randomUUID(),no:"QTN-"+Date.now(),customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
+  pickup:qPickup.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
+  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
+  service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
+  driverBata:r.driverBata||0,
+  discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
+  subtotal:r.total+(r.driverBata||0),quotedAmount:r.final,created:new Date().toISOString(),status:"quoted"};
+ db.quotes.unshift(q);save();toast("Quotation saved: "+q.no);quotations();
+}
+
+function quotations(){
+ app().innerHTML=card("Quotations",`${quoteForm()}<hr><h3>Saved Quotations</h3>${db.quotes.map(q=>`<div class="listitem"><b>${esc(q.no)}</b> — ${esc(q.customer)} — ${money(q.quotedAmount)}<br>${esc(q.pickup)} → ${esc((q.destinations||[q.destination]).join(" → "))}
+ <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button><button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+}
+function deleteQuote(id){
+ if(!confirm("Delete this quotation? This cannot be undone.")) return;
+ db.quotes=db.quotes.filter(x=>x.id!==id);
+ save();toast("Quotation deleted");quotations();
+}
+function openQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
- const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
- printContent("Quotation "+q.no,`<h2>${esc(db.business.name)}</h2><p>${esc(db.business.phone||"")}</p><hr>
- <h3>Quotation ${esc(q.no)}</h3>
- <p>Customer: ${esc(q.customer)} (${esc(q.mobile)})</p>
- <p>Pickup: ${esc(q.pickup)}</p>
- ${dests.map((d,i)=>`<p>Destination ${i+1}: ${esc(d)}</p>`).join("")}
- <p>Vehicle: ${esc(q.category)} ${esc(q.vehicle||"")} ${esc(q.vehicleNo||"")}</p>
- <p>Estimated KM/Hours: ${q.estimatedKm} KM / ${q.estimatedHours} hrs</p>
- <h3>Quoted Amount: ${money(q.quotedAmount)}</h3>`);
+ view("quotations");
+ setTimeout(()=>{
+  qName.value=q.customer;qMobile.value=q.mobile;qType.value=q.type;qCat.value=q.categoryId;qVehicle.value=q.vehicle;qVehicleNo.value=q.vehicleNo;
+  qPickup.value=q.pickup;
+  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
+  qDest.value=dests[0]||"";
+  dests.slice(1).forEach(d=>addStopField(d));
+  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
+  qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
+  qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
+  calcQuote();
+ },0);
 }
-function printBill(tripId){
+function convertTrip(id){const q=db.quotes.find(x=>x.id===id);db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments:[],created:new Date().toISOString()});q.status="confirmed";save();toast("Trip confirmed");trips()}
+
+function trips(){
+ app().innerHTML=card("Trip Management",`${db.trips.map(t=>{const q=db.quotes.find(x=>x.id===t.quoteId)||{};return `<div class="listitem"><b>${esc(q.no||"Trip")}</b> — ${esc(t.customer)}<br>Status: <b>${esc(t.status)}</b><div class="actions"><button onclick="editTrip('${t.id}')">Open Trip</button><button onclick="makeBillFromTrip('${t.id}')">Final Bill</button><button class="danger" onclick="deleteTrip('${t.id}')">Delete</button></div></div>`}).join("")||"<p class='muted'>Confirm a quotation to create a trip.</p>"}`);
+}
+function deleteTrip(id){
+ if(!confirm("Delete this trip? Payment history already recorded will stay in Accounts, but this trip and its bill link will be removed.")) return;
+ db.trips=db.trips.filter(x=>x.id!==id);
+ save();toast("Trip deleted");trips();
+}
+function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div><button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
+function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed"});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
+function makeBillFromTrip(id){view("billing");setTimeout(()=>{billTrip.value=id;loadBill()},0)}
+
+/* ---------- BILLING (advance / balance tracking + UPI QR + PDF/Print) ---------- */
+function billing(){
+ app().innerHTML=card("Final Billing",`<label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} — ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label><label>Bill print date (optional, defaults to today)<input id="billDateInput" type="date"></label><div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
+}
+function billPrintDate(){
+ const v=document.querySelector("#billDateInput")?.value;
+ return v||new Date().toISOString().slice(0,10);
+}
+
+function billFinalAmount(t,q,c){
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const r=calcFare(c,q.ratePlan,km,h);
+ const fareSubtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
+ const bata=q.driverBata||0;
+ const subtotal=fareSubtotal+bata;
+ const dr=applyDiscountRound(subtotal,q.discountType||"none",q.discountValue||0,q.roundOff||0);
+ const adjAmount=(t.adjustment&&Number(t.adjustment.amount))||0;
+ const finalAdjusted=Math.max(0,dr.final+adjAmount);
+ return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||""};
+}
+
+/* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
+   mistake discovered later, or a goodwill adjustment — without reopening the quotation or
+   category rates. Stored on the trip, applied on top of the normal calculation everywhere
+   (screen, PDF, print) so it always stays visible and reversible. */
+function openAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ const adj=t.adjustment||{amount:0,note:""};
+ const adjType=adj.amount<0?"discount":"addition";
+ modal(`<h2>Adjust Final Bill Amount</h2>
+  <p class="muted">This adds to or subtracts from the automatically calculated amount — it does not replace the calculation.</p>
+  <label>This adjustment is a<select id="adjType">
+   <option value="discount" ${adjType==="discount"?"selected":""}>Discount (reduces the bill)</option>
+   <option value="addition" ${adjType==="addition"?"selected":""}>Addition (increases the bill)</option>
+  </select></label>
+  <label>Amount (always enter as positive)<input id="adjAmt" type="number" value="${Math.abs(adj.amount||0)}"></label>
+  <label>Reason / note<input id="adjNote" value="${esc(adj.note||"")}" placeholder="e.g. Corrected rate sheet mistake"></label>
+  <div class="actions"><button class="primary" onclick="saveAdjustBill('${tripId}')">Apply Adjustment</button>${adj.amount?`<button onclick="clearAdjustBill('${tripId}')">Remove Adjustment</button>`:""}</div>`);
+}
+function saveAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ const rawAmt=+document.querySelector("#adjAmt").value||0;
+ const isDiscount=document.querySelector("#adjType").value==="discount";
+ const amt=isDiscount?-Math.abs(rawAmt):Math.abs(rawAmt);
+ const note=document.querySelector("#adjNote").value;
+ t.adjustment=rawAmt?{amount:amt,note}:null;
+ save();closeModal();toast("Bill amount adjusted");loadBill();
+}
+function clearAdjustBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ t.adjustment=null;
+ save();closeModal();toast("Adjustment removed");loadBill();
+}
+
+/* Builds the 4-section bill breakdown (Usage / Standard-vs-Offer / Savings / Payment Summary)
+   shared by the on-screen view, the PDF, and the Print output — so all three always agree. */
+function billBreakdown(t,q,c){
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const standardRaw=calcFare(c,"standard",km,h);
+ const r=billFinalAmount(t,q,c);
+ const offerFareTotal=r.base+(r.extra||0);
+ const rateSaving=(!standardRaw.invalid)?Math.max(0,standardRaw.total-offerFareTotal):0;
+ const quoteDiscount=r.discountAmount||0;
+ const manualDiscount=r.manualAdjustment<0?-r.manualAdjustment:0;
+ const manualAddition=r.manualAdjustment>0?r.manualAdjustment:0;
+ const totalSavings=rateSaving+quoteDiscount+manualDiscount;
+ return {km,h,standardRaw,r,offerFareTotal,rateSaving,quoteDiscount,manualDiscount,manualAddition,totalSavings};
+}
+
+function loadBill(){
+ const t=db.trips.find(x=>x.id===billTrip.value);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const final=r.final;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
+ const balance=Math.max(0,final-paid);
+ billBox.innerHTML=`<div class="ratebox">
+  <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates)</button><button onclick="openAdjustBill('${t.id}')">Adjust Final Bill Amount</button></div>
+
+  <h3>1. Usage Details</h3>
+  <div>Total KM: <b>${km}</b> &nbsp; Total Hours: <b>${h}</b></div>
+  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
+  <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
+
+  <h3>2. Standard vs Offer Rate</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+   <tr style="color:#666"><td></td><td style="text-align:right;padding:2px 4px">Standard Rate</td><td style="text-align:right;padding:2px 4px">Offer Rate</td></tr>
+   <tr><td>Base Rate</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.base)}</td><td style="text-align:right;padding:2px 4px">${money(r.base)}</td></tr>
+   <tr><td>Additional Charge</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.extra)}</td><td style="text-align:right;padding:2px 4px">${money(r.extra||0)}</td></tr>
+   <tr style="border-top:1px solid #ccc;font-weight:bold"><td>Total</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.total)}</td><td style="text-align:right;padding:2px 4px">${money(r.base+(r.extra||0))}</td></tr>
+  </table>
+
+  ${totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
+   <div style="font-weight:bold;font-size:16px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+   <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div></div>`:""}
+
+  <h3>4. Final Payment Summary</h3>
+  <div>Base Rate: ${money(r.base)}</div>
+  <div>Additional Charge (higher of KM/Hour): ${money(r.extra||0)}</div>
+  ${r.driverBata?`<div>Driver Bata: ${money(r.driverBata)}</div>`:""}
+  ${manualDiscount?`<div>Manual Discount: -${money(manualDiscount)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
+  ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
+  ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
+  <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
+
+  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
+  <div><b>Total paid: ${money(paid)}</b></div>
+  <div class="total">Balance due: ${money(balance)}</div>
+  ${balance>0?`
+  <p class="danger" style="margin:6px 0"><b>⚠️ Enter only the amount actually received now — it does not fill in automatically.</b></p>
+  <div class="grid" style="margin-top:8px">
+   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
+   <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
+  <div id="billQR" style="margin-top:10px"></div>
+  `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled — no balance due</b></div>`}
+  <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button></div>
+ </div>`;
+ if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
+}
+
+function recordPayment(tripId){
+ const amt=+document.querySelector("#payAmt").value||0;
+ const method=document.querySelector("#payMethod").value;
+ if(amt<=0){toast("Enter a valid amount");return}
+ const t=db.trips.find(x=>x.id===tripId);
+ t.payments=t.payments||[];
+ const at=new Date().toISOString();
+ t.payments.push({amount:amt,method,at});
+ db.bills.unshift({id:crypto.randomUUID(),tripId,amount:amt,method,created:at});
+ save();
+ toast("Payment recorded: "+money(amt));
+ loadBill();
+}
+/* Removes the most recent payment entry — for correcting an accidental or wrong entry. */
+function undoLastPayment(tripId){
+ const t=db.trips.find(x=>x.id===tripId);
+ if(!t||!t.payments||!t.payments.length){toast("No payment to undo");return}
+ const removed=t.payments.pop();
+ const idx=db.bills.findIndex(b=>b.tripId===tripId&&b.created===removed.at&&b.amount===removed.amount);
+ if(idx>-1) db.bills.splice(idx,1);
+ save();
+ toast("Removed: "+money(removed.amount)+" ("+removed.method+")");
+ loadBill();
+}
+
+/* Looks up the driver currently assigned to a vehicle (by vehicle number) so the
+   bill can show driver name/mobile the same way the reference invoice does. */
+function findDriverForVehicleNo(vehicleNo){
+ if(!vehicleNo) return null;
+ const vIdx=db.vehicles.findIndex(v=>v.no===vehicleNo);
+ if(vIdx<0) return null;
+ return db.drivers.find(d=>+d.vehicle===vIdx)||null;
+}
+function buildUpiLink(amount,billNo){
+ return "upi://pay?pa="+encodeURIComponent(db.business.upiId)+"&pn="+encodeURIComponent(db.business.upiName||db.business.name)+"&am="+amount+"&cu=INR&tn="+encodeURIComponent("Bill "+billNo);
+}
+/* Renders a QR into an offscreen element and returns it as a PNG data URL, so the
+   same QR image can be embedded in the PDF and the Print output — not just shown
+   on screen. Returns null if the QR library isn't ready or no UPI ID is set. */
+function getQRDataURL(text,size){
+ if(typeof QRCode==="undefined"||!text) return null;
+ const holder=document.createElement("div");
+ holder.style.position="absolute";holder.style.left="-9999px";
+ document.body.appendChild(holder);
+ new QRCode(holder,{text,width:size||220,height:size||220});
+ const canvas=holder.querySelector("canvas");
+ const dataUrl=canvas?canvas.toDataURL("image/png"):null;
+ document.body.removeChild(holder);
+ return dataUrl;
+}
+/* Shows a UPI QR only for the current remaining balance; once settled it disappears
+   automatically so an old QR/screenshot can never be reused to overpay. */
+function renderBillQR(amount,billNo){
+ const box=document.querySelector("#billQR");
+ if(!box) return;
+ box.innerHTML="";
+ if(!db.business.upiId){
+  box.innerHTML="<p class='muted'>Add a UPI ID in Admin settings to generate a payment QR code.</p>";
+  return;
+ }
+ if(typeof QRCode==="undefined"){
+  box.innerHTML="<p class='muted'>QR library not loaded.</p>";
+  return;
+ }
+ const upiLink=buildUpiLink(amount,billNo);
+ new QRCode(box,{text:upiLink,width:180,height:180});
+ box.insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">Scan to pay balance: ${money(amount)}</div>`);
+}
+/* ---------- PDF EXPORT ---------- */
+/* jsPDF's built-in fonts cannot render the ₹ glyph (it prints as a broken
+   character), so PDF/print-safe amounts use "Rs." instead. On-screen the app
+   still shows ₹ via money(), since the browser renders that fine. */
+function pdfMoney(n){return "Rs. "+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2})}
+
+function pdfDoc(){ if(!window.jspdf){toast("PDF library not loaded");return null} return new window.jspdf.jsPDF(); }
+
+function pdfHeader(doc,title){
+ let y=18;
+ doc.setFont(undefined,"bold");doc.setFontSize(16);
+ doc.text(db.business.name||"Travel Connect",15,y);y+=7;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ if(db.business.phone){doc.text("Phone: "+db.business.phone,15,y);y+=5;}
+ if(db.business.gstin){doc.text("GSTIN: "+db.business.gstin,15,y);y+=5;}
+ y+=2;doc.setDrawColor(180);doc.line(15,y,195,y);y+=9;
+ doc.setFont(undefined,"bold");doc.setFontSize(13);doc.text(title,15,y);y+=9;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ return y;
+}
+function pdfRow(doc,y,label,value,bold){
+ if(y>280){doc.addPage();y=18;}
+ doc.setFont(undefined,bold?"bold":"normal");doc.setFontSize(bold?12:10);
+ doc.text(String(label),15,y);
+ doc.text(String(value),195,y,{align:"right"});
+ return y+(bold?8:6);
+}
+function pdfDivider(doc,y){doc.setDrawColor(210);doc.line(15,y,195,y+0.01);return y+6}
+
+function downloadQuotePDF(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const doc=pdfDoc();if(!doc)return;
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ let y=pdfHeader(doc,"QUOTATION "+q.no);
+ y=pdfRow(doc,y,"Date",(q.created||"").slice(0,10));
+ y=pdfRow(doc,y,"Customer",q.customer);
+ y=pdfRow(doc,y,"Mobile",q.mobile);
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Vehicle Category",q.category);
+ y=pdfRow(doc,y,"Vehicle",(q.vehicle||"-")+" "+(q.vehicleNo||""));
+ y=pdfRow(doc,y,"Pickup",q.pickup);
+ dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
+ if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
+ y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
+ y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Subtotal",pdfMoney(q.subtotal??q.quotedAmount));
+ if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
+ if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"QUOTED AMOUNT",pdfMoney(q.quotedAmount),true);
+ doc.save("Quotation-"+q.no+".pdf");
+}
+
+function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
@@ -1049,391 +1369,119 @@ function printBill(tripId){
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const billDate=billPrintDate();
 
- let qrHtml="";
- if(balance>0&&db.business.upiId){
-  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
-  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+ const doc=pdfDoc();if(!doc)return;
+ let y=15;
+ try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(10.5);
+ doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
+ if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.setFont(undefined,"bold");doc.setFontSize(8);doc.setTextColor(70);
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
+ if(platformPhones) doc.text(platformPhones,195,y+1,{align:"right"});
+ doc.setTextColor(0);
+ y+=12;
+ doc.setDrawColor(210);doc.line(15,y,195,y);y+=6;
+
+ const partnerBoxTop=y;
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean);
+ const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhones.length?5.5:0);
+ doc.setFillColor(232,245,244);
+ doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
+ doc.setDrawColor(20,120,110);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
+ let py=partnerBoxTop+7;
+ doc.setFont(undefined,"bold");doc.setFontSize(14);doc.setTextColor(15,90,85);
+ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=5;
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
+ if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
+ if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=4.5;}
+ if(partnerPhones.length){
+  doc.setFont(undefined,"bold");doc.setFontSize(10.5);doc.setTextColor(15,90,85);
+  doc.text("Contact: "+partnerPhones.join("   |   "),105,py,{align:"center"});py+=5.5;
  }
+ doc.setTextColor(0);
+ y=partnerBoxTop+partnerBoxHeight+6;
 
- const row=(label,value,bold)=>`<tr><td style="padding:2px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${esc(value)}</td></tr>`;
+ doc.setFont(undefined,"bold");doc.setFontSize(12.5);
+ doc.text("FINAL TRIP BILL",105,y,{align:"center"});
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ doc.text("Bill printed on: "+billDate,195,y,{align:"right"});doc.setTextColor(0);
+ y+=7;
+ doc.setFontSize(8.5);
 
- let detailRows="";
- detailRows+=row("Customer",t.customer||q.customer);
- detailRows+=row("Customer Mobile",q.mobile||"-");
- detailRows+=row("Trip Type",q.type||"-");
- detailRows+=row("Vehicle Category",q.category||"-");
- detailRows+=row("Vehicle",q.vehicle||"Not specified");
- detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
- if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
- if(q.service) detailRows+=row("Service",q.service);
- detailRows+=row("Trip Date",q.startDate||"-");
- detailRows+=row("Pickup Point",q.pickup||"-");
- detailRows+=row("Destination",dests[dests.length-1]||"-");
- detailRows+=row("Return / Closing Point",q.returnPoint||"-");
+ const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
+ if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
+ if(q.service) detailRows.push(["Service",q.service]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+
+ detailRows.forEach(([label,value])=>{
+  if(y>272){doc.addPage();y=18;}
+  doc.setTextColor(90);doc.text(label,15,y);
+  doc.setTextColor(0);doc.text(String(value),195,y,{align:"right"});
+  y+=5;
+ });
+
+ y+=1;
+ doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=5;doc.setFont(undefined,"normal");
+ const routeLine=[q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
+ const routeWrapped=doc.splitTextToSize(routeLine,180);
+ doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
 
  /* SECTION 1: Usage Details */
- let usageRows="";
- usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs");
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
  if(r.incKm!=null){
-  usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
-  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
-  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+money(r.hourExtra||0));
+  y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
  }
 
  /* SECTION 2: Standard vs Offer Rate */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("2. Standard vs Offer Rate",15,y);y+=6;
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});
+ doc.setTextColor(0);doc.setFontSize(8.5);y+=5;
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
  const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
- const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:2px 0;font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(sv)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(ov)}</td></tr>`;
- const compareTable=`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
-  <tr style="color:#888"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
-  ${cmpRow("Base Rate",stdBase,offBase)}
-  ${cmpRow("Additional Charge",stdExtra,offExtra)}
-  <tr style="border-top:1px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
- </table>`;
+ doc.setFont(undefined,"normal");
+ [["Base Rate",stdBase,offBase],["Additional Charge",stdExtra,offExtra]].forEach(([label,sv,ov])=>{
+  doc.text(label,15,y);doc.text(pdfMoney(sv),140,y,{align:"right"});doc.text(pdfMoney(ov),195,y,{align:"right"});y+=5;
+ });
+ doc.setFont(undefined,"bold");
+ doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
+ doc.setFont(undefined,"normal");
 
- /* SECTION 3: Savings highlight */
- const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
-  <div style="font-weight:bold;font-size:17px">🎉 Your Total Savings: ${money(totalSavings)}</div>
-  <div style="font-size:11px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
- </div>`:"";
+ /* SECTION 3: Customer Savings (green highlight) */
+ if(totalSavings>0){
+  if(y+16+8>282){doc.addPage();y=18;}
+  doc.setFillColor(230,247,233);doc.rect(15,y,180,16,"F");
+  doc.setDrawColor(46,158,68);doc.rect(15,y,180,16);doc.setDrawColor(210);
+  doc.setTextColor(28,107,44);doc.setFont(undefined,"bold");doc.setFontSize(11);
+  doc.text("Your Total Savings: "+pdfMoney(totalSavings),20,y+7);
+  doc.setFont(undefined,"normal");doc.setFontSize(8);
+  let noteParts=[];
+  if(rateSaving) noteParts.push("Offer discount "+pdfMoney(rateSaving));
+  if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
+  if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
+  doc.setTextColor(0);
+  y+=20;
+ }
 
  /* SECTION 4: Final Payment Summary */
- let summaryRows="";
- summaryRows+=row("Base Rate",money(r.base));
- summaryRows+=row("Additional Charge (higher of KM/Hour)",money(r.extra||0));
- if(r.driverBata) summaryRows+=row("Driver Bata",money(r.driverBata));
- if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
- if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
- if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+ y=pdfDivider(doc,y);
+ doc.setFontSize(8.5);
+ doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
+ y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
+ if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
+ if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
+ if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
+ if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
+ y+=3;
 
- const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
- const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
- printContent("Bill "+(q.no||""),`
- <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
-  <div style="display:flex;align-items:center;gap:8px">
-   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
-   <div>
-    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
-    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
-    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
-   </div>
-  </div>
-  <div style="color:#444;font-weight:bold;font-size:11px;text-align:right">${platformPhones}</div>
- </div>
- <div style="background:#e8f5f4;border:1px solid #148c76;border-radius:8px;padding:10px;text-align:center;margin:10px 0">
-  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.business.name)}</div>
-  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
-  ${db.business.address?`<div style="font-size:11px;color:#555">${esc(db.business.address)}</div>`:""}
-  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:3px">Contact: ${partnerPhones}</div>`:""}
- </div>
- <div style="display:flex;justify-content:space-between;align-items:baseline">
-  <h3 style="color:#143c5a;margin:4px 0">FINAL TRIP BILL</h3>
-  <span style="color:#888;font-size:11px">Bill printed on: ${esc(billDate)}</span>
- </div>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${detailRows}</table>
- <p style="margin-top:8px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
- <hr>
- <h3 style="margin:6px 0">1. Usage Details</h3>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${usageRows}</table>
- <h3 style="margin:10px 0 4px">2. Standard vs Offer Rate</h3>
- ${compareTable}
- ${savingsHtml}
- <h3 style="margin:10px 0 4px">4. Final Payment Summary</h3>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${summaryRows}</table>
- <h2 style="text-align:right;margin:8px 0">FINAL BILL AMOUNT: ${money(r.final)}</h2>
- <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-  <div>
-   <b>PAYMENT INFORMATION</b><br>
-   Final Bill Amount: ${money(r.final)}<br>
-   Balance Due: <b>${balance>0?money(balance):"FULLY PAID"}</b>
-  </div>
-  ${qrHtml}
- </div>
- ${(t.payments||[]).length?`<h3 style="margin:8px 0 4px">Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:12.5px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
- <p style="text-align:center;color:#888;font-size:11px;margin-top:12px">Thank you for travelling with ${esc(db.business.name)}.</p>
- `);
-}
 
-/* ---------- MASTER RATE TABLE (password protected) ---------- */
-function master(){
- const rows=db.categories.map((c,i)=>`<tr>
-  <td>${esc(c.name)}</td>
-  <td>${c.driverBata?money(c.driverBata):"—"}</td>
-  <td>${money(c.standard.rate)}</td>
-  <td>${money(c.competitive.rate)}</td>
-  <td>${money(c.safety.rate)}</td>
-  <td>${money(c.drop.rate)}</td>
-  <td>${money(c.local.rate)}</td>
-  <td><button onclick="editCat(${i})">Edit</button></td>
- </tr>`).join("");
- app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Driver Bata</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
-}
-
-function rateFields(prefix,label,r){
- return `<div class="card" style="margin:8px 0;background:#f5f8fa">
-  <h3 style="margin:0 0 8px">${label}</h3>
-  <div class="grid">
-   <label>Rate (₹)<input id="${prefix}_rate" type="number" value="${r.rate}"></label>
-   <label>Included KM<input id="${prefix}_incKm" type="number" value="${r.incKm}"></label>
-   <label>Included Hours<input id="${prefix}_incHours" type="number" value="${r.incHours}"></label>
-   <label>Additional KM charge (₹/KM)<input id="${prefix}_addKm" type="number" value="${r.addKm}"></label>
-   <label>Additional Hour charge (₹/hr)<input id="${prefix}_addHour" type="number" value="${r.addHour}"></label>
-  </div>
- </div>`;
-}
-function readRateFields(prefix){
- return rateBlock(
-  document.querySelector("#"+prefix+"_rate").value,
-  document.querySelector("#"+prefix+"_incKm").value,
-  document.querySelector("#"+prefix+"_incHours").value,
-  document.querySelector("#"+prefix+"_addKm").value,
-  document.querySelector("#"+prefix+"_addHour").value
- );
-}
-
-function editCat(i){ requireAdmin(()=>openEditCatModal(i)); }
-function openEditCatModal(i){
- const c=db.categories[i];
- modal(`<h2>Edit Rate: ${esc(c.name)}</h2>
-  <label>Category name<input id="ec_name" value="${esc(c.name)}"></label>
-  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="ec_bata" type="number" value="${c.driverBata||0}"></label>
-  ${rateFields("ec_std","Standard Rate",c.standard)}
-  ${rateFields("ec_comp","Competitive Rate",c.competitive)}
-  ${rateFields("ec_saf","Minimum Safety Rate",c.safety)}
-  ${rateFields("ec_drop","Drop Rate (its own formula — no cliff, applies at any distance)",c.drop)}
-  ${rateFields("ec_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",c.local)}
-  <button class="primary" onclick="saveCat(${i})">Save Rate</button>`);
-}
-function saveCat(i){
- const c=db.categories[i];
- c.name=document.querySelector("#ec_name").value;
- c.driverBata=+document.querySelector("#ec_bata").value||0;
- c.standard=readRateFields("ec_std");
- c.competitive=readRateFields("ec_comp");
- c.safety=readRateFields("ec_saf");
- c.drop=readRateFields("ec_drop");
- c.local=readRateFields("ec_loc");
- save();closeModal();master();toast("Rate updated");
-}
-
-function addCat(){ requireAdmin(openAddCatModal); }
-function openAddCatModal(){
- const blank=rateBlock(0,80,8,0,0), blankLocal=rateBlock(0,40,4,0,0);
- modal(`<h2>New Vehicle Category</h2>
-  <label>Category name<input id="nc_name"></label>
-  <label>Driver Bata (₹, optional per-trip charge — 0 = not applicable)<input id="nc_bata" type="number" value="0"></label>
-  ${rateFields("nc_std","Standard Rate",blank)}
-  ${rateFields("nc_comp","Competitive Rate",blank)}
-  ${rateFields("nc_saf","Minimum Safety Rate",blank)}
-  ${rateFields("nc_drop","Drop Rate (its own formula — no cliff, applies at any distance)",blankLocal)}
-  ${rateFields("nc_loc","Local Rate (capped at "+db.settings.localMaxKm+" KM / "+db.settings.localMaxHours+" hrs)",blankLocal)}
-  <button class="primary" onclick="saveNewCat()">Add Category</button>`);
-}
-function saveNewCat(){
- const c={
-  name:document.querySelector("#nc_name").value,
-  driverBata:+document.querySelector("#nc_bata").value||0,
-  standard:readRateFields("nc_std"),
-  competitive:readRateFields("nc_comp"),
-  safety:readRateFields("nc_saf"),
-  drop:readRateFields("nc_drop"),
-  local:readRateFields("nc_loc")
- };
- db.categories.push(c);save();closeModal();master();toast("Category added");
-}
-
-/* ---------- EXPORT / IMPORT RATE SHEET ----------
-   Lets the owner copy the current device's full rate table as text (e.g. via
-   WhatsApp/Notes) and paste it into "Import rate sheet" on any other device
-   running this app, so everyone ends up on the same rates without needing a
-   fresh code deployment. */
-function exportRates(){
- const text=JSON.stringify(db.categories,null,2);
- modal(`<h2>Export Rate Sheet</h2>
-  <p class="muted">Copy this text and share it (WhatsApp, Notes, email). On another device, open "Import rate sheet" and paste it there to apply the same rates.</p>
-  <textarea id="exportBox" rows="14" readonly>${esc(text)}</textarea>
-  <div class="actions"><button class="primary" onclick="copyExport()">Copy</button></div>`);
-}
-function copyExport(){
- const box=document.querySelector("#exportBox");
- box.focus();box.select();box.setSelectionRange(0,999999);
- if(navigator.clipboard&&navigator.clipboard.writeText){
-  navigator.clipboard.writeText(box.value).then(()=>toast("Copied — now paste it into WhatsApp or Notes")).catch(()=>toast("Text selected — use your keyboard's Copy option"));
- }else{
-  toast("Text selected — use your keyboard's Copy option");
- }
-}
-function importRates(){ requireAdmin(openImportModal); }
-function openImportModal(){
- modal(`<h2>Import Rate Sheet</h2>
-  <p class="muted">Paste a rate sheet exported from another device. This replaces all vehicle categories and rates on THIS device.</p>
-  <textarea id="importBox" rows="14" placeholder="Paste the exported rate sheet text here"></textarea>
-  <div class="actions"><button class="primary" onclick="applyImport()">Apply</button></div>
-  <div id="impErr" class="danger"></div>`);
-}
-function applyImport(){
- try{
-  const parsed=JSON.parse(document.querySelector("#importBox").value);
-  if(!Array.isArray(parsed)||!parsed.length||typeof parsed[0].standard!=="object") throw new Error("bad format");
-  db.categories=parsed;
-  save();
-  closeModal();
-  master();
-  toast("Rate sheet imported successfully");
- }catch(e){
-  document.querySelector("#impErr").textContent="Could not read this text — make sure the entire exported text was pasted, unedited.";
- }
-}
-
-function addVehicle(){db.vehicles.push({name:vName.value,no:vNo.value,cat:+vCat.value,seats:+vSeats.value||0});save();master();toast("Vehicle added")}
-function addDriver(){db.drivers.push({name:dName.value,mobile:dMobile.value,vehicle:+dVehicle.value});save();master();toast("Driver added")}
-
-function accounts(){const income=db.bills.reduce((a,b)=>a+b.amount,0),expense=db.expenses.reduce((a,e)=>a+e.amount,0);app().innerHTML=card("Accounts",`<div class="grid"><div class="metric">Recorded billing<b>${money(income)}</b></div><div class="metric">Expenses<b>${money(expense)}</b></div><div class="metric">Net before other adjustments<b>${money(income-expense)}</b></div></div><p class="muted">This is the foundation. GST, tax reports, driver payments, fuel, toll, parking and profit reports will use the same ledger.</p><div class="grid"><label>Expense category<input id="exCat"></label><label>Description<input id="exDesc"></label><label>Amount<input id="exAmt" type="number"></label></div><button class="primary" onclick="addExpense()">Add expense</button>`)}
-function addExpense(){db.expenses.push({category:exCat.value,description:exDesc.value,amount:+exAmt.value||0,created:new Date().toISOString()});save();toast("Expense recorded");accounts()}
-
-function admin(){
- const locked=db.settings.businessProfileLocked;
- app().innerHTML=card("Admin / Business Settings",`
- <div class="card" style="background:${locked?"#f5f5f5":"#f5fbfa"}">
-  <h3>Your Travel Business Profile</h3>
-  ${locked?`
-   <div class="notice">🔒 <b>Locked.</b> The app owner must unlock this section (with the password) before a travel partner's name, contact numbers, or UPI ID can be entered or changed.</div>
-   <button onclick="unlockBusinessProfile()">Unlock (password required)</button>
-  `:`
-   <div class="ok">🔓 <b>Unlocked</b> — this section can currently be edited without a password. Lock it again once the details are set.</div>
-   <button onclick="lockBusinessProfile()">Lock now</button>
-  `}
-  <div class="grid" style="margin-top:8px">
-   <label>Travel partner / business name<input id="bName" value="${esc(db.business.name)}" ${locked?"disabled":""}></label>
-   <label>Tagline<input id="bTagline" value="${esc(db.business.tagline)}" ${locked?"disabled":""}></label>
-   <label>Address<input id="bAddress" value="${esc(db.business.address)}" ${locked?"disabled":""}></label>
-   <label>Office location (used to auto-fill "Return point" on new quotations)<input id="bOffice" value="${esc(db.business.officeLocation)}" ${locked?"disabled":""}></label>
-   <label>Contact number 1<input id="bPhone" value="${esc(db.business.phone)}" ${locked?"disabled":""}></label>
-   <label>Contact number 2<input id="bPhone2" value="${esc(db.business.phone2)}" ${locked?"disabled":""}></label>
-   <label>GSTIN (optional)<input id="bGst" value="${esc(db.business.gstin)}" ${locked?"disabled":""}></label>
-   <label>UPI ID (for payment QR)<input id="bUpi" value="${esc(db.business.upiId)}" ${locked?"disabled":""}></label>
-   <label>UPI name<input id="bUpiName" value="${esc(db.business.upiName)}" ${locked?"disabled":""}></label>
-  </div>
-  <button class="primary" onclick="saveBusinessProfile()" ${locked?"disabled":""}>Save business profile</button>
- </div>
- <hr>
- <div class="card">
-  <h3>Travel Connect Platform Settings <span class="muted">(owner only — always password protected)</span></h3>
-  <div class="grid">
-   <label>Platform name<input id="pName" value="${esc(db.platform.name)}"></label>
-   <label>Platform tagline<input id="pTagline" value="${esc(db.platform.tagline)}"></label>
-   <label>Platform address<input id="pAddress" value="${esc(db.platform.address)}"></label>
-   <label>Contact number 1<input id="pPhone1" value="${esc(db.platform.phone1)}"></label>
-   <label>Contact number 2<input id="pPhone2" value="${esc(db.platform.phone2)}"></label>
-   <label>Support email<input id="pEmail" value="${esc(db.platform.email)}"></label>
-   <label>Local maximum KM<input id="lKm" type="number" value="${db.settings.localMaxKm}"></label>
-   <label>Local maximum hours<input id="lHr" type="number" value="${db.settings.localMaxHours}"></label>
-  </div>
-  <h4>Rate types visible to travel partners / customers</h4>
-  <p class="muted">Switch off any rate type you don't want offered right now — it disappears from the "Rate" choice on every quotation, without deleting its numbers.</p>
-  <div class="grid">
-   ${(()=>{const labels={standard:"Standard Rate",competitive:"Competitive Rate",safety:"Minimum Safety Rate",drop:"Drop Rate",local:"Local Rate",custom:"Custom / Manual Amount"};const v=db.settings.visibleRates||{};return Object.keys(labels).map(k=>`<label><input type="checkbox" id="vis_${k}" ${v[k]!==false?"checked":""}> ${labels[k]}</label>`).join("");})()}
-  </div>
-  <button class="primary" onclick="saveAdmin()">Save platform settings</button>
- </div>
- <hr>
- <div class="card">
-  <h3>Logged-in Users <span class="muted">(owner only — password protected)</span></h3>
-  <p class="muted">Everyone who has opened this app link and logged in. Not SMS-verified — this is what they typed in.</p>
-  <div class="actions"><button onclick="loadUsersList()">Load list</button><button onclick="openCreateInvite()">+ Generate one-time invite link</button></div>
-  <div id="usersList"></div>
- </div>
- <hr>
- <div class="card">
-  <h3>This device</h3>
-  <p class="muted">Logged in as: <b>${esc((getCurrentUser()||{}).name||"-")}</b> (${esc((getCurrentUser()||{}).mobile||"-")})</p>
-  <button onclick="logout()">Log out on this device</button>
- </div>
- <hr><h3>Planned next phase</h3><p>Multi-device sync, driver network alerts, and user access control.</p>`);
-}
-
-/* Owner-only: lists everyone who has ever logged in, with a Block/Unblock action per row. */
-function loadUsersList(){ requireAdmin(doLoadUsersList); }
-async function doLoadUsersList(){
- const box=document.querySelector("#usersList");
- box.innerHTML="<p class='muted'>Loading...</p>";
- try{
-  const res=await fetch("/api/auth?action=users&password="+encodeURIComponent(ADMIN_PASSWORD));
-  const data=await res.json();
-  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load users.</p>"; return; }
-  if(!data.users.length){ box.innerHTML="<p class='muted'>No one has logged in yet.</p>"; return; }
-  box.innerHTML=data.users.map(u=>`<div class="listitem">
-   <b>${esc(u.name)}</b> — ${esc(u.mobile)} ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
-   <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} • Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} • Logins: ${u.login_count}</span>
-   <div class="actions">${u.blocked?`<button onclick="setUserBlocked('${esc(u.mobile)}',false)">Unblock</button>`:`<button class="danger" onclick="setUserBlocked('${esc(u.mobile)}',true)">Block</button>`}</div>
-  </div>`).join("");
- }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
-}
-async function setUserBlocked(mobile,blocked){
- if(!confirm((blocked?"Block ":"Unblock ")+mobile+"?")) return;
- try{
-  await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:blocked?"block":"unblock",mobile,password:ADMIN_PASSWORD})});
-  toast(blocked?"User blocked":"User unblocked");
-  doLoadUsersList();
- }catch(e){ toast("Network error"); }
-}
-
-/* Owner-only: creates a one-time invite link tied to a specific recipient. The link
-   still works like a normal login the first time it's opened, but the server records
-   who used it and when, closing the loop on "who did I send this to". */
-function openCreateInvite(){ requireAdmin(doOpenCreateInvite); }
-function doOpenCreateInvite(){
- modal(`<h2>Generate Invite Link</h2>
-  <p class="muted">Optional — helps you know exactly who a link was sent to.</p>
-  <label>Recipient name (optional)<input id="invName"></label>
-  <label>Recipient mobile (optional)<input id="invMobile"></label>
-  <div class="actions"><button class="primary" onclick="doCreateInvite()">Generate</button></div>
-  <div id="invResult"></div>`);
-}
-async function doCreateInvite(){
- const name=document.querySelector("#invName").value;
- const mobile=document.querySelector("#invMobile").value;
- try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"create_invite",recipient_name:name,recipient_mobile:mobile,password:ADMIN_PASSWORD})});
-  const data=await res.json();
-  if(!data.ok){ document.querySelector("#invResult").innerHTML="<p class='danger'>Could not create invite.</p>"; return; }
-  const link=location.origin+"/?invite="+data.token;
-  document.querySelector("#invResult").innerHTML=`<p><b>Share this link:</b></p><textarea rows="3" readonly onclick="this.select()">${esc(link)}</textarea>`;
- }catch(e){ document.querySelector("#invResult").innerHTML="<p class='danger'>Network error.</p>"; }
-}
-
-/* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
-   unlocks it with the password — once unlocked, it can be filled in without re-entering the
-   password each time, until locked again. Vehicle categories & rates remain separately
-   password-gated at all times (via requireAdmin in editCat/addCat), regardless of this toggle. */
-function unlockBusinessProfile(){ requireAdmin(()=>{ db.settings.businessProfileLocked=false; save(); toast("Business profile unlocked"); admin(); }); }
-function lockBusinessProfile(){ db.settings.businessProfileLocked=true; save(); toast("Business profile locked"); admin(); }
-
-function saveBusinessProfile(){
- if(db.settings.businessProfileLocked){ toast("Unlock this section first (password required)"); return; }
- Object.assign(db.business,{name:bName.value,tagline:bTagline.value,address:bAddress.value,officeLocation:bOffice.value,phone:bPhone.value,phone2:bPhone2.value,gstin:bGst.value,upiId:bUpi.value,upiName:bUpiName.value});
- save();toast("Business profile saved");admin();
-}
-function saveAdmin(){ requireAdmin(doSaveAdmin); }
-function doSaveAdmin(){
- Object.assign(db.platform,{name:pName.value,tagline:pTagline.value,address:pAddress.value,phone1:pPhone1.value,phone2:pPhone2.value,email:pEmail.value});
- ["standard","competitive","safety","drop","local","custom"].forEach(k=>{
-  const el=document.querySelector("#vis_"+k);
-  if(el) db.settings.visibleRates[k]=el.checked;
- });
- db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
- save();toast("Platform settings saved");admin();
-}
-
-function network(){if(!getCurrentUser()){renderLogin();return;}app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
-function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
-function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:new Date().toISOString()};fetch("/api/network",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(p)}).catch(()=>{});toast("Network request submitted (not yet delivered to other devices — multi-user sync is a future phase)")}
-function sos(){getLocation();setTimeout(()=>{const msg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;navigator.share?.({title:"Travel Connect SOS",text:msg}).catch(()=>{});toast("SOS message prepared")},800)}
-
-function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
-function closeModal(){document.querySelector("#modal").classList.add("hidden")}
-
-window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}return false};
-
-migrate();
-render();
