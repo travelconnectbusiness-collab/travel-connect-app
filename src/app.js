@@ -186,6 +186,17 @@ function getCurrentUser(){
  try{ return JSON.parse(localStorage.getItem("tc_user")||"null"); }catch(e){ return null; }
 }
 
+/* A random ID generated once per browser/device and kept in localStorage. Sent along
+   with every login so that blocking a mobile number can also block this specific
+   device — closing the loophole where a blocked person just re-registers with a new
+   name/mobile from the same phone. Clearing browser data resets this, but that is not
+   something an ordinary user does by accident. */
+function getDeviceToken(){
+ let t=localStorage.getItem("tc_device_token");
+ if(!t){ t=crypto.randomUUID(); localStorage.setItem("tc_device_token",t); }
+ return t;
+}
+
 /* Every device using this app link must "log in" with a name and mobile number before
    seeing anything else. This is NOT SMS-verified (no OTP) — it's a self-declared identity
    check, recorded centrally in D1, so misuse can be traced back to a name/mobile and that
@@ -210,7 +221,7 @@ async function submitLogin(inviteToken){
  const errBox=document.querySelector("#loginError");
  if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,invite_token:inviteToken||undefined})});
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
   const data=await res.json();
   if(!data.ok){
    errBox.textContent=data.error==="blocked"?"Access has been blocked for this number. Contact the app owner.":"Login failed. Please try again.";
@@ -263,7 +274,7 @@ async function checkStillAllowed(){
  const user=getCurrentUser();
  if(!user) return;
  try{
-  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile));
+  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
   const data=await res.json();
   if(data.ok && data.blocked){
    localStorage.removeItem("tc_user");
