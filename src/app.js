@@ -1680,7 +1680,7 @@ async function loadMyVehicles(partnerId){
   const data=await res.json();
   if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
   box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
-   <b>  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
