@@ -1876,8 +1876,6 @@ function showSosBanner(alert){
 
 function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
 function closeModal(){document.querySelector("#modal").classList.add("hidden")}
-
-window.onerror=function(msg){try{toast("Something went wrong: "+msg)}catch(e){}return false};
-
+window.onerror=function(msg,src,line,col,err){alert("DEBUG ERROR: "+msg+" | line:"+line+" col:"+col);try{toast("Something went wrong: "+msg)}catch(e){}return false};
 migrate();
 render();
