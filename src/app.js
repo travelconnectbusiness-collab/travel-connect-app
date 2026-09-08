@@ -287,6 +287,7 @@ async function checkStillAllowed(){
 function render(){
  if(!getCurrentUser()){ renderLogin(); return; }
  checkStillAllowed();
+ startSosPolling();
  const v=location.hash.slice(1)||"dashboard";
  if(v==="dashboard") dashboard();
  else if(v==="enquiries") enquiries();
@@ -1413,6 +1414,13 @@ function admin(){
   <div class="actions"><button onclick="loadPendingVehicles()">Load pending vehicles</button></div>
   <div id="pendingVehiclesList"></div>
  </div>
+ <hr>
+ <div class="card">
+  <h3>All Vehicles (Documents) <span class="muted">(owner only — password protected)</span></h3>
+  <p class="muted">Look up any vehicle's documents any time — including already-verified ones, e.g. to re-check before a renewal reminder.</p>
+  <div class="actions"><button onclick="loadAllVehiclesAdmin()">Load all vehicles</button></div>
+  <div id="allVehiclesList"></div>
+ </div>
  <hr><h3>Planned next phase</h3><p>Structured enquiry/booking workflow, vehicle-wise ledger.</p>`);
 }
 /* Ends just the admin session (rate/settings editing access) without logging the
@@ -1540,6 +1548,37 @@ async function deleteVehicleAdmin(id){
  }catch(e){ toast("Network error"); }
 }
 
+/* Owner-only: browse every vehicle (verified or not) to re-check its documents any
+   time — this is the only place documents remain reachable once a vehicle has
+   already been approved and dropped off the Pending list. */
+function loadAllVehiclesAdmin(){ requireAdmin(doLoadAllVehiclesAdmin); }
+async function doLoadAllVehiclesAdmin(){
+ const box=document.querySelector("#allVehiclesList");
+ box.innerHTML="<p class='muted'>Loading...</p>";
+ try{
+  const res=await fetch("/api/vehicles?action=all&token="+encodeURIComponent(adminToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load.</p>"; return; }
+  if(!data.vehicles.length){ box.innerHTML="<p class='muted'>No vehicles yet.</p>"; return; }
+  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} — ${esc(v.business_name)} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'}<br>
+   <div class="muted">Documents:
+    ${docLink("Front",v.front_photo_key)}${docLink("RC",v.rc_photo_key)}${docLink("Insurance",v.insurance_photo_key)}${docLink("Permit",v.permit_photo_key)}${docLink("Fitness",v.fitness_photo_key)}${docLink("PUC",v.puc_photo_key)}${docLink("License",v.driver_license_photo_key)}
+   </div>
+   <div class="muted">RC exp: ${esc(v.rc_expiry||"-")} • Insurance exp: ${esc(v.insurance_expiry||"-")} • Permit exp: ${esc(v.permit_expiry||"-")} • Fitness exp: ${esc(v.fitness_expiry||"-")} • PUC exp: ${esc(v.puc_expiry||"-")}</div>
+   <div class="actions">${v.verified?`<button onclick="unverifyVehicle(${v.id})">Un-verify</button>`:`<button class="primary" onclick="approveVehicle(${v.id});setTimeout(doLoadAllVehiclesAdmin,400)">Approve</button>`}</div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function unverifyVehicle(id){
+ if(!confirm("Remove verification from this vehicle? It will stop showing on the Active Board until re-approved.")) return;
+ try{
+  await fetch("/api/vehicles?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:id,verified:0,token:adminToken()})});
+  toast("Verification removed");
+  doLoadAllVehiclesAdmin();
+ }catch(e){ toast("Network error"); }
+}
+
 /* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
    unlocks it with the password — once unlocked, it can be filled in without re-entering the
    password each time, until locked again. Vehicle categories & rates remain separately
@@ -1641,6 +1680,7 @@ async function loadMyVehicles(partnerId){
   const data=await res.json();
   if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
   box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
@@ -1689,7 +1729,7 @@ function openAddVehicle(partnerId){
   <label>License expiry<input id="vLicExp" type="date"></label>
   <label>License photo<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
-  <h4>Vehicle documents</h4>
+ <h4>Vehicle documents</h4>
  <div class="grid">
   <label>Front photo (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo<input id="vRcPhoto" type="file" accept="image/*"></label>
@@ -1769,7 +1809,70 @@ async function activeBoard(){
 function network(){if(!getCurrentUser()){renderLogin();return;}app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
 function getLocation(){if(!navigator.geolocation){nStatus.textContent="GPS not supported";return}navigator.geolocation.getCurrentPosition(p=>{window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude};nStatus.innerHTML=`<p class="ok">Location captured: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}</p><a target="_blank" href="https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}">Open in Maps</a>`},()=>nStatus.textContent="Location permission denied")}
 function sendNetwork(){const p={message:nMsg.value,location:window.tcLoc||null,created:new Date().toISOString()};fetch("/api/network",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(p)}).catch(()=>{});toast("Network request submitted (not yet delivered to other devices — multi-user sync is a future phase)")}
-function sos(){getLocation();setTimeout(()=>{const msg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;navigator.share?.({title:"Travel Connect SOS",text:msg}).catch(()=>{});toast("SOS message prepared")},800)}
+function sos(){
+ getLocation();
+ setTimeout(async ()=>{
+  const user=getCurrentUser()||{};
+  const msg=`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+  try{
+   await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
+   toast("SOS sent — every logged-in user will be alerted");
+  }catch(e){ toast("Could not send SOS — check your connection"); }
+  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
+  navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+ },800);
+}
+
+/* ---------- IN-APP SOS ALERTS ----------
+   While the app is open, every logged-in device polls periodically for new SOS
+   alerts and, on finding one, plays an alarm sound and shows a banner with the
+   sender's name and a Call button. This only works while a tab is open — a true
+   push notification (working even with the app closed) is a separate, larger
+   feature for later. */
+let _sosLastSeen=null, _sosPollTimer=null;
+function startSosPolling(){
+ if(_sosPollTimer) return;
+ _sosLastSeen=new Date().toISOString(); /* don't alert for anything before this session started */
+ _sosPollTimer=setInterval(checkForSosAlerts,15000);
+}
+async function checkForSosAlerts(){
+ if(!getCurrentUser()) return;
+ try{
+  const res=await fetch("/api/sos?action=latest&since="+encodeURIComponent(_sosLastSeen));
+  const data=await res.json();
+  if(data.ok&&data.alerts&&data.alerts.length){
+   data.alerts.forEach(a=>showSosBanner(a));
+   _sosLastSeen=data.alerts[data.alerts.length-1].created_at;
+  }
+ }catch(e){}
+}
+function playSosAlarm(){
+ try{
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  let t=ctx.currentTime;
+  for(let i=0;i<4;i++){
+   const osc=ctx.createOscillator(), gain=ctx.createGain();
+   osc.frequency.value=880; osc.type="square";
+   gain.gain.setValueAtTime(0.3,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+   osc.connect(gain); gain.connect(ctx.destination);
+   osc.start(t); osc.stop(t+0.3);
+   t+=0.4;
+  }
+ }catch(e){}
+}
+function showSosBanner(alert){
+ playSosAlarm();
+ const mapLink=(alert.lat&&alert.lon)?`https://maps.google.com/?q=${alert.lat},${alert.lon}`:null;
+ const div=document.createElement("div");
+ div.className="danger";
+ div.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3)";
+ div.innerHTML=`<b>&#128680; SOS: ${esc(alert.sender_name||"A user")} needs help!</b><br>
+  ${alert.sender_mobile?`<a href="tel:${esc(alert.sender_mobile)}" style="color:#fff;text-decoration:underline">Call ${esc(alert.sender_mobile)}</a>`:""}
+  ${mapLink?` &nbsp;|&nbsp; <a href="${mapLink}" target="_blank" style="color:#fff;text-decoration:underline">View location</a>`:""}
+  &nbsp;|&nbsp; <a href="#" style="color:#fff;text-decoration:underline" onclick="this.closest('div').remove();return false">Dismiss</a>`;
+ document.body.appendChild(div);
+ setTimeout(()=>{ if(div.parentNode) div.remove(); },30000);
+}
 
 function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
 function closeModal(){document.querySelector("#modal").classList.add("hidden")}
