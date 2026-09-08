@@ -296,6 +296,8 @@ function render(){
  else if(v==="master") master();
  else if(v==="accounts") accounts();
  else if(v==="admin") requireAdmin(admin);
+ else if(v==="partner") partnerView();
+ else if(v==="activeboard") activeBoard();
  else network();
 }
 /* Makes the phone's/browser's own Back button work correctly inside the app too. */
@@ -342,6 +344,7 @@ function dashboard(){
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
  <div class="actions"><button class="primary" onclick="view('enquiries')">New Enquiry</button><button onclick="view('quotations')">New Quotation</button><button onclick="view('master')">Rate Master</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
  <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
 }
 
@@ -1397,7 +1400,20 @@ function admin(){
   <button onclick="logout()">Log out on this device</button>
   <button onclick="adminLogout()">End admin session on this device</button>
  </div>
- <hr><h3>Planned next phase</h3><p>Vehicle profiles, active-now board, document verification.</p>`);
+ <hr>
+ <div class="card">
+  <h3>Pending Travel Partners <span class="muted">(owner only — password protected)</span></h3>
+  <div class="actions"><button onclick="loadPendingPartners()">Load pending partners</button></div>
+  <div id="pendingPartnersList"></div>
+ </div>
+ <hr>
+ <div class="card">
+  <h3>Pending Vehicles <span class="muted">(owner only — password protected)</span></h3>
+  <p class="muted">Tap a document link to view the photo before approving.</p>
+  <div class="actions"><button onclick="loadPendingVehicles()">Load pending vehicles</button></div>
+  <div id="pendingVehiclesList"></div>
+ </div>
+ <hr><h3>Planned next phase</h3><p>Structured enquiry/booking workflow, vehicle-wise ledger.</p>`);
 }
 /* Ends just the admin session (rate/settings editing access) without logging the
    regular app user out — the next admin action will ask for the password again. */
@@ -1457,6 +1473,65 @@ async function doCreateInvite(){
  }catch(e){ document.querySelector("#invResult").innerHTML="<p class='danger'>Network error.</p>"; }
 }
 
+/* Owner-only: approve travel partners and vehicles before their vehicles can appear as
+   verified/active anywhere else in the app. Document photos are only viewable through
+   these admin-only, token-protected links — never public. */
+function loadPendingPartners(){ requireAdmin(doLoadPendingPartners); }
+async function doLoadPendingPartners(){
+ const box=document.querySelector("#pendingPartnersList");
+ box.innerHTML="<p class='muted'>Loading...</p>";
+ try{
+  const res=await fetch("/api/partners?action=pending&token="+encodeURIComponent(adminToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load.</p>"; return; }
+  if(!data.partners.length){ box.innerHTML="<p class='muted'>No pending partners.</p>"; return; }
+  box.innerHTML=data.partners.map(p=>`<div class="listitem">
+   <b>${esc(p.business_name)}</b> — ${esc(p.owner_name)} — ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}<br>
+   ${p.email?`${esc(p.email)}<br>`:""}${p.location?`${esc(p.location)} ${esc(p.pincode||"")}`:""}
+   <div class="actions"><button class="primary" onclick="approvePartner(${p.id})">Approve</button></div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function approvePartner(id){
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"verify",partner_id:id,verified:1,token:adminToken()})});
+  toast("Partner approved");
+  doLoadPendingPartners();
+ }catch(e){ toast("Network error"); }
+}
+
+function loadPendingVehicles(){ requireAdmin(doLoadPendingVehicles); }
+async function doLoadPendingVehicles(){
+ const box=document.querySelector("#pendingVehiclesList");
+ box.innerHTML="<p class='muted'>Loading...</p>";
+ try{
+  const res=await fetch("/api/vehicles?action=pending&token="+encodeURIComponent(adminToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load.</p>"; return; }
+  if(!data.vehicles.length){ box.innerHTML="<p class='muted'>No pending vehicles.</p>"; return; }
+  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} — ${esc(v.business_name)} (${esc(v.owner_name)})<br>
+   ${v.driver_name?`Driver: ${esc(v.driver_name)}<br>`:""}
+   <div class="muted">Documents:
+    ${docLink("Front",v.front_photo_key)}${docLink("RC",v.rc_photo_key)}${docLink("Insurance",v.insurance_photo_key)}${docLink("Permit",v.permit_photo_key)}${docLink("Fitness",v.fitness_photo_key)}${docLink("PUC",v.puc_photo_key)}${docLink("License",v.driver_license_photo_key)}
+   </div>
+   <div class="actions"><button class="primary" onclick="approveVehicle(${v.id})">Approve</button></div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+function docLink(label,key){
+ if(!key) return "";
+ const url="/api/vehicles?action=file&key="+encodeURIComponent(key)+"&token="+encodeURIComponent(adminToken());
+ return `<a href="${url}" target="_blank">[${esc(label)}]</a> `;
+}
+async function approveVehicle(id){
+ try{
+  await fetch("/api/vehicles?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:id,verified:1,token:adminToken()})});
+  toast("Vehicle approved");
+  doLoadPendingVehicles();
+ }catch(e){ toast("Network error"); }
+}
+
 /* The Business Profile section (partner name/contact/UPI) stays disabled until the owner
    unlocks it with the password — once unlocked, it can be filled in without re-entering the
    password each time, until locked again. Vehicle categories & rates remain separately
@@ -1479,6 +1554,205 @@ function doSaveAdmin(){
  db.settings.localMaxKm=+lKm.value||50;db.settings.localMaxHours=+lHr.value||5;
  save();toast("Platform settings saved");admin();
  pushConfigToServer();
+}
+
+/* ---------- TRAVEL PARTNER + VEHICLE REGISTRATION ---------- */
+/* Any logged-in user can register their travel business as a "Partner", tied to their
+   own mobile number (mobile1). Vehicles are added under that partner, each with its
+   own documents (RC/Insurance/Permit/Fitness/PUC/Driving License) and photos stored in
+   R2. Nothing shows as verified/active until the admin approves it — self-registration
+   only creates the record, it never grants trust by itself. */
+async function partnerView(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Partner",`<div id="partnerBox">Loading...</div>`);
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partner){ renderPartnerRegisterForm(); }
+  else{ window._myPartner=data.partner; renderPartnerDashboard(data.partner); }
+ }catch(e){
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error — check your connection and try again.</p>";
+ }
+}
+function renderPartnerRegisterForm(){
+ const user=getCurrentUser();
+ document.querySelector("#partnerBox").innerHTML=`
+ <p class="muted">Register your travel business to add vehicles and use the Active Vehicles Board. An admin will verify your details before your vehicles can be marked active.</p>
+ <div class="grid">
+  <label>Business name<input id="pBizName"></label>
+  <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
+  <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
+  <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Email (optional)<input id="pEmail"></label>
+  <label>Location<input id="pLocation" placeholder="Town / area"></label>
+  <label>Pincode<input id="pPincode"></label>
+ </div>
+ <button class="primary" onclick="submitPartnerRegister()">Register as Travel Partner</button>
+ <div id="pRegErr" class="danger"></div>`;
+}
+async function submitPartnerRegister(){
+ const business_name=document.querySelector("#pBizName").value.trim();
+ const owner_name=document.querySelector("#pOwnerName").value.trim();
+ const mobile1=document.querySelector("#pMobile1").value.trim();
+ const errBox=document.querySelector("#pRegErr");
+ if(!business_name||!owner_name||!mobile1){errBox.textContent="Fill in business name, owner name and mobile number.";return}
+ const body={action:"register",business_name,owner_name,mobile1,
+  mobile2:document.querySelector("#pMobile2").value.trim(),
+  email:document.querySelector("#pEmail").value.trim(),
+  location:document.querySelector("#pLocation").value.trim(),
+  pincode:document.querySelector("#pPincode").value.trim()};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){
+   errBox.textContent=data.error==="already_registered"?"This mobile number is already registered as a partner.":"Could not register. Please try again.";
+   return;
+  }
+  toast("Registered — waiting for admin verification");
+  partnerView();
+ }catch(e){errBox.textContent="Network error — check your connection and try again.";}
+}
+function renderPartnerDashboard(p){
+ document.querySelector("#partnerBox").innerHTML=`
+ <div class="card">
+  <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
+  <div class="muted">Owner: ${esc(p.owner_name)} • ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
+  ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
+  ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
+ </div>
+ <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
+ <h3>My Vehicles</h3>
+ <div id="myVehiclesList">Loading...</div>`;
+ loadMyVehicles(p.id);
+}
+async function loadMyVehicles(partnerId){
+ const box=document.querySelector("#myVehiclesList");
+ try{
+  const res=await fetch("/api/vehicles?action=list&partner_id="+partnerId);
+  const data=await res.json();
+  if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
+  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
+   ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
+   ${vehicleExpiryWarnings(v)}
+   <label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px">
+    <input type="checkbox" ${v.active?"checked":""} onchange="toggleVehicleActive(${v.id},this.checked)"> Active Now (ready for a trip)
+   </label>
+  </div>`).join("");
+ }catch(e){box.innerHTML="<p class='danger'>Network error.</p>"}
+}
+/* Warns the owner directly on their own vehicle list when any document is within 30
+   days of expiring (or already expired) — a simple client-side check against the
+   dates they entered, no separate reminder system yet. */
+function vehicleExpiryWarnings(v){
+ const docs=[["RC",v.rc_expiry],["Insurance",v.insurance_expiry],["Permit",v.permit_expiry],["Fitness",v.fitness_expiry],["PUC",v.puc_expiry],["Driving License",v.driver_license_expiry]];
+ const soon=docs.filter(([label,d])=>d&&isExpiringSoon(d));
+ if(!soon.length) return "";
+ return `<div class="danger">&#9888; Expiring soon: ${soon.map(([l,d])=>`${l} (${esc(d)})`).join(", ")}</div>`;
+}
+function isExpiringSoon(dateStr){
+ const d=new Date(dateStr);
+ if(isNaN(d)) return false;
+ return (d-new Date())/86400000<30;
+}
+/* Only the vehicle's own partner (matched by mobile, same ownership check as elsewhere
+   in this app) can flip this — not the admin, since only the owner/driver actually
+   knows whether the vehicle is free for a trip right now. */
+async function toggleVehicleActive(vehicleId,active){
+ const user=getCurrentUser();
+ try{
+  await fetch("/api/vehicles?action=toggle_active",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:vehicleId,mobile:user.mobile,active})});
+  toast(active?"Marked Active Now":"Marked inactive");
+ }catch(e){toast("Network error");}
+}
+function openAddVehicle(partnerId){
+ modal(`<h2>Add Vehicle</h2>
+ <div class="grid">
+  <label>Vehicle number<input id="vNoNew" placeholder="e.g. KL 07 AB 1234"></label>
+  <label>Category<input id="vCatNew" placeholder="e.g. Sedan, 17 Seat Urbania"></label>
+ </div>
+ <h4>Driver (optional — leave blank if same as RC owner)</h4>
+ <div class="grid">
+  <label>Driver name<input id="vDriverName"></label>
+  <label>Driver mobile 1<input id="vDriverMobile1"></label>
+  <label>Driver mobile 2<input id="vDriverMobile2"></label>
+  <label>Driving License number<input id="vLicNo"></label>
+  <label>License expiry<input id="vLicExp" type="date"></label>
+  <label>License photo<input id="vLicPhoto" type="file" accept="image/*"></label>
+ </div>
+ <h4>Vehicle documents</h4>
+ <div class="grid">
+  <label>Front photo (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
+  <label>RC photo<input id="vRcPhoto" type="file" accept="image/*"></label>
+  <label>RC expiry<input id="vRcExp" type="date"></label>
+  <label>Insurance photo<input id="vInsPhoto" type="file" accept="image/*"></label>
+  <label>Insurance expiry<input id="vInsExp" type="date"></label>
+  <label>Permit photo<input id="vPermitPhoto" type="file" accept="image/*"></label>
+  <label>Permit expiry<input id="vPermitExp" type="date"></label>
+  <label>Fitness photo<input id="vFitnessPhoto" type="file" accept="image/*"></label>
+  <label>Fitness expiry<input id="vFitnessExp" type="date"></label>
+  <label>PUC photo<input id="vPucPhoto" type="file" accept="image/*"></label>
+  <label>PUC expiry<input id="vPucExp" type="date"></label>
+ </div>
+ <button class="primary" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
+ <div id="vAddErr" class="danger"></div>`);
+}
+async function submitAddVehicle(partnerId){
+ const no=document.querySelector("#vNoNew").value.trim();
+ const errBox=document.querySelector("#vAddErr");
+ if(!no){errBox.textContent="Enter the vehicle number.";return}
+ const fd=new FormData();
+ fd.append("partner_id",partnerId);
+ fd.append("vehicle_number",no);
+ fd.append("category",document.querySelector("#vCatNew").value);
+ fd.append("driver_name",document.querySelector("#vDriverName").value);
+ fd.append("driver_mobile1",document.querySelector("#vDriverMobile1").value);
+ fd.append("driver_mobile2",document.querySelector("#vDriverMobile2").value);
+ fd.append("driver_license_number",document.querySelector("#vLicNo").value);
+ fd.append("driver_license_expiry",document.querySelector("#vLicExp").value);
+ fd.append("rc_expiry",document.querySelector("#vRcExp").value);
+ fd.append("insurance_expiry",document.querySelector("#vInsExp").value);
+ fd.append("permit_expiry",document.querySelector("#vPermitExp").value);
+ fd.append("fitness_expiry",document.querySelector("#vFitnessExp").value);
+ fd.append("puc_expiry",document.querySelector("#vPucExp").value);
+ const fileMap={vLicPhoto:"driver_license_photo",vFrontPhoto:"front_photo",vRcPhoto:"rc_photo",vInsPhoto:"insurance_photo",vPermitPhoto:"permit_photo",vFitnessPhoto:"fitness_photo",vPucPhoto:"puc_photo"};
+ Object.entries(fileMap).forEach(([elId,field])=>{
+  const el=document.querySelector("#"+elId);
+  if(el&&el.files&&el.files[0]) fd.append(field,el.files[0]);
+ });
+ try{
+  const res=await fetch("/api/vehicles?action=register",{method:"POST",body:fd});
+  const data=await res.json();
+  if(!data.ok){errBox.textContent="Could not save vehicle. Please try again.";return}
+  closeModal();
+  toast("Vehicle added — waiting for admin verification");
+  loadMyVehicles(partnerId);
+ }catch(e){errBox.textContent="Network error — check your connection and try again.";}
+}
+
+/* ---------- ACTIVE VEHICLES BOARD ----------
+   Shows ONLY category + vehicle number + partner business name + location + a Call
+   button for vehicles the owner has marked Active Now — verified vehicles from
+   verified partners only. No customers, rates, quotations or bills are ever shown
+   here; this is intentionally the one shared, cross-partner view in the app. */
+async function activeBoard(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Active Vehicles Board",`<p class="muted">Vehicles other travel partners have marked ready for a trip right now.</p><div id="activeBoardList">Loading...</div>`);
+ try{
+  const res=await fetch("/api/vehicles?action=active");
+  const data=await res.json();
+  const box=document.querySelector("#activeBoardList");
+  if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles are marked active right now.</p>";return}
+  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>${esc(v.category||"Vehicle")}</b> — ${esc(v.vehicle_number)}<br>
+   ${esc(v.business_name)}${v.location?` • ${esc(v.location)} ${esc(v.pincode||"")}`:""}
+   <div class="actions">
+    <a href="tel:${esc(v.mobile1)}"><button class="primary">&#128222; Call ${esc(v.mobile1)}</button></a>
+    ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
+   </div>
+  </div>`).join("");
+ }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
 }
 
 function network(){if(!getCurrentUser()){renderLogin();return;}app().innerHTML=card("Travel Connect Network",`<p class="muted">Network foundation: driver request, message, location and SOS. Live multi-user alerts will be connected to the Cloudflare backend in the next backend phase.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div>`)}
