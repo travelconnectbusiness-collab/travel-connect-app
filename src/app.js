@@ -1515,7 +1515,7 @@ async function doLoadPendingVehicles(){
    <div class="muted">Documents:
     ${docLink("Front",v.front_photo_key)}${docLink("RC",v.rc_photo_key)}${docLink("Insurance",v.insurance_photo_key)}${docLink("Permit",v.permit_photo_key)}${docLink("Fitness",v.fitness_photo_key)}${docLink("PUC",v.puc_photo_key)}${docLink("License",v.driver_license_photo_key)}
    </div>
-   <div class="actions"><button class="primary" onclick="approveVehicle(${v.id})">Approve</button></div>
+   <div class="actions"><button class="primary" onclick="approveVehicle(${v.id})">Approve</button><button class="danger" onclick="deleteVehicleAdmin(${v.id})">Delete</button></div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
@@ -1528,6 +1528,14 @@ async function approveVehicle(id){
  try{
   await fetch("/api/vehicles?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:id,verified:1,token:adminToken()})});
   toast("Vehicle approved");
+  doLoadPendingVehicles();
+ }catch(e){ toast("Network error"); }
+}
+async function deleteVehicleAdmin(id){
+ if(!confirm("Delete this vehicle entry? This cannot be undone.")) return;
+ try{
+  await fetch("/api/vehicles?action=delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:id,token:adminToken()})});
+  toast("Vehicle deleted");
   doLoadPendingVehicles();
  }catch(e){ toast("Network error"); }
 }
@@ -1681,7 +1689,7 @@ function openAddVehicle(partnerId){
   <label>License expiry<input id="vLicExp" type="date"></label>
   <label>License photo<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
- <h4>Vehicle documents</h4>
+  <h4>Vehicle documents</h4>
  <div class="grid">
   <label>Front photo (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo<input id="vRcPhoto" type="file" accept="image/*"></label>
@@ -1695,13 +1703,16 @@ function openAddVehicle(partnerId){
   <label>PUC photo<input id="vPucPhoto" type="file" accept="image/*"></label>
   <label>PUC expiry<input id="vPucExp" type="date"></label>
  </div>
- <button class="primary" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
+ <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
  <div id="vAddErr" class="danger"></div>`);
 }
 async function submitAddVehicle(partnerId){
  const no=document.querySelector("#vNoNew").value.trim();
  const errBox=document.querySelector("#vAddErr");
  if(!no){errBox.textContent="Enter the vehicle number.";return}
+ const saveBtn=document.querySelector("#vSaveBtn");
+ if(saveBtn.disabled) return; /* prevents duplicate entries from double/rapid taps */
+ saveBtn.disabled=true; saveBtn.textContent="Saving...";
  const fd=new FormData();
  fd.append("partner_id",partnerId);
  fd.append("vehicle_number",no);
@@ -1724,11 +1735,11 @@ async function submitAddVehicle(partnerId){
  try{
   const res=await fetch("/api/vehicles?action=register",{method:"POST",body:fd});
   const data=await res.json();
-  if(!data.ok){errBox.textContent="Could not save vehicle. Please try again.";return}
+  if(!data.ok){errBox.textContent="Could not save vehicle. Please try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";return}
   closeModal();
   toast("Vehicle added — waiting for admin verification");
   loadMyVehicles(partnerId);
- }catch(e){errBox.textContent="Network error — check your connection and try again.";}
+ }catch(e){errBox.textContent="Network error — check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";}
 }
 
 /* ---------- ACTIVE VEHICLES BOARD ----------
