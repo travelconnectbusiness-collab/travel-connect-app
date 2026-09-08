@@ -129,4 +129,81 @@ export async function onRequestPost({ request, env }) {
     const vehicleId = insertResult.meta.last_row_id;
 
     const photoKeys = {};
-    for (const docFi
+    for (const docField of DOC_FIELDS) {
+      const file = form.get(docField);
+      const key = await uploadFile(env, file, vehicleId, docField);
+      if (key) photoKeys[docField + "_key"] = key;
+    }
+    if (Object.keys(photoKeys).length) {
+      const setClauses = Object.keys(photoKeys).map((k) => `${k}=?`).join(",");
+      await env.DB
+        .prepare(`UPDATE vehicles SET ${setClauses} WHERE id=?`)
+        .bind(...Object.values(photoKeys), vehicleId)
+        .run();
+    }
+
+    return Response.json({ ok: true, vehicle_id: vehicleId });
+  }
+
+  if (action === "toggle_active") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    const { vehicle_id, mobile, active } = body;
+    if (!vehicle_id || !mobile) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare(
+        `SELECT v.id, p.mobile1, p.mobile2 FROM vehicles v
+         JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
+      )
+      .bind(vehicle_id)
+      .first();
+    if (!row) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (row.mobile1 !== mobile && row.mobile2 !== mobile) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    await env.DB
+      .prepare("UPDATE vehicles SET active=? WHERE id=?")
+      .bind(active ? 1 : 0, vehicle_id)
+      .run();
+    return Response.json({ ok: true });
+  }
+
+  if (action === "verify") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    await env.DB
+      .prepare("UPDATE vehicles SET verified=? WHERE id=?")
+      .bind(body.verified ? 1 : 0, body.vehicle_id)
+      .run();
+    return Response.json({ ok: true });
+  }
+
+  if (action === "delete") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    await env.DB.prepare("DELETE FROM vehicles WHERE id=?").bind(body.vehicle_id).run();
+    return Response.json({ ok: true });
+  }
+
+  return Response.json({ ok: false, error: "unknown_action" });
+}
