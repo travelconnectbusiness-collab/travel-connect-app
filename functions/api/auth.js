@@ -135,11 +135,12 @@ export async function onRequestPost({ request, env }) {
       .bind(action === "block" ? 1 : 0, body.mobile)
       .run();
 
+    const row = await env.DB
+      .prepare("SELECT device_token FROM app_users WHERE mobile=?")
+      .bind(body.mobile)
+      .first();
+
     if (action === "block") {
-      const row = await env.DB
-        .prepare("SELECT device_token FROM app_users WHERE mobile=?")
-        .bind(body.mobile)
-        .first();
       if (row && row.device_token) {
         const now = new Date().toISOString();
         await env.DB
@@ -147,6 +148,15 @@ export async function onRequestPost({ request, env }) {
             "INSERT INTO blocked_devices (device_token, blocked_at, note) VALUES (?,?,?) ON CONFLICT(device_token) DO NOTHING"
           )
           .bind(row.device_token, now, "blocked via mobile " + body.mobile)
+          .run();
+      }
+    } else {
+      /* unblock: also lift the device-level block for this device, otherwise the
+         phone stays locked out even though the mobile number itself was cleared. */
+      if (row && row.device_token) {
+        await env.DB
+          .prepare("DELETE FROM blocked_devices WHERE device_token=?")
+          .bind(row.device_token)
           .run();
       }
     }
