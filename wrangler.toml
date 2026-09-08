@@ -10,3 +10,6 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "travel-connect-db"
 database_id = "2bee7770-d4d9-4d23-b985-8572d9e24d80"
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "travel-connect-files"
