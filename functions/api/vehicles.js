@@ -198,5 +198,19 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
+  if (action === "delete") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    await env.DB.prepare("DELETE FROM vehicles WHERE id=?").bind(body.vehicle_id).run();
+    return Response.json({ ok: true });
+  }
+
   return Response.json({ ok: false, error: "unknown_action" });
 }
