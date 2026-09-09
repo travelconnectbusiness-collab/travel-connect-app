@@ -1,0 +1,884 @@
+/* app-updates.js — loaded AFTER app.js. Redefines/extends the functions below.
+   JavaScript lets a later function declaration override an earlier one with the
+   same name, so this file can patch app.js without ever touching that big file
+   again — only this smaller file grows with future updates. */
+
+function printQuote(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const c=db.categories[q.categoryId];
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+
+ /* Standard-vs-offer comparison, same idea as the final bill's — lets the customer
+    see the discount being offered right at the quotation stage, not just at billing. */
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours);
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours);
+ const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
+ const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
+ const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
+ const totalSavings=rateSaving+(q.discountAmount||0);
+ const showCompare=!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard";
+
+ let advanceHtml="";
+ if(q.advanceAmount>0){
+  let qrImg="";
+  if(db.business.upiId){
+   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
+   if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
+  }
+  advanceHtml=`<div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+   <div>
+    <div style="font-weight:bold;font-size:15px;color:#7a5a1e">ADVANCE REQUESTED</div>
+    <div style="font-size:22px;font-weight:bold">${money(q.advanceAmount)}</div>
+    <div style="font-size:12px;color:#7a5a1e">${q.advanceReceived?"&#9989; Received":"Please pay in advance to confirm this trip"}</div>
+   </div>
+   ${!q.advanceReceived&&qrImg?`<div style="text-align:center"><b style="font-size:11px">SCAN &amp; PAY ADVANCE</b><br>${qrImg}</div>`:""}
+  </div>`;
+ }
+
+ printContent("Quotation "+q.no,`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+ </div>
+ <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
+ <table>${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <table>
+  ${row("Trip Type",q.type,true)}
+  ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
+ </table>
+ ${showCompare?`
+ <h3 style="margin:12px 0 4px;font-size:15px;color:#143c5a">Standard vs Offer Rate</h3>
+ <table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  <tr><td style="padding:3px 0">Fare</td><td style="text-align:right;padding:3px 0">${money(stdFareTotal)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
+ </table>
+ ${totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:10px;margin:8px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
+ </div>`:""}
+ `:""}
+ <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
+  <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
+  <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
+ </div>
+ ${advanceHtml}
+ <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
+  &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
+ </div>
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
+ `);
+}
+
+
+function printContent(title,html){
+ let frame=document.querySelector("#printFrame");
+ if(frame) frame.remove();
+ frame=document.createElement("iframe");
+ frame.id="printFrame";
+ frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width="0";frame.style.height="0";frame.style.border="0";
+ document.body.appendChild(frame);
+ const doc=frame.contentWindow.document;
+ doc.open();
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
+ doc.close();
+ setTimeout(()=>{
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+ },300);
+}
+
+function printBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const billDate=billPrintDate();
+
+ let qrHtml="";
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+ }
+
+ const row=(label,value,bold)=>`<tr><td style="padding:3px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(value)}</td></tr>`;
+
+ let detailRows="";
+ detailRows+=row("Customer",t.customer||q.customer);
+ detailRows+=row("Customer Mobile",q.mobile||"-");
+ detailRows+=row("Trip Type",q.type||"-");
+ detailRows+=row("Vehicle Category",q.category||"-");
+ detailRows+=row("Vehicle",q.vehicle||"Not specified");
+ detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
+ if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
+ if(q.service) detailRows+=row("Service",q.service);
+ detailRows+=row("Trip Date",q.startDate||"-");
+
+ /* SECTION 1: Usage Details */
+ let usageRows="";
+ usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs",true);
+ if(r.incKm!=null){
+  usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
+  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+money(r.hourExtra||0));
+ }
+
+ /* SECTION 2: Standard vs Offer Rate */
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:3px 0;font-weight:${bold?"bold":"normal"};font-size:14px">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(sv)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(ov)}</td></tr>`;
+ const compareTable=`<table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  ${cmpRow("Base Rate",stdBase,offBase)}
+  ${cmpRow("Additional Charge",stdExtra,offExtra)}
+  <tr style="border-top:2px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
+ </table>`;
+
+ /* SECTION 3: Savings highlight */
+ const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:12px;margin:10px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:18px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+  <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
+ </div>`:"";
+
+ /* SECTION 4: Final Payment Summary */
+ let summaryRows="";
+ summaryRows+=row("Base Rate",money(r.base));
+ summaryRows+=row("Additional Charge (higher of KM/Hour)",money(r.extra||0));
+ if(r.driverBata) summaryRows+=row("Driver Bata",money(r.driverBata));
+ if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
+ if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
+ if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ printContent("Bill "+(q.no||""),`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div>
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+ </div>
+ <div style="display:flex;justify-content:space-between;align-items:baseline">
+  <h2 style="color:#143c5a;margin:4px 0;font-size:20px">FINAL TRIP BILL</h2>
+  <span style="color:#888;font-size:12px">Bill printed on: ${esc(billDate)}</span>
+ </div>
+ <table>${detailRows}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0">
+  <div style="font-weight:bold;font-size:14px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <hr>
+ <h3 style="margin:6px 0;font-size:16px;color:#143c5a">1. Usage Details</h3>
+ <table>${usageRows}</table>
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">2. Standard vs Offer Rate</h3>
+ ${compareTable}
+ ${savingsHtml}
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">4. Final Payment Summary</h3>
+ <table>${summaryRows}</table>
+ <div style="background:#0f5a55;border-radius:8px;padding:14px;text-align:center;margin:12px 0">
+  <div style="font-size:14px;color:#eafaf8">FINAL BILL AMOUNT</div>
+  <div style="font-size:32px;font-weight:bold;color:#fff">${money(r.final)}</div>
+ </div>
+ <div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div style="font-size:15px">
+   Balance Due: <b style="font-size:18px">${balance>0?money(balance):"FULLY PAID"}</b>
+  </div>
+  ${qrHtml}
+ </div>
+ ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ `);
+}
+
+function pdfHeader(doc,title){
+ let y=18;
+ doc.setFont(undefined,"bold");doc.setFontSize(16);
+ doc.text(db.business.name||"Travel Connect",15,y);y+=7;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ if(db.business.address){doc.text(db.business.address,15,y);y+=5;}
+ if(db.business.phone){doc.text("Phone: "+db.business.phone,15,y);y+=5;}
+ if(db.business.gstin){doc.text("GSTIN: "+db.business.gstin,15,y);y+=5;}
+ y+=2;doc.setDrawColor(180);doc.line(15,y,195,y);y+=9;
+ doc.setFont(undefined,"bold");doc.setFontSize(13);doc.text(title,15,y);y+=9;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+ return y;
+}
+
+function downloadQuotePDF(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const doc=pdfDoc();if(!doc)return;
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const c=db.categories[q.categoryId];
+ let y=pdfHeader(doc,"QUOTATION "+q.no);
+ y=pdfRow(doc,y,"Date",(q.created||"").slice(0,10));
+ y=pdfRow(doc,y,"Customer",q.customer);
+ y=pdfRow(doc,y,"Mobile",q.mobile);
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"Vehicle Category",q.category);
+ y=pdfRow(doc,y,"Vehicle",(q.vehicle||"-")+" "+(q.vehicleNo||""));
+ y=pdfRow(doc,y,"Vehicle Start Point",q.vehicleStart||"-");
+ y=pdfRow(doc,y,"Pickup",q.pickup);
+ dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
+ if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
+ y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
+ y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
+ y=pdfDivider(doc,y);
+
+ /* Standard-vs-offer comparison, same idea as the final bill's. */
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours);
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours);
+ const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
+ const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
+ const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
+ const totalSavings=rateSaving+(q.discountAmount||0);
+ if(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard"){
+  doc.setFont(undefined,"bold");doc.setFontSize(11);doc.text("Standard vs Offer Rate",15,y);y+=6;doc.setFont(undefined,"normal");doc.setFontSize(9);
+  doc.setTextColor(120);doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});doc.setTextColor(0);y+=5;
+  doc.text("Fare",15,y);doc.text(pdfMoney(stdFareTotal),140,y,{align:"right"});doc.setFont(undefined,"bold");doc.text(pdfMoney(offerFareTotal),195,y,{align:"right"});doc.setFont(undefined,"normal");y+=8;
+  if(totalSavings>0){
+   doc.setFillColor(230,247,233);doc.rect(15,y,180,12,"F");
+   doc.setTextColor(28,107,44);doc.setFont(undefined,"bold");doc.setFontSize(10);
+   doc.text("You save: "+pdfMoney(totalSavings),20,y+8);
+   doc.setTextColor(0);doc.setFont(undefined,"normal");doc.setFontSize(10);
+   y+=18;
+  }
+  y=pdfDivider(doc,y);
+ }
+
+ y=pdfRow(doc,y,"Subtotal",pdfMoney(q.subtotal??q.quotedAmount));
+ if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
+ if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y+=2;
+ doc.setFillColor(15,90,85);
+ doc.rect(15,y,180,20,"F");
+ doc.setTextColor(255,255,255);
+ doc.setFont(undefined,"normal");doc.setFontSize(9);
+ doc.text("QUOTED AMOUNT (ESTIMATE)",105,y+7,{align:"center"});
+ doc.setFont(undefined,"bold");doc.setFontSize(16);
+ doc.text(pdfMoney(q.quotedAmount),105,y+16,{align:"center"});
+ doc.setTextColor(0);doc.setFont(undefined,"normal");doc.setFontSize(10);
+ y+=26;
+
+ if(q.advanceAmount>0){
+  const boxH=q.advanceReceived?18:40;
+  doc.setFillColor(255,248,232);doc.rect(15,y,180,boxH,"F");
+  doc.setDrawColor(210,180,120);doc.rect(15,y,180,boxH);doc.setDrawColor(210);
+  doc.setFont(undefined,"bold");doc.setFontSize(9.5);doc.text("ADVANCE "+(q.advanceReceived?"RECEIVED":"REQUESTED"),20,y+8);
+  doc.setFont(undefined,"normal");doc.setFontSize(9);doc.text(pdfMoney(q.advanceAmount),20,y+14);
+  if(!q.advanceReceived&&db.business.upiId){
+   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),200);
+   if(qrData){doc.setFontSize(7.5);doc.text("SCAN & PAY",170,y+6,{align:"center"});doc.addImage(qrData,"PNG",151,y+8,30,30);}
+  }
+  y+=boxH+6;
+ }
+
+ doc.setFont(undefined,"normal");doc.setFontSize(8);doc.setTextColor(90);
+ const disclaimer="This is an estimated fare based on the KM/hours entered above and rates in effect today"+(q.validUntil?", valid until "+q.validUntil:"")+". The final bill is calculated only after the trip, based on actual KM/hours travelled"+(q.validUntil?", and rates may change after the validity date above":"")+".";
+ const wrapped=doc.splitTextToSize(disclaimer,180);
+ doc.text(wrapped,15,y);y+=wrapped.length*4+2;
+ doc.setTextColor(0);
+
+ doc.save("Quotation-"+q.no+".pdf");
+}
+
+function downloadBillPDF(tripId){
+ const t=db.trips.find(x=>x.id===tripId);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const billDate=billPrintDate();
+
+ const doc=pdfDoc();if(!doc)return;
+ let y=15;
+ try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(10.5);
+ doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
+ if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.setFont(undefined,"bold");doc.setFontSize(8);doc.setTextColor(70);
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
+ if(platformPhones) doc.text(platformPhones,195,y+1,{align:"right"});
+ doc.setTextColor(0);
+ y+=12;
+ doc.setDrawColor(210);doc.line(15,y,195,y);y+=6;
+
+ const partnerBoxTop=y;
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean);
+ const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhones.length?5.5:0);
+ doc.setFillColor(232,245,244);
+ doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
+ doc.setDrawColor(20,120,110);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
+ let py=partnerBoxTop+7;
+ doc.setFont(undefined,"bold");doc.setFontSize(14);doc.setTextColor(15,90,85);
+ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=5;
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
+ if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
+ if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=4.5;}
+ if(partnerPhones.length){
+  doc.setFont(undefined,"bold");doc.setFontSize(10.5);doc.setTextColor(15,90,85);
+  doc.text("Contact: "+partnerPhones.join("   |   "),105,py,{align:"center"});py+=5.5;
+ }
+ doc.setTextColor(0);
+ y=partnerBoxTop+partnerBoxHeight+6;
+
+ doc.setFont(undefined,"bold");doc.setFontSize(12.5);
+ doc.text("FINAL TRIP BILL",105,y,{align:"center"});
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ doc.text("Bill printed on: "+billDate,195,y,{align:"right"});doc.setTextColor(0);
+ y+=7;
+ doc.setFontSize(8.5);
+
+ const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
+ if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
+ if(q.service) detailRows.push(["Service",q.service]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+
+ detailRows.forEach(([label,value])=>{
+  if(y>272){doc.addPage();y=18;}
+  doc.setTextColor(90);doc.text(label,15,y);
+  doc.setTextColor(0);doc.text(String(value),195,y,{align:"right"});
+  y+=5;
+ });
+
+ y+=1;
+ doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=5;doc.setFont(undefined,"normal");
+ const routeLine=[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
+ const routeWrapped=doc.splitTextToSize(routeLine,180);
+ doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
+
+ /* SECTION 1: Usage Details */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
+ if(r.incKm!=null){
+  y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
+ }
+
+ /* SECTION 2: Standard vs Offer Rate */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("2. Standard vs Offer Rate",15,y);y+=6;
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});
+ doc.setTextColor(0);doc.setFontSize(8.5);y+=5;
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ doc.setFont(undefined,"normal");
+ [["Base Rate",stdBase,offBase],["Additional Charge",stdExtra,offExtra]].forEach(([label,sv,ov])=>{
+  doc.text(label,15,y);doc.text(pdfMoney(sv),140,y,{align:"right"});doc.text(pdfMoney(ov),195,y,{align:"right"});y+=5;
+ });
+ doc.setFont(undefined,"bold");
+ doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
+ doc.setFont(undefined,"normal");
+
+ /* SECTION 3: Customer Savings (green highlight) */
+ if(totalSavings>0){
+  if(y+16+8>282){doc.addPage();y=18;}
+  doc.setFillColor(230,247,233);doc.rect(15,y,180,16,"F");
+  doc.setDrawColor(46,158,68);doc.rect(15,y,180,16);doc.setDrawColor(210);
+  doc.setTextColor(28,107,44);doc.setFont(undefined,"bold");doc.setFontSize(11);
+  doc.text("Your Total Savings: "+pdfMoney(totalSavings),20,y+7);
+  doc.setFont(undefined,"normal");doc.setFontSize(8);
+  let noteParts=[];
+  if(rateSaving) noteParts.push("Offer discount "+pdfMoney(rateSaving));
+  if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
+  if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
+  doc.setTextColor(0);
+  y+=20;
+ }
+
+ /* SECTION 4: Final Payment Summary */
+ y=pdfDivider(doc,y);
+ doc.setFontSize(8.5);
+ doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
+ y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
+ if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
+ if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
+ if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
+ if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
+ y+=3;
+
+ const boxHeight=38;
+ if(y+boxHeight+18>282){doc.addPage();y=18;}
+ const boxTop=y;
+ doc.setFillColor(255,248,232);
+ doc.rect(15,boxTop,180,boxHeight,"F");
+ doc.setDrawColor(210,180,120);doc.rect(15,boxTop,180,boxHeight);doc.setDrawColor(210);
+ doc.setFont(undefined,"bold");doc.setFontSize(9.5);
+ doc.text("PAYMENT INFORMATION",20,boxTop+7);
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);
+ doc.text("Final Bill Amount",20,boxTop+14);
+ doc.text(pdfMoney(r.final),20,boxTop+19.5);
+ doc.text("Balance Due",20,boxTop+27);
+ doc.setFont(undefined,"bold");
+ doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+32.5);
+ doc.setFont(undefined,"normal");
+
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData){
+   doc.setFontSize(7.5);doc.text("SCAN & PAY",170,boxTop+6,{align:"center"});
+   doc.addImage(qrData,"PNG",151,boxTop+8,36,36);
+  }
+ }
+ y=boxTop+boxHeight+6;
+
+ if((t.payments||[]).length){
+  if(y>265){doc.addPage();y=18;}
+  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=6;doc.setFont(undefined,"normal");
+  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
+  y=pdfRow(doc,y,"Total Paid",pdfMoney(paid),true);
+  y+=3;
+ }
+
+ if(y>276){doc.addPage();y=18;}
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
+ doc.setTextColor(0);
+
+ doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
+}
+/* ---------- PRINT ---------- */
+/* Prints via a hidden same-page iframe instead of window.open() — opening a separate
+   tab/window causes some mobile browsers (notably Chrome on Android) to show a reduced
+   print dialog without the full printer/destination chooser. A same-page iframe reliably
+   shows the complete native print sheet, including nearby Bluetooth/USB printers. */
+function printContent(title,html){
+ let frame=document.querySelector("#printFrame");
+ if(frame) frame.remove();
+ frame=document.createElement("iframe");
+ frame.id="printFrame";
+ frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width="0";frame.style.height="0";frame.style.border="0";
+ document.body.appendChild(frame);
+ const doc=frame.contentWindow.document;
+ doc.open();
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
+ doc.close();
+ setTimeout(()=>{
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+ },300);
+}
+function printQuote(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const c=db.categories[q.categoryId];
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+
+ /* Standard-vs-offer comparison, same idea as the final bill's — lets the customer
+    see the discount being offered right at the quotation stage, not just at billing. */
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours);
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours);
+ const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
+ const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
+ const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
+ const totalSavings=rateSaving+(q.discountAmount||0);
+ const showCompare=!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard";
+
+ let advanceHtml="";
+ if(q.advanceAmount>0){
+  let qrImg="";
+  if(db.business.upiId){
+   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
+   if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
+  }
+  advanceHtml=`<div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+   <div>
+    <div style="font-weight:bold;font-size:15px;color:#7a5a1e">ADVANCE REQUESTED</div>
+    <div style="font-size:22px;font-weight:bold">${money(q.advanceAmount)}</div>
+    <div style="font-size:12px;color:#7a5a1e">${q.advanceReceived?"&#9989; Received":"Please pay in advance to confirm this trip"}</div>
+   </div>
+   ${!q.advanceReceived&&qrImg?`<div style="text-align:center"><b style="font-size:11px">SCAN &amp; PAY ADVANCE</b><br>${qrImg}</div>`:""}
+  </div>`;
+ }
+
+ printContent("Quotation "+q.no,`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+ </div>
+ <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
+ <table>${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <table>
+  ${row("Trip Type",q.type,true)}
+  ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
+ </table>
+ ${showCompare?`
+ <h3 style="margin:12px 0 4px;font-size:15px;color:#143c5a">Standard vs Offer Rate</h3>
+ <table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  <tr><td style="padding:3px 0">Fare</td><td style="text-align:right;padding:3px 0">${money(stdFareTotal)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
+ </table>
+ ${totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:10px;margin:8px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
+ </div>`:""}
+ `:""}
+ <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
+  <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
+  <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
+ </div>
+ ${advanceHtml}
+ <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
+  &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
+ </div>
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
+ `);
+}
+
+function downloadBillPDF(tripId){
+ const t=db.trips.find(x=>x.id===tripId);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const billDate=billPrintDate();
+
+ const doc=pdfDoc();if(!doc)return;
+ let y=15;
+ try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(10.5);
+ doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
+ if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.setFont(undefined,"bold");doc.setFontSize(8);doc.setTextColor(70);
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
+ if(platformPhones) doc.text(platformPhones,195,y+1,{align:"right"});
+ doc.setTextColor(0);
+ y+=12;
+ doc.setDrawColor(210);doc.line(15,y,195,y);y+=6;
+
+ const partnerBoxTop=y;
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean);
+ const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhones.length?5.5:0);
+ doc.setFillColor(232,245,244);
+ doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
+ doc.setDrawColor(20,120,110);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
+ let py=partnerBoxTop+7;
+ doc.setFont(undefined,"bold");doc.setFontSize(14);doc.setTextColor(15,90,85);
+ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=5;
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
+ if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
+ if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=4.5;}
+ if(partnerPhones.length){
+  doc.setFont(undefined,"bold");doc.setFontSize(10.5);doc.setTextColor(15,90,85);
+  doc.text("Contact: "+partnerPhones.join("   |   "),105,py,{align:"center"});py+=5.5;
+ }
+ doc.setTextColor(0);
+ y=partnerBoxTop+partnerBoxHeight+6;
+
+ doc.setFont(undefined,"bold");doc.setFontSize(12.5);
+ doc.text("FINAL TRIP BILL",105,y,{align:"center"});
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ doc.text("Bill printed on: "+billDate,195,y,{align:"right"});doc.setTextColor(0);
+ y+=7;
+ doc.setFontSize(8.5);
+
+ const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
+ if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
+ if(q.service) detailRows.push(["Service",q.service]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+
+ detailRows.forEach(([label,value])=>{
+  if(y>272){doc.addPage();y=18;}
+  doc.setTextColor(90);doc.text(label,15,y);
+  doc.setTextColor(0);doc.text(String(value),195,y,{align:"right"});
+  y+=5;
+ });
+
+ y+=1;
+ doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=5;doc.setFont(undefined,"normal");
+ const routeLine=[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
+ const routeWrapped=doc.splitTextToSize(routeLine,180);
+ doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
+
+ /* SECTION 1: Usage Details */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
+ if(r.incKm!=null){
+  y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
+ }
+
+ /* SECTION 2: Standard vs Offer Rate */
+ y=pdfDivider(doc,y);
+ doc.setFont(undefined,"bold");doc.text("2. Standard vs Offer Rate",15,y);y+=6;
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});
+ doc.setTextColor(0);doc.setFontSize(8.5);y+=5;
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ doc.setFont(undefined,"normal");
+ [["Base Rate",stdBase,offBase],["Additional Charge",stdExtra,offExtra]].forEach(([label,sv,ov])=>{
+  doc.text(label,15,y);doc.text(pdfMoney(sv),140,y,{align:"right"});doc.text(pdfMoney(ov),195,y,{align:"right"});y+=5;
+ });
+ doc.setFont(undefined,"bold");
+ doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
+ doc.setFont(undefined,"normal");
+
+ /* SECTION 3: Customer Savings (green highlight) */
+ if(totalSavings>0){
+  if(y+16+8>282){doc.addPage();y=18;}
+  doc.setFillColor(230,247,233);doc.rect(15,y,180,16,"F");
+  doc.setDrawColor(46,158,68);doc.rect(15,y,180,16);doc.setDrawColor(210);
+  doc.setTextColor(28,107,44);doc.setFont(undefined,"bold");doc.setFontSize(11);
+  doc.text("Your Total Savings: "+pdfMoney(totalSavings),20,y+7);
+  doc.setFont(undefined,"normal");doc.setFontSize(8);
+  let noteParts=[];
+  if(rateSaving) noteParts.push("Offer discount "+pdfMoney(rateSaving));
+  if(manualDiscount) noteParts.push("Additional discount "+pdfMoney(manualDiscount));
+  if(noteParts.length) doc.text(noteParts.join(" + "),20,y+13);
+  doc.setTextColor(0);
+  y+=20;
+ }
+
+ /* SECTION 4: Final Payment Summary */
+ y=pdfDivider(doc,y);
+ doc.setFontSize(8.5);
+ doc.setFont(undefined,"bold");doc.text("4. Final Payment Summary",15,y);y+=6;doc.setFont(undefined,"normal");
+ y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
+ y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
+ if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
+ if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
+ if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
+ if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ y=pdfDivider(doc,y);
+ y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
+ y+=3;
+
+ const boxHeight=38;
+ if(y+boxHeight+18>282){doc.addPage();y=18;}
+ const boxTop=y;
+ doc.setFillColor(255,248,232);
+ doc.rect(15,boxTop,180,boxHeight,"F");
+ doc.setDrawColor(210,180,120);doc.rect(15,boxTop,180,boxHeight);doc.setDrawColor(210);
+ doc.setFont(undefined,"bold");doc.setFontSize(9.5);
+ doc.text("PAYMENT INFORMATION",20,boxTop+7);
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);
+ doc.text("Final Bill Amount",20,boxTop+14);
+ doc.text(pdfMoney(r.final),20,boxTop+19.5);
+ doc.text("Balance Due",20,boxTop+27);
+ doc.setFont(undefined,"bold");
+ doc.text(balance>0?pdfMoney(balance):"FULLY PAID",20,boxTop+32.5);
+ doc.setFont(undefined,"normal");
+
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData){
+   doc.setFontSize(7.5);doc.text("SCAN & PAY",170,boxTop+6,{align:"center"});
+   doc.addImage(qrData,"PNG",151,boxTop+8,36,36);
+  }
+ }
+ y=boxTop+boxHeight+6;
+
+ if((t.payments||[]).length){
+  if(y>265){doc.addPage();y=18;}
+  doc.setFont(undefined,"bold");doc.text("Payments Received",15,y);y+=6;doc.setFont(undefined,"normal");
+  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
+  y=pdfRow(doc,y,"Total Paid",pdfMoney(paid),true);
+  y+=3;
+ }
+
+ if(y>276){doc.addPage();y=18;}
+ doc.setFontSize(8);doc.setTextColor(120);
+ doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
+ doc.setTextColor(0);
+
+ doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
+}
+
+function quoteForm(){
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ return `<div class="grid">
+ <label>Customer name<input id="qName"></label><label>Customer mobile<input id="qMobile"></label>
+ <label>Trip type<select id="qType" onchange="handleTripTypeChange()">
+   <option value="local">Local Trip</option>
+   <option value="one_day">One Day</option>
+   <option value="round">Round Trip</option>
+   <option value="outstation">Outstation</option>
+   <option value="drop">Drop</option>
+ </select></label>
+ <label>Vehicle category<select id="qCat" onchange="handleTripTypeChange()">${cat}</select></label>
+ <label>Vehicle<input id="qVehicle"></label><label>Vehicle number<input id="qVehicleNo"></label>
+ <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qVehicleStart" value="${esc(db.business.officeLocation)}"></label>
+ <label><b>Customer pickup point</b><input id="qPickup"></label>
+ <label>Destination 1<input id="qDest"></label></div>
+ <div id="qStopsContainer"></div>
+ <div class="actions">
+  <button type="button" onclick="addStopField()">+ Add another destination</button>
+  <button type="button" onclick="openRoute()">🗺️ Open route in Google Maps</button>
+ </div>
+ <div class="grid">
+ <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
+ <label>Estimated KM<input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
+ <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
+ <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
+ <label>Start date<input id="qStart" type="date"></label>
+ <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
+ <label>Closing time<input id="qCloseTime" type="time"></label>
+ <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
+ <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
+ <label>Rate<select id="qRate">${rateOptions()}</select></label>
+ <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
+ <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
+ <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
+ <label>Discount type<select id="qDiscType">
+   <option value="none">No discount</option>
+   <option value="percent">Percentage (%)</option>
+   <option value="fixed">Fixed amount (₹)</option>
+ </select></label>
+ <label>Discount value<input id="qDiscValue" type="number" value="0"></label>
+ <label>Round off to<select id="qRound">
+   <option value="0">No rounding</option>
+   <option value="10">Nearest ₹10</option>
+   <option value="50">Nearest ₹50</option>
+   <option value="100">Nearest ₹100</option>
+ </select></label>
+ <label><b>Advance requested (optional)</b><select id="qAdvancePct" onchange="updateAdvanceAmount()">
+   <option value="0">No advance</option>
+   <option value="10">10%</option>
+   <option value="25">25%</option>
+   <option value="50">50%</option>
+   <option value="manual">Manual amount</option>
+ </select></label>
+ <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
+ <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
+ </div>
+ <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
+}
+
+function saveQuote(){
+ const r=calcQuote();if(r.invalid){toast("Correct Local Trip limits first");return}
+ const c=db.categories[+qCat.value];
+ const q={id:crypto.randomUUID(),no:"QTN-"+Date.now(),customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
+  pickup:qPickup.value,vehicleStart:qVehicleStart.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
+  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
+  service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
+  driverBata:r.driverBata||0,
+  discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
+  subtotal:r.total+(r.driverBata||0),quotedAmount:r.final,created:new Date().toISOString(),status:"quoted",
+  advanceAmount:+qAdvanceAmount.value||0,advanceReceived:false,advanceMethod:"",advanceReceivedAt:"",
+  validUntil:document.querySelector("#qValidUntil").value||""};
+ db.quotes.unshift(q);save();toast("Quotation saved: "+q.no);quotations();
+}
+
+function openQuote(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ view("quotations");
+ setTimeout(()=>{
+  qName.value=q.customer;qMobile.value=q.mobile;qType.value=q.type;qCat.value=q.categoryId;qVehicle.value=q.vehicle;qVehicleNo.value=q.vehicleNo;
+  qPickup.value=q.pickup;qVehicleStart.value=q.vehicleStart||db.business.officeLocation||"";
+  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
+  qDest.value=dests[0]||"";
+  dests.slice(1).forEach(d=>addStopField(d));
+  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
+  qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
+  qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
+  qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||"";
+  calcQuote();
+ },0);
+}
+
+function updateAdvanceAmount(){
+ const pct=document.querySelector("#qAdvancePct").value;
+ if(pct==="manual"||pct==="0") { if(pct==="0") qAdvanceAmount.value=0; return; }
+ const r=calcQuote();
+ if(r&&!r.invalid) qAdvanceAmount.value=Math.round((r.final||0)*(+pct)/100);
+}
+
+function quotations(){
+ app().innerHTML=card("Quotations",`${quoteForm()}<hr><h3>Saved Quotations</h3>${db.quotes.map(q=>`<div class="listitem"><b>${esc(q.no)}</b> — ${esc(q.customer)} — ${money(q.quotedAmount)}<br>${esc(q.pickup)} → ${esc((q.destinations||[q.destination]).join(" → "))}
+ ${q.advanceAmount>0?`<div class="${q.advanceReceived?"ok":"danger"}">${q.advanceReceived?`&#9989; Advance received: ${money(q.advanceAmount)} (${esc(q.advanceMethod||"")})`:`&#9888; Advance requested: ${money(q.advanceAmount)} — not yet received`}</div>`:""}
+ <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button>${q.advanceAmount>0?`<button onclick="openAdvanceQR('${q.id}')">Advance QR</button>${q.advanceReceived?"":`<button class="primary" onclick="markAdvanceReceived('${q.id}')">Mark Advance Received</button>`}`:""}<button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+}
+
+function openAdvanceQR(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ if(!db.business.upiId){toast("Add a UPI ID in Admin settings to generate a payment QR code");return}
+ modal(`<h2>Advance Payment QR</h2><p class="muted">₹${money(q.advanceAmount).replace("₹","")} advance for ${esc(q.no)}</p><div id="advQrBox" style="text-align:center"></div>`);
+ setTimeout(()=>{
+  const box=document.querySelector("#advQrBox");
+  if(box&&typeof QRCode!=="undefined"){
+   new QRCode(box,{text:buildUpiLink(q.advanceAmount,"Advance "+q.no),width:200,height:200});
+  }
+ },0);
+}
+
+function markAdvanceReceived(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ modal(`<h2>Confirm Advance Received</h2>
+  <p class="muted">${esc(q.no)} — Advance amount: ${money(q.advanceAmount)}</p>
+  <label>Method<select id="advMethod"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+  <div class="actions"><button class="primary" onclick="confirmAdvanceReceived('${id}')">Confirm Received</button></div>`);
+}
+
+function confirmAdvanceReceived(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ q.advanceReceived=true;
+ q.advanceMethod=document.querySelector("#advMethod").value;
+ q.advanceReceivedAt=new Date().toISOString();
+ save();closeModal();toast("Advance marked as received");quotations();
+}
+
+function convertTrip(id){
+ const q=db.quotes.find(x=>x.id===id);
+ const payments=(q.advanceReceived&&q.advanceAmount>0)?[{amount:q.advanceAmount,method:q.advanceMethod||"Advance",at:q.advanceReceivedAt||new Date().toISOString()}]:[];
+ db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments,created:new Date().toISOString()});
+ q.status="confirmed";save();toast("Trip confirmed"+(payments.length?" — advance carried over as a payment":""));trips()
+}
