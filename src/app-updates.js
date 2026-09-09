@@ -786,6 +786,9 @@ function openQuickRoute(){
 }
 /* Uses the exact same rate engine as the Quotation form (calcFare) — just without
    any of the save/discount/round-off machinery, for speed during a live call. */
+/* Updated: now shows Standard rate first, then the selected Offer rate (if
+   different) — same comparison style as the Quotation/Bill screens — so the
+   owner can read out both figures to the customer live on a call. */
 
 
 function calcQuickFare(){
@@ -795,16 +798,32 @@ function calcQuickFare(){
  const box=document.querySelector("#qqResult");
  const r=calcFare(c,plan,km,h);
  if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
- const standardRaw=calcFare(c,"standard",km,h);
- const savings=(plan!=="standard"&&!standardRaw.invalid)?Math.max(0,standardRaw.total-r.total):0;
  const days=+document.querySelector("#qqDays").value||1;
- box.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+
+ if(plan==="standard"){
+  box.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
+  <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
+  ${days>1?`<div class="muted">${days} day trip</div>`:""}
+  <div class="total">Standard Fare: ${money(r.total)}</div>`;
+  return;
+ }
+
+ const standardRaw=calcFare(c,"standard",km,h);
+ const stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const savings=(!standardRaw.invalid)?Math.max(0,stdTotal-r.total):0;
+
+ box.innerHTML=`
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
- <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
- ${savings>0?`<div class="ok">Savings vs Standard: ${money(savings)}</div>`:""}
  ${days>1?`<div class="muted">${days} day trip</div>`:""}
- <div class="total">Fare: ${money(r.total)}</div>`;
+ <table style="width:100%;margin-top:6px">
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  <tr><td>Fare</td><td style="text-align:right">${money(stdTotal)}</td><td style="text-align:right;font-weight:bold">${money(r.total)}</td></tr>
+ </table>
+ ${savings>0?`<div class="ok" style="margin-top:6px">🎉 Customer saves: ${money(savings)}</div>`:""}
+ <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total)}</div>`;
 }
+
 /* Only saves an Enquiry record if the owner explicitly wants one kept — the whole
    point of Quick Fare is that a phone call doesn't have to end in a saved record. */
 
