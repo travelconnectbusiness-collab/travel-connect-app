@@ -11,32 +11,32 @@ const defaults={
  categories:[
   {name:"Mini / Hatchback",driverBata:0,
    standard:rateBlock(2200,80,8,18,220), competitive:rateBlock(1900,80,8,18,220),
-   safety:rateBlock(2050,80,8,18,220),   local:rateBlock(1500,40,4,20,220),
-   drop:rateBlock(1500,40,4,20,220)},
+   safety:rateBlock(2050,80,8,18,220),   local:rateBlock(1500,10,1,20,220),
+   drop:rateBlock(1500,10,1,20,220)},
   {name:"Sedan",driverBata:0,
    standard:rateBlock(2500,80,8,21,250), competitive:rateBlock(2200,80,8,21,250),
-   safety:rateBlock(2350,80,8,21,250),   local:rateBlock(1700,40,4,21,250),
-   drop:rateBlock(1700,40,4,21,250)},
+   safety:rateBlock(2350,80,8,21,250),   local:rateBlock(1700,10,1,21,250),
+   drop:rateBlock(1700,10,1,21,250)},
   {name:"Taxi Jeep / Off-road",driverBata:0,
    standard:rateBlock(2800,80,8,22,250), competitive:rateBlock(2400,80,8,22,250),
-   safety:rateBlock(2600,80,8,22,250),   local:rateBlock(1900,40,4,22,250),
-   drop:rateBlock(1900,40,4,22,250)},
+   safety:rateBlock(2600,80,8,22,250),   local:rateBlock(1900,10,1,22,250),
+   drop:rateBlock(1900,10,1,22,250)},
   {name:"Standard MUV",driverBata:0,
    standard:rateBlock(3000,80,8,22,300), competitive:rateBlock(2600,80,8,22,300),
-   safety:rateBlock(2800,80,8,22,300),   local:rateBlock(2100,40,4,22,300),
-   drop:rateBlock(2100,40,4,22,300)},
+   safety:rateBlock(2800,80,8,22,300),   local:rateBlock(2100,10,1,22,300),
+   drop:rateBlock(2100,10,1,22,300)},
   {name:"Premium MUV",driverBata:0,
    standard:rateBlock(3200,80,8,24,300), competitive:rateBlock(2800,80,8,24,300),
-   safety:rateBlock(3000,80,8,24,300),   local:rateBlock(2300,40,4,24,300),
-   drop:rateBlock(2300,40,4,24,300)},
+   safety:rateBlock(3000,80,8,24,300),   local:rateBlock(2300,10,1,24,300),
+   drop:rateBlock(2300,10,1,24,300)},
   {name:"Compact SUV",driverBata:0,
    standard:rateBlock(3300,80,8,24,300), competitive:rateBlock(2900,80,8,24,300),
-   safety:rateBlock(3100,80,8,24,300),   local:rateBlock(2500,40,4,24,300),
-   drop:rateBlock(2500,40,4,24,300)},
+   safety:rateBlock(3100,80,8,24,300),   local:rateBlock(2500,10,1,24,300),
+   drop:rateBlock(2500,10,1,24,300)},
   {name:"Premium SUV",driverBata:0,
    standard:rateBlock(4800,80,8,30,400), competitive:rateBlock(4300,80,8,30,400),
-   safety:rateBlock(4550,80,8,30,400),   local:rateBlock(3600,40,4,30,400),
-   drop:rateBlock(3600,40,4,30,400)},
+   safety:rateBlock(4550,80,8,30,400),   local:rateBlock(3600,10,1,30,400),
+   drop:rateBlock(3600,10,1,30,400)},
   {name:"49 Seat A/C",driverBata:500,
    standard:rateBlock(14000,80,8,60,780), competitive:rateBlock(12600,80,8,60,780),
    safety:rateBlock(13300,80,8,60,780),   drop:rateBlock(7700,10,1,60,780),
@@ -879,7 +879,16 @@ function downloadQuotePDF(id){
  if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
  if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
  y=pdfDivider(doc,y);
- y=pdfRow(doc,y,"QUOTED AMOUNT",pdfMoney(q.quotedAmount),true);
+ y+=2;
+ doc.setFillColor(15,90,85);
+ doc.rect(15,y,180,20,"F");
+ doc.setTextColor(255,255,255);
+ doc.setFont(undefined,"normal");doc.setFontSize(9);
+ doc.text("QUOTED AMOUNT",105,y+7,{align:"center"});
+ doc.setFont(undefined,"bold");doc.setFontSize(16);
+ doc.text(pdfMoney(q.quotedAmount),105,y+16,{align:"center"});
+ doc.setTextColor(0);doc.setFont(undefined,"normal");doc.setFontSize(10);
+ y+=26;
  doc.save("Quotation-"+q.no+".pdf");
 }
 
@@ -1062,7 +1071,7 @@ function printContent(title,html){
  document.body.appendChild(frame);
  const doc=frame.contentWindow.document;
  doc.open();
- doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111}h2,h3{margin:6px 0}hr{margin:10px 0}</style></head><body>${html}</body></html>`);
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
  doc.close();
  setTimeout(()=>{
   frame.contentWindow.focus();
@@ -1072,14 +1081,39 @@ function printContent(title,html){
 function printQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
- printContent("Quotation "+q.no,`<h2>${esc(db.business.name)}</h2><p>${esc(db.business.phone||"")}</p><hr>
- <h3>Quotation ${esc(q.no)}</h3>
- <p>Customer: ${esc(q.customer)} (${esc(q.mobile)})</p>
- <p>Pickup: ${esc(q.pickup)}</p>
- ${dests.map((d,i)=>`<p>Destination ${i+1}: ${esc(d)}</p>`).join("")}
- <p>Vehicle: ${esc(q.category)} ${esc(q.vehicle||"")} ${esc(q.vehicleNo||"")}</p>
- <p>Estimated KM/Hours: ${q.estimatedKm} KM / ${q.estimatedHours} hrs</p>
- <h3>Quoted Amount: ${money(q.quotedAmount)}</h3>`);
+ const c=db.categories[q.categoryId];
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+ printContent("Quotation "+q.no,`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+ </div>
+ <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
+ <table>${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <table>
+  ${row("Trip Type",q.type,true)}
+  ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
+ </table>
+ <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
+  <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT</div>
+  <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
+ </div>
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
+ `);
 }
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
@@ -1097,7 +1131,7 @@ function printBill(tripId){
   if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
  }
 
- const row=(label,value,bold)=>`<tr><td style="padding:2px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${esc(value)}</td></tr>`;
+ const row=(label,value,bold)=>`<tr><td style="padding:3px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(value)}</td></tr>`;
 
  let detailRows="";
  detailRows+=row("Customer",t.customer||q.customer);
@@ -1109,13 +1143,10 @@ function printBill(tripId){
  if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
  if(q.service) detailRows+=row("Service",q.service);
  detailRows+=row("Trip Date",q.startDate||"-");
- detailRows+=row("Pickup Point",q.pickup||"-");
- detailRows+=row("Destination",dests[dests.length-1]||"-");
- detailRows+=row("Return / Closing Point",q.returnPoint||"-");
 
  /* SECTION 1: Usage Details */
  let usageRows="";
- usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs");
+ usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs",true);
  if(r.incKm!=null){
   usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
   usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
@@ -1125,18 +1156,18 @@ function printBill(tripId){
  /* SECTION 2: Standard vs Offer Rate */
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
  const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
- const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:2px 0;font-weight:${bold?"bold":"normal"}">${esc(label)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(sv)}</td><td style="padding:2px 0;text-align:right;font-weight:${bold?"bold":"normal"}">${money(ov)}</td></tr>`;
- const compareTable=`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
-  <tr style="color:#888"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+ const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:3px 0;font-weight:${bold?"bold":"normal"};font-size:14px">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(sv)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(ov)}</td></tr>`;
+ const compareTable=`<table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   ${cmpRow("Base Rate",stdBase,offBase)}
   ${cmpRow("Additional Charge",stdExtra,offExtra)}
-  <tr style="border-top:1px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
+  <tr style="border-top:2px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
  </table>`;
 
  /* SECTION 3: Savings highlight */
- const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
-  <div style="font-weight:bold;font-size:17px">🎉 Your Total Savings: ${money(totalSavings)}</div>
-  <div style="font-size:11px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
+ const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:12px;margin:10px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:18px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+  <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
  </div>`:"";
 
  /* SECTION 4: Final Payment Summary */
@@ -1160,39 +1191,43 @@ function printBill(tripId){
     ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
    </div>
   </div>
-  <div style="color:#444;font-weight:bold;font-size:11px;text-align:right">${platformPhones}</div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
  </div>
- <div style="background:#e8f5f4;border:1px solid #148c76;border-radius:8px;padding:10px;text-align:center;margin:10px 0">
-  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.business.name)}</div>
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
-  ${db.business.address?`<div style="font-size:11px;color:#555">${esc(db.business.address)}</div>`:""}
-  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:3px">Contact: ${partnerPhones}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
  </div>
  <div style="display:flex;justify-content:space-between;align-items:baseline">
-  <h3 style="color:#143c5a;margin:4px 0">FINAL TRIP BILL</h3>
-  <span style="color:#888;font-size:11px">Bill printed on: ${esc(billDate)}</span>
+  <h2 style="color:#143c5a;margin:4px 0;font-size:20px">FINAL TRIP BILL</h2>
+  <span style="color:#888;font-size:12px">Bill printed on: ${esc(billDate)}</span>
  </div>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${detailRows}</table>
- <p style="margin-top:8px"><b>Route:</b> ${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</p>
+ <table>${detailRows}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0">
+  <div style="font-weight:bold;font-size:14px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
  <hr>
- <h3 style="margin:6px 0">1. Usage Details</h3>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${usageRows}</table>
- <h3 style="margin:10px 0 4px">2. Standard vs Offer Rate</h3>
+ <h3 style="margin:6px 0;font-size:16px;color:#143c5a">1. Usage Details</h3>
+ <table>${usageRows}</table>
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">2. Standard vs Offer Rate</h3>
  ${compareTable}
  ${savingsHtml}
- <h3 style="margin:10px 0 4px">4. Final Payment Summary</h3>
- <table style="width:100%;border-collapse:collapse;font-size:12.5px">${summaryRows}</table>
- <h2 style="text-align:right;margin:8px 0">FINAL BILL AMOUNT: ${money(r.final)}</h2>
- <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-  <div>
-   <b>PAYMENT INFORMATION</b><br>
-   Final Bill Amount: ${money(r.final)}<br>
-   Balance Due: <b>${balance>0?money(balance):"FULLY PAID"}</b>
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">4. Final Payment Summary</h3>
+ <table>${summaryRows}</table>
+ <div style="background:#0f5a55;border-radius:8px;padding:14px;text-align:center;margin:12px 0">
+  <div style="font-size:14px;color:#eafaf8">FINAL BILL AMOUNT</div>
+  <div style="font-size:32px;font-weight:bold;color:#fff">${money(r.final)}</div>
+ </div>
+ <div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div style="font-size:15px">
+   Balance Due: <b style="font-size:18px">${balance>0?money(balance):"FULLY PAID"}</b>
   </div>
   ${qrHtml}
  </div>
- ${(t.payments||[]).length?`<h3 style="margin:8px 0 4px">Payments Received</h3><table style="width:100%;border-collapse:collapse;font-size:12.5px">${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
- <p style="text-align:center;color:#888;font-size:11px;margin-top:12px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
  `);
 }
 
@@ -1617,7 +1652,7 @@ async function partnerView(){
   const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
   const data=await res.json();
   if(!data.ok||!data.partner){ renderPartnerRegisterForm(); }
-  else{ window._myPartner=data.partner; renderPartnerDashboard(data.partner); }
+  else{ window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password; renderPartnerDashboard(data.partner); }
  }catch(e){
   document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error — check your connection and try again.</p>";
  }
@@ -1630,7 +1665,7 @@ function renderPartnerRegisterForm(){
   <label>Business name<input id="pBizName"></label>
   <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
   <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
-  <label>Mobile 2 (optional)<input id="pMobile2"></label>
+    <label>Mobile 2 (optional)<input id="pMobile2"></label>
   <label>Email (optional)<input id="pEmail"></label>
   <label>Location<input id="pLocation" placeholder="Town / area"></label>
   <label>Pincode<input id="pPincode"></label>
@@ -1668,10 +1703,104 @@ function renderPartnerDashboard(p){
   ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
   ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
  </div>
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(the name/phone/UPI shown on YOUR bills — protected by your own password, not the owner's admin password)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>
  <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
  <h3>My Vehicles</h3>
  <div id="myVehiclesList">Loading...</div>`;
+ renderBillingIdentitySection(p);
  loadMyVehicles(p.id);
+}
+
+/* ---------- PARTNER'S OWN BILLING IDENTITY (name/phone/UPI on their bills) ----------
+   This is intentionally separate from the owner's admin password. A partner sets
+   their own password once — but that password only becomes usable once the owner
+   has verified this partner (checked server-side in action=verify_password), so a
+   partner cannot self-approve their own billing identity without the owner's
+   oversight. Once unlocked, the fields write directly into db.business, which is
+   already per-device/local and exactly what appears on this device's bills — the
+   Travel Connect platform settings are a completely separate object this section
+   never touches. */
+function renderBillingIdentitySection(p){
+ const box=document.querySelector("#billingIdentityBody");
+ if(!p.verified){
+  box.innerHTML=`<p class="muted">Your registration is pending owner verification. Once approved, you'll be able to set a password and enter your own business name/phone/UPI here.</p>`;
+  return;
+ }
+ if(!window._myPartnerHasPassword){
+  box.innerHTML=`
+  <p class="muted">Set a password (choose your own — the owner does not need to know it) to control your billing details on this device.</p>
+  <label>Choose a password (min 4 characters)<input id="bizPassNew" type="password"></label>
+  <button class="primary" onclick="submitSetPartnerPassword(${p.id})">Set Password</button>
+  <div id="bizPassErr" class="danger"></div>`;
+  return;
+ }
+ box.innerHTML=`
+ <div class="muted">Currently showing on your bills: <b>${esc(db.business.name||"-")}</b> ${db.business.phone?"• "+esc(db.business.phone):""}</div>
+ <button onclick="openUnlockBillingIdentity(${p.id})">Unlock to edit (your password)</button>`;
+}
+async function submitSetPartnerPassword(partnerId){
+ const pass=document.querySelector("#bizPassNew").value;
+ const errBox=document.querySelector("#bizPassErr");
+ if(!pass||pass.length<4){errBox.textContent="Password must be at least 4 characters.";return}
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_password",partner_id:partnerId,mobile:user.mobile,password:pass})});
+  const data=await res.json();
+  if(!data.ok){errBox.textContent="Could not set password. Please try again.";return}
+  window._myPartnerHasPassword=true;
+  toast("Password set");
+  renderBillingIdentitySection(window._myPartner);
+ }catch(e){errBox.textContent="Network error.";}
+}
+function openUnlockBillingIdentity(partnerId){
+ modal(`<h2>Unlock Billing Details</h2>
+  <p class="muted">Enter your own billing password (not the owner's admin password).</p>
+  <input id="bizUnlockPass" type="password" placeholder="Your password" onkeydown="if(event.key==='Enter')submitUnlockBillingIdentity(${partnerId})">
+  <div class="actions"><button class="primary" onclick="submitUnlockBillingIdentity(${partnerId})">Unlock</button></div>
+  <div id="bizUnlockErr" class="danger"></div>`);
+}
+async function submitUnlockBillingIdentity(partnerId){
+ const pass=document.querySelector("#bizUnlockPass").value;
+ const errBox=document.querySelector("#bizUnlockErr");
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"verify_password",partner_id:partnerId,password:pass})});
+  const data=await res.json();
+  if(!data.ok){errBox.textContent="Incorrect password.";return}
+  closeModal();
+  openEditBillingIdentity();
+ }catch(e){errBox.textContent="Network error.";}
+}
+function openEditBillingIdentity(){
+ modal(`<h2>Edit Billing Details</h2>
+  <p class="muted">Shown on your bills and quotations printed from this device.</p>
+  <div class="grid">
+   <label>Business name<input id="bizName" value="${esc(db.business.name)}"></label>
+   <label>Tagline<input id="bizTagline" value="${esc(db.business.tagline||"")}"></label>
+   <label>Address<input id="bizAddress" value="${esc(db.business.address||"")}"></label>
+   <label>Contact number 1<input id="bizPhone1" value="${esc(db.business.phone||"")}"></label>
+   <label>Contact number 2<input id="bizPhone2" value="${esc(db.business.phone2||"")}"></label>
+   <label>UPI ID (for payment QR)<input id="bizUpiId" value="${esc(db.business.upiId||"")}"></label>
+   <label>UPI name<input id="bizUpiName" value="${esc(db.business.upiName||"")}"></label>
+  </div>
+  <button class="primary" onclick="saveBillingIdentity()">Save</button>`);
+}
+function saveBillingIdentity(){
+ Object.assign(db.business,{
+  name:document.querySelector("#bizName").value,
+  tagline:document.querySelector("#bizTagline").value,
+  address:document.querySelector("#bizAddress").value,
+  phone:document.querySelector("#bizPhone1").value,
+  phone2:document.querySelector("#bizPhone2").value,
+  upiId:document.querySelector("#bizUpiId").value,
+  upiName:document.querySelector("#bizUpiName").value
+ });
+ save();
+ closeModal();
+ toast("Billing details saved");
+ renderBillingIdentitySection(window._myPartner);
 }
 async function loadMyVehicles(partnerId){
  const box=document.querySelector("#myVehiclesList");
@@ -1680,7 +1809,6 @@ async function loadMyVehicles(partnerId){
   const data=await res.json();
   if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
   box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
-
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
@@ -1876,6 +2004,8 @@ function showSosBanner(alert){
 
 function modal(html){modalBody.innerHTML=html;document.querySelector("#modal").classList.remove("hidden")}
 function closeModal(){document.querySelector("#modal").classList.add("hidden")}
+
 window.onerror=function(msg,src,line,col,err){alert("DEBUG ERROR: "+msg+" | line:"+line+" col:"+col);try{toast("Something went wrong: "+msg)}catch(e){}return false};
+
 migrate();
 render();
