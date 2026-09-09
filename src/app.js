@@ -392,7 +392,8 @@ function quoteForm(){
  </select></label>
  <label>Vehicle category<select id="qCat" onchange="handleTripTypeChange()">${cat}</select></label>
  <label>Vehicle<input id="qVehicle"></label><label>Vehicle number<input id="qVehicleNo"></label>
- <label>Pickup<input id="qPickup"></label>
+ <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qVehicleStart" value="${esc(db.business.officeLocation)}"></label>
+ <label><b>Customer pickup point</b><input id="qPickup"></label>
  <label>Destination 1<input id="qDest"></label></div>
  <div id="qStopsContainer"></div>
  <div class="actions">
@@ -400,7 +401,7 @@ function quoteForm(){
   <button type="button" onclick="openRoute()">🗺️ Open route in Google Maps</button>
  </div>
  <div class="grid">
- <label>Return / closing point<input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
+ <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
  <label>Estimated KM<input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
  <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
@@ -591,7 +592,7 @@ function saveQuote(){
  const r=calcQuote();if(r.invalid){toast("Correct Local Trip limits first");return}
  const c=db.categories[+qCat.value];
  const q={id:crypto.randomUUID(),no:"QTN-"+Date.now(),customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
-  pickup:qPickup.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
+  pickup:qPickup.value,vehicleStart:qVehicleStart.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
   estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
   service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
   driverBata:r.driverBata||0,
@@ -614,7 +615,7 @@ function openQuote(id){
  view("quotations");
  setTimeout(()=>{
   qName.value=q.customer;qMobile.value=q.mobile;qType.value=q.type;qCat.value=q.categoryId;qVehicle.value=q.vehicle;qVehicleNo.value=q.vehicleNo;
-  qPickup.value=q.pickup;
+  qPickup.value=q.pickup;qVehicleStart.value=q.vehicleStart||db.business.officeLocation||"";
   const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
   qDest.value=dests[0]||"";
   dests.slice(1).forEach(d=>addStopField(d));
@@ -869,6 +870,7 @@ function downloadQuotePDF(id){
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"Vehicle Category",q.category);
  y=pdfRow(doc,y,"Vehicle",(q.vehicle||"-")+" "+(q.vehicleNo||""));
+ y=pdfRow(doc,y,"Vehicle Start Point",q.vehicleStart||"-");
  y=pdfRow(doc,y,"Pickup",q.pickup);
  dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
  if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
@@ -946,7 +948,7 @@ function downloadBillPDF(tripId){
  const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
  if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
  if(q.service) detailRows.push(["Service",q.service]);
- detailRows.push(["Trip Date",q.startDate||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+ detailRows.push(["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
 
  detailRows.forEach(([label,value])=>{
   if(y>272){doc.addPage();y=18;}
@@ -957,7 +959,7 @@ function downloadBillPDF(tripId){
 
  y+=1;
  doc.setFont(undefined,"bold");doc.text("Route",15,y);y+=5;doc.setFont(undefined,"normal");
- const routeLine=[q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
+ const routeLine=[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).join("  ->  ");
  const routeWrapped=doc.splitTextToSize(routeLine,180);
  doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
 
@@ -1102,7 +1104,7 @@ function printQuote(id){
  <table>${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
   <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
-  <div style="font-size:15px;font-weight:600">${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
  </div>
  <table>
   ${row("Trip Type",q.type,true)}
@@ -1206,7 +1208,7 @@ function printBill(tripId){
  <table>${detailRows}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0">
   <div style="font-weight:bold;font-size:14px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
-  <div style="font-size:15px;font-weight:600">${[q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
  </div>
  <hr>
  <h3 style="margin:6px 0;font-size:16px;color:#143c5a">1. Usage Details</h3>
@@ -1660,12 +1662,12 @@ async function partnerView(){
 function renderPartnerRegisterForm(){
  const user=getCurrentUser();
  document.querySelector("#partnerBox").innerHTML=`
- <p class="muted">Register your travel business to add vehicles and use the Active Vehicles Board. An admin will verify your details before your vehicles can be marked active.</p>
+  <p class="muted">Register your travel business to add vehicles and use the Active Vehicles Board. An admin will verify your details before your vehicles can be marked active.</p>
  <div class="grid">
   <label>Business name<input id="pBizName"></label>
   <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
   <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
-    <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Mobile 2 (optional)<input id="pMobile2"></label>
   <label>Email (optional)<input id="pEmail"></label>
   <label>Location<input id="pLocation" placeholder="Town / area"></label>
   <label>Pincode<input id="pPincode"></label>
