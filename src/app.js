@@ -426,8 +426,25 @@ function quoteForm(){
    <option value="50">Nearest ₹50</option>
    <option value="100">Nearest ₹100</option>
  </select></label>
+ <label><b>Advance requested (optional)</b><select id="qAdvancePct" onchange="updateAdvanceAmount()">
+   <option value="0">No advance</option>
+   <option value="10">10%</option>
+   <option value="25">25%</option>
+   <option value="50">50%</option>
+   <option value="manual">Manual amount</option>
+ </select></label>
+ <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
  </div>
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
+}
+/* Recomputes the advance amount from the currently calculated fare whenever the
+   percentage dropdown changes — "Manual amount" leaves the field alone for the
+   owner to type a specific figure instead. */
+function updateAdvanceAmount(){
+ const pct=document.querySelector("#qAdvancePct").value;
+ if(pct==="manual"||pct==="0") { if(pct==="0") qAdvanceAmount.value=0; return; }
+ const r=calcQuote();
+ if(r&&!r.invalid) qAdvanceAmount.value=Math.round((r.final||0)*(+pct)/100);
 }
 
 /* Only rate types the owner has switched ON appear here — this is what travel
@@ -597,13 +614,46 @@ function saveQuote(){
   service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
   driverBata:r.driverBata||0,
   discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
-  subtotal:r.total+(r.driverBata||0),quotedAmount:r.final,created:new Date().toISOString(),status:"quoted"};
+  subtotal:r.total+(r.driverBata||0),quotedAmount:r.final,created:new Date().toISOString(),status:"quoted",
+  advanceAmount:+qAdvanceAmount.value||0,advanceReceived:false,advanceMethod:"",advanceReceivedAt:""};
  db.quotes.unshift(q);save();toast("Quotation saved: "+q.no);quotations();
 }
 
 function quotations(){
  app().innerHTML=card("Quotations",`${quoteForm()}<hr><h3>Saved Quotations</h3>${db.quotes.map(q=>`<div class="listitem"><b>${esc(q.no)}</b> — ${esc(q.customer)} — ${money(q.quotedAmount)}<br>${esc(q.pickup)} → ${esc((q.destinations||[q.destination]).join(" → "))}
- <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button><button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+ ${q.advanceAmount>0?`<div class="${q.advanceReceived?"ok":"danger"}">${q.advanceReceived?`&#9989; Advance received: ${money(q.advanceAmount)} (${esc(q.advanceMethod||"")})`:`&#9888; Advance requested: ${money(q.advanceAmount)} — not yet received`}</div>`:""}
+ <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button>${q.advanceAmount>0?`<button onclick="openAdvanceQR('${q.id}')">Advance QR</button>${q.advanceReceived?"":`<button class="primary" onclick="markAdvanceReceived('${q.id}')">Mark Advance Received</button>`}`:""}<button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
+}
+/* Shows a UPI QR for just the advance amount — separate from the balance-due QR on
+   the final bill, so a customer paying an advance ahead of the trip has a clear,
+   correctly-labelled QR to scan. */
+function openAdvanceQR(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ if(!db.business.upiId){toast("Add a UPI ID in Admin settings to generate a payment QR code");return}
+ modal(`<h2>Advance Payment QR</h2><p class="muted">₹${money(q.advanceAmount).replace("₹","")} advance for ${esc(q.no)}</p><div id="advQrBox" style="text-align:center"></div>`);
+ setTimeout(()=>{
+  const box=document.querySelector("#advQrBox");
+  if(box&&typeof QRCode!=="undefined"){
+   new QRCode(box,{text:buildUpiLink(q.advanceAmount,"Advance "+q.no),width:200,height:200});
+  }
+ },0);
+}
+/* Since there's no payment gateway wired up, the app cannot detect a UPI payment
+   automatically — the owner confirms receipt manually here after checking their own
+   UPI app / bank SMS. This is intentionally a deliberate manual step, not automatic. */
+function markAdvanceReceived(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ modal(`<h2>Confirm Advance Received</h2>
+  <p class="muted">${esc(q.no)} — Advance amount: ${money(q.advanceAmount)}</p>
+  <label>Method<select id="advMethod"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+  <div class="actions"><button class="primary" onclick="confirmAdvanceReceived('${id}')">Confirm Received</button></div>`);
+}
+function confirmAdvanceReceived(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ q.advanceReceived=true;
+ q.advanceMethod=document.querySelector("#advMethod").value;
+ q.advanceReceivedAt=new Date().toISOString();
+ save();closeModal();toast("Advance marked as received");quotations();
 }
 function deleteQuote(id){
  if(!confirm("Delete this quotation? This cannot be undone.")) return;
@@ -622,10 +672,16 @@ function openQuote(id){
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
+  qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0;
   calcQuote();
  },0);
 }
-function convertTrip(id){const q=db.quotes.find(x=>x.id===id);db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments:[],created:new Date().toISOString()});q.status="confirmed";save();toast("Trip confirmed");trips()}
+function convertTrip(id){
+ const q=db.quotes.find(x=>x.id===id);
+ const payments=(q.advanceReceived&&q.advanceAmount>0)?[{amount:q.advanceAmount,method:q.advanceMethod||"Advance",at:q.advanceReceivedAt||new Date().toISOString()}]:[];
+ db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments,created:new Date().toISOString()});
+ q.status="confirmed";save();toast("Trip confirmed"+(payments.length?" — advance carried over as a payment":""));trips()
+}
 
 function trips(){
  app().innerHTML=card("Trip Management",`${db.trips.map(t=>{const q=db.quotes.find(x=>x.id===t.quoteId)||{};return `<div class="listitem"><b>${esc(q.no||"Trip")}</b> — ${esc(t.customer)}<br>Status: <b>${esc(t.status)}</b><div class="actions"><button onclick="editTrip('${t.id}')">Open Trip</button><button onclick="makeBillFromTrip('${t.id}')">Final Bill</button><button class="danger" onclick="deleteTrip('${t.id}')">Delete</button></div></div>`}).join("")||"<p class='muted'>Confirm a quotation to create a trip.</p>"}`);
@@ -843,6 +899,7 @@ function pdfHeader(doc,title){
  doc.setFont(undefined,"bold");doc.setFontSize(16);
  doc.text(db.business.name||"Travel Connect",15,y);y+=7;
  doc.setFont(undefined,"normal");doc.setFontSize(10);
+ if(db.business.address){doc.text(db.business.address,15,y);y+=5;}
  if(db.business.phone){doc.text("Phone: "+db.business.phone,15,y);y+=5;}
  if(db.business.gstin){doc.text("GSTIN: "+db.business.gstin,15,y);y+=5;}
  y+=2;doc.setDrawColor(180);doc.line(15,y,195,y);y+=9;
@@ -1098,6 +1155,7 @@ function printQuote(id){
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
   <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
  </div>
  <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
@@ -1602,7 +1660,7 @@ async function doLoadAllVehiclesAdmin(){
    <div class="muted">Documents:
     ${docLink("Front",v.front_photo_key)}${docLink("RC",v.rc_photo_key)}${docLink("Insurance",v.insurance_photo_key)}${docLink("Permit",v.permit_photo_key)}${docLink("Fitness",v.fitness_photo_key)}${docLink("PUC",v.puc_photo_key)}${docLink("License",v.driver_license_photo_key)}
    </div>
-   <div class="muted">RC exp: ${esc(v.rc_expiry||"-")} • Insurance exp: ${esc(v.insurance_expiry||"-")} • Permit exp: ${esc(v.permit_expiry||"-")} • Fitness exp: ${esc(v.fitness_expiry||"-")} • PUC exp: ${esc(v.puc_expiry||"-")}</div>
+      <div class="muted">RC exp: ${esc(v.rc_expiry||"-")} • Insurance exp: ${esc(v.insurance_expiry||"-")} • Permit exp: ${esc(v.permit_expiry||"-")} • Fitness exp: ${esc(v.fitness_expiry||"-")} • PUC exp: ${esc(v.puc_expiry||"-")}</div>
    <div class="actions">${v.verified?`<button onclick="unverifyVehicle(${v.id})">Un-verify</button>`:`<button class="primary" onclick="approveVehicle(${v.id});setTimeout(doLoadAllVehiclesAdmin,400)">Approve</button>`}</div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
@@ -1662,7 +1720,7 @@ async function partnerView(){
 function renderPartnerRegisterForm(){
  const user=getCurrentUser();
  document.querySelector("#partnerBox").innerHTML=`
-  <p class="muted">Register your travel business to add vehicles and use the Active Vehicles Board. An admin will verify your details before your vehicles can be marked active.</p>
+ <p class="muted">Register your travel business to add vehicles and use the Active Vehicles Board. An admin will verify your details before your vehicles can be marked active.</p>
  <div class="grid">
   <label>Business name<input id="pBizName"></label>
   <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
