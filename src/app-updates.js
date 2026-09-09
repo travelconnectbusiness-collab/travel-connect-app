@@ -77,6 +77,7 @@ function printQuoteObj(q){
  </div>
  <table>
   ${row("Trip Type",q.type,true)}
+  ${q.days>1?row("Number of days",q.days+" days",true):""}
   ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
  </table>
  ${showCompare?`
@@ -262,6 +263,7 @@ function downloadQuotePDFObj(q){
  dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
  if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
  y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
+ if(q.days>1) y=pdfRow(doc,y,"Number of days",q.days+" days");
  y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
  y=pdfDivider(doc,y);
 
@@ -536,6 +538,7 @@ function quoteForm(){
  <label>Estimated KM<input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
  <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
+ <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
@@ -584,7 +587,7 @@ function buildQuoteObjFromForm(r){
   status:existing?existing.status:"quoted",
   customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
   pickup:qPickup.value,vehicleStart:qVehicleStart.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
-  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
+  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,days:+document.querySelector("#qDays").value||1,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
   service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
   driverBata:r.driverBata||0,
   discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
@@ -689,7 +692,7 @@ function openQuote(id){
   const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
   qDest.value=dests[0]||"";
   dests.slice(1).forEach(d=>addStopField(d));
-  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
+  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
   qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||"";
@@ -711,10 +714,18 @@ function enquiries(){
  app().innerHTML=card("Enquiry Management",`
  <div class="card" style="background:#eef6ff;border:2px solid #3b7bbf">
   <h3 style="margin-top:0">&#9889; Quick Fare (during a call — no save needed)</h3>
-  <p class="muted">Type the route/KM and read out the fare instantly. Nothing here is saved unless you tap "Save as Enquiry" below.</p>
+  <p class="muted">Type the route/KM and read out the fare instantly. Nothing here is saved unless you tap "Save as Enquiry" below. "Local Rate" is one of the Rate options below for same-day local trips.</p>
   <div class="grid">
-   <label>Pickup<input id="qqPickup"></label>
-   <label>Destination<input id="qqDest"></label>
+   <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qqVehicleStart" value="${esc(db.business.officeLocation)}"></label>
+   <label><b>Customer pickup point</b><input id="qqPickup"></label>
+   <label>Destination 1<input id="qqDest"></label>
+  </div>
+  <div id="qqStopsContainer"></div>
+  <div class="actions">
+   <button type="button" onclick="addQuickStopField()">+ Add another destination</button>
+  </div>
+  <div class="grid">
+   <label><b>Vehicle closing point (where the trip ends)</b><input id="qqReturn" value="${esc(db.business.officeLocation)}"></label>
   </div>
   <div class="actions"><button type="button" onclick="openQuickRoute()">&#128663; Open route in Google Maps</button></div>
   <div class="grid">
@@ -722,6 +733,7 @@ function enquiries(){
    <label>Rate<select id="qqRate">${rateOptions()}</select></label>
    <label>Estimated KM<input id="qqKm" type="number" value="80"></label>
    <label>Estimated hours<input id="qqHours" type="number" value="8"></label>
+   <label>Number of days (for outstation trips)<input id="qqDays" type="number" value="1" min="1"></label>
   </div>
   <div class="actions"><button class="primary" onclick="calcQuickFare()">Calculate Fare</button></div>
   <div id="qqResult" class="ratebox"></div>
@@ -737,14 +749,40 @@ function enquiries(){
  <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> • ${esc(e.mobile)}<br>${esc(e.pickup)} → ${esc(e.dest)}<br><span class="muted">${esc(e.type)} • ${esc(e.date)} • ${esc(e.status)}</span>
  <div class="actions"><button class="primary" onclick="enquiryToQuote('${e.id}')">Create Quotation</button></div></div>`).join("")||"<p class='muted'>No enquiries.</p>"}</div>`);
 }
-/* Same Google-Maps-route trick as the Quotation form, so the owner can check the
-   live distance/route while still on the phone with the customer. */
+
+
+function addQuickStopField(value=""){
+ const c=document.querySelector("#qqStopsContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.className="grid";
+ row.style.marginTop="4px";
+ row.innerHTML=`<label style="flex:1">Additional destination<input class="qq-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">✕ Remove</button>`;
+ c.appendChild(row);
+}
+
+
+function collectQuickDestinations(){
+ const first=document.querySelector("#qqDest")?.value||"";
+ const rest=Array.from(document.querySelectorAll(".qq-stop-input")).map(i=>i.value);
+ return [first,...rest].map(v=>v.trim()).filter(Boolean);
+}
+/* Same Google-Maps-route trick as the Quotation form — includes the vehicle's own
+   start/closing point so the owner can check the FULL live distance/route (not just
+   pickup-to-drop) while still on the phone with the customer. */
 
 
 function openQuickRoute(){
- const origin=document.querySelector("#qqPickup").value, destination=document.querySelector("#qqDest").value;
- if(!origin||!destination){toast("Enter pickup and destination first");return}
- window.open("https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination),"_blank");
+ const start=document.querySelector("#qqVehicleStart").value;
+ const pickup=document.querySelector("#qqPickup").value;
+ const stops=collectQuickDestinations();
+ const closing=document.querySelector("#qqReturn").value;
+ const points=[start,pickup,...stops,closing].map(v=>v.trim()).filter(Boolean);
+ if(points.length<2){toast("Enter at least a pickup and destination first");return}
+ const origin=points[0], destination=points[points.length-1], waypoints=points.slice(1,-1).join("|");
+ let url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination);
+ if(waypoints) url+="&waypoints="+encodeURIComponent(waypoints);
+ window.open(url,"_blank");
 }
 /* Uses the exact same rate engine as the Quotation form (calcFare) — just without
    any of the save/discount/round-off machinery, for speed during a live call. */
@@ -759,10 +797,12 @@ function calcQuickFare(){
  if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
  const standardRaw=calcFare(c,"standard",km,h);
  const savings=(plan!=="standard"&&!standardRaw.invalid)?Math.max(0,standardRaw.total-r.total):0;
+ const days=+document.querySelector("#qqDays").value||1;
  box.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
  <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
  ${savings>0?`<div class="ok">Savings vs Standard: ${money(savings)}</div>`:""}
+ ${days>1?`<div class="muted">${days} day trip</div>`:""}
  <div class="total">Fare: ${money(r.total)}</div>`;
 }
 /* Only saves an Enquiry record if the owner explicitly wants one kept — the whole
@@ -770,9 +810,10 @@ function calcQuickFare(){
 
 
 function saveQuickAsEnquiry(){
- const pickup=document.querySelector("#qqPickup").value, dest=document.querySelector("#qqDest").value;
- if(!pickup&&!dest){toast("Enter at least a pickup or destination first");return}
- db.enquiries.unshift({id:crypto.randomUUID(),name:"",mobile:"",pickup,dest,type:"local",date:"",status:"new",created:new Date().toISOString()});
+ const pickup=document.querySelector("#qqPickup").value;
+ const stops=collectQuickDestinations();
+ if(!pickup&&!stops.length){toast("Enter at least a pickup or destination first");return}
+ db.enquiries.unshift({id:crypto.randomUUID(),name:"",mobile:"",pickup,dest:stops.join(" → "),vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,type:"local",date:"",status:"new",created:new Date().toISOString()});
  save();toast("Saved as a new Enquiry — add customer details below");enquiries();
 }
 
