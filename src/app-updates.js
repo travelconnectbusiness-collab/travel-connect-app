@@ -1073,6 +1073,42 @@ function saveEnquiry(){
 }
 
 
+function enquiryToQuote(id){
+ const e=db.enquiries.find(x=>x.id===id);
+ if(!e){toast("Enquiry not found");return}
+ e.status="quoted";save();
+ view("quotations");
+ setTimeout(()=>{
+  qName.value=e.name;qMobile.value=e.mobile;qPickup.value=e.pickup;
+  if(e.vehicleStart) qVehicleStart.value=e.vehicleStart;
+  if(e.returnPoint) qReturn.value=e.returnPoint;
+  const dests=(e.destinations&&e.destinations.length)?e.destinations:(e.dest?[e.dest]:[]);
+  qDest.value=dests[0]||"";
+  document.querySelector("#qStopsContainer").innerHTML="";
+  dests.slice(1).forEach(d=>addStopField(d));
+  if(["local","one_day","round","outstation","drop"].includes(e.type)) qType.value=e.type;
+  qStart.value=e.date||"";
+  if(e.categoryId!=null){ qCat.value=e.categoryId; }
+  if(e.ratePlan) qRate.value=e.ratePlan;
+  if(e.estimatedKm) qKm.value=e.estimatedKm;
+  if(e.estimatedHours) qHours.value=e.estimatedHours;
+  if(e.days) qDays.value=e.days;
+  if(e.restHours) qRestHours.value=e.restHours;
+  if(e.overrideAddKm) qOverrideAddKm.value=e.overrideAddKm;
+  if(e.overrideAddHour) qOverrideAddHour.value=e.overrideAddHour;
+  if(e.extraCharges){
+   const ecLabels=extraChargeLabels();
+   Object.keys(ecLabels).forEach(k=>{ const el=document.querySelector("#qExtra_"+k); if(el&&e.extraCharges[k]) el.value=e.extraCharges[k]; });
+  }
+  handleTripTypeChange();
+  calcQuote();
+  toast("Enquiry details loaded — complete and save the quotation");
+ },0);
+}
+
+/* ---------- QUOTATION FORM ---------- */
+
+
 function openQuickRoute(){
  const start=document.querySelector("#qqVehicleStart").value;
  const pickup=document.querySelector("#qqPickup").value;
@@ -1144,7 +1180,19 @@ function saveQuickAsEnquiry(){
  if(!name||!mobile){toast("Enter the customer's name and mobile number first — otherwise you won't be able to tell this enquiry apart later");return}
  if(!pickup&&!stops.length){toast("Enter at least a pickup or destination first");return}
  const entryDate=new Date().toISOString().slice(0,10);
- db.enquiries.unshift({id:crypto.randomUUID(),name,mobile,pickup,dest:stops.join(" → "),vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,type:"local",date:"",entryDate,status:"new",created:new Date().toISOString()});
+ /* Carries over EVERYTHING entered in Quick Fare (category, KM/hours, rate plan,
+    days, rest hours, rate overrides, other charges) — not just the route — so
+    converting this enquiry into a Quotation later doesn't lose any of it. */
+ db.enquiries.unshift({
+  id:crypto.randomUUID(),name,mobile,pickup,dest:stops.join(" → "),destinations:stops,
+  vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,
+  type:"local",date:"",entryDate,status:"new",created:new Date().toISOString(),
+  categoryId:+document.querySelector("#qqCat").value,ratePlan:document.querySelector("#qqRate").value,
+  estimatedKm:+document.querySelector("#qqKm").value||0,estimatedHours:+document.querySelector("#qqHours").value||0,
+  days:+document.querySelector("#qqDays").value||1,restHours:+document.querySelector("#qqRestHours").value||0,
+  overrideAddKm:document.querySelector("#qqOverrideAddKm").value||"",overrideAddHour:document.querySelector("#qqOverrideAddHour").value||"",
+  extraCharges:readExtraChargeFields("qqExtra")
+ });
  save();toast("Saved as a new Enquiry");enquiries();
 }
 
