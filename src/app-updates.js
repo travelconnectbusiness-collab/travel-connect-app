@@ -1252,3 +1252,110 @@ function saveQuickAsEnquiry(){
  save();toast("Saved as a new Enquiry");enquiries();
 }
 
+
+function billing(){
+ app().innerHTML=card("Final Billing",`
+ <div class="card" style="background:#eef6ff;border:2px solid #3b7bbf">
+  <h3 style="margin-top:0">&#9889; Quick Bill (trip already done — no Enquiry/Quotation needed)</h3>
+  <p class="muted">For when the trip is already over and you just need to bill it directly.</p>
+  <div class="actions"><button class="primary" onclick="openQuickBillForm()">Create Quick Bill</button></div>
+ </div>
+ <hr>
+ <label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} — ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label><label>Bill print date (optional, defaults to today)<input id="billDateInput" type="date"></label><div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
+}
+/* Quick Bill skips Enquiry → Quotation → Confirm entirely: it builds a normal quote
+   record (so all the existing bill/print/PDF code keeps working unchanged) AND a
+   completed trip record in one step, for a trip that's already finished and just
+   needs billing right now. */
+
+
+function openQuickBillForm(){
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ modal(`<h2>Quick Bill</h2>
+ <div class="grid">
+  <label>Customer name<input id="qbName"></label><label>Customer mobile<input id="qbMobile"></label>
+  <label>Trip type<select id="qbType">
+    <option value="local">Local Trip</option>
+    <option value="one_day">One Day</option>
+    <option value="round">Round Trip</option>
+    <option value="outstation">Outstation</option>
+    <option value="drop">Drop</option>
+  </select></label>
+  <label>Vehicle category<select id="qbCat">${cat}</select></label>
+  <label>Vehicle<input id="qbVehicle"></label><label>Vehicle number<input id="qbVehicleNo"></label>
+  <label><b>&#128663; Vehicle start point</b><input id="qbVehicleStart" value="${esc(db.business.officeLocation)}"></label>
+  <label><b>Customer pickup point</b><input id="qbPickup"></label>
+  <label>Destination<input id="qbDest"></label>
+  <label><b>Vehicle closing point</b><input id="qbReturn" value="${esc(db.business.officeLocation)}"></label>
+  <label><b>Actual KM</b><input id="qbKm" type="number" value="0"></label>
+  <label><b>Actual Hours</b><input id="qbHours" type="number" value="0"></label>
+  <label>Number of days<input id="qbDays" type="number" value="1" min="1"></label>
+  <label>Overnight rest hours (excluded)<input id="qbRestHours" type="number" value="0"></label>
+  <label>Rate<select id="qbRate">${rateOptions()}</select></label>
+  <label>Override Extra KM Rate (optional)<input id="qbOverrideAddKm" type="number"></label>
+  <label>Override Extra Hour Rate (optional)<input id="qbOverrideAddHour" type="number"></label>
+  <label>Trip date<input id="qbDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+ </div>
+ ${extraChargeFieldsHtml("qbExtra")}
+ <div class="actions"><button class="primary" onclick="calcQuickBillPreview()">Preview Fare</button></div>
+ <div id="qbResult" class="ratebox"></div>
+ <div class="actions"><button class="primary" onclick="saveQuickBill()">Create Bill</button></div>`);
+}
+
+
+function calcQuickBillPreview(){
+ const c=db.categories[+document.querySelector("#qbCat").value];
+ const plan=document.querySelector("#qbRate").value;
+ const km=+document.querySelector("#qbKm").value||0, h=+document.querySelector("#qbHours").value||0;
+ const days=+document.querySelector("#qbDays").value||1, restHours=+document.querySelector("#qbRestHours").value||0;
+ const overrides={addKm:document.querySelector("#qbOverrideAddKm").value,addHour:document.querySelector("#qbOverrideAddHour").value};
+ const box=document.querySelector("#qbResult");
+ const r=calcFare(c,plan,km,h,days,restHours,overrides);
+ if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
+ const extraCharges=readExtraChargeFields("qbExtra");
+ const extraTotal=sumExtraCharges(extraCharges);
+ box.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+ ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
+ <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
+ ${extraTotal>0?`<div>Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
+ <div class="total">Bill Amount: ${money(r.total+extraTotal)}</div>`;
+}
+
+
+function saveQuickBill(){
+ const name=document.querySelector("#qbName").value, mobile=document.querySelector("#qbMobile").value;
+ if(!name||!mobile){toast("Enter the customer's name and mobile number");return}
+ const c=db.categories[+document.querySelector("#qbCat").value];
+ const km=+document.querySelector("#qbKm").value||0, h=+document.querySelector("#qbHours").value||0;
+ const days=+document.querySelector("#qbDays").value||1, restHours=+document.querySelector("#qbRestHours").value||0;
+ const overrideAddKm=document.querySelector("#qbOverrideAddKm").value||"", overrideAddHour=document.querySelector("#qbOverrideAddHour").value||"";
+ const ratePlan=document.querySelector("#qbRate").value;
+ const r=calcFare(c,ratePlan,km,h,days,restHours,{addKm:overrideAddKm,addHour:overrideAddHour});
+ if(r.invalid){toast("Correct Local Trip limits first");return}
+ const qId=crypto.randomUUID();
+ const quote={
+  id:qId,no:"QTN-"+Date.now(),created:new Date().toISOString(),status:"billed",
+  customer:name,mobile,type:document.querySelector("#qbType").value,category:c.name,categoryId:+document.querySelector("#qbCat").value,
+  vehicle:document.querySelector("#qbVehicle").value,vehicleNo:document.querySelector("#qbVehicleNo").value,
+  pickup:document.querySelector("#qbPickup").value,vehicleStart:document.querySelector("#qbVehicleStart").value,
+  destinations:[document.querySelector("#qbDest").value].filter(Boolean),destination:document.querySelector("#qbDest").value,
+  returnPoint:document.querySelector("#qbReturn").value,
+  estimatedKm:km,estimatedHours:h,days,restHours,startDate:document.querySelector("#qbDate").value,
+  ratePlan,overrideAddKm,overrideAddHour,
+  discountType:"none",discountValue:0,roundOff:0,
+  subtotal:r.total,quotedAmount:r.total,
+  advanceAmount:0,advanceReceived:false,
+  extraCharges:readExtraChargeFields("qbExtra"),
+  gstOn:false,gstPct:0,gstAmount:0
+ };
+ db.quotes.unshift(quote);
+ const trip={id:crypto.randomUUID(),quoteId:qId,customer:name,status:"completed",actualKm:km,actualHours:h,days,restHours,
+  entryDate:new Date().toISOString().slice(0,10),startDate:document.querySelector("#qbDate").value,
+  pickup:document.querySelector("#qbPickup").value,dest:document.querySelector("#qbDest").value,returnPoint:document.querySelector("#qbReturn").value,
+  payments:[],extraCharges:quote.extraCharges,created:new Date().toISOString()};
+ db.trips.unshift(trip);
+ save();closeModal();toast("Bill created");
+ view("billing");
+ setTimeout(()=>{billTrip.value=trip.id;loadBill()},0);
+}
+
