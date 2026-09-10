@@ -4,7 +4,7 @@
    again — only this smaller file grows with future updates. */
 
 function extraChargeLabels(){
- return {toll:"Toll",permit:"Permit / State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
+ return {toll:"Toll",permit:"Other State Permit",stateTax:"Other State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
 }
 
 
@@ -131,7 +131,7 @@ function printQuoteObj(q){
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
  </div>
  <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
- <table>${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <table>${row("Date",q.entryDate||(q.created||"").slice(0,10))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
   <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
   <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
@@ -198,6 +198,7 @@ function printBill(tripId){
  detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
  if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
  if(q.service) detailRows+=row("Service",q.service);
+ detailRows+=row("Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-");
  detailRows+=row("Trip Date",q.startDate||"-");
 
  /* SECTION 1: Usage Details */
@@ -313,7 +314,7 @@ function downloadQuotePDFObj(q){
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const c=db.categories[q.categoryId];
  let y=pdfHeader(doc,"QUOTATION "+q.no);
- y=pdfRow(doc,y,"Date",(q.created||"").slice(0,10));
+ y=pdfRow(doc,y,"Date",q.entryDate||(q.created||"").slice(0,10));
  y=pdfRow(doc,y,"Customer",q.customer);
  y=pdfRow(doc,y,"Mobile",q.mobile);
  y=pdfDivider(doc,y);
@@ -448,7 +449,7 @@ function downloadBillPDF(tripId){
  const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
  if(driver){detailRows.push(["Driver",driver.name||"-"]);detailRows.push(["Driver Mobile",driver.mobile||"-"]);}
  if(q.service) detailRows.push(["Service",q.service]);
- detailRows.push(["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+ detailRows.push(["Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-"],["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
 
  detailRows.forEach(([label,value])=>{
   if(y>272){doc.addPage();y=18;}
@@ -598,6 +599,7 @@ function quoteForm(){
  <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
  <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
+ <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
@@ -693,6 +695,7 @@ function buildQuoteObjFromForm(r){
   advanceMethod:existing?existing.advanceMethod:"",
   advanceReceivedAt:existing?existing.advanceReceivedAt:"",
   validUntil:document.querySelector("#qValidUntil").value||"",
+  entryDate:document.querySelector("#qEntryDate").value||(existing?existing.entryDate:new Date().toISOString().slice(0,10)),
   extraCharges:r.extraCharges||readExtraChargeFields("qExtra")
  };
 }
@@ -792,7 +795,7 @@ function openQuote(id){
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
-  qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||"";
+  qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||""; qEntryDate.value=q.entryDate||"";
   const ecLabels=extraChargeLabels();
   Object.keys(ecLabels).forEach(k=>{ const el=document.querySelector("#qExtra_"+k); if(el) el.value=(q.extraCharges&&q.extraCharges[k])||0; });
   calcQuote();
@@ -808,10 +811,10 @@ function convertTrip(id){
 }
 
 
-function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
+function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
 
 
-function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
+function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
 
 
 function billFinalAmount(t,q,c){
@@ -927,9 +930,10 @@ function enquiries(){
  <label>Customer name<input id="enqName"></label><label>Mobile<input id="enqMobile"></label>
  <label>Pickup<input id="enqPickup"></label><label>Destination<input id="enqDest"></label>
  <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
- <label>Required date<input id="enqDate" type="date"></label></div>
+ <label>Required date<input id="enqDate" type="date"></label>
+ <label>Entry date (leave blank for today)<input id="enqEntryDate" type="date"></label></div>
  <div class="actions"><button class="primary" onclick="saveEnquiry()">Save Enquiry</button></div>
- <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> • ${esc(e.mobile)}<br>${esc(e.pickup)} → ${esc(e.dest)}<br><span class="muted">${esc(e.type)} • ${esc(e.date)} • ${esc(e.status)}</span>
+ <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> • ${esc(e.mobile)}<br>${esc(e.pickup)} → ${esc(e.dest)}<br><span class="muted">${esc(e.type)} • Required: ${esc(e.date)} • Entered: ${esc(e.entryDate||(e.created||"").slice(0,10))} • ${esc(e.status)}</span>
  <div class="actions"><button class="primary" onclick="enquiryToQuote('${e.id}')">Create Quotation</button></div></div>`).join("")||"<p class='muted'>No enquiries.</p>"}</div>`);
 }
 
@@ -953,6 +957,14 @@ function collectQuickDestinations(){
 /* Same Google-Maps-route trick as the Quotation form — includes the vehicle's own
    start/closing point so the owner can check the FULL live distance/route (not just
    pickup-to-drop) while still on the phone with the customer. */
+
+
+function saveEnquiry(){
+ if(!enqName.value||!enqMobile.value){toast("Enter customer name and mobile");return}
+ const entryDate=document.querySelector("#enqEntryDate").value||new Date().toISOString().slice(0,10);
+ db.enquiries.unshift({id:crypto.randomUUID(),name:enqName.value,mobile:enqMobile.value,pickup:enqPickup.value,dest:enqDest.value,type:enqType.value,date:enqDate.value,entryDate,status:"new",created:new Date().toISOString()});
+ save();toast("Enquiry saved");enquiries();
+}
 
 
 function openQuickRoute(){
