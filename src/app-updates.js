@@ -641,17 +641,23 @@ function downloadBillPDF(tripId){
 
 function quoteForm(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ const sectionStyle="border:2px solid #cbd5e0;border-radius:8px;margin:10px 0;overflow:hidden";
+ const summaryStyle="padding:10px;font-weight:bold;background:#f4f6f8;cursor:pointer;color:#143c5a";
  return `<div class="grid">
- <label>Customer name<input id="qName"></label><label>Customer mobile<input id="qMobile"></label>
- <label>Trip type<select id="qType" onchange="handleTripTypeChange()">
+ <label><b>Customer name</b><input id="qName"></label><label><b>Customer mobile</b><input id="qMobile"></label>
+ </div>
+ <div class="grid">
+ <label><b>Trip type</b><select id="qType" onchange="handleTripTypeChange()">
    <option value="local">Local Trip</option>
    <option value="one_day">One Day</option>
    <option value="round">Round Trip</option>
    <option value="outstation">Outstation</option>
    <option value="drop">Drop</option>
  </select></label>
- <label>Vehicle category<select id="qCat" onchange="handleTripTypeChange()">${cat}</select></label>
+ <label><b>Vehicle category</b><select id="qCat" onchange="handleTripTypeChange()">${cat}</select></label>
  <label>Vehicle<input id="qVehicle"></label><label>Vehicle number<input id="qVehicleNo"></label>
+ </div>
+ <div class="grid">
  <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qVehicleStart" value="${esc(db.business.officeLocation)}"></label>
  <label><b>Customer pickup point</b><input id="qPickup"></label>
  <label>Destination 1<input id="qDest"></label></div>
@@ -662,51 +668,77 @@ function quoteForm(){
  </div>
  <div class="grid">
  <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
- <label>Estimated KM<input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
- <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
- <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
- <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
- <label>Overnight rest hours (excluded from billing — customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
- <label>Override Extra KM Rate (optional — for high-range/heavy-traffic/bad-road trips)<input id="qOverrideAddKm" type="number" placeholder="Leave blank to use selected rate's own value"></label>
- <label>Override Extra Hour Rate (optional)<input id="qOverrideAddHour" type="number" placeholder="Leave blank to use selected rate's own value"></label>
- <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
- <label>Start date<input id="qStart" type="date"></label>
- <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
- <label>Closing time<input id="qCloseTime" type="time"></label>
- <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
- <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
- <label>Rate<select id="qRate">${rateOptions()}</select></label>
- <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
- <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
- <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
- <label>Discount type<select id="qDiscType">
-   <option value="none">No discount</option>
-   <option value="percent">Percentage (%)</option>
-   <option value="fixed">Fixed amount (₹)</option>
- </select></label>
- <label>Discount value<input id="qDiscValue" type="number" value="0"></label>
- <label>Round off to<select id="qRound">
-   <option value="0">No rounding</option>
-   <option value="10">Nearest ₹10</option>
-   <option value="50">Nearest ₹50</option>
-   <option value="100">Nearest ₹100</option>
- </select></label>
- <label><b>Advance requested (optional)</b><select id="qAdvancePct" onchange="updateAdvanceAmount()">
-   <option value="0">No advance</option>
-   <option value="10">10%</option>
-   <option value="25">25%</option>
-   <option value="50">50%</option>
-   <option value="manual">Manual amount</option>
- </select></label>
- <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
- <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
  </div>
- ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
-  <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
-  <label>GST %<input id="qGstPct" type="number" value="0" disabled></label>
+ <label><b>Estimated KM</b><input id="qKm" type="number" value="80" oninput="handleLocalCheck()"></label>
+ <label><b>Estimated hours</b><input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
+ <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
+ <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
+ <label><b>Rate</b><select id="qRate">${rateOptions()}</select></label>
+ <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
  </div>
- <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
+ <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>
+
+ <details style="${sectionStyle}">
+  <summary style="${summaryStyle}">&#128197; Trip Schedule &amp; Service (dates, times, AC/Non-AC)</summary>
+  <div class="grid" style="padding:10px">
+   <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
+   <label>Start date<input id="qStart" type="date"></label>
+   <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
+   <label>Closing time<input id="qCloseTime" type="time"></label>
+   <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
+   <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
+   <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
+  </div>
+ </details>
+
+ <details style="${sectionStyle}">
+  <summary style="${summaryStyle}">&#9881;&#65039; Advanced Rate Options (rest hours, rate override, bata, discount)</summary>
+  <div class="grid" style="padding:10px">
+   <label>Overnight rest hours (excluded from billing — customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
+   <label>Override Extra KM Rate (optional — for high-range/heavy-traffic/bad-road trips)<input id="qOverrideAddKm" type="number" placeholder="Leave blank to use selected rate's own value"></label>
+   <label>Override Extra Hour Rate (optional)<input id="qOverrideAddHour" type="number" placeholder="Leave blank to use selected rate's own value"></label>
+   <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
+   <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
+   <label>Discount type<select id="qDiscType">
+     <option value="none">No discount</option>
+     <option value="percent">Percentage (%)</option>
+     <option value="fixed">Fixed amount (₹)</option>
+   </select></label>
+   <label>Discount value<input id="qDiscValue" type="number" value="0"></label>
+   <label>Round off to<select id="qRound">
+     <option value="0">No rounding</option>
+     <option value="10">Nearest ₹10</option>
+     <option value="50">Nearest ₹50</option>
+     <option value="100">Nearest ₹100</option>
+   </select></label>
+  </div>
+ </details>
+
+ <details style="${sectionStyle}">
+  <summary style="${summaryStyle}">&#128176; Advance Payment (optional)</summary>
+  <div class="grid" style="padding:10px">
+   <label>Advance requested<select id="qAdvancePct" onchange="updateAdvanceAmount()">
+     <option value="0">No advance</option>
+     <option value="10">10%</option>
+     <option value="25">25%</option>
+     <option value="50">50%</option>
+     <option value="manual">Manual amount</option>
+   </select></label>
+   <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
+  </div>
+ </details>
+
+ <details style="${sectionStyle}">
+  <summary style="${summaryStyle}">&#129534; Other Charges &amp; GST (toll, permit, tax, parking, driver, GST)</summary>
+  <div style="padding:10px">
+   ${extraChargeFieldsHtml("qExtra")}
+   <div class="grid">
+    <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
+    <label>GST %<input id="qGstPct" type="number" value="0" disabled></label>
+   </div>
+  </div>
+ </details>`;
 }
 /* Recomputes the advance amount from the currently calculated fare whenever the
    percentage dropdown changes — "Manual amount" leaves the field alone for the
@@ -898,7 +930,36 @@ function convertTrip(id){
 }
 
 
-function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label><label>Actual number of days<input id="aDays" type="number" value="${t.days||q.days||1}" min="1"></label><label>Actual overnight rest hours (excluded)<input id="aRestHours" type="number" value="${t.restHours!=null?t.restHours:(q.restHours||0)}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
+function editTrip(id){
+ const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);
+ const sectionStyle="border:2px solid #cbd5e0;border-radius:8px;margin:10px 0;overflow:hidden";
+ const summaryStyle="padding:10px;font-weight:bold;background:#f4f6f8;cursor:pointer;color:#143c5a";
+ modal(`<h2>Actual Trip Details</h2>
+ <div class="grid">
+  <label><b>Actual KM</b><input id="aKm" type="number" value="${t.actualKm||0}"></label>
+  <label><b>Actual Hours</b><input id="aHours" type="number" value="${t.actualHours||0}"></label>
+  <label>Actual number of days<input id="aDays" type="number" value="${t.days||q.days||1}" min="1"></label>
+ </div>
+ <details style="${sectionStyle}" open>
+  <summary style="${summaryStyle}">&#128197; Trip Timing &amp; Route</summary>
+  <div class="grid" style="padding:10px">
+   <label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label>
+   <label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label>
+   <label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label>
+   <label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label>
+   <label>Actual closing time<input id="aCloseTime" type="time"></label>
+   <label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label>
+   <label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label>
+   <label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label>
+   <label>Actual overnight rest hours (excluded)<input id="aRestHours" type="number" value="${t.restHours!=null?t.restHours:(q.restHours||0)}"></label>
+  </div>
+ </details>
+ <details style="${sectionStyle}">
+  <summary style="${summaryStyle}">&#129534; Other Charges (toll, permit, tax, parking, driver)</summary>
+  <div style="padding:10px">${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}</div>
+ </details>
+ <button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)
+}
 
 
 function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,days:+document.querySelector("#aDays").value||1,restHours:+document.querySelector("#aRestHours").value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
