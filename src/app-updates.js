@@ -170,7 +170,11 @@ function printQuoteObj(q){
  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
   <div style="display:flex;align-items:center;gap:8px">
    <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
-   <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+   <div>
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
   </div>
   <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
  </div>
@@ -372,7 +376,49 @@ function downloadQuotePDFObj(q){
  const doc=pdfDoc();if(!doc)return;
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const c=db.categories[q.categoryId];
- let y=pdfHeader(doc,"QUOTATION "+q.no);
+
+ /* Manual platform+business header — same construction as downloadBillPDF() uses,
+    so the Quotation PDF's branding matches the Bill PDF's instead of falling back
+    to the plain pdfHeader() helper, which never showed the platform tagline/email
+    at all. */
+ let y=15;
+ try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ doc.setTextColor(70);doc.setFont(undefined,"bold");doc.setFontSize(10.5);
+ doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
+ doc.setFont(undefined,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
+ if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
+ if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.setFont(undefined,"bold");doc.setFontSize(8);doc.setTextColor(70);
+ const platformPhonesPdf=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
+ if(platformPhonesPdf) doc.text(platformPhonesPdf,195,y+1,{align:"right"});
+ doc.setTextColor(0);
+ y+=12;
+ doc.setDrawColor(210);doc.line(15,y,195,y);y+=6;
+
+ const partnerBoxTop=y;
+ const partnerPhonesPdf=[db.business.phone,db.business.phone2].filter(Boolean);
+ const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhonesPdf.length?5.5:0);
+ doc.setFillColor(232,245,244);
+ doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
+ doc.setDrawColor(20,120,110);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
+ let py=partnerBoxTop+7;
+ doc.setFont(undefined,"bold");doc.setFontSize(14);doc.setTextColor(15,90,85);
+ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"});py+=5;
+ doc.setFont(undefined,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
+ if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
+ if(db.business.address){doc.text(db.business.address,105,py,{align:"center"});py+=4.5;}
+ if(partnerPhonesPdf.length){
+  doc.setFont(undefined,"bold");doc.setFontSize(10.5);doc.setTextColor(15,90,85);
+  doc.text("Contact: "+partnerPhonesPdf.join("   |   "),105,py,{align:"center"});py+=5.5;
+ }
+ doc.setTextColor(0);
+ y=partnerBoxTop+partnerBoxHeight+6;
+
+ doc.setFont(undefined,"bold");doc.setFontSize(12.5);
+ doc.text("QUOTATION "+q.no,105,y,{align:"center"});
+ y+=9;
+ doc.setFont(undefined,"normal");doc.setFontSize(10);
+
  y=pdfRow(doc,y,"Date",q.entryDate||(q.created||"").slice(0,10));
  y=pdfRow(doc,y,"Customer",q.customer);
  y=pdfRow(doc,y,"Mobile",q.mobile);
