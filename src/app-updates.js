@@ -3,6 +3,67 @@
    same name, so this file can patch app.js without ever touching that big file
    again — only this smaller file grows with future updates. */
 
+function extraChargeLabels(){
+ return {toll:"Toll",permit:"Permit / State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
+}
+
+
+function sumExtraCharges(ec){
+ if(!ec) return 0;
+ return Object.values(ec).reduce((a,v)=>a+(+v||0),0);
+}
+
+
+function extraChargesHtml(ec){
+ const labels=extraChargeLabels();
+ const included=Object.keys(labels).filter(k=>ec&&+ec[k]>0);
+ const excluded=Object.keys(labels).filter(k=>!ec||!(+ec[k]>0));
+ let html="";
+ if(included.length){
+  html+=`<div style="margin-top:8px"><b>Other Charges Included:</b> `+included.map(k=>`${labels[k]}: ${money(ec[k])}`).join(" &nbsp;•&nbsp; ")+`</div>`;
+ }
+ if(excluded.length){
+  html+=`<div style="margin-top:4px;font-size:11.5px;color:#555">&#128666; ${excluded.map(k=>labels[k]).join(", ")} ${excluded.length>1?"are":"is"} <b>NOT included</b> in this fare and will be billed extra as applicable.</div>`;
+ }
+ return html;
+}
+
+
+function extraChargesPdf(doc,y,ec){
+ const labels=extraChargeLabels();
+ const included=Object.keys(labels).filter(k=>ec&&+ec[k]>0);
+ const excluded=Object.keys(labels).filter(k=>!ec||!(+ec[k]>0));
+ if(included.length){
+  doc.setFont(undefined,"bold");doc.setFontSize(9);doc.text("Other Charges Included:",15,y);y+=5;doc.setFont(undefined,"normal");
+  included.forEach(k=>{y=pdfRow(doc,y,labels[k],pdfMoney(ec[k]));});
+ }
+ if(excluded.length){
+  doc.setFontSize(7.5);doc.setTextColor(90);
+  const wrapped=doc.splitTextToSize(excluded.map(k=>labels[k]).join(", ")+" "+(excluded.length>1?"are":"is")+" NOT included in this fare and will be billed extra as applicable.",180);
+  doc.text(wrapped,15,y);y+=wrapped.length*4+3;
+  doc.setTextColor(0);doc.setFontSize(10);
+ }
+ return y;
+}
+
+
+function extraChargeFieldsHtml(prefix,ec){
+ ec=ec||{};
+ const labels=extraChargeLabels();
+ return `<h4>Other Charges (optional — fill in whichever are known)</h4><div class="grid">
+  ${Object.keys(labels).map(k=>`<label>${labels[k]}<input id="${prefix}_${k}" type="number" value="${+ec[k]||0}"></label>`).join("")}
+ </div>`;
+}
+
+
+function readExtraChargeFields(prefix){
+ const labels=extraChargeLabels();
+ const ec={};
+ Object.keys(labels).forEach(k=>{ ec[k]=+document.querySelector("#"+prefix+"_"+k)?.value||0; });
+ return ec;
+}
+
+
 function printContent(title,html){
  let frame=document.querySelector("#printFrame");
  if(frame) frame.remove();
@@ -97,7 +158,7 @@ function printQuoteObj(q){
  ${advanceHtml}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
   &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
-  <br><br>&#128666; <b>Toll, parking, permit charges for other-state travel, and driver food/overnight stay for outstation trips are NOT included in this fare</b> — these will be billed extra as applicable.
+  ${extraChargesHtml(q.extraCharges)}
  </div>
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
  `);
@@ -223,7 +284,7 @@ function printBill(tripId){
  </div>
  ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11px;color:#555">
-  &#128666; Toll, parking, permit charges for other-state travel, and driver food/overnight stay for outstation trips are NOT included in this fare — billed extra as applicable.
+  ${extraChargesHtml(r.extraCharges)}
  </div>
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
  `);
@@ -319,11 +380,9 @@ function downloadQuotePDFObj(q){
  doc.setFont(undefined,"normal");doc.setFontSize(8);doc.setTextColor(90);
  const disclaimer="This is an estimated fare based on the KM/hours entered above and rates in effect today"+(q.validUntil?", valid until "+q.validUntil:"")+". The final bill is calculated only after the trip, based on actual KM/hours travelled"+(q.validUntil?", and rates may change after the validity date above":"")+".";
  const wrapped=doc.splitTextToSize(disclaimer,180);
- doc.text(wrapped,15,y);y+=wrapped.length*4+2;
- const extraNote="Toll, parking, permit charges for other-state travel, and driver food/overnight stay for outstation trips are NOT included in this fare — billed extra as applicable.";
- const wrapped2=doc.splitTextToSize(extraNote,180);
- doc.text(wrapped2,15,y);y+=wrapped2.length*4+2;
- doc.setTextColor(0);
+ doc.text(wrapped,15,y);y+=wrapped.length*4+3;
+ doc.setTextColor(0);doc.setFontSize(10);
+ y=extraChargesPdf(doc,y,q.extraCharges);
 
  doc.save("Quotation-"+q.no+".pdf");
 }
@@ -494,9 +553,9 @@ function downloadBillPDF(tripId){
  }
 
  if(y>270){doc.addPage();y=18;}
- doc.setFontSize(7.5);doc.setTextColor(90);
- const extraNoteBill=doc.splitTextToSize("Toll, parking, permit charges for other-state travel, and driver food/overnight stay for outstation trips are NOT included in this fare — billed extra as applicable.",180);
- doc.text(extraNoteBill,15,y);y+=extraNoteBill.length*4+4;
+ doc.setFontSize(10);doc.setTextColor(0);
+ y=extraChargesPdf(doc,y,r.extraCharges);
+ y+=2;
 
  if(y>276){doc.addPage();y=18;}
  doc.setFontSize(8);doc.setTextColor(120);
@@ -570,11 +629,48 @@ function quoteForm(){
  <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
  <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
  </div>
+ ${extraChargeFieldsHtml("qExtra")}
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
 }
 /* Recomputes the advance amount from the currently calculated fare whenever the
    percentage dropdown changes — "Manual amount" leaves the field alone for the
    owner to type a specific figure instead. */
+
+
+function calcQuote(){
+ handleLocalCheck();
+ const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
+ if(r.invalid){
+  qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
+  return r;
+ }
+ const bata=(document.querySelector("#qBataOn")?.checked)?(+qBata.value||0):0;
+ const preDiscount=r.total+bata;
+ const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
+ const extraCharges=readExtraChargeFields("qExtra");
+ const extraTotal=sumExtraCharges(extraCharges);
+ const finalWithExtras=dr.final+extraTotal;
+ qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+ ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
+ <div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>
+ <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
+ <div>Fare Subtotal: ${money(r.total)}</div>
+ ${bata?`<div>Driver Bata: ${money(bata)}</div>`:""}
+ <div>Subtotal: ${money(preDiscount)}</div>
+ ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
+ ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
+ ${extraTotal>0?`<div>Other Charges: +${money(extraTotal)}</div>`:""}
+ <div class="total">Final quoted fare: ${money(finalWithExtras)}</div>
+ ${extraChargesHtml(extraCharges)}`;
+ return {...r,...dr,driverBata:bata,extraCharges,extraTotal,final:finalWithExtras};
+}
+
+/* Builds a quote-shaped object straight from the current on-screen form fields (plus
+   the already-computed fare r) — used both to persist a quotation AND to print/PDF
+   the current numbers without requiring a save first. If a saved quotation is
+   currently being edited (window._editingQuoteId), its id/no/created/advance-received
+   status are preserved so printing shows the correct existing quotation number even
+   before the edit is explicitly saved. */
 
 
 function buildQuoteObjFromForm(r){
@@ -596,7 +692,8 @@ function buildQuoteObjFromForm(r){
   advanceReceived:existing?existing.advanceReceived:false,
   advanceMethod:existing?existing.advanceMethod:"",
   advanceReceivedAt:existing?existing.advanceReceivedAt:"",
-  validUntil:document.querySelector("#qValidUntil").value||""
+  validUntil:document.querySelector("#qValidUntil").value||"",
+  extraCharges:r.extraCharges||readExtraChargeFields("qExtra")
  };
 }
 /* Saving now UPDATES the existing record in place when editing a previously-saved
@@ -696,6 +793,8 @@ function openQuote(id){
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
   qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||"";
+  const ecLabels=extraChargeLabels();
+  Object.keys(ecLabels).forEach(k=>{ const el=document.querySelector("#qExtra_"+k); if(el) el.value=(q.extraCharges&&q.extraCharges[k])||0; });
   calcQuote();
  },0);
 }
@@ -704,8 +803,91 @@ function openQuote(id){
 function convertTrip(id){
  const q=db.quotes.find(x=>x.id===id);
  const payments=(q.advanceReceived&&q.advanceAmount>0)?[{amount:q.advanceAmount,method:q.advanceMethod||"Advance",at:q.advanceReceivedAt||new Date().toISOString()}]:[];
- db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments,created:new Date().toISOString()});
+ db.trips.unshift({id:crypto.randomUUID(),quoteId:id,customer:q.customer,status:"confirmed",actualKm:0,actualHours:0,payments,extraCharges:q.extraCharges||{},created:new Date().toISOString()});
  q.status="confirmed";save();toast("Trip confirmed"+(payments.length?" — advance carried over as a payment":""));trips()
+}
+
+
+function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
+
+
+function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
+
+
+function billFinalAmount(t,q,c){
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const r=calcFare(c,q.ratePlan,km,h);
+ const fareSubtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
+ const bata=q.driverBata||0;
+ const subtotal=fareSubtotal+bata;
+ const dr=applyDiscountRound(subtotal,q.discountType||"none",q.discountValue||0,q.roundOff||0);
+ const adjAmount=(t.adjustment&&Number(t.adjustment.amount))||0;
+ const extraCharges=t.extraCharges||q.extraCharges||{};
+ const extraTotal=sumExtraCharges(extraCharges);
+ const finalAdjusted=Math.max(0,dr.final+adjAmount+extraTotal);
+ return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal};
+}
+
+/* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
+   mistake discovered later, or a goodwill adjustment — without reopening the quotation or
+   category rates. Stored on the trip, applied on top of the normal calculation everywhere
+   (screen, PDF, print) so it always stays visible and reversible. */
+
+
+function loadBill(){
+ const t=db.trips.find(x=>x.id===billTrip.value);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const final=r.final;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
+ const balance=Math.max(0,final-paid);
+ billBox.innerHTML=`<div class="ratebox">
+  <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates / Other Charges)</button><button onclick="openAdjustBill('${t.id}')">Adjust Final Bill Amount</button></div>
+
+  <h3>1. Usage Details</h3>
+  <div>Total KM: <b>${km}</b> &nbsp; Total Hours: <b>${h}</b></div>
+  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
+  <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
+
+  <h3>2. Standard vs Offer Rate</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+   <tr style="color:#666"><td></td><td style="text-align:right;padding:2px 4px">Standard Rate</td><td style="text-align:right;padding:2px 4px">Offer Rate</td></tr>
+   <tr><td>Base Rate</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.base)}</td><td style="text-align:right;padding:2px 4px">${money(r.base)}</td></tr>
+   <tr><td>Additional Charge</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.extra)}</td><td style="text-align:right;padding:2px 4px">${money(r.extra||0)}</td></tr>
+   <tr style="border-top:1px solid #ccc;font-weight:bold"><td>Total</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.total)}</td><td style="text-align:right;padding:2px 4px">${money(r.base+(r.extra||0))}</td></tr>
+  </table>
+
+  ${totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
+   <div style="font-weight:bold;font-size:16px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+   <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div></div>`:""}
+
+  <h3>4. Final Payment Summary</h3>
+  <div>Base Rate: ${money(r.base)}</div>
+  <div>Additional Charge (higher of KM/Hour): ${money(r.extra||0)}</div>
+  ${r.driverBata?`<div>Driver Bata: ${money(r.driverBata)}</div>`:""}
+  ${manualDiscount?`<div>Manual Discount: -${money(manualDiscount)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
+  ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
+  ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
+  ${r.extraTotal>0?`<div>Other Charges: +${money(r.extraTotal)}</div>`:""}
+  <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
+  ${extraChargesHtml(r.extraCharges)}
+
+  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
+  <div><b>Total paid: ${money(paid)}</b></div>
+  <div class="total">Balance due: ${money(balance)}</div>
+  ${balance>0?`
+  <p class="danger" style="margin:6px 0"><b>⚠️ Enter only the amount actually received now — it does not fill in automatically.</b></p>
+  <div class="grid" style="margin-top:8px">
+   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
+   <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
+  <div id="billQR" style="margin-top:10px"></div>
+  `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled — no balance due</b></div>`}
+  <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button></div>
+ </div>`;
+ if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
 }
 
 
@@ -735,6 +917,7 @@ function enquiries(){
    <label>Estimated hours<input id="qqHours" type="number" value="8"></label>
    <label>Number of days (for outstation trips)<input id="qqDays" type="number" value="1" min="1"></label>
   </div>
+  ${extraChargeFieldsHtml("qqExtra")}
   <div class="actions"><button class="primary" onclick="calcQuickFare()">Calculate Fare</button></div>
   <div id="qqResult" class="ratebox"></div>
   <div class="actions"><button onclick="saveQuickAsEnquiry()">Save as Enquiry</button></div>
@@ -799,13 +982,17 @@ function calcQuickFare(){
  const r=calcFare(c,plan,km,h);
  if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
  const days=+document.querySelector("#qqDays").value||1;
+ const extraCharges=readExtraChargeFields("qqExtra");
+ const extraTotal=sumExtraCharges(extraCharges);
 
  if(plan==="standard"){
   box.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
   <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
   ${days>1?`<div class="muted">${days} day trip</div>`:""}
-  <div class="total">Standard Fare: ${money(r.total)}</div>`;
+  ${extraTotal>0?`<div>Other Charges: +${money(extraTotal)}</div>`:""}
+  <div class="total">Standard Fare: ${money(r.total+extraTotal)}</div>
+  ${extraChargesHtml(extraCharges)}`;
   return;
  }
 
@@ -821,7 +1008,9 @@ function calcQuickFare(){
   <tr><td>Fare</td><td style="text-align:right">${money(stdTotal)}</td><td style="text-align:right;font-weight:bold">${money(r.total)}</td></tr>
  </table>
  ${savings>0?`<div class="ok" style="margin-top:6px">🎉 Customer saves: ${money(savings)}</div>`:""}
- <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total)}</div>`;
+ ${extraTotal>0?`<div style="margin-top:6px">Other Charges: +${money(extraTotal)}</div>`:""}
+ <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total+extraTotal)}</div>
+ ${extraChargesHtml(extraCharges)}`;
 }
 
 /* Only saves an Enquiry record if the owner explicitly wants one kept — the whole
