@@ -6,6 +6,16 @@
 function extraChargeLabels(){
  return {toll:"Toll",permit:"Other State Permit",stateTax:"Other State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
 }
+/* Short "(Toll + Parking)" style label listing which specific charges make up an
+   "Other Charges" total — used right next to the amount itself, not just in the
+   separate itemized box, so the customer never has to wonder what it covers. */
+
+
+function extraChargesShortLabel(ec){
+ const labels=extraChargeLabels();
+ const included=Object.keys(labels).filter(k=>ec&&+ec[k]>0);
+ return included.length?" ("+included.map(k=>labels[k]).join(" + ")+")":"";
+}
 
 
 function sumExtraCharges(ec){
@@ -193,7 +203,7 @@ function printQuoteObj(q){
   <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
  </div>`:""}
  `:""}
- ${sumExtraCharges(q.extraCharges)>0?`<table><tr><td style="padding:3px 0;color:#555">Other Charges</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(sumExtraCharges(q.extraCharges))}</td></tr></table>`:""}
+ ${sumExtraCharges(q.extraCharges)>0?`<table><tr><td style="padding:3px 0;color:#555">Other Charges${extraChargesShortLabel(q.extraCharges)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(sumExtraCharges(q.extraCharges))}</td></tr></table>`:""}
  ${q.gstAmount>0?`<table><tr><td style="padding:3px 0;color:#555">GST @ ${q.gstPct}%</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(q.gstAmount)}</td></tr></table>`:""}
  <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
   <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
@@ -281,7 +291,7 @@ function printBill(tripId){
  if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
  if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
  if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
- if(r.extraTotal>0) summaryRows+=row("Other Charges","+"+money(r.extraTotal));
+ if(r.extraTotal>0) summaryRows+=row("Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+money(r.extraTotal));
  if(r.gstAmount>0) summaryRows+=row("GST @ "+r.gstPct+"%","+"+money(r.gstAmount));
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
@@ -404,7 +414,7 @@ function downloadQuotePDFObj(q){
  if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
  if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
  const qExtraTotal=sumExtraCharges(q.extraCharges);
- if(qExtraTotal>0) y=pdfRow(doc,y,"Other Charges","+"+pdfMoney(qExtraTotal));
+ if(qExtraTotal>0) y=pdfRow(doc,y,"Other Charges"+extraChargesShortLabel(q.extraCharges),"+"+pdfMoney(qExtraTotal));
  if(q.gstAmount>0) y=pdfRow(doc,y,"GST @ "+q.gstPct+"%","+"+pdfMoney(q.gstAmount));
  y=pdfDivider(doc,y);
  y+=2;
@@ -571,7 +581,7 @@ function downloadBillPDF(tripId){
  if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
  if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
- if(r.extraTotal>0) y=pdfRow(doc,y,"Other Charges","+"+pdfMoney(r.extraTotal));
+ if(r.extraTotal>0) y=pdfRow(doc,y,"Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+pdfMoney(r.extraTotal));
  if(r.gstAmount>0) y=pdfRow(doc,y,"GST @ "+r.gstPct+"%","+"+pdfMoney(r.gstAmount));
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
@@ -732,7 +742,7 @@ function calcQuote(){
  <div>Subtotal: ${money(preDiscount)}</div>
  ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
  ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
- ${extraTotal>0?`<div>Other Charges: +${money(extraTotal)}</div>`:""}
+ ${extraTotal>0?`<div>Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
  ${gstAmount>0?`<div>GST @ ${gstPct}%: +${money(gstAmount)}</div>`:""}
  <div class="total">Final quoted fare: ${money(finalWithExtras)}</div>
  ${extraChargesHtml(extraCharges)}`;
@@ -970,7 +980,7 @@ function loadBill(){
   ${manualDiscount?`<div>Manual Discount: -${money(manualDiscount)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
-  ${r.extraTotal>0?`<div>Other Charges: +${money(r.extraTotal)}</div>`:""}
+  ${r.extraTotal>0?`<div>Other Charges${extraChargesShortLabel(r.extraCharges)}: +${money(r.extraTotal)}</div>`:""}
   ${r.gstAmount>0?`<div>GST @ ${r.gstPct}%: +${money(r.gstAmount)}</div>`:""}
   <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
   ${extraChargesHtml(r.extraCharges)}
@@ -1146,7 +1156,7 @@ function calcQuickFare(){
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
   <div>Extra (higher of KM/hour): <b>${money(r.extra||0)}</b></div>
   ${days>1?`<div class="muted">${days} day trip</div>`:""}
-  ${extraTotal>0?`<div>Other Charges: +${money(extraTotal)}</div>`:""}
+  ${extraTotal>0?`<div>Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
   <div class="total">Standard Fare: ${money(r.total+extraTotal)}</div>
   ${extraChargesHtml(extraCharges)}`;
   return;
@@ -1164,7 +1174,7 @@ function calcQuickFare(){
   <tr><td>Fare</td><td style="text-align:right">${money(stdTotal)}</td><td style="text-align:right;font-weight:bold">${money(r.total)}</td></tr>
  </table>
  ${savings>0?`<div class="ok" style="margin-top:6px">🎉 Customer saves: ${money(savings)}</div>`:""}
- ${extraTotal>0?`<div style="margin-top:6px">Other Charges: +${money(extraTotal)}</div>`:""}
+ ${extraTotal>0?`<div style="margin-top:6px">Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
  <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total+extraTotal)}</div>
  ${extraChargesHtml(extraCharges)}`;
 }
