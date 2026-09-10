@@ -1285,7 +1285,11 @@ function openQuickBillForm(){
   <label>Vehicle<input id="qbVehicle"></label><label>Vehicle number<input id="qbVehicleNo"></label>
   <label><b>&#128663; Vehicle start point</b><input id="qbVehicleStart" value="${esc(db.business.officeLocation)}"></label>
   <label><b>Customer pickup point</b><input id="qbPickup"></label>
-  <label>Destination<input id="qbDest"></label>
+  <label>Destination 1<input id="qbDest"></label>
+ </div>
+ <div id="qbStopsContainer"></div>
+ <div class="actions"><button type="button" onclick="addQuickBillStopField()">+ Add another destination</button></div>
+ <div class="grid">
   <label><b>Vehicle closing point</b><input id="qbReturn" value="${esc(db.business.officeLocation)}"></label>
   <label><b>Actual KM</b><input id="qbKm" type="number" value="0"></label>
   <label><b>Actual Hours</b><input id="qbHours" type="number" value="0"></label>
@@ -1300,6 +1304,24 @@ function openQuickBillForm(){
  <div class="actions"><button class="primary" onclick="calcQuickBillPreview()">Preview Fare</button></div>
  <div id="qbResult" class="ratebox"></div>
  <div class="actions"><button class="primary" onclick="saveQuickBill()">Create Bill</button></div>`);
+}
+
+
+function addQuickBillStopField(value=""){
+ const c=document.querySelector("#qbStopsContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.className="grid";
+ row.style.marginTop="4px";
+ row.innerHTML=`<label style="flex:1">Additional destination<input class="qb-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">✕ Remove</button>`;
+ c.appendChild(row);
+}
+
+
+function collectQuickBillDestinations(){
+ const first=document.querySelector("#qbDest")?.value||"";
+ const rest=Array.from(document.querySelectorAll(".qb-stop-input")).map(i=>i.value);
+ return [first,...rest].map(v=>v.trim()).filter(Boolean);
 }
 
 
@@ -1338,7 +1360,7 @@ function saveQuickBill(){
   customer:name,mobile,type:document.querySelector("#qbType").value,category:c.name,categoryId:+document.querySelector("#qbCat").value,
   vehicle:document.querySelector("#qbVehicle").value,vehicleNo:document.querySelector("#qbVehicleNo").value,
   pickup:document.querySelector("#qbPickup").value,vehicleStart:document.querySelector("#qbVehicleStart").value,
-  destinations:[document.querySelector("#qbDest").value].filter(Boolean),destination:document.querySelector("#qbDest").value,
+  destinations:collectQuickBillDestinations(),destination:collectQuickBillDestinations()[0]||"",
   returnPoint:document.querySelector("#qbReturn").value,
   estimatedKm:km,estimatedHours:h,days,restHours,startDate:document.querySelector("#qbDate").value,
   ratePlan,overrideAddKm,overrideAddHour,
@@ -1351,11 +1373,31 @@ function saveQuickBill(){
  db.quotes.unshift(quote);
  const trip={id:crypto.randomUUID(),quoteId:qId,customer:name,status:"completed",actualKm:km,actualHours:h,days,restHours,
   entryDate:new Date().toISOString().slice(0,10),startDate:document.querySelector("#qbDate").value,
-  pickup:document.querySelector("#qbPickup").value,dest:document.querySelector("#qbDest").value,returnPoint:document.querySelector("#qbReturn").value,
+  pickup:document.querySelector("#qbPickup").value,dest:collectQuickBillDestinations().join(", "),returnPoint:document.querySelector("#qbReturn").value,
   payments:[],extraCharges:quote.extraCharges,created:new Date().toISOString()};
  db.trips.unshift(trip);
  save();closeModal();toast("Bill created");
  view("billing");
  setTimeout(()=>{billTrip.value=trip.id;loadBill()},0);
 }
+
+
+function dashboard(){
+ app().innerHTML=card("Travel Connect Dashboard",`<div class="grid">
+ <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
+ <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ <div class="actions">
+  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
+  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">&#9889; Quick Bill</button>
+  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
+ </div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
+}
+
+
+function goQuickBill(){ view("billing"); setTimeout(openQuickBillForm,0); }
 
