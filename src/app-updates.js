@@ -64,8 +64,8 @@ function readExtraChargeFields(prefix){
 }
 
 
-function calcFare(c,plan,km,h,days,restHours){
- days=days||1; restHours=restHours||0;
+function calcFare(c,plan,km,h,days,restHours,overrides){
+ days=days||1; restHours=restHours||0; overrides=overrides||{};
  const effectiveHours=Math.max(0,h-restHours);
  if(plan==="local"){
   if(km>db.settings.localMaxKm||h>db.settings.localMaxHours){
@@ -86,13 +86,19 @@ function calcFare(c,plan,km,h,days,restHours){
     of days, same as if you booked that many separate single-day minimums back
     to back. restHours (overnight vehicle-standing time the customer arranged
     their own room for) is subtracted from the hours actually billed, but never
-    from KM. */
+    from KM. overrides.addKm/addHour let the owner charge a discounted plan's
+    base rate but a DIFFERENT plan's per-KM/per-hour extra rate — e.g. offering
+    the Competitive base for a high-range/heavy-traffic/bad-road trip while still
+    charging Standard's higher extra-KM rate, since the discounted rate alone
+    isn't profitable on tough routes. */
  const R=c[plan];
+ const addKm=overrides.addKm!=null&&overrides.addKm!==""?Number(overrides.addKm):R.addKm;
+ const addHour=overrides.addHour!=null&&overrides.addHour!==""?Number(overrides.addHour):R.addHour;
  const incKm=R.incKm*days, incHours=R.incHours*days, base=R.rate*days;
- const kmExtra=Math.max(0,km-incKm)*R.addKm;
- const hourExtra=Math.max(0,effectiveHours-incHours)*R.addHour;
+ const kmExtra=Math.max(0,km-incKm)*addKm;
+ const hourExtra=Math.max(0,effectiveHours-incHours)*addHour;
  const extra=Math.max(kmExtra,hourExtra);
- return {base,extra,kmExtra,hourExtra,total:base+extra,incKm,incHours,addKm:R.addKm,addHour:R.addHour,days,restHours};
+ return {base,extra,kmExtra,hourExtra,total:base+extra,incKm,incHours,addKm,addHour,days,restHours,addKmOverridden:addKm!==R.addKm,addHourOverridden:addHour!==R.addHour};
 }
 
 /* Applies discount then round-off on top of a subtotal; used by both quotation and billing */
@@ -125,7 +131,7 @@ function printQuoteObj(q){
 
  /* Standard-vs-offer comparison, same idea as the final bill's — lets the customer
     see the discount being offered right at the quotation stage, not just at billing. */
- const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
  const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
  const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
  const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
@@ -374,7 +380,7 @@ function downloadQuotePDFObj(q){
  y=pdfDivider(doc,y);
 
  /* Standard-vs-offer comparison, same idea as the final bill's. */
- const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
  const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
  const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
  const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
@@ -651,6 +657,8 @@ function quoteForm(){
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
  <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
  <label>Overnight rest hours (excluded from billing — customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
+ <label>Override Extra KM Rate (optional — for high-range/heavy-traffic/bad-road trips)<input id="qOverrideAddKm" type="number" placeholder="Leave blank to use selected rate's own value"></label>
+ <label>Override Extra Hour Rate (optional)<input id="qOverrideAddHour" type="number" placeholder="Leave blank to use selected rate's own value"></label>
  <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
@@ -698,7 +706,8 @@ function quoteForm(){
 function calcQuote(){
  handleLocalCheck();
  const c=db.categories[+qCat.value],days=+document.querySelector("#qDays").value||1,restHours=+document.querySelector("#qRestHours").value||0;
- const r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0,days,restHours);
+ const overrides={addKm:document.querySelector("#qOverrideAddKm").value,addHour:document.querySelector("#qOverrideAddHour").value};
+ const r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0,days,restHours,overrides);
  if(r.invalid){
   qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
   return r;
@@ -715,6 +724,7 @@ function calcQuote(){
  const finalWithExtras=preGst+gstAmount;
  qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
+ ${(r.addKmOverridden||r.addHourOverridden)?`<div class="muted">Using overridden extra rate: ₹${r.addKm}/KM, ₹${r.addHour}/hr</div>`:""}
  <div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>
  <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
  <div>Fare Subtotal: ${money(r.total)}</div>
@@ -759,7 +769,9 @@ function buildQuoteObjFromForm(r){
   validUntil:document.querySelector("#qValidUntil").value||"",
   entryDate:document.querySelector("#qEntryDate").value||(existing?existing.entryDate:new Date().toISOString().slice(0,10)),
   extraCharges:r.extraCharges||readExtraChargeFields("qExtra"),
-  gstOn:r.gstOn||false,gstPct:r.gstPct||0,gstAmount:r.gstAmount||0
+  gstOn:r.gstOn||false,gstPct:r.gstPct||0,gstAmount:r.gstAmount||0,
+  overrideAddKm:document.querySelector("#qOverrideAddKm").value||"",
+  overrideAddHour:document.querySelector("#qOverrideAddHour").value||""
  };
 }
 /* Saving now UPDATES the existing record in place when editing a previously-saved
@@ -862,6 +874,7 @@ function openQuote(id){
   const ecLabels=extraChargeLabels();
   Object.keys(ecLabels).forEach(k=>{ const el=document.querySelector("#qExtra_"+k); if(el) el.value=(q.extraCharges&&q.extraCharges[k])||0; });
   qGstOn.checked=!!q.gstOn; qGstPct.value=q.gstPct||0; qGstPct.disabled=!qGstOn.checked;
+  qOverrideAddKm.value=q.overrideAddKm||""; qOverrideAddHour.value=q.overrideAddHour||"";
   calcQuote();
  },0);
 }
@@ -884,7 +897,7 @@ function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entry
 function billFinalAmount(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
  const days=t.days||q.days||1, restHours=t.restHours!=null?t.restHours:(q.restHours||0);
- const r=calcFare(c,q.ratePlan,km,h,days,restHours);
+ const r=calcFare(c,q.ratePlan,km,h,days,restHours,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
  const fareSubtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
  const bata=q.driverBata||0;
  const subtotal=fareSubtotal+bata;
@@ -987,6 +1000,10 @@ function enquiries(){
   <h3 style="margin-top:0">&#9889; Quick Fare (during a call — no save needed)</h3>
   <p class="muted">Type the route/KM and read out the fare instantly. Nothing here is saved unless you tap "Save as Enquiry" below. "Local Rate" is one of the Rate options below for same-day local trips.</p>
   <div class="grid">
+   <label>Customer name<input id="qqName"></label>
+   <label>Customer mobile<input id="qqMobile"></label>
+  </div>
+  <div class="grid">
    <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qqVehicleStart" value="${esc(db.business.officeLocation)}"></label>
    <label><b>Customer pickup point</b><input id="qqPickup"></label>
    <label>Destination 1<input id="qqDest"></label>
@@ -1006,6 +1023,8 @@ function enquiries(){
    <label>Estimated hours<input id="qqHours" type="number" value="8"></label>
    <label>Number of days (for outstation trips)<input id="qqDays" type="number" value="1" min="1"></label>
    <label>Overnight rest hours (excluded from billing)<input id="qqRestHours" type="number" value="0"></label>
+   <label>Override Extra KM Rate (optional)<input id="qqOverrideAddKm" type="number" placeholder="Leave blank for selected rate's own value"></label>
+   <label>Override Extra Hour Rate (optional)<input id="qqOverrideAddHour" type="number" placeholder="Leave blank for selected rate's own value"></label>
   </div>
   ${extraChargeFieldsHtml("qqExtra")}
   <div class="actions"><button class="primary" onclick="calcQuickFare()">Calculate Fare</button></div>
@@ -1080,7 +1099,8 @@ function calcQuickFare(){
  const box=document.querySelector("#qqResult");
  const days=+document.querySelector("#qqDays").value||1;
  const restHours=+document.querySelector("#qqRestHours").value||0;
- const r=calcFare(c,plan,km,h,days,restHours);
+ const overrides={addKm:document.querySelector("#qqOverrideAddKm").value,addHour:document.querySelector("#qqOverrideAddHour").value};
+ const r=calcFare(c,plan,km,h,days,restHours,overrides);
  if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
  const extraCharges=readExtraChargeFields("qqExtra");
  const extraTotal=sumExtraCharges(extraCharges);
@@ -1120,8 +1140,11 @@ function calcQuickFare(){
 function saveQuickAsEnquiry(){
  const pickup=document.querySelector("#qqPickup").value;
  const stops=collectQuickDestinations();
+ const name=document.querySelector("#qqName").value, mobile=document.querySelector("#qqMobile").value;
+ if(!name||!mobile){toast("Enter the customer's name and mobile number first — otherwise you won't be able to tell this enquiry apart later");return}
  if(!pickup&&!stops.length){toast("Enter at least a pickup or destination first");return}
- db.enquiries.unshift({id:crypto.randomUUID(),name:"",mobile:"",pickup,dest:stops.join(" → "),vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,type:"local",date:"",status:"new",created:new Date().toISOString()});
- save();toast("Saved as a new Enquiry — add customer details below");enquiries();
+ const entryDate=new Date().toISOString().slice(0,10);
+ db.enquiries.unshift({id:crypto.randomUUID(),name,mobile,pickup,dest:stops.join(" → "),vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,type:"local",date:"",entryDate,status:"new",created:new Date().toISOString()});
+ save();toast("Saved as a new Enquiry");enquiries();
 }
 
