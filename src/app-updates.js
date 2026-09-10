@@ -64,6 +64,40 @@ function readExtraChargeFields(prefix){
 }
 
 
+function calcFare(c,plan,km,h,days,restHours){
+ days=days||1; restHours=restHours||0;
+ const effectiveHours=Math.max(0,h-restHours);
+ if(plan==="local"){
+  if(km>db.settings.localMaxKm||h>db.settings.localMaxHours){
+   return {invalid:true,reason:`Local limit exceeded: maximum ${db.settings.localMaxKm} KM and ${db.settings.localMaxHours} hours.`};
+  }
+  const L=c.local;
+  const kmExtra=Math.max(0,km-L.incKm)*L.addKm;
+  const hourExtra=Math.max(0,h-L.incHours)*L.addHour;
+  const extra=Math.max(kmExtra,hourExtra);
+  return {base:L.rate,extra,kmExtra,hourExtra,total:L.rate+extra,incKm:L.incKm,incHours:L.incHours,addKm:L.addKm,addHour:L.addHour,days:1,restHours:0};
+ }
+ if(plan==="custom"){
+  const base=Number(document.querySelector("#qCustom")?.value||0);
+  return {base,extra:0,kmExtra:0,hourExtra:0,total:base,incKm:null,incHours:null,addKm:null,addHour:null,days,restHours};
+ }
+ /* Multi-day trips (everything except Local — a Local trip is same-day by
+    definition) multiply the minimum charge and included KM/hours by the number
+    of days, same as if you booked that many separate single-day minimums back
+    to back. restHours (overnight vehicle-standing time the customer arranged
+    their own room for) is subtracted from the hours actually billed, but never
+    from KM. */
+ const R=c[plan];
+ const incKm=R.incKm*days, incHours=R.incHours*days, base=R.rate*days;
+ const kmExtra=Math.max(0,km-incKm)*R.addKm;
+ const hourExtra=Math.max(0,effectiveHours-incHours)*R.addHour;
+ const extra=Math.max(kmExtra,hourExtra);
+ return {base,extra,kmExtra,hourExtra,total:base+extra,incKm,incHours,addKm:R.addKm,addHour:R.addHour,days,restHours};
+}
+
+/* Applies discount then round-off on top of a subtotal; used by both quotation and billing */
+
+
 function printContent(title,html){
  let frame=document.querySelector("#printFrame");
  if(frame) frame.remove();
@@ -91,8 +125,8 @@ function printQuoteObj(q){
 
  /* Standard-vs-offer comparison, same idea as the final bill's — lets the customer
     see the discount being offered right at the quotation stage, not just at billing. */
- const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours);
- const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours);
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
  const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
  const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
  const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
@@ -128,6 +162,7 @@ function printQuoteObj(q){
   <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
  </div>
  <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
@@ -139,6 +174,7 @@ function printQuoteObj(q){
  <table>
   ${row("Trip Type",q.type,true)}
   ${q.days>1?row("Number of days",q.days+" days",true):""}
+  ${q.restHours>0?row("Overnight rest hours (excluded)",q.restHours+" hrs"):""}
   ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
  </table>
  ${showCompare?`
@@ -151,6 +187,8 @@ function printQuoteObj(q){
   <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
  </div>`:""}
  `:""}
+ ${sumExtraCharges(q.extraCharges)>0?`<table><tr><td style="padding:3px 0;color:#555">Other Charges</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(sumExtraCharges(q.extraCharges))}</td></tr></table>`:""}
+ ${q.gstAmount>0?`<table><tr><td style="padding:3px 0;color:#555">GST @ ${q.gstPct}%</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(q.gstAmount)}</td></tr></table>`:""}
  <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
   <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
   <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
@@ -204,6 +242,8 @@ function printBill(tripId){
  /* SECTION 1: Usage Details */
  let usageRows="";
  usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs",true);
+ if(r.days>1) usageRows+=row("Number of days",r.days+" days");
+ if(r.restHours>0) usageRows+=row("Overnight rest hours (excluded)",r.restHours+" hrs");
  if(r.incKm!=null){
   usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
   usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
@@ -235,6 +275,8 @@ function printBill(tripId){
  if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
  if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
  if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+ if(r.extraTotal>0) summaryRows+=row("Other Charges","+"+money(r.extraTotal));
+ if(r.gstAmount>0) summaryRows+=row("GST @ "+r.gstPct+"%","+"+money(r.gstAmount));
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
@@ -254,6 +296,7 @@ function printBill(tripId){
   <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
  </div>
  <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -326,12 +369,13 @@ function downloadQuotePDFObj(q){
  if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
  y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
  if(q.days>1) y=pdfRow(doc,y,"Number of days",q.days+" days");
+ if(q.restHours>0) y=pdfRow(doc,y,"Overnight rest hours (excluded)",q.restHours+" hrs");
  y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
  y=pdfDivider(doc,y);
 
  /* Standard-vs-offer comparison, same idea as the final bill's. */
- const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours);
- const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours);
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
  const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
  const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
  const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
@@ -353,6 +397,9 @@ function downloadQuotePDFObj(q){
  y=pdfRow(doc,y,"Subtotal",pdfMoney(q.subtotal??q.quotedAmount));
  if(q.discountAmount) y=pdfRow(doc,y,"Discount","-"+pdfMoney(q.discountAmount));
  if(q.roundAdjustment) y=pdfRow(doc,y,"Round off",(q.roundAdjustment>=0?"+":"")+pdfMoney(q.roundAdjustment));
+ const qExtraTotal=sumExtraCharges(q.extraCharges);
+ if(qExtraTotal>0) y=pdfRow(doc,y,"Other Charges","+"+pdfMoney(qExtraTotal));
+ if(q.gstAmount>0) y=pdfRow(doc,y,"GST @ "+q.gstPct+"%","+"+pdfMoney(q.gstAmount));
  y=pdfDivider(doc,y);
  y+=2;
  doc.setFillColor(15,90,85);
@@ -468,6 +515,8 @@ function downloadBillPDF(tripId){
  y=pdfDivider(doc,y);
  doc.setFont(undefined,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(undefined,"normal");
  y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
+ if(r.days>1) y=pdfRow(doc,y,"Number of days",r.days+" days");
+ if(r.restHours>0) y=pdfRow(doc,y,"Overnight rest hours (excluded)",r.restHours+" hrs");
  if(r.incKm!=null){
   y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
   y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
@@ -516,6 +565,8 @@ function downloadBillPDF(tripId){
  if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
  if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ if(r.extraTotal>0) y=pdfRow(doc,y,"Other Charges","+"+pdfMoney(r.extraTotal));
+ if(r.gstAmount>0) y=pdfRow(doc,y,"GST @ "+r.gstPct+"%","+"+pdfMoney(r.gstAmount));
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"FINAL BILL AMOUNT",pdfMoney(r.final),true);
  y+=3;
@@ -599,6 +650,7 @@ function quoteForm(){
  <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" value="8" oninput="handleLocalCheck()"></label>
  <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
+ <label>Overnight rest hours (excluded from billing — customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
  <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
@@ -632,6 +684,10 @@ function quoteForm(){
  <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
  </div>
  ${extraChargeFieldsHtml("qExtra")}
+ <div class="grid">
+  <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
+  <label>GST %<input id="qGstPct" type="number" value="0" disabled></label>
+ </div>
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
 }
 /* Recomputes the advance amount from the currently calculated fare whenever the
@@ -641,7 +697,8 @@ function quoteForm(){
 
 function calcQuote(){
  handleLocalCheck();
- const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
+ const c=db.categories[+qCat.value],days=+document.querySelector("#qDays").value||1,restHours=+document.querySelector("#qRestHours").value||0;
+ const r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0,days,restHours);
  if(r.invalid){
   qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
   return r;
@@ -651,7 +708,11 @@ function calcQuote(){
  const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
  const extraCharges=readExtraChargeFields("qExtra");
  const extraTotal=sumExtraCharges(extraCharges);
- const finalWithExtras=dr.final+extraTotal;
+ const gstOn=document.querySelector("#qGstOn")?.checked||false;
+ const gstPct=gstOn?(+document.querySelector("#qGstPct").value||0):0;
+ const preGst=dr.final+extraTotal;
+ const gstAmount=gstOn?Math.round(preGst*gstPct/100):0;
+ const finalWithExtras=preGst+gstAmount;
  qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>`:""}
  <div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>
@@ -662,9 +723,10 @@ function calcQuote(){
  ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
  ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
  ${extraTotal>0?`<div>Other Charges: +${money(extraTotal)}</div>`:""}
+ ${gstAmount>0?`<div>GST @ ${gstPct}%: +${money(gstAmount)}</div>`:""}
  <div class="total">Final quoted fare: ${money(finalWithExtras)}</div>
  ${extraChargesHtml(extraCharges)}`;
- return {...r,...dr,driverBata:bata,extraCharges,extraTotal,final:finalWithExtras};
+ return {...r,...dr,driverBata:bata,extraCharges,extraTotal,gstOn,gstPct,gstAmount,final:finalWithExtras};
 }
 
 /* Builds a quote-shaped object straight from the current on-screen form fields (plus
@@ -685,7 +747,7 @@ function buildQuoteObjFromForm(r){
   status:existing?existing.status:"quoted",
   customer:qName.value,mobile:qMobile.value,type:qType.value,category:c.name,categoryId:+qCat.value,vehicle:qVehicle.value,vehicleNo:qVehicleNo.value,
   pickup:qPickup.value,vehicleStart:qVehicleStart.value,destinations:collectDestinations(),destination:collectDestinations()[0]||"",returnPoint:qReturn.value,
-  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,days:+document.querySelector("#qDays").value||1,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
+  estimatedKm:+qKm.value||0,estimatedHours:+qHours.value||0,days:+document.querySelector("#qDays").value||1,restHours:+document.querySelector("#qRestHours").value||0,startDate:qStart.value,startTime:qStartTime.value,closeDate:qClose.value,closeTime:qCloseTime.value,
   service:qService.value,ratePlan:qRate.value,baseRate:r.base,kmRate:r.addKm,hourRate:r.addHour,includedKm:r.incKm,includedHours:r.incHours,
   driverBata:r.driverBata||0,
   discountType:qDiscType.value,discountValue:+qDiscValue.value||0,discountAmount:r.discountAmount,roundOff:+qRound.value||0,roundAdjustment:r.roundAdjustment,
@@ -696,7 +758,8 @@ function buildQuoteObjFromForm(r){
   advanceReceivedAt:existing?existing.advanceReceivedAt:"",
   validUntil:document.querySelector("#qValidUntil").value||"",
   entryDate:document.querySelector("#qEntryDate").value||(existing?existing.entryDate:new Date().toISOString().slice(0,10)),
-  extraCharges:r.extraCharges||readExtraChargeFields("qExtra")
+  extraCharges:r.extraCharges||readExtraChargeFields("qExtra"),
+  gstOn:r.gstOn||false,gstPct:r.gstPct||0,gstAmount:r.gstAmount||0
  };
 }
 /* Saving now UPDATES the existing record in place when editing a previously-saved
@@ -792,12 +855,13 @@ function openQuote(id){
   const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination||""];
   qDest.value=dests[0]||"";
   dests.slice(1).forEach(d=>addStopField(d));
-  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
+  qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qRestHours.value=q.restHours||0;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
   qAdvancePct.value="manual"; qAdvanceAmount.value=q.advanceAmount||0; qValidUntil.value=q.validUntil||""; qEntryDate.value=q.entryDate||"";
   const ecLabels=extraChargeLabels();
   Object.keys(ecLabels).forEach(k=>{ const el=document.querySelector("#qExtra_"+k); if(el) el.value=(q.extraCharges&&q.extraCharges[k])||0; });
+  qGstOn.checked=!!q.gstOn; qGstPct.value=q.gstPct||0; qGstPct.disabled=!qGstOn.checked;
   calcQuote();
  },0);
 }
@@ -811,15 +875,16 @@ function convertTrip(id){
 }
 
 
-function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
+function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label><label>Actual number of days<input id="aDays" type="number" value="${t.days||q.days||1}" min="1"></label><label>Actual overnight rest hours (excluded)<input id="aRestHours" type="number" value="${t.restHours!=null?t.restHours:(q.restHours||0)}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
 
 
-function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
+function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,days:+document.querySelector("#aDays").value||1,restHours:+document.querySelector("#aRestHours").value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
 
 
 function billFinalAmount(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
- const r=calcFare(c,q.ratePlan,km,h);
+ const days=t.days||q.days||1, restHours=t.restHours!=null?t.restHours:(q.restHours||0);
+ const r=calcFare(c,q.ratePlan,km,h,days,restHours);
  const fareSubtotal=r.invalid?(q.subtotal??q.quotedAmount):r.total;
  const bata=q.driverBata||0;
  const subtotal=fareSubtotal+bata;
@@ -827,14 +892,32 @@ function billFinalAmount(t,q,c){
  const adjAmount=(t.adjustment&&Number(t.adjustment.amount))||0;
  const extraCharges=t.extraCharges||q.extraCharges||{};
  const extraTotal=sumExtraCharges(extraCharges);
- const finalAdjusted=Math.max(0,dr.final+adjAmount+extraTotal);
- return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal};
+ const preGst=dr.final+adjAmount+extraTotal;
+ const gstOn=q.gstOn||false, gstPct=gstOn?(q.gstPct||0):0;
+ const gstAmount=gstOn?Math.round(preGst*gstPct/100):0;
+ const finalAdjusted=Math.max(0,preGst+gstAmount);
+ return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal,gstOn,gstPct,gstAmount};
 }
 
 /* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
    mistake discovered later, or a goodwill adjustment — without reopening the quotation or
    category rates. Stored on the trip, applied on top of the normal calculation everywhere
    (screen, PDF, print) so it always stays visible and reversible. */
+
+
+function billBreakdown(t,q,c){
+ const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
+ const days=t.days||q.days||1, restHours=t.restHours!=null?t.restHours:(q.restHours||0);
+ const standardRaw=calcFare(c,"standard",km,h,days,restHours);
+ const r=billFinalAmount(t,q,c);
+ const offerFareTotal=r.base+(r.extra||0);
+ const rateSaving=(!standardRaw.invalid)?Math.max(0,standardRaw.total-offerFareTotal):0;
+ const quoteDiscount=r.discountAmount||0;
+ const manualDiscount=r.manualAdjustment<0?-r.manualAdjustment:0;
+ const manualAddition=r.manualAdjustment>0?r.manualAdjustment:0;
+ const totalSavings=rateSaving+quoteDiscount+manualDiscount;
+ return {km,h,standardRaw,r,offerFareTotal,rateSaving,quoteDiscount,manualDiscount,manualAddition,totalSavings};
+}
 
 
 function loadBill(){
@@ -850,6 +933,8 @@ function loadBill(){
 
   <h3>1. Usage Details</h3>
   <div>Total KM: <b>${km}</b> &nbsp; Total Hours: <b>${h}</b></div>
+  ${r.days>1?`<div class="muted">${r.days} day trip</div>`:""}
+  ${r.restHours>0?`<div class="muted">Overnight rest hours excluded: ${r.restHours} hrs</div>`:""}
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
   <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
 
@@ -873,6 +958,7 @@ function loadBill(){
   ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
   ${r.extraTotal>0?`<div>Other Charges: +${money(r.extraTotal)}</div>`:""}
+  ${r.gstAmount>0?`<div>GST @ ${r.gstPct}%: +${money(r.gstAmount)}</div>`:""}
   <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
   ${extraChargesHtml(r.extraCharges)}
 
@@ -919,6 +1005,7 @@ function enquiries(){
    <label>Estimated KM<input id="qqKm" type="number" value="80"></label>
    <label>Estimated hours<input id="qqHours" type="number" value="8"></label>
    <label>Number of days (for outstation trips)<input id="qqDays" type="number" value="1" min="1"></label>
+   <label>Overnight rest hours (excluded from billing)<input id="qqRestHours" type="number" value="0"></label>
   </div>
   ${extraChargeFieldsHtml("qqExtra")}
   <div class="actions"><button class="primary" onclick="calcQuickFare()">Calculate Fare</button></div>
@@ -991,9 +1078,10 @@ function calcQuickFare(){
  const plan=document.querySelector("#qqRate").value;
  const km=+document.querySelector("#qqKm").value||0, h=+document.querySelector("#qqHours").value||0;
  const box=document.querySelector("#qqResult");
- const r=calcFare(c,plan,km,h);
- if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
  const days=+document.querySelector("#qqDays").value||1;
+ const restHours=+document.querySelector("#qqRestHours").value||0;
+ const r=calcFare(c,plan,km,h,days,restHours);
+ if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
  const extraCharges=readExtraChargeFields("qqExtra");
  const extraTotal=sumExtraCharges(extraCharges);
 
@@ -1008,7 +1096,7 @@ function calcQuickFare(){
   return;
  }
 
- const standardRaw=calcFare(c,"standard",km,h);
+ const standardRaw=calcFare(c,"standard",km,h,days,restHours);
  const stdTotal=standardRaw.invalid?0:standardRaw.total;
  const savings=(!standardRaw.invalid)?Math.max(0,stdTotal-r.total):0;
 
