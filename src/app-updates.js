@@ -3,6 +3,12 @@
    same name, so this file can patch app.js without ever touching that big file
    again — only this smaller file grows with future updates. */
 
+/* _sosHistoryTimer is a NEW piece of state (not declared anywhere in app.js) used
+   by startSosHistoryAutoRefresh() below — declared explicitly here, exactly once,
+   rather than relying on it being captured as trailing text after some function's
+   closing brace (that's what caused the previous two load-time errors). */
+let _sosHistoryTimer=null;
+
 function extraChargeLabels(){
  return {toll:"Toll",permit:"Other State Permit",stateTax:"Other State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
 }
@@ -1305,7 +1311,6 @@ function relabelSosButton(){
  btn.style.background="#c0392b";
  btn.style.color="#fff";
 }
-relabelSosButton();
 
 function setupSwipeNav(){
  if(window._swipeNavReady) return;
@@ -1375,9 +1380,6 @@ function setupPageTransitions(){
  });
  observer.observe(el,{childList:true});
 }
-setupPageTransitions();
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
-document.querySelector("#networkBtn").onclick=()=>network();
 
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
