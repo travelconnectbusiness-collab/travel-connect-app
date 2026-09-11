@@ -6,10 +6,6 @@
 function extraChargeLabels(){
  return {toll:"Toll",permit:"Other State Permit",stateTax:"Other State Tax",parking:"Parking",driverFood:"Driver Food",driverStay:"Driver Overnight Stay"};
 }
-/* Short "(Toll + Parking)" style label listing which specific charges make up an
-   "Other Charges" total — used right next to the amount itself, not just in the
-   separate itemized box, so the customer never has to wonder what it covers. */
-
 
 function extraChargesShortLabel(ec){
  const labels=extraChargeLabels();
@@ -17,12 +13,10 @@ function extraChargesShortLabel(ec){
  return included.length?" ("+included.map(k=>labels[k]).join(" + ")+")":"";
 }
 
-
 function sumExtraCharges(ec){
  if(!ec) return 0;
  return Object.values(ec).reduce((a,v)=>a+(+v||0),0);
 }
-
 
 function extraChargesHtml(ec){
  const labels=extraChargeLabels();
@@ -37,7 +31,6 @@ function extraChargesHtml(ec){
  }
  return html;
 }
-
 
 function extraChargesPdf(doc,y,ec){
  const labels=extraChargeLabels();
@@ -56,7 +49,6 @@ function extraChargesPdf(doc,y,ec){
  return y;
 }
 
-
 function extraChargeFieldsHtml(prefix,ec){
  ec=ec||{};
  const labels=extraChargeLabels();
@@ -65,14 +57,12 @@ function extraChargeFieldsHtml(prefix,ec){
  </div>`;
 }
 
-
 function readExtraChargeFields(prefix){
  const labels=extraChargeLabels();
  const ec={};
  Object.keys(labels).forEach(k=>{ ec[k]=+document.querySelector("#"+prefix+"_"+k)?.value||0; });
  return ec;
 }
-
 
 function calcFare(c,plan,km,h,days,restHours,overrides){
  days=days||1; restHours=restHours||0; overrides=overrides||{};
@@ -111,9 +101,6 @@ function calcFare(c,plan,km,h,days,restHours,overrides){
  return {base,extra,kmExtra,hourExtra,total:base+extra,incKm,incHours,addKm,addHour,days,restHours,addKmOverridden:addKm!==R.addKm,addHourOverridden:addHour!==R.addHour};
 }
 
-/* Applies discount then round-off on top of a subtotal; used by both quotation and billing */
-
-
 function printContent(title,html){
  let frame=document.querySelector("#printFrame");
  if(frame) frame.remove();
@@ -130,7 +117,6 @@ function printContent(title,html){
   frame.contentWindow.print();
  },300);
 }
-
 
 function printQuoteObj(q){
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
@@ -222,12 +208,10 @@ function printQuoteObj(q){
  `);
 }
 
-
 function printQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
  printQuoteObj(q);
 }
-
 
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
@@ -354,9 +338,6 @@ function printBill(tripId){
  `);
 }
 
-/* ---------- MASTER RATE TABLE (password protected) ---------- */
-
-
 function pdfHeader(doc,title){
  let y=18;
  doc.setFont(undefined,"bold");doc.setFontSize(16);
@@ -370,7 +351,6 @@ function pdfHeader(doc,title){
  doc.setFont(undefined,"normal");doc.setFontSize(10);
  return y;
 }
-
 
 function downloadQuotePDFObj(q){
  const doc=pdfDoc();if(!doc)return;
@@ -497,12 +477,10 @@ function downloadQuotePDFObj(q){
  doc.save("Quotation-"+q.no+".pdf");
 }
 
-
 function downloadQuotePDF(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
  downloadQuotePDFObj(q);
 }
-
 
 function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
@@ -678,12 +656,6 @@ function downloadBillPDF(tripId){
 
  doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
 }
-/* ---------- PRINT ---------- */
-/* Prints via a hidden same-page iframe instead of window.open() — opening a separate
-   tab/window causes some mobile browsers (notably Chrome on Android) to show a reduced
-   print dialog without the full printer/destination chooser. A same-page iframe reliably
-   shows the complete native print sheet, including nearby Bluetooth/USB printers. */
-
 
 function quoteForm(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
@@ -754,10 +726,6 @@ function quoteForm(){
  </div>
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
 }
-/* Recomputes the advance amount from the currently calculated fare whenever the
-   percentage dropdown changes — "Manual amount" leaves the field alone for the
-   owner to type a specific figure instead. */
-
 
 function calcQuote(){
  handleLocalCheck();
@@ -795,14 +763,6 @@ function calcQuote(){
  return {...r,...dr,driverBata:bata,extraCharges,extraTotal,gstOn,gstPct,gstAmount,final:finalWithExtras};
 }
 
-/* Builds a quote-shaped object straight from the current on-screen form fields (plus
-   the already-computed fare r) — used both to persist a quotation AND to print/PDF
-   the current numbers without requiring a save first. If a saved quotation is
-   currently being edited (window._editingQuoteId), its id/no/created/advance-received
-   status are preserved so printing shows the correct existing quotation number even
-   before the edit is explicitly saved. */
-
-
 function buildQuoteObjFromForm(r){
  const c=db.categories[+qCat.value];
  const existing=window._editingQuoteId?db.quotes.find(x=>x.id===window._editingQuoteId):null;
@@ -830,11 +790,6 @@ function buildQuoteObjFromForm(r){
   overrideAddHour:document.querySelector("#qOverrideAddHour").value||""
  };
 }
-/* Saving now UPDATES the existing record in place when editing a previously-saved
-   quotation (tracked via window._editingQuoteId, set by openQuote()) instead of
-   always inserting a new one — this is what was creating duplicate entries every
-   time someone edited-then-saved a quotation more than once. */
-
 
 function saveQuote(){
  const r=calcQuote();if(r.invalid){toast("Correct Local Trip limits first");return}
@@ -849,10 +804,6 @@ function saveQuote(){
   save();toast("Quotation saved: "+draft.no);quotations();
  }
 }
-/* Print/PDF straight off the currently-calculated numbers on screen — no save
-   required first, so a mid-call fare check or edit can be read out / printed
-   immediately. "Save Quotation" remains a separate, explicit, optional action. */
-
 
 function printCurrentQuote(){
  const r=calcQuote();
@@ -860,13 +811,11 @@ function printCurrentQuote(){
  printQuoteObj(buildQuoteObjFromForm(r));
 }
 
-
 function downloadCurrentQuotePDF(){
  const r=calcQuote();
  if(r.invalid){toast("Correct Local Trip limits first");return}
  downloadQuotePDFObj(buildQuoteObjFromForm(r));
 }
-
 
 function quotations(){
  window._editingQuoteId=null;
@@ -874,10 +823,6 @@ function quotations(){
  ${q.advanceAmount>0?`<div class="${q.advanceReceived?"ok":"danger"}">${q.advanceReceived?`&#9989; Advance received: ${money(q.advanceAmount)} (${esc(q.advanceMethod||"")})`:`&#9888; Advance requested: ${money(q.advanceAmount)} — not yet received`}</div>`:""}
  <div class="actions"><button onclick="openQuote('${q.id}')">Open / Edit</button><button onclick="convertTrip('${q.id}')">Confirm & Create Trip</button><button onclick="downloadQuotePDF('${q.id}')">PDF</button><button onclick="printQuote('${q.id}')">Print</button>${q.advanceAmount>0?`<button onclick="openAdvanceQR('${q.id}')">Advance QR</button>${q.advanceReceived?"":`<button class="primary" onclick="markAdvanceReceived('${q.id}')">Mark Advance Received</button>`}`:""}<button class="danger" onclick="deleteQuote('${q.id}')">Delete</button></div></div>`).join("")||"<p class='muted'>No quotations saved.</p>"}`);
 }
-/* Shows a UPI QR for just the advance amount — separate from the balance-due QR on
-   the final bill, so a customer paying an advance ahead of the trip has a clear,
-   correctly-labelled QR to scan. */
-
 
 function openAdvanceQR(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -890,10 +835,6 @@ function openAdvanceQR(id){
   }
  },0);
 }
-/* Since there's no payment gateway wired up, the app cannot detect a UPI payment
-   automatically — the owner confirms receipt manually here after checking their own
-   UPI app / bank SMS. This is intentionally a deliberate manual step, not automatic. */
-
 
 function markAdvanceReceived(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -903,7 +844,6 @@ function markAdvanceReceived(id){
   <div class="actions"><button class="primary" onclick="confirmAdvanceReceived('${id}')">Confirm Received</button></div>`);
 }
 
-
 function confirmAdvanceReceived(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
  q.advanceReceived=true;
@@ -911,7 +851,6 @@ function confirmAdvanceReceived(id){
  q.advanceReceivedAt=new Date().toISOString();
  save();closeModal();toast("Advance marked as received");quotations();
 }
-
 
 function openQuote(id){
  const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -935,7 +874,6 @@ function openQuote(id){
  },0);
 }
 
-
 function convertTrip(id){
  const q=db.quotes.find(x=>x.id===id);
  const payments=(q.advanceReceived&&q.advanceAmount>0)?[{amount:q.advanceAmount,method:q.advanceMethod||"Advance",at:q.advanceReceivedAt||new Date().toISOString()}]:[];
@@ -943,12 +881,9 @@ function convertTrip(id){
  q.status="confirmed";save();toast("Trip confirmed"+(payments.length?" — advance carried over as a payment":""));trips()
 }
 
-
 function editTrip(id){const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);modal(`<h2>Actual Trip Details</h2><div class="grid"><label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label><label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label><label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label><label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label><label>Actual closing time<input id="aCloseTime" type="time"></label><label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label><label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label><label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label><label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label><label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label><label>Actual number of days<input id="aDays" type="number" value="${t.days||q.days||1}" min="1"></label><label>Actual overnight rest hours (excluded)<input id="aRestHours" type="number" value="${t.restHours!=null?t.restHours:(q.restHours||0)}"></label></div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`)}
 
-
 function saveTrip(id){const t=db.trips.find(x=>x.id===id);Object.assign(t,{entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,actualKm:+aKm.value||0,actualHours:+aHours.value||0,days:+document.querySelector("#aDays").value||1,restHours:+document.querySelector("#aRestHours").value||0,status:"completed",extraCharges:readExtraChargeFields("aExtra")});save();closeModal();toast("Trip updated");if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();}
-
 
 function billFinalAmount(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
@@ -968,12 +903,6 @@ function billFinalAmount(t,q,c){
  return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal,gstOn,gstPct,gstAmount};
 }
 
-/* Lets the owner manually correct a bill's final amount after the fact — e.g. a rate-sheet
-   mistake discovered later, or a goodwill adjustment — without reopening the quotation or
-   category rates. Stored on the trip, applied on top of the normal calculation everywhere
-   (screen, PDF, print) so it always stays visible and reversible. */
-
-
 function billBreakdown(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
  const days=t.days||q.days||1, restHours=t.restHours!=null?t.restHours:(q.restHours||0);
@@ -987,7 +916,6 @@ function billBreakdown(t,q,c){
  const totalSavings=rateSaving+quoteDiscount+manualDiscount;
  return {km,h,standardRaw,r,offerFareTotal,rateSaving,quoteDiscount,manualDiscount,manualAddition,totalSavings};
 }
-
 
 function loadBill(){
  const t=db.trips.find(x=>x.id===billTrip.value);if(!t)return;
@@ -1048,7 +976,6 @@ function loadBill(){
  if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
 }
 
-
 function enquiries(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  app().innerHTML=card("Enquiry Management",`
@@ -1099,7 +1026,6 @@ function enquiries(){
  <div class="actions"><button class="primary" onclick="enquiryToQuote('${e.id}')">Create Quotation</button></div></div>`).join("")||"<p class='muted'>No enquiries.</p>"}</div>`);
 }
 
-
 function addQuickStopField(value=""){
  const c=document.querySelector("#qqStopsContainer");
  if(!c) return;
@@ -1110,16 +1036,11 @@ function addQuickStopField(value=""){
  c.appendChild(row);
 }
 
-
 function collectQuickDestinations(){
  const first=document.querySelector("#qqDest")?.value||"";
  const rest=Array.from(document.querySelectorAll(".qq-stop-input")).map(i=>i.value);
  return [first,...rest].map(v=>v.trim()).filter(Boolean);
 }
-/* Same Google-Maps-route trick as the Quotation form — includes the vehicle's own
-   start/closing point so the owner can check the FULL live distance/route (not just
-   pickup-to-drop) while still on the phone with the customer. */
-
 
 function saveEnquiry(){
  if(!enqName.value||!enqMobile.value){toast("Enter customer name and mobile");return}
@@ -1127,7 +1048,6 @@ function saveEnquiry(){
  db.enquiries.unshift({id:crypto.randomUUID(),name:enqName.value,mobile:enqMobile.value,pickup:enqPickup.value,dest:enqDest.value,type:enqType.value,date:enqDate.value,entryDate,status:"new",created:new Date().toISOString()});
  save();toast("Enquiry saved");enquiries();
 }
-
 
 function enquiryToQuote(id){
  const e=db.enquiries.find(x=>x.id===id);
@@ -1162,9 +1082,6 @@ function enquiryToQuote(id){
  },0);
 }
 
-/* ---------- QUOTATION FORM ---------- */
-
-
 function openQuickRoute(){
  const start=document.querySelector("#qqVehicleStart").value;
  const pickup=document.querySelector("#qqPickup").value;
@@ -1177,12 +1094,6 @@ function openQuickRoute(){
  if(waypoints) url+="&waypoints="+encodeURIComponent(waypoints);
  window.open(url,"_blank");
 }
-/* Uses the exact same rate engine as the Quotation form (calcFare) — just without
-   any of the save/discount/round-off machinery, for speed during a live call. */
-/* Updated: now shows Standard rate first, then the selected Offer rate (if
-   different) — same comparison style as the Quotation/Bill screens — so the
-   owner can read out both figures to the customer live on a call. */
-
 
 function calcQuickFare(){
  const c=db.categories[+document.querySelector("#qqCat").value];
@@ -1225,10 +1136,6 @@ function calcQuickFare(){
  ${extraChargesHtml(extraCharges)}`;
 }
 
-/* Only saves an Enquiry record if the owner explicitly wants one kept — the whole
-   point of Quick Fare is that a phone call doesn't have to end in a saved record. */
-
-
 function saveQuickAsEnquiry(){
  const pickup=document.querySelector("#qqPickup").value;
  const stops=collectQuickDestinations();
@@ -1252,7 +1159,6 @@ function saveQuickAsEnquiry(){
  save();toast("Saved as a new Enquiry");enquiries();
 }
 
-
 function billing(){
  app().innerHTML=card("Final Billing",`
  <div class="card" style="background:#eef6ff;border:2px solid #3b7bbf">
@@ -1263,11 +1169,6 @@ function billing(){
  <hr>
  <label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} — ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label><label>Bill print date (optional, defaults to today)<input id="billDateInput" type="date"></label><div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
 }
-/* Quick Bill skips Enquiry → Quotation → Confirm entirely: it builds a normal quote
-   record (so all the existing bill/print/PDF code keeps working unchanged) AND a
-   completed trip record in one step, for a trip that's already finished and just
-   needs billing right now. */
-
 
 function openQuickBillForm(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
@@ -1306,7 +1207,6 @@ function openQuickBillForm(){
  <div class="actions"><button class="primary" onclick="saveQuickBill()">Create Bill</button></div>`);
 }
 
-
 function addQuickBillStopField(value=""){
  const c=document.querySelector("#qbStopsContainer");
  if(!c) return;
@@ -1317,13 +1217,11 @@ function addQuickBillStopField(value=""){
  c.appendChild(row);
 }
 
-
 function collectQuickBillDestinations(){
  const first=document.querySelector("#qbDest")?.value||"";
  const rest=Array.from(document.querySelectorAll(".qb-stop-input")).map(i=>i.value);
  return [first,...rest].map(v=>v.trim()).filter(Boolean);
 }
-
 
 function calcQuickBillPreview(){
  const c=db.categories[+document.querySelector("#qbCat").value];
@@ -1342,7 +1240,6 @@ function calcQuickBillPreview(){
  ${extraTotal>0?`<div>Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
  <div class="total">Bill Amount: ${money(r.total+extraTotal)}</div>`;
 }
-
 
 function saveQuickBill(){
  const name=document.querySelector("#qbName").value, mobile=document.querySelector("#qbMobile").value;
@@ -1381,7 +1278,6 @@ function saveQuickBill(){
  setTimeout(()=>{billTrip.value=trip.id;loadBill()},0);
 }
 
-
 function dashboard(){
  app().innerHTML=card("Travel Connect Dashboard",`<div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
@@ -1398,9 +1294,7 @@ function dashboard(){
  <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
 }
 
-
 function goQuickBill(){ view("billing"); setTimeout(openQuickBillForm,0); }
-
 
 function relabelSosButton(){
  const btn=document.querySelector("#networkBtn");
@@ -1412,7 +1306,6 @@ function relabelSosButton(){
  btn.style.color="#fff";
 }
 relabelSosButton();
-
 
 function setupSwipeNav(){
  if(window._swipeNavReady) return;
@@ -1465,15 +1358,6 @@ function setupSwipeNav(){
   }
  },{passive:true});
 }
-setupSwipeNav();
-/* A quick fade+slide-in animation every time the page content actually changes
-   (a MutationObserver on #app's direct children) — covers both swipe navigation
-   and normal tab-button clicks, without needing to touch render() or any of the
-   many view functions individually. Only fires on a full page swap (childList on
-   #app itself), not on smaller nested updates like a bill recalculation inside
-   #billBox, so it stays a "page transition" feel rather than flickering on every
-   little UI update. */
-
 
 function setupPageTransitions(){
  if(window._pageTransReady) return;
@@ -1495,19 +1379,12 @@ setupPageTransitions();
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
 document.querySelector("#networkBtn").onclick=()=>network();
 
-
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
  app().innerHTML=card("Travel Connect Network / Emergency SOS",`<p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
  loadSosHistory();
  startSosHistoryAutoRefresh();
 }
-/* Keeps the history list current while this page stays open — so someone else's
-   SOS (not just your own) shows up here without needing a manual reload. Stops
-   itself the moment the page is navigated away from (the box no longer exists in
-   the DOM), so it never keeps polling in the background after you've left. */
-let _sosHistoryTimer=null;
-
 
 async function loadSosHistory(){
  const box=document.querySelector("#sosHistoryBox");
@@ -1527,7 +1404,6 @@ async function loadSosHistory(){
  }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
 }
 
-
 function sos(){
  getLocation();
  setTimeout(async ()=>{
@@ -1543,15 +1419,6 @@ function sos(){
  },800);
 }
 
-/* ---------- IN-APP SOS ALERTS ----------
-   While the app is open, every logged-in device polls periodically for new SOS
-   alerts and, on finding one, plays an alarm sound and shows a banner with the
-   sender's name and a Call button. This only works while a tab is open — a true
-   push notification (working even with the app closed) is a separate, larger
-   feature for later. */
-let _sosLastSeen=null, _sosPollTimer=null;
-
-
 function startSosHistoryAutoRefresh(){
  if(_sosHistoryTimer) clearInterval(_sosHistoryTimer);
  _sosHistoryTimer=setInterval(()=>{
@@ -1559,10 +1426,6 @@ function startSosHistoryAutoRefresh(){
   loadSosHistory();
  },15000);
 }
-/* A persistent record of who raised SOS, when, their phone number, location, and
-   any message they typed — since the temporary popup banner alone disappears
-   after a few seconds and isn't useful for someone checking back later. */
-
 
 function showSosBanner(alert){
  playSosAlarm();
@@ -1584,7 +1447,6 @@ function showSosBanner(alert){
     stays on screen, across every page, on every logged-in device, until someone
     actually taps Dismiss. */
 }
-
 
 /* app.js's own last line already calls render() once when app.js finishes loading
    — but that happens BEFORE this file (app-updates.js) has even started loading,
