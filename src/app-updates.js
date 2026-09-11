@@ -1549,11 +1549,11 @@ async function enablePushNotifications(){
   const user=getCurrentUser()||{};
   const postRes=await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"subscribe",mobile:user.mobile||"",subscription:sub.toJSON()})});
   const postData=await postRes.json().catch(()=>({}));
-  log("Step 6 done: "+(postData.ok?"SAVED successfully":"FAILED — "+JSON.stringify(postData)));
+  log("Step 6 done: HTTP "+postRes.status+" — "+(postData.ok?"SAVED successfully":"FAILED — "+JSON.stringify(postData)));
+  log(postData.ok?"\u2705 All done — push notifications are fully set up.":"\u274c Setup did not complete — see the failure above.");
 
   if(postData.ok){
    toast("Push notifications enabled");
-   updatePushNoteUI();
   }
  }catch(e){
   log("ERROR at this step: "+(e&&e.message?e.message:String(e)));
