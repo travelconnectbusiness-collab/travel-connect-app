@@ -22,11 +22,18 @@ export async function onRequestPost({ request, env }) {
     if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
       return Response.json({ ok: false, error: "invalid_subscription" }, { status: 400 });
     }
-    await env.DB
-      .prepare("INSERT OR REPLACE INTO push_subscriptions (mobile, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)")
-      .bind(body.mobile || "", sub.endpoint, sub.keys.p256dh, sub.keys.auth, new Date().toISOString())
-      .run();
-    return Response.json({ ok: true });
+    try {
+      await env.DB
+        .prepare("INSERT OR REPLACE INTO push_subscriptions (mobile, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)")
+        .bind(body.mobile || "", sub.endpoint, sub.keys.p256dh, sub.keys.auth, new Date().toISOString())
+        .run();
+      return Response.json({ ok: true });
+    } catch (e) {
+      /* Surface the real D1 error instead of letting an unhandled exception turn
+         into a bare 500 with no explanation — this is exactly the kind of failure
+         that otherwise looks identical to success in a rushed glance at the UI. */
+      return Response.json({ ok: false, error: "db_error", detail: String(e && e.message ? e.message : e) }, { status: 500 });
+    }
   }
 
   if (action === "unsubscribe") {
