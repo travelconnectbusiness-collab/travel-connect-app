@@ -1402,11 +1402,41 @@ function dashboard(){
 function goQuickBill(){ view("billing"); setTimeout(openQuickBillForm,0); }
 
 
+function setupSwipeNav(){
+ if(window._swipeNavReady) return;
+ window._swipeNavReady=true;
+ const order=["dashboard","enquiries","quotations","trips","billing","master","accounts"];
+ let startX=null,startY=null,startTime=0;
+ document.addEventListener("touchstart",e=>{
+  if(e.touches.length!==1){startX=null;return}
+  const tag=(e.target.tagName||"").toLowerCase();
+  if(["input","textarea","select","button","a"].includes(tag)||e.target.closest("#modal")){startX=null;return}
+  startX=e.touches[0].clientX; startY=e.touches[0].clientY; startTime=Date.now();
+ },{passive:true});
+ document.addEventListener("touchend",e=>{
+  if(startX==null||!e.changedTouches||!e.changedTouches.length) return;
+  const dx=e.changedTouches[0].clientX-startX, dy=e.changedTouches[0].clientY-startY;
+  const dt=Date.now()-startTime;
+  startX=null;
+  if(dt>600||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5) return;
+  const idx=order.indexOf(location.hash.slice(1)||"dashboard");
+  if(idx===-1) return;
+  if(dx<0&&idx<order.length-1) view(order[idx+1]);
+  else if(dx>0&&idx>0) view(order[idx-1]);
+ },{passive:true});
+}
+setupSwipeNav();
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
+document.querySelector("#networkBtn").onclick=()=>network();
+
+
 /* app.js's own last line already calls render() once when app.js finishes loading
    — but that happens BEFORE this file (app-updates.js) has even started loading,
    since plain <script src> tags execute strictly in document order. That first
    render() therefore always used the OLD, un-overridden versions of dashboard()
    etc. — which is why the dashboard showed the old layout until any button tap
-   triggered a second render() with the new functions. Calling render() again here,
-   now that every override above is in place, fixes that first paint. */
+   triggered a second render() with the new functions. Calling setupSwipeNav() and
+   render() again here, now that every override above is in place, fixes that
+   first paint and attaches the swipe listener. */
+setupSwipeNav();
 render();
