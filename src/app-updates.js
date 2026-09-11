@@ -1426,17 +1426,42 @@ function setupSwipeNav(){
  },{passive:true});
 }
 setupSwipeNav();
+/* A quick fade+slide-in animation every time the page content actually changes
+   (a MutationObserver on #app's direct children) — covers both swipe navigation
+   and normal tab-button clicks, without needing to touch render() or any of the
+   many view functions individually. Only fires on a full page swap (childList on
+   #app itself), not on smaller nested updates like a bill recalculation inside
+   #billBox, so it stays a "page transition" feel rather than flickering on every
+   little UI update. */
+
+
+function setupPageTransitions(){
+ if(window._pageTransReady) return;
+ window._pageTransReady=true;
+ const el=document.querySelector("#app");
+ if(!el) return;
+ const style=document.createElement("style");
+ style.textContent=`@keyframes tcPageIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+ #app.tc-anim{animation:tcPageIn 0.22s ease-out}`;
+ document.head.appendChild(style);
+ const observer=new MutationObserver(()=>{
+  el.classList.remove("tc-anim");
+  void el.offsetWidth;
+  el.classList.add("tc-anim");
+ });
+ observer.observe(el,{childList:true});
+}
+setupPageTransitions();
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
 document.querySelector("#networkBtn").onclick=()=>network();
 
 
 /* app.js's own last line already calls render() once when app.js finishes loading
    — but that happens BEFORE this file (app-updates.js) has even started loading,
-   since plain <script src> tags execute strictly in document order. That first
-   render() therefore always used the OLD, un-overridden versions of dashboard()
-   etc. — which is why the dashboard showed the old layout until any button tap
-   triggered a second render() with the new functions. Calling setupSwipeNav() and
-   render() again here, now that every override above is in place, fixes that
-   first paint and attaches the swipe listener. */
+   since plain <script src> tags execute strictly in document order. Calling
+   setupSwipeNav(), setupPageTransitions() and render() again here, now that every
+   override above is in place, fixes the first paint and attaches the swipe +
+   transition behaviour. */
 setupSwipeNav();
+setupPageTransitions();
 render();
