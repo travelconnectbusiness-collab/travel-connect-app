@@ -3,6 +3,7 @@ import { onRequestGet as authGet, onRequestPost as authPost } from "./functions/
 import { onRequestGet as partnersGet, onRequestPost as partnersPost } from "./functions/api/partners.js";
 import { onRequestGet as vehiclesGet, onRequestPost as vehiclesPost } from "./functions/api/vehicles.js";
 import { onRequestGet as sosGet, onRequestPost as sosPost } from "./functions/api/sos.js";
+import { onRequestGet as pushGet, onRequestPost as pushPost } from "./functions/api/push.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -31,6 +32,11 @@ export default {
     if (url.pathname === "/api/sos") {
       if (request.method === "GET") return sosGet({ request, env });
       if (request.method === "POST") return sosPost({ request, env });
+    }
+
+    if (url.pathname === "/api/push") {
+      if (request.method === "GET") return pushGet({ request, env });
+      if (request.method === "POST") return pushPost({ request, env });
     }
 
     return env.ASSETS.fetch(request);
