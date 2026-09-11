@@ -1,3 +1,5 @@
+import { sendWebPush } from "./_webpush.js";
+
 /* GET ?action=latest&since=<ISO timestamp> — returns any SOS alerts created after
    the given time, for other logged-in devices to poll and show an in-app alert for.
    GET ?action=history — returns every SOS alert from the last 48 hours, newest
@@ -29,7 +31,11 @@ export async function onRequestGet({ request, env }) {
 
 /* Anyone logged in can raise an SOS — it's recorded centrally so every other device
    polling this app can pick it up and alert, even if they weren't looking at the
-   screen at that exact moment (as long as the app tab is open). */
+   screen at that exact moment (as long as the app tab is open). It ALSO fans out a
+   real push notification to every registered device here — this is what reaches
+   someone even with the app fully closed / phone locked, which polling alone can
+   never do. A subscription the push service reports as gone (404/410) is deleted
+   so it stops being retried on future alerts. */
 export async function onRequestPost({ request, env }) {
   let body;
   try {
@@ -51,5 +57,27 @@ export async function onRequestPost({ request, env }) {
       now
     )
     .run();
+
+  if (env.VAPID_PRIVATE_JWK) {
+    try {
+      const { results: subs } = await env.DB.prepare("SELECT * FROM push_subscriptions").all();
+      const payload = {
+        title: "🚨 SOS: " + (body.sender_name || "Someone") + " needs help!",
+        body: body.message || "Needs urgent assistance.",
+        mobile: body.sender_mobile || "",
+        lat: body.lat ?? null,
+        lon: body.lon ?? null
+      };
+      await Promise.all(subs.map(async (sub) => {
+        try {
+          const r = await sendWebPush(env, sub, payload);
+          if (r.stale) {
+            await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
+          }
+        } catch (e) { /* one failed subscription should never block the others */ }
+      }));
+    } catch (e) { /* push is a best-effort add-on; the SOS record itself is already saved above */ }
+  }
+
   return Response.json({ ok: true, id: result.meta.last_row_id, created_at: now });
 }
