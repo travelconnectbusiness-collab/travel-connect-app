@@ -1401,3 +1401,12 @@ function dashboard(){
 
 function goQuickBill(){ view("billing"); setTimeout(openQuickBillForm,0); }
 
+
+/* app.js's own last line already calls render() once when app.js finishes loading
+   — but that happens BEFORE this file (app-updates.js) has even started loading,
+   since plain <script src> tags execute strictly in document order. That first
+   render() therefore always used the OLD, un-overridden versions of dashboard()
+   etc. — which is why the dashboard showed the old layout until any button tap
+   triggered a second render() with the new functions. Calling render() again here,
+   now that every override above is in place, fixes that first paint. */
+render();
