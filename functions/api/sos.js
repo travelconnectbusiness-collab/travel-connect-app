@@ -71,12 +71,21 @@ export async function onRequestPost({ request, env }) {
       await Promise.all(subs.map(async (sub) => {
         try {
           const r = await sendWebPush(env, sub, payload);
+          console.log("sendWebPush result", { endpoint: sub.endpoint.slice(0, 60), ok: r.ok, statusCode: r.statusCode });
           if (r.stale) {
             await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
           }
-        } catch (e) { /* one failed subscription should never block the others */ }
+        } catch (e) {
+          /* One failed subscription should never block the others — but log it
+             loudly so it actually shows up in the Workers Logs tab, instead of
+             silently vanishing (which is what made this bug impossible to see
+             before). */
+          console.error("sendWebPush FAILED", { endpoint: sub.endpoint.slice(0, 60), error: String(e && e.stack ? e.stack : e) });
+        }
       }));
-    } catch (e) { /* push is a best-effort add-on; the SOS record itself is already saved above */ }
+    } catch (e) {
+      console.error("push fan-out FAILED entirely", { error: String(e && e.stack ? e.stack : e) });
+    }
   }
 
   return Response.json({ ok: true, id: result.meta.last_row_id, created_at: now });
