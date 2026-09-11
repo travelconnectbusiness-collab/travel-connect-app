@@ -1,3 +1,7 @@
+/* GET ?action=latest&since=<ISO timestamp> — returns any SOS alerts created after
+   the given time, for other logged-in devices to poll and show an in-app alert for.
+   GET ?action=history — returns every SOS alert from the last 48 hours, newest
+   first, for a persistent history list (not just the temporary popup banner). */
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -11,9 +15,21 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, alerts: results });
   }
 
+  if (action === "history") {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { results } = await env.DB
+      .prepare("SELECT * FROM sos_alerts WHERE created_at > ? ORDER BY created_at DESC LIMIT 50")
+      .bind(cutoff)
+      .all();
+    return Response.json({ ok: true, alerts: results });
+  }
+
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
+/* Anyone logged in can raise an SOS — it's recorded centrally so every other device
+   polling this app can pick it up and alert, even if they weren't looking at the
+   screen at that exact moment (as long as the app tab is open). */
 export async function onRequestPost({ request, env }) {
   let body;
   try {
