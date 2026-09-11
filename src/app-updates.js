@@ -6,7 +6,7 @@
 /* _sosHistoryTimer is a NEW piece of state (not declared anywhere in app.js) used
    by startSosHistoryAutoRefresh() below — declared explicitly here, exactly once,
    rather than relying on it being captured as trailing text after some function's
-   closing brace (that's what caused the previous two load-time errors). */
+   closing brace (that's what caused two earlier load-time errors). */
 let _sosHistoryTimer=null;
 
 function extraChargeLabels(){
@@ -1406,19 +1406,31 @@ async function loadSosHistory(){
  }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
 }
 
-function sos(){
- getLocation();
- setTimeout(async ()=>{
-  const user=getCurrentUser()||{};
-  const msg=`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
-  try{
-   await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
-   toast("SOS sent — every logged-in user will be alerted");
-   loadSosHistory(); /* refresh immediately instead of waiting for the next page open */
-  }catch(e){ toast("Could not send SOS — check your connection"); }
-  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
-  navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
- },800);
+function getLocationForSos(timeoutMs){
+ return new Promise(resolve=>{
+  if(!navigator.geolocation){ resolve(null); return; }
+  let done=false;
+  const timer=setTimeout(()=>{ if(!done){ done=true; resolve(null); } },timeoutMs);
+  navigator.geolocation.getCurrentPosition(
+   p=>{ if(done) return; done=true; clearTimeout(timer); window.tcLoc={lat:p.coords.latitude,lon:p.coords.longitude}; resolve(window.tcLoc); },
+   ()=>{ if(done) return; done=true; clearTimeout(timer); resolve(null); },
+   {timeout:timeoutMs}
+  );
+ });
+}
+
+async function sos(){
+ toast("Getting your location...");
+ await getLocationForSos(5000);
+ const user=getCurrentUser()||{};
+ const msg=`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+ try{
+  await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
+  toast(window.tcLoc?"SOS sent with your location — every logged-in user will be alerted":"SOS sent (no location — check location permission) — every logged-in user will be alerted");
+  loadSosHistory(); /* refresh immediately instead of waiting for the next page open */
+ }catch(e){ toast("Could not send SOS — check your connection"); }
+ const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
+ navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
 }
 
 function startSosHistoryAutoRefresh(){
