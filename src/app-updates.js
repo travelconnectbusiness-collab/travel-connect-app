@@ -1402,6 +1402,18 @@ function dashboard(){
 function goQuickBill(){ view("billing"); setTimeout(openQuickBillForm,0); }
 
 
+function relabelSosButton(){
+ const btn=document.querySelector("#networkBtn");
+ if(!btn||btn.dataset.sosRelabeled) return;
+ btn.dataset.sosRelabeled="1";
+ btn.innerHTML="&#128680;";
+ btn.title="SOS / Emergency";
+ btn.style.background="#c0392b";
+ btn.style.color="#fff";
+}
+relabelSosButton();
+
+
 function setupSwipeNav(){
  if(window._swipeNavReady) return;
  window._swipeNavReady=true;
@@ -1484,12 +1496,41 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.datase
 document.querySelector("#networkBtn").onclick=()=>network();
 
 
+function network(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Connect Network / Emergency SOS",`<p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
+ loadSosHistory();
+}
+/* A persistent record of who raised SOS, when, their phone number, location, and
+   any message they typed — since the temporary popup banner alone disappears
+   after a few seconds and isn't useful for someone checking back later. */
+
+
+async function loadSosHistory(){
+ const box=document.querySelector("#sosHistoryBox");
+ if(!box) return;
+ try{
+  const res=await fetch("/api/sos?action=history");
+  const data=await res.json();
+  if(!data.ok||!data.alerts||!data.alerts.length){ box.innerHTML="<p class='muted'>No SOS alerts in the last 48 hours.</p>"; return; }
+  box.innerHTML=data.alerts.map(a=>{
+   const when=new Date(a.created_at).toLocaleString();
+   const mapLink=(a.lat!=null&&a.lon!=null)?`<a href="https://maps.google.com/?q=${a.lat},${a.lon}" target="_blank">View location</a>`:"";
+   const callLink=a.sender_mobile?`<a href="tel:${esc(a.sender_mobile)}">${esc(a.sender_mobile)}</a>`:"-";
+   return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> — ${esc(when)}<br>
+   Mobile: ${callLink} ${mapLink?" &nbsp;|&nbsp; "+mapLink:""}
+   ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}</div>`;
+  }).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
+}
+
+
 /* app.js's own last line already calls render() once when app.js finishes loading
    — but that happens BEFORE this file (app-updates.js) has even started loading,
-   since plain <script src> tags execute strictly in document order. Calling
-   setupSwipeNav(), setupPageTransitions() and render() again here, now that every
-   override above is in place, fixes the first paint and attaches the swipe +
-   transition behaviour. */
+   since plain <script src> tags execute strictly in document order. Calling these
+   setup functions and render() again here, now that every override above is in
+   place, fixes the first paint and attaches the swipe/transition/icon behaviour. */
+relabelSosButton();
 setupSwipeNav();
 setupPageTransitions();
 render();
