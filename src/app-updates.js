@@ -1445,7 +1445,8 @@ async function sos(){
  toast("Getting your location...");
  await getLocationForSos(5000);
  const user=getCurrentUser()||{};
- const msg=`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+ const typedMsg=(document.querySelector("#nMsg")?.value||"").trim();
+ const msg=typedMsg?`SOS from ${user.name||"a user"}: ${typedMsg}`:`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
  try{
   await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
   toast(window.tcLoc?"SOS sent with your location — every logged-in user will be alerted":"SOS sent (no location — check location permission) — every logged-in user will be alerted");
