@@ -1514,23 +1514,50 @@ function updatePushNoteUI(){
 }
 
 async function enablePushNotifications(){
+ const box=document.querySelector("#pushPermNote");
+ if(box) box.innerHTML=`<div class="muted" style="font-family:monospace;white-space:pre-wrap;font-size:11px" id="pushDebugLog"></div>`;
+ const logBox=document.querySelector("#pushDebugLog");
+ const log=(msg)=>{ if(logBox) logBox.textContent+=msg+"\n"; };
  try{
+  log("Step 1: requesting permission...");
   const permission=await Notification.requestPermission();
-  updatePushNoteUI();
-  if(permission!=="granted") return;
+  log("Step 1 done: "+permission);
+  if(permission!=="granted"){ updatePushNoteUI(); return; }
+
+  log("Step 2: registering service worker...");
   const reg=await navigator.serviceWorker.register("/sw.js");
+  log("Step 2 done");
+
+  log("Step 3: waiting for service worker ready...");
   await navigator.serviceWorker.ready;
+  log("Step 3 done");
+
+  log("Step 4: fetching VAPID public key from server...");
   const keyRes=await fetch("/api/push?action=vapid_public_key");
   const keyData=await keyRes.json();
-  if(!keyData.ok||!keyData.key){ toast("Could not set up push (server not configured yet)"); return; }
+  log("Step 4 done: "+(keyData.ok&&keyData.key?"got key":"FAILED — "+JSON.stringify(keyData)));
+  if(!keyData.ok||!keyData.key){ log("Stopping — server-side VAPID key isn't available (check the VAPID_* secrets)."); return; }
+
+  log("Step 5: subscribing with the push manager...");
   let sub=await reg.pushManager.getSubscription();
   if(!sub){
    sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(keyData.key)});
   }
+  log("Step 5 done");
+
+  log("Step 6: sending subscription to the server...");
   const user=getCurrentUser()||{};
-  await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"subscribe",mobile:user.mobile||"",subscription:sub.toJSON()})});
-  toast("Push notifications enabled");
- }catch(e){ toast("Could not enable push notifications — try again"); }
+  const postRes=await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"subscribe",mobile:user.mobile||"",subscription:sub.toJSON()})});
+  const postData=await postRes.json().catch(()=>({}));
+  log("Step 6 done: "+(postData.ok?"SAVED successfully":"FAILED — "+JSON.stringify(postData)));
+
+  if(postData.ok){
+   toast("Push notifications enabled");
+   updatePushNoteUI();
+  }
+ }catch(e){
+  log("ERROR at this step: "+(e&&e.message?e.message:String(e)));
+ }
 }
 
 /* app.js's own last line already calls render() once when app.js finishes loading
