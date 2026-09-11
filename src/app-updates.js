@@ -1406,23 +1406,51 @@ function setupSwipeNav(){
  if(window._swipeNavReady) return;
  window._swipeNavReady=true;
  const order=["dashboard","enquiries","quotations","trips","billing","master","accounts"];
- let startX=null,startY=null,startTime=0;
+ const el=document.querySelector("#app");
+ let startX=null,startY=null,startTime=0,dragging=false,curDx=0;
+ function setX(px,withTransition){
+  el.style.transition=withTransition?"transform 0.2s ease-out":"none";
+  el.style.transform="translateX("+px+"px)";
+ }
  document.addEventListener("touchstart",e=>{
   if(e.touches.length!==1){startX=null;return}
   const tag=(e.target.tagName||"").toLowerCase();
   if(["input","textarea","select","button","a"].includes(tag)||e.target.closest("#modal")){startX=null;return}
   startX=e.touches[0].clientX; startY=e.touches[0].clientY; startTime=Date.now();
+  dragging=false; curDx=0;
  },{passive:true});
- document.addEventListener("touchend",e=>{
-  if(startX==null||!e.changedTouches||!e.changedTouches.length) return;
-  const dx=e.changedTouches[0].clientX-startX, dy=e.changedTouches[0].clientY-startY;
-  const dt=Date.now()-startTime;
-  startX=null;
-  if(dt>600||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5) return;
+ document.addEventListener("touchmove",e=>{
+  if(startX==null) return;
+  const dx=e.touches[0].clientX-startX, dy=e.touches[0].clientY-startY;
+  if(!dragging){
+   if(Math.abs(dx)<10&&Math.abs(dy)<10) return;
+   if(Math.abs(dx)<=Math.abs(dy)*1.2){ startX=null; return; } /* more vertical than horizontal — let native scroll handle it */
+   dragging=true;
+  }
   const idx=order.indexOf(location.hash.slice(1)||"dashboard");
-  if(idx===-1) return;
-  if(dx<0&&idx<order.length-1) view(order[idx+1]);
-  else if(dx>0&&idx>0) view(order[idx-1]);
+  let clamped=dx;
+  if(dx>0&&idx===0) clamped=dx*0.3;            /* resistance at the first tab */
+  if(dx<0&&idx===order.length-1) clamped=dx*0.3; /* resistance at the last tab */
+  curDx=clamped;
+  setX(clamped,false);
+ },{passive:true});
+ document.addEventListener("touchend",()=>{
+  if(startX==null) return;
+  const wasDragging=dragging;
+  startX=null; dragging=false;
+  if(!wasDragging) return;
+  const dx=curDx;
+  const idx=order.indexOf(location.hash.slice(1)||"dashboard");
+  const threshold=70;
+  if(dx<-threshold&&idx<order.length-1){
+   setX(-Math.round(window.innerWidth*0.25),true);
+   setTimeout(()=>{ setX(0,false); view(order[idx+1]); },180);
+  }else if(dx>threshold&&idx>0){
+   setX(Math.round(window.innerWidth*0.25),true);
+   setTimeout(()=>{ setX(0,false); view(order[idx-1]); },180);
+  }else{
+   setX(0,true); /* short of the threshold — spring back to where it was */
+  }
  },{passive:true});
 }
 setupSwipeNav();
