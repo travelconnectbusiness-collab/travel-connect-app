@@ -1383,9 +1383,31 @@ function setupPageTransitions(){
 
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
- app().innerHTML=card("Travel Connect Network / Emergency SOS",`<p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
+ app().innerHTML=card("Travel Connect Network / Emergency SOS",`<div id="locPermNote"></div><p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><p class="muted">If location isn't available, SOS still sends your name, mobile number and message.</p><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
  loadSosHistory();
  startSosHistoryAutoRefresh();
+ checkLocationPermissionUI();
+}
+
+async function checkLocationPermissionUI(){
+ const box=document.querySelector("#locPermNote");
+ if(!box) return;
+ if(!navigator.permissions||!navigator.permissions.query){ box.innerHTML=""; return; }
+ try{
+  const status=await navigator.permissions.query({name:"geolocation"});
+  const render=()=>{
+   if(!document.querySelector("#locPermNote")) return;
+   if(status.state==="denied"){
+    box.innerHTML=`<div class="danger">&#9888;&#65039; Location is blocked for this site — SOS will still send your name/mobile/message, but not your location. To fix: tap the icon next to the address bar (the 🔒 or ⓘ icon) → Permissions → Location → Allow. On Chrome you can also go to <code>chrome://settings/content/location</code> and remove this site from the "Not allowed" list.</div>`;
+   }else if(status.state==="prompt"){
+    box.innerHTML=`<div class="muted">&#8505;&#65039; This app only uses your location during an emergency (SOS). When your browser asks for permission, please choose "Allow".</div>`;
+   }else{
+    box.innerHTML="";
+   }
+  };
+  render();
+  status.onchange=render;
+ }catch(e){ box.innerHTML=""; }
 }
 
 async function loadSosHistory(){
