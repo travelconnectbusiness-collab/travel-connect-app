@@ -1507,7 +1507,7 @@ function updatePushNoteUI(){
   return;
  }
  if(Notification.permission==="granted"){
-  box.innerHTML=`<div class="ok">&#9989; Push notifications are on — you'll get an SOS alert even if the app is closed.</div>`;
+  box.innerHTML=`<div class="ok">&#9989; Push notifications are on — you'll get an SOS alert even if the app is closed.</div><div class="actions"><button onclick="enablePushNotifications()">Re-check / Re-subscribe</button></div>`;
   return;
  }
  box.innerHTML=`<div class="muted">&#128276; Turn on push notifications to get an SOS alert even when the app is closed.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Enable Push Notifications</button></div>`;
