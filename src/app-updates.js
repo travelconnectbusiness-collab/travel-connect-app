@@ -1383,10 +1383,11 @@ function setupPageTransitions(){
 
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
- app().innerHTML=card("Travel Connect Network / Emergency SOS",`<div id="locPermNote"></div><p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><p class="muted">If location isn't available, SOS still sends your name, mobile number and message.</p><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
+ app().innerHTML=card("Travel Connect Network / Emergency SOS",`<div id="locPermNote"></div><p class="muted">Network foundation: driver request, message, location and SOS.</p><div id="pushPermNote"></div><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><p class="muted">If location isn't available, SOS still sends your name, mobile number and message.</p><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
  loadSosHistory();
  startSosHistoryAutoRefresh();
  checkLocationPermissionUI();
+ updatePushNoteUI();
 }
 
 async function checkLocationPermissionUI(){
@@ -1483,6 +1484,53 @@ function showSosBanner(alert){
     missed entirely if no one happens to be looking at the screen right then. It now
     stays on screen, across every page, on every logged-in device, until someone
     actually taps Dismiss. */
+}
+
+function urlBase64ToUint8Array(base64String){
+ const padding="=".repeat((4-base64String.length%4)%4);
+ const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+ const rawData=atob(base64);
+ const out=new Uint8Array(rawData.length);
+ for(let i=0;i<rawData.length;i++) out[i]=rawData.charCodeAt(i);
+ return out;
+}
+
+function updatePushNoteUI(){
+ const box=document.querySelector("#pushPermNote");
+ if(!box) return;
+ if(!("serviceWorker" in navigator)||!("PushManager" in window)){
+  box.innerHTML=`<div class="muted">Push notifications aren't supported in this browser.</div>`;
+  return;
+ }
+ if(Notification.permission==="denied"){
+  box.innerHTML=`<div class="danger">&#9888;&#65039; Push notifications are blocked for this site — you won't get an SOS alert unless the app is open. Fix in the same site permissions where you allowed Location.</div>`;
+  return;
+ }
+ if(Notification.permission==="granted"){
+  box.innerHTML=`<div class="ok">&#9989; Push notifications are on — you'll get an SOS alert even if the app is closed.</div>`;
+  return;
+ }
+ box.innerHTML=`<div class="muted">&#128276; Turn on push notifications to get an SOS alert even when the app is closed.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Enable Push Notifications</button></div>`;
+}
+
+async function enablePushNotifications(){
+ try{
+  const permission=await Notification.requestPermission();
+  updatePushNoteUI();
+  if(permission!=="granted") return;
+  const reg=await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const keyRes=await fetch("/api/push?action=vapid_public_key");
+  const keyData=await keyRes.json();
+  if(!keyData.ok||!keyData.key){ toast("Could not set up push (server not configured yet)"); return; }
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub){
+   sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(keyData.key)});
+  }
+  const user=getCurrentUser()||{};
+  await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"subscribe",mobile:user.mobile||"",subscription:sub.toJSON()})});
+  toast("Push notifications enabled");
+ }catch(e){ toast("Could not enable push notifications — try again"); }
 }
 
 /* app.js's own last line already calls render() once when app.js finishes loading
