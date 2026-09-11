@@ -1500,10 +1500,13 @@ function network(){
  if(!getCurrentUser()){renderLogin();return;}
  app().innerHTML=card("Travel Connect Network / Emergency SOS",`<p class="muted">Network foundation: driver request, message, location and SOS.</p><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">🆘 SOS</button></div><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
  loadSosHistory();
+ startSosHistoryAutoRefresh();
 }
-/* A persistent record of who raised SOS, when, their phone number, location, and
-   any message they typed — since the temporary popup banner alone disappears
-   after a few seconds and isn't useful for someone checking back later. */
+/* Keeps the history list current while this page stays open — so someone else's
+   SOS (not just your own) shows up here without needing a manual reload. Stops
+   itself the moment the page is navigated away from (the box no longer exists in
+   the DOM), so it never keeps polling in the background after you've left. */
+let _sosHistoryTimer=null;
 
 
 async function loadSosHistory(){
@@ -1522,6 +1525,64 @@ async function loadSosHistory(){
    ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}</div>`;
   }).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
+}
+
+
+function sos(){
+ getLocation();
+ setTimeout(async ()=>{
+  const user=getCurrentUser()||{};
+  const msg=`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+  try{
+   await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
+   toast("SOS sent — every logged-in user will be alerted");
+   loadSosHistory(); /* refresh immediately instead of waiting for the next page open */
+  }catch(e){ toast("Could not send SOS — check your connection"); }
+  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
+  navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+ },800);
+}
+
+/* ---------- IN-APP SOS ALERTS ----------
+   While the app is open, every logged-in device polls periodically for new SOS
+   alerts and, on finding one, plays an alarm sound and shows a banner with the
+   sender's name and a Call button. This only works while a tab is open — a true
+   push notification (working even with the app closed) is a separate, larger
+   feature for later. */
+let _sosLastSeen=null, _sosPollTimer=null;
+
+
+function startSosHistoryAutoRefresh(){
+ if(_sosHistoryTimer) clearInterval(_sosHistoryTimer);
+ _sosHistoryTimer=setInterval(()=>{
+  if(!document.querySelector("#sosHistoryBox")){ clearInterval(_sosHistoryTimer); _sosHistoryTimer=null; return; }
+  loadSosHistory();
+ },15000);
+}
+/* A persistent record of who raised SOS, when, their phone number, location, and
+   any message they typed — since the temporary popup banner alone disappears
+   after a few seconds and isn't useful for someone checking back later. */
+
+
+function showSosBanner(alert){
+ playSosAlarm();
+ const mapLink=(alert.lat&&alert.lon)?`https://maps.google.com/?q=${alert.lat},${alert.lon}`:null;
+ const existing=document.querySelector("#sosBanner");
+ if(existing) existing.remove(); /* keep only the latest alert visible, instead of stacking several */
+ const div=document.createElement("div");
+ div.id="sosBanner";
+ div.className="danger";
+ div.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3)";
+ div.innerHTML=`<b>&#128680; SOS: ${esc(alert.sender_name||"A user")} needs help!</b><br>
+  ${alert.sender_mobile?`<a href="tel:${esc(alert.sender_mobile)}" style="color:#fff;text-decoration:underline">Call ${esc(alert.sender_mobile)}</a>`:""}
+  ${mapLink?` &nbsp;|&nbsp; <a href="${mapLink}" target="_blank" style="color:#fff;text-decoration:underline">View location</a>`:""}
+  &nbsp;|&nbsp; <a href="#" style="color:#fff;text-decoration:underline" onclick="this.closest('div').remove();return false">Dismiss</a>`;
+ document.body.appendChild(div);
+ /* Deliberately NO auto-dismiss timer — this is an emergency alert, and disappearing
+    on its own after a fixed time (as it used to, after 30 seconds) risks it being
+    missed entirely if no one happens to be looking at the screen right then. It now
+    stays on screen, across every page, on every logged-in device, until someone
+    actually taps Dismiss. */
 }
 
 
