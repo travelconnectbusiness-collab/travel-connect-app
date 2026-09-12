@@ -1326,6 +1326,15 @@ function setupSwipeNav(){
   if(e.touches.length!==1){startX=null;return}
   const tag=(e.target.tagName||"").toLowerCase();
   if(["input","textarea","select","button","a"].includes(tag)||e.target.closest("#modal")){startX=null;return}
+  /* If the touch starts inside ANY element with its own horizontal scroll (a wide
+     rate table, for example), let that element's native scrolling handle the
+     gesture entirely — never hijack it as a page-swipe. This is what was wrongly
+     switching tabs when swiping across the Rate Master table. */
+  let scrollAncestor=e.target;
+  while(scrollAncestor&&scrollAncestor!==document.body){
+   if(scrollAncestor.scrollWidth>scrollAncestor.clientWidth+2){ startX=null; return; }
+   scrollAncestor=scrollAncestor.parentElement;
+  }
   startX=e.touches[0].clientX; startY=e.touches[0].clientY; startTime=Date.now();
   dragging=false; curDx=0;
  },{passive:true});
@@ -1506,8 +1515,17 @@ function updatePushNoteUI(){
   box.innerHTML=`<div class="danger">&#9888;&#65039; Push notifications are blocked for this site — you won't get an SOS alert unless the app is open. Fix in the same site permissions where you allowed Location.</div>`;
   return;
  }
- if(Notification.permission==="granted"){
+ /* Browser permission alone is NOT proof the subscription actually reached the
+    server — that used to be shown as "on" right after the permission popup,
+    even when the save to /api/push silently failed. This only shows the green
+    confirmed state after a real successful round-trip (tracked in localStorage,
+    set only inside enablePushNotifications() once the server responds ok). */
+ if(Notification.permission==="granted"&&localStorage.getItem("tc_push_confirmed")==="1"){
   box.innerHTML=`<div class="ok">&#9989; Push notifications are on — you'll get an SOS alert even if the app is closed.</div><div class="actions"><button onclick="enablePushNotifications()">Re-check / Re-subscribe</button></div>`;
+  return;
+ }
+ if(Notification.permission==="granted"){
+  box.innerHTML=`<div class="danger">&#9888;&#65039; Notification permission is granted, but this device hasn't confirmed a saved subscription yet — tap below to finish setup.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Finish Push Setup</button></div>`;
   return;
  }
  box.innerHTML=`<div class="muted">&#128276; Turn on push notifications to get an SOS alert even when the app is closed.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Enable Push Notifications</button></div>`;
@@ -1553,10 +1571,15 @@ async function enablePushNotifications(){
   log(postData.ok?"\u2705 All done — push notifications are fully set up.":"\u274c Setup did not complete — see the failure above.");
 
   if(postData.ok){
+   localStorage.setItem("tc_push_confirmed","1");
    toast("Push notifications enabled");
+   setTimeout(updatePushNoteUI,1500); /* leaves the step log visible briefly, then shows the real confirmed state */
+  }else{
+   localStorage.removeItem("tc_push_confirmed");
   }
  }catch(e){
   log("ERROR at this step: "+(e&&e.message?e.message:String(e)));
+  localStorage.removeItem("tc_push_confirmed");
  }
 }
 
