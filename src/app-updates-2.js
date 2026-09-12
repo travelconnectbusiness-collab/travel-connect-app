@@ -124,6 +124,12 @@ function tcAuthorizedUsersPage(){
 }
 async function tcRenderAuthorizedUsersPage(){
  app().innerHTML = card("Authorized Users (Login Allowlist)", `
+  <div class="card" style="background:#fff8e8;border:2px solid #d2b478">
+   <h3 style="margin-top:0">&#128081; Owner Number</h3>
+   <p class="muted">This one number can never be blocked and never needs to be on the list below — a safety net so you can never lock yourself out. Editing it still needs the admin password (already entered to reach this page).</p>
+   <div id="tcOwnerBox">Loading...</div>
+  </div>
+  <hr>
   <p class="muted">Only mobile numbers added here can log in to this app. Matching is by mobile number only — the name is just a label to help you remember whose number it is.</p>
   <div class="grid">
    <label>Mobile number<input id="tcAuthMobile" type="tel"></label>
@@ -133,6 +139,34 @@ async function tcRenderAuthorizedUsersPage(){
   <div id="tcAuthList">Loading...</div>
  `);
  tcLoadAuthorizedUsers();
+ tcLoadOwner();
+}
+async function tcLoadOwner(){
+ const box = document.querySelector("#tcOwnerBox");
+ if (!box) return;
+ try {
+  const token = sessionStorage.getItem("tc_admin_token");
+  const res = await fetch("/api/authorized?action=get_owner&token=" + encodeURIComponent(token));
+  const data = await res.json();
+  const owner = data.ok ? data.owner : null;
+  box.innerHTML = `
+   <div style="margin-bottom:8px">${owner ? `<b>${esc(owner.mobile)}</b>${owner.name ? " — " + esc(owner.name) : ""}` : "<span class='muted'>No owner number set yet.</span>"}</div>
+   <div class="grid">
+    <label>Owner mobile number<input id="tcOwnerMobile" type="tel" value="${owner ? esc(owner.mobile) : ""}"></label>
+    <label>Owner name<input id="tcOwnerName" value="${owner ? esc(owner.name || "") : ""}"></label>
+   </div>
+   <div class="actions"><button class="primary" onclick="tcSaveOwner()">${owner ? "Update" : "Set"} Owner Number</button></div>
+  `;
+ } catch (e) { box.innerHTML = "<p class='danger'>Network error.</p>"; }
+}
+async function tcSaveOwner(){
+ const mobile = document.querySelector("#tcOwnerMobile").value.trim();
+ const name = document.querySelector("#tcOwnerName").value.trim();
+ if (!mobile) { toast("Enter the owner's mobile number"); return; }
+ const token = sessionStorage.getItem("tc_admin_token");
+ await fetch("/api/authorized", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_owner", mobile, name, token }) });
+ toast("Owner number saved");
+ tcLoadOwner();
 }
 async function tcLoadAuthorizedUsers(){
  const box = document.querySelector("#tcAuthList");
@@ -174,4 +208,29 @@ async function tcRemoveAuthorizedUser(mobile){
    Authorized Users button) was even in place. Calling render() again here, now
    that this file's overrides are applied too, is what makes the button show up
    on the very first paint instead of only after navigating away and back. */
+/* Redefines checkStillAllowed() (already in app.js) to ALSO log out a session
+   whose mobile number has been removed from (or never added to) the allowlist —
+   not just a blocked mobile/device as before. This is what makes removing
+   someone's number actually end their current session, not just prevent a
+   future login. */
+async function checkStillAllowed(){
+ const user=getCurrentUser();
+ if(!user) return;
+ try{
+  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
+  const data=await res.json();
+  if(data.ok && data.blocked){
+   localStorage.removeItem("tc_user");
+   toast("Your access has been blocked. Please contact the app owner.");
+   renderLogin();
+   return;
+  }
+  if(data.ok && data.authorized===false){
+   localStorage.removeItem("tc_user");
+   toast("Your access has been removed. Please contact the app owner.");
+   renderLogin();
+  }
+ }catch(e){}
+}
+
 render();
