@@ -4,6 +4,7 @@ import { onRequestGet as partnersGet, onRequestPost as partnersPost } from "./fu
 import { onRequestGet as vehiclesGet, onRequestPost as vehiclesPost } from "./functions/api/vehicles.js";
 import { onRequestGet as sosGet, onRequestPost as sosPost } from "./functions/api/sos.js";
 import { onRequestGet as pushGet, onRequestPost as pushPost } from "./functions/api/push.js";
+import { onRequestGet as authorizedGet, onRequestPost as authorizedPost } from "./functions/api/authorized.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -39,6 +40,11 @@ export default {
       if (request.method === "POST") return pushPost({ request, env });
     }
 
+    if (url.pathname === "/api/authorized") {
+      if (request.method === "GET") return authorizedGet({ request, env });
+      if (request.method === "POST") return authorizedPost({ request, env });
+    }
+
     return env.ASSETS.fetch(request);
   },
-}; 
+};
