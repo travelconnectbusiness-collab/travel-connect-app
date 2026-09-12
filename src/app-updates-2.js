@@ -166,3 +166,12 @@ async function tcRemoveAuthorizedUser(mobile){
  toast("Removed");
  tcLoadAuthorizedUsers();
 }
+
+/* Same reasoning as the trailing calls at the end of app-updates.js: this file
+   loads AFTER app-updates.js, so app-updates.js's own trailing render() call
+   already ran and painted the dashboard using the version of dashboard() that
+   existed at THAT point — before this file's further override of it (adding the
+   Authorized Users button) was even in place. Calling render() again here, now
+   that this file's overrides are applied too, is what makes the button show up
+   on the very first paint instead of only after navigating away and back. */
+render();
