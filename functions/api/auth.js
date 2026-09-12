@@ -62,13 +62,25 @@ export async function onRequestPost({ request, env }) {
 
   /* Anyone can call this — it just records who is using the app on which device
      (not SMS-verified). A blocked mobile OR a blocked device is rejected immediately,
-     even if the person types in a brand-new name/mobile from the same device. */
+     even if the person types in a brand-new name/mobile from the same device.
+     NEW: the mobile number must also be present in the authorized_users allowlist
+     (added by the owner) — if the allowlist table is completely empty, this check
+     is skipped entirely, so the app keeps working exactly as before until the owner
+     actually starts using the allowlist feature. */
   if (action === "login") {
     const name = (body.name || "").trim();
     const mobile = (body.mobile || "").trim();
     const deviceToken = (body.device_token || "").trim();
     if (!name || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+
+    const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
+    if (allowlistCount && allowlistCount.c > 0) {
+      const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
+      if (!allowed) {
+        return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
+      }
     }
 
     if (deviceToken) {
