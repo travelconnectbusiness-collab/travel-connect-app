@@ -89,4 +89,80 @@ function tcCheckPinLock(){
  tcShowPinOverlay(tcHasPinSet() ? "entry" : "setup");
 }
 
+/* Redefines dashboard() again (it already lives in app-updates.js) purely to add
+   one button — done here in app-updates-2.js instead of touching app-updates.js,
+   keeping that file frozen as agreed. The later-loaded file's version wins, same
+   principle as app-updates.js overriding app.js. */
+function dashboard(){
+ app().innerHTML=card("Travel Connect Dashboard",`<div class="grid">
+ <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
+ <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ <div class="actions">
+  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
+  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">&#9889; Quick Bill</button>
+  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
+ </div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</button></div>
+ <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
+}
+
 tcCheckPinLock();
+
+/* ---------- ALLOWLIST LOGIN — Authorized Users management (admin panel) ----------
+   Reachable from the Dashboard (a new button, since dashboard() is already known
+   and safe to extend). Add/remove which mobile numbers are allowed to log in at
+   all — matching is by mobile number only, not name, so a spelling difference
+   never locks out someone whose number IS on the list. Actual enforcement at the
+   login screen itself lives in auth.js (a separate change, since that file's
+   current content isn't available here yet). */
+function tcAuthorizedUsersPage(){
+ requireAdmin(() => tcRenderAuthorizedUsersPage());
+}
+async function tcRenderAuthorizedUsersPage(){
+ app().innerHTML = card("Authorized Users (Login Allowlist)", `
+  <p class="muted">Only mobile numbers added here can log in to this app. Matching is by mobile number only — the name is just a label to help you remember whose number it is.</p>
+  <div class="grid">
+   <label>Mobile number<input id="tcAuthMobile" type="tel"></label>
+   <label>Name (optional label)<input id="tcAuthName"></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="tcAddAuthorizedUser()">+ Add</button></div>
+  <div id="tcAuthList">Loading...</div>
+ `);
+ tcLoadAuthorizedUsers();
+}
+async function tcLoadAuthorizedUsers(){
+ const box = document.querySelector("#tcAuthList");
+ if (!box) return;
+ try {
+  const token = sessionStorage.getItem("tc_admin_token");
+  const res = await fetch("/api/authorized?action=list&token=" + encodeURIComponent(token));
+  const data = await res.json();
+  if (!data.ok) { box.innerHTML = "<p class='danger'>Could not load the list.</p>"; return; }
+  box.innerHTML = (data.users || []).map(u => `
+   <div class="listitem"><b>${esc(u.mobile)}</b>${u.name ? " — " + esc(u.name) : ""}
+   <div class="actions"><button class="danger" onclick="tcRemoveAuthorizedUser('${esc(u.mobile)}')">Remove</button></div></div>
+  `).join("") || "<p class='muted'>No numbers added yet — no one is currently allowed to log in.</p>";
+ } catch (e) { box.innerHTML = "<p class='danger'>Network error.</p>"; }
+}
+async function tcAddAuthorizedUser(){
+ const mobile = document.querySelector("#tcAuthMobile").value.trim();
+ const name = document.querySelector("#tcAuthName").value.trim();
+ if (!mobile) { toast("Enter a mobile number"); return; }
+ const token = sessionStorage.getItem("tc_admin_token");
+ await fetch("/api/authorized", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add", mobile, name, token }) });
+ document.querySelector("#tcAuthMobile").value = "";
+ document.querySelector("#tcAuthName").value = "";
+ toast("Added");
+ tcLoadAuthorizedUsers();
+}
+async function tcRemoveAuthorizedUser(mobile){
+ if (!confirm("Remove " + mobile + "? They will no longer be able to log in.")) return;
+ const token = sessionStorage.getItem("tc_admin_token");
+ await fetch("/api/authorized", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "remove", mobile, token }) });
+ toast("Removed");
+ tcLoadAuthorizedUsers();
+}
