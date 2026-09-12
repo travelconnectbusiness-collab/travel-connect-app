@@ -69,19 +69,26 @@ export async function onRequestPost({ request, env }) {
         lon: body.lon ?? null
       };
       await Promise.all(subs.map(async (sub) => {
+        let result;
         try {
           const r = await sendWebPush(env, sub, payload);
-          console.log("sendWebPush result", { endpoint: sub.endpoint.slice(0, 60), ok: r.ok, statusCode: r.statusCode });
+          result = { ok: r.ok ? 1 : 0, status_code: r.statusCode, error: null };
           if (r.stale) {
             await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
           }
         } catch (e) {
-          /* One failed subscription should never block the others — but log it
-             loudly so it actually shows up in the Workers Logs tab, instead of
-             silently vanishing (which is what made this bug impossible to see
-             before). */
-          console.error("sendWebPush FAILED", { endpoint: sub.endpoint.slice(0, 60), error: String(e && e.stack ? e.stack : e) });
+          /* One failed subscription should never block the others. */
+          result = { ok: 0, status_code: null, error: String(e && e.stack ? e.stack : e).slice(0, 500) };
         }
+        /* Written to D1 (not just console.log) so this can be checked afterward
+           with a plain SELECT, any time — no need to have a live log stream
+           open and racing to catch the exact moment the SOS button is pressed. */
+        try {
+          await env.DB
+            .prepare("INSERT INTO push_debug_log (endpoint, ok, status_code, error, created_at) VALUES (?,?,?,?,?)")
+            .bind(sub.endpoint.slice(0, 100), result.ok, result.status_code, result.error, new Date().toISOString())
+            .run();
+        } catch (e) { /* the debug table itself is best-effort */ }
       }));
     } catch (e) {
       console.error("push fan-out FAILED entirely", { error: String(e && e.stack ? e.stack : e) });
