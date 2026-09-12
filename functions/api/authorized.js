@@ -24,6 +24,16 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, users: results });
   }
 
+  /* The owner's own mobile/name — admin-only to view, since it's shown on the
+     same admin-gated page. */
+  if (action === "get_owner") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    const row = await env.DB.prepare("SELECT mobile, name FROM app_owner WHERE id=1").first();
+    return Response.json({ ok: true, owner: row || null });
+  }
+
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
@@ -53,6 +63,20 @@ export async function onRequestPost({ request, env }) {
     const mobile = (body.mobile || "").trim();
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
     await env.DB.prepare("DELETE FROM authorized_users WHERE mobile=?").bind(mobile).run();
+    return Response.json({ ok: true });
+  }
+
+  /* Sets (or changes) the one permanent owner number — this one number can never
+     be blocked and never needs to be in the authorized_users allowlist, so the
+     owner can never lock themselves out. Editing it still requires the admin
+     password, same as everything else here. */
+  if (body.action === "set_owner") {
+    const mobile = (body.mobile || "").trim();
+    if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
+    await env.DB
+      .prepare("INSERT INTO app_owner (id, mobile, name) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET mobile=excluded.mobile, name=excluded.name")
+      .bind(mobile, body.name || "")
+      .run();
     return Response.json({ ok: true });
   }
 
