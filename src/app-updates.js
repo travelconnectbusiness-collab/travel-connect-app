@@ -1583,6 +1583,41 @@ async function enablePushNotifications(){
  }
 }
 
+function master(){
+ const rows=db.categories.map((c,i)=>`<tr>
+  <td>${esc(c.name)}</td>
+  <td>${c.driverBata?money(c.driverBata):"—"}</td>
+  <td>${money(c.standard.rate)}</td>
+  <td>${money(c.competitive.rate)}</td>
+  <td>${money(c.safety.rate)}</td>
+  <td>${money(c.drop.rate)}</td>
+  <td>${money(c.local.rate)}</td>
+  <td><button onclick="viewCatDetails(${i})">View</button> <button onclick="editCat(${i})">Edit</button></td>
+ </tr>`).join("");
+ app().innerHTML=card("Vehicle Categories & Rate Master",`<p class="muted">Password-protected. Each rate (Standard, Competitive, Minimum Safety, Local) has its own Included KM/Hours and Additional KM/Hour charge. Tap "View" to see the full breakdown without a password — only "Edit" needs it.</p><div class="tablewrap"><table class="table"><thead><tr><th>Category</th><th>Driver Bata</th><th>Standard</th><th>Competitive</th><th>Minimum Safety</th><th>Drop</th><th>Local Rate</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions"><button class="primary" onclick="addCat()">+ Add vehicle category</button><button onclick="exportRates()">Export rate sheet</button><button onclick="importRates()">Import rate sheet</button></div><hr><h3>Vehicles</h3><div class="grid"><label>Vehicle name<input id="vName"></label><label>Vehicle number<input id="vNo"></label><label>Category<select id="vCat">${db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("")}</select></label><label>Seats<input id="vSeats" type="number"></label></div><button class="primary" onclick="addVehicle()">Add Vehicle</button>${db.vehicles.map((v,i)=>`<div class="listitem">${esc(v.name)} • ${esc(v.no)} • ${esc(db.categories[v.cat]?.name||"")} • ${v.seats||""} seats</div>`).join("")}<hr><h3>Drivers</h3><div class="grid"><label>Name<input id="dName"></label><label>Mobile<input id="dMobile"></label><label>Vehicle<select id="dVehicle"><option value="">None</option>${db.vehicles.map((v,i)=>`<option value="${i}">${esc(v.name)} ${esc(v.no)}</option>`).join("")}</select></label></div><button class="primary" onclick="addDriver()">Add Driver</button>${db.drivers.map(d=>`<div class="listitem">${esc(d.name)} • ${esc(d.mobile)}</div>`).join("")}`);
+}
+
+function viewCatDetails(i){
+ const c=db.categories[i];
+ const plan=(label,key)=>{
+  const r=c[key];
+  if(!r) return "";
+  return `<tr><td style="font-weight:bold">${label}</td><td>${money(r.rate)}</td><td>${r.incKm}</td><td>${r.incHours}</td><td>${money(r.addKm)}</td><td>${money(r.addHour)}</td></tr>`;
+ };
+ modal(`<h2>${esc(c.name)}</h2>
+ ${c.driverBata?`<p>Driver Bata: <b>${money(c.driverBata)}</b></p>`:""}
+ <div class="tablewrap"><table class="table">
+  <thead><tr><th>Rate</th><th>Base</th><th>Inc. KM</th><th>Inc. Hours</th><th>Extra/KM</th><th>Extra/Hour</th></tr></thead>
+  <tbody>
+   ${plan("Standard","standard")}
+   ${plan("Competitive","competitive")}
+   ${plan("Minimum Safety","safety")}
+   ${plan("Drop","drop")}
+   ${plan("Local","local")}
+  </tbody>
+ </table></div>`);
+}
+
 /* app.js's own last line already calls render() once when app.js finishes loading
    — but that happens BEFORE this file (app-updates.js) has even started loading,
    since plain <script src> tags execute strictly in document order. Calling these
