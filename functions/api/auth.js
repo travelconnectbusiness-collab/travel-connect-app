@@ -23,6 +23,15 @@ export async function onRequestGet({ request, env }) {
     const mobile = url.searchParams.get("mobile");
     const device = url.searchParams.get("device");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
+
+    /* The owner's number always passes every check — never blocked, never
+       needs to be on the allowlist. This is the safety net so the owner can
+       never lock themselves out of their own app. */
+    const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
+    if (ownerRow && ownerRow.mobile === mobile) {
+      return Response.json({ ok: true, blocked: false, authorized: true });
+    }
+
     const row = await env.DB
       .prepare("SELECT blocked FROM app_users WHERE mobile=?")
       .bind(mobile)
@@ -35,7 +44,17 @@ export async function onRequestGet({ request, env }) {
         .first();
       if (devRow) blocked = true;
     }
-    return Response.json({ ok: true, blocked });
+    /* Also re-checks the allowlist on every ongoing session (not just at the
+       login moment) — so removing someone's number actually logs them out on
+       their next check, not just prevents a brand-new login. Skipped entirely
+       while the allowlist table is empty, same as at login. */
+    let authorized = true;
+    const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
+    if (allowlistCount && allowlistCount.c > 0) {
+      const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
+      authorized = !!allowed;
+    }
+    return Response.json({ ok: true, blocked, authorized });
   }
 
   return Response.json({ ok: false, error: "unknown_action" });
@@ -75,15 +94,21 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
 
-    const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
-    if (allowlistCount && allowlistCount.c > 0) {
-      const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
-      if (!allowed) {
-        return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
+    /* The owner's number always skips the allowlist check entirely. */
+    const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
+    const isOwner = !!(ownerRow && ownerRow.mobile === mobile);
+
+    if (!isOwner) {
+      const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
+      if (allowlistCount && allowlistCount.c > 0) {
+        const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
+        if (!allowed) {
+          return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
+        }
       }
     }
 
-    if (deviceToken) {
+    if (!isOwner && deviceToken) {
       const blockedDevice = await env.DB
         .prepare("SELECT device_token FROM blocked_devices WHERE device_token=?")
         .bind(deviceToken)
@@ -98,7 +123,7 @@ export async function onRequestPost({ request, env }) {
       .bind(mobile)
       .first();
 
-    if (existing && existing.blocked) {
+    if (!isOwner && existing && existing.blocked) {
       return Response.json({ ok: false, error: "blocked" }, { status: 403 });
     }
 
