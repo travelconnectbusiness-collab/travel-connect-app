@@ -108,7 +108,7 @@ function dashboard(){
  <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
- <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
+ `);
 }
 
 tcCheckPinLock();
@@ -121,6 +121,16 @@ tcCheckPinLock();
    login screen itself lives in auth.js (a separate change, since that file's
    current content isn't available here yet). */
 function tcAuthorizedUsersPage(){
+ /* Manages its own history entry the same way view() does — this page is
+    reached only from the ☰ Menu, never from a tab, so it always marks
+    fromMenu:true; Back from here correctly reopens the Menu. */
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#authorized");
+ }else{
+  history.replaceState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#authorized");
+ }
+ tcCurrentIsFromMenu=true;
+ tcMenuNavPending=false;
  requireAdmin(() => tcRenderAuthorizedUsersPage());
 }
 async function tcRenderAuthorizedUsersPage(){
@@ -278,20 +288,47 @@ function tcUpdateActiveTab(){
 window.addEventListener("hashchange",tcUpdateActiveTab);
 tcUpdateActiveTab();
 
-/* Redefines view() (already in app.js) so that switching between tabs REPLACES
-   the current browser history entry instead of pushing a new one every time.
-   Previously, visiting Dashboard -> Enquiries -> Quotations -> Billing meant
-   the phone's own Back button had to be pressed 4 times just to leave the app,
-   since each tab visit piled up its own history entry. With replaceState,
-   there's only ever ONE entry for "being in this app" — one Back press exits
-   immediately, no matter how many tabs were visited in between. The explicit
-   "← Back to Dashboard" link inside a page (goBack()) is unaffected — it's a
-   normal in-app button, not something that relied on browser history depth. */
+/* Redefines view() again — one level deeper than the previous version. Rather
+   than a flat "always replace" (which meant Back always exited the app
+   immediately, from anywhere), this keeps exactly ONE level of depth:
+   Dashboard is the base; any other page reached from Dashboard (by a tab OR a
+   Menu item) pushes ONE history entry; switching sideways between other pages
+   while already at that depth (e.g. Enquiries -> Quotations -> Billing) keeps
+   REPLACING that same entry instead of stacking more. So Back from anywhere
+   goes straight to Dashboard in one press — but a page opened via the ☰ Menu
+   remembers that, and Back from there reopens the Menu instead, matching
+   where the user actually came from. */
+let tcCurrentIsFromMenu=false;
+let tcMenuNavPending=false;
+
 function view(v){
- history.replaceState(null,"",location.pathname+location.search+"#"+v);
+ if(v==="dashboard"){
+  history.pushState({tcBase:true},"",location.pathname+location.search+"#dashboard");
+  tcCurrentIsFromMenu=false;
+ }else{
+  if(!history.state||!history.state.tcPage){
+   history.pushState({tcPage:true,fromMenu:tcMenuNavPending},"",location.pathname+location.search+"#"+v);
+  }else{
+   history.replaceState({tcPage:true,fromMenu:tcMenuNavPending},"",location.pathname+location.search+"#"+v);
+  }
+  tcCurrentIsFromMenu=tcMenuNavPending;
+ }
+ tcMenuNavPending=false;
  render();
- tcUpdateActiveTab(); /* replaceState doesn't fire "hashchange", so call this directly too */
+ tcUpdateActiveTab();
 }
+/* Fires on the phone's/browser's own Back button. If the page being left was
+   opened via the ☰ Menu, reopen that Menu once we land back on Dashboard —
+   otherwise landing on Dashboard is the whole story. */
+window.addEventListener("popstate",function(){
+ const wasFromMenu=tcCurrentIsFromMenu;
+ tcCurrentIsFromMenu=false;
+ render();
+ tcUpdateActiveTab();
+ if(wasFromMenu&&(location.hash.slice(1)||"dashboard")==="dashboard"){
+  tcOpenMenu();
+ }
+});
 
 /* ---------- HAMBURGER MENU (moves admin-only pages out of the main tabs) ----------
    Injected via JS rather than editing index.html directly — this app doesn't
@@ -325,10 +362,12 @@ function tcInjectMenuButton(){
 function tcOpenMenu(){
  modal(`<h2>Menu</h2>
   <p class="muted">Owner / admin settings — password protected.</p>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('master')">&#128202; Rate Master</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('accounts')">&#128176; Accounts</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('admin')">&#9881;&#65039; Admin</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</div>`);
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('master')">&#128202; Rate Master</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('accounts')">&#128176; Accounts</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('admin')">&#9881;&#65039; Admin</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</div>
+  <hr>
+  <div class="listitem" style="cursor:pointer;color:#a12d2d" onclick="closeModal();logout()">&#128682; Log out of this device</div>`);
 }
 tcHideAdminTabs();
 tcInjectMenuButton();
