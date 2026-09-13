@@ -392,9 +392,11 @@ function tcHideAdminTabs(){
   if(btn) btn.style.display="none";
  });
 }
-function tcMenuItem(icon,label,onclick,danger){
+function tcMenuItem(iconPaths,label,onclick,danger){
+ const color=danger?"#a12d2d":"#0b6b78";
+ const icon=`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths}</svg>`;
  return `<div style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:13px 2px;border-bottom:1px solid #eef1f4" onclick="${onclick}">
-  <div style="width:40px;height:40px;border-radius:50%;background:${danger?"#fdeceb":"#e8f5f4"};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>
+  <div style="width:40px;height:40px;border-radius:50%;background:${danger?"#fdeceb":"#e8f5f4"};display:flex;align-items:center;justify-content:center;flex-shrink:0">${icon}</div>
   <div style="font-weight:600;color:${danger?"#a12d2d":"#172536"};font-size:14.5px">${label}</div>
  </div>`;
 }
@@ -407,11 +409,11 @@ function tcOpenMenu(){
    <div style="color:#6a7a87;font-size:11.5px">Owner / admin settings — password protected</div>
   </div>
   <div style="margin-top:8px">
-  ${tcMenuItem("&#128202;","Rate Master","closeModal();tcMenuNavPending=true;view('master')")}
-  ${tcMenuItem("&#128176;","Accounts","closeModal();tcMenuNavPending=true;view('accounts')")}
-  ${tcMenuItem("&#9881;&#65039;","Admin","closeModal();tcMenuNavPending=true;view('admin')")}
-  ${tcMenuItem("&#128274;","Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
-  ${tcMenuItem("&#128682;","Log out of this device","closeModal();logout()",true)}
+  ${tcMenuItem('<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',"Rate Master","closeModal();tcMenuNavPending=true;view('master')")}
+  ${tcMenuItem('<rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path><circle cx="17" cy="14.5" r="1.3" fill="#0b6b78" stroke="none"></circle>',"Accounts","closeModal();tcMenuNavPending=true;view('accounts')")}
+  ${tcMenuItem('<line x1="4" y1="6" x2="20" y2="6"></line><circle cx="8" cy="6" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2" fill="#0b6b78" stroke="none"></circle>',"Admin","closeModal();tcMenuNavPending=true;view('admin')")}
+  ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
+  ${tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true)}
   </div>`);
 }
 function tcInjectMenuButton(){
@@ -447,3 +449,28 @@ function tcBuildPremiumHeader(){
 tcHideAdminTabs();
 tcInjectMenuButton();
 tcBuildPremiumHeader();
+
+/* Redefines renderLogin() (already in app.js) with the same premium card
+   style as the PIN screen — logo, name/tagline, a short intro line about the
+   app, and cleanly styled inputs — instead of the plain default-styled card. */
+function renderLogin(){
+ const inviteToken=new URLSearchParams(location.search).get("invite")||"";
+ const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ document.querySelector("#app").innerHTML=`
+ <div style="display:flex;align-items:center;justify-content:center;padding:30px 16px">
+  <div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:30px 26px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+   ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
+   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
+   <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
+   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. This app helps manage enquiries, quotations, trips and billing for your travel business.</p>
+   <div style="text-align:left">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Your name</label>
+    <input id="loginName" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Mobile number</label>
+    <input id="loginMobile" type="tel" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
+   </div>
+   <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
+   <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">Continue</button>
+  </div>
+ </div>`;
+}
