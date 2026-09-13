@@ -580,3 +580,58 @@ async function tcResolveSos(id){
   loadSosHistory();
  }catch(e){ toast("Network error — try again"); }
 }
+
+/* ---------- OFFLINE SOS QUEUE ----------
+   Redefines sos() (already in app-updates.js) so that if the POST to
+   /api/sos fails (no network at that moment), the alert is saved locally
+   instead of just failing silently — and gets sent automatically the moment
+   connectivity returns, without the person needing to remember to press SOS
+   again. Nothing about the actual SOS content or in-app alerting changes;
+   this only adds a safety net for the "no signal right now" case. */
+async function tcSendSos(payload){
+ try{
+  const res=await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
+  return res.ok;
+ }catch(e){ return false; }
+}
+function tcQueueSos(payload){
+ const q=JSON.parse(localStorage.getItem("tc_sos_queue")||"[]");
+ q.push(payload);
+ localStorage.setItem("tc_sos_queue",JSON.stringify(q));
+}
+async function tcFlushSosQueue(){
+ let q=JSON.parse(localStorage.getItem("tc_sos_queue")||"[]");
+ if(!q.length) return;
+ const remaining=[];
+ for(const payload of q){
+  const ok=await tcSendSos(payload);
+  if(!ok) remaining.push(payload);
+ }
+ localStorage.setItem("tc_sos_queue",JSON.stringify(remaining));
+ if(remaining.length<q.length){
+  toast(remaining.length===0?"Queued SOS sent — you're back online.":"Some queued SOS messages sent — still retrying the rest.");
+  loadSosHistory();
+ }
+}
+window.addEventListener("online",tcFlushSosQueue);
+setInterval(tcFlushSosQueue,20000); /* safety-net retry even if the 'online' event doesn't fire reliably */
+tcFlushSosQueue(); /* in case a queue already exists from a previous offline session and we're already online now */
+
+async function sos(){
+ toast("Getting your location...");
+ await getLocationForSos(5000);
+ const user=getCurrentUser()||{};
+ const typedMsg=(document.querySelector("#nMsg")?.value||"").trim();
+ const msg=typedMsg?`SOS from ${user.name||"a user"}: ${typedMsg}`:`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+ const payload={sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null};
+ const sent=await tcSendSos(payload);
+ if(sent){
+  toast(window.tcLoc?"SOS sent with your location — every logged-in user will be alerted":"SOS sent (no location — check location permission) — every logged-in user will be alerted");
+  loadSosHistory();
+ }else{
+  tcQueueSos(payload);
+  toast("No connection right now — SOS saved and will send automatically the moment you're back online.");
+ }
+ const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
+ navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+}
