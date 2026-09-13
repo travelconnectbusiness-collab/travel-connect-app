@@ -108,7 +108,6 @@ function dashboard(){
  <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</button></div>
  <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
 }
 
@@ -293,3 +292,43 @@ function view(v){
  render();
  tcUpdateActiveTab(); /* replaceState doesn't fire "hashchange", so call this directly too */
 }
+
+/* ---------- HAMBURGER MENU (moves admin-only pages out of the main tabs) ----------
+   Injected via JS rather than editing index.html directly — this app doesn't
+   have that file's exact content available here, and doing it this way also
+   keeps everything for this feature self-contained in one file. A normal user
+   only ever needs Dashboard/Enquiries/Quotations/Trips/Billing day to day;
+   Master Data (rates), Accounts, Admin and Authorized Users are all owner-only
+   already (password-gated) — hiding them from the always-visible tab row too
+   reduces clutter without changing any of that existing protection. */
+const TC_MENU_ONLY_VIEWS=["master","accounts","admin"];
+
+function tcHideAdminTabs(){
+ TC_MENU_ONLY_VIEWS.forEach(v=>{
+  const btn=document.querySelector(`.tabs button[data-view="${v}"]`);
+  if(btn) btn.style.display="none";
+ });
+}
+function tcInjectMenuButton(){
+ if(document.querySelector("#tcMenuBtn")) return; /* don't insert twice */
+ const topEl=document.querySelector(".top");
+ if(!topEl) return;
+ const btn=document.createElement("button");
+ btn.id="tcMenuBtn";
+ btn.className="round";
+ btn.style.marginLeft="8px";
+ btn.setAttribute("aria-label","Menu");
+ btn.innerHTML="&#9776;"; /* ☰ */
+ btn.onclick=tcOpenMenu;
+ topEl.appendChild(btn);
+}
+function tcOpenMenu(){
+ modal(`<h2>Menu</h2>
+  <p class="muted">Owner / admin settings — password protected.</p>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('master')">&#128202; Rate Master</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('accounts')">&#128176; Accounts</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();view('admin')">&#9881;&#65039; Admin</div>
+  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</div>`);
+}
+tcHideAdminTabs();
+tcInjectMenuButton();
