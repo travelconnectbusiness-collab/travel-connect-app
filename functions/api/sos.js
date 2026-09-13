@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "history") {
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const { results } = await env.DB
-      .prepare("SELECT * FROM sos_alerts WHERE created_at > ? ORDER BY created_at DESC LIMIT 50")
+      .prepare("SELECT * FROM sos_alerts WHERE created_at > ? AND (resolved IS NULL OR resolved=0) ORDER BY created_at DESC LIMIT 50")
       .bind(cutoff)
       .all();
     return Response.json({ ok: true, alerts: results });
@@ -43,6 +43,18 @@ export async function onRequestPost({ request, env }) {
   } catch (e) {
     return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
   }
+
+  /* Anyone can mark an alert resolved — there's no separate per-user ownership
+     check here, since any logged-in device might be the one that confirmed the
+     person is safe (e.g. a different traveler who reached them first). This is
+     intentionally simple, matching how the rest of the SOS system already
+     trusts any logged-in device. */
+  if (body.action === "resolve") {
+    if (!body.id) return Response.json({ ok: false, error: "missing_id" }, { status: 400 });
+    await env.DB.prepare("UPDATE sos_alerts SET resolved=1 WHERE id=?").bind(body.id).run();
+    return Response.json({ ok: true });
+  }
+
   const now = new Date().toISOString();
   const result = await env.DB
     .prepare(
