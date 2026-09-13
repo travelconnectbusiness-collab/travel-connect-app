@@ -131,19 +131,21 @@ export async function onRequestPost({ request, env }) {
     const email = (body.email || "").trim();
     const location = (body.location || "").trim();
     const pincode = (body.pincode || "").trim();
+    const lat = (body.lat != null && body.lat !== "") ? Number(body.lat) : null;
+    const lon = (body.lon != null && body.lon !== "") ? Number(body.lon) : null;
     if (existing) {
       await env.DB
         .prepare(
-          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=?, email=COALESCE(NULLIF(?,''),email), location=COALESCE(NULLIF(?,''),location), pincode=COALESCE(NULLIF(?,''),pincode) WHERE mobile=?"
+          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=?, email=COALESCE(NULLIF(?,''),email), location=COALESCE(NULLIF(?,''),location), pincode=COALESCE(NULLIF(?,''),pincode), lat=COALESCE(?,lat), lon=COALESCE(?,lon) WHERE mobile=?"
         )
-        .bind(name, now, deviceToken || existing.device_token || null, email, location, pincode, mobile)
+        .bind(name, now, deviceToken || existing.device_token || null, email, location, pincode, lat, lon, mobile)
         .run();
     } else {
       await env.DB
         .prepare(
-          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode) VALUES (?,?,?,?,?,1,0,?,?,?,?)"
+          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode,lat,lon) VALUES (?,?,?,?,?,1,0,?,?,?,?,?,?)"
         )
-        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode)
+        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode, lat, lon)
         .run();
     }
 
