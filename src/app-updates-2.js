@@ -385,19 +385,6 @@ function tcHideAdminTabs(){
   if(btn) btn.style.display="none";
  });
 }
-function tcInjectMenuButton(){
- if(document.querySelector("#tcMenuBtn")) return; /* don't insert twice */
- const topEl=document.querySelector(".top");
- if(!topEl) return;
- const btn=document.createElement("button");
- btn.id="tcMenuBtn";
- btn.className="round";
- btn.style.marginLeft="8px";
- btn.setAttribute("aria-label","Menu");
- btn.innerHTML="&#9776;"; /* ☰ */
- btn.onclick=tcOpenMenu;
- topEl.appendChild(btn);
-}
 function tcOpenMenu(){
  modal(`<h2>Menu</h2>
   <p class="muted">Owner / admin settings — password protected.</p>
@@ -408,5 +395,36 @@ function tcOpenMenu(){
   <hr>
   <div class="listitem" style="cursor:pointer;color:#a12d2d" onclick="closeModal();logout()">&#128682; Log out of this device</div>`);
 }
+function tcInjectMenuButton(){
+ /* superseded by tcBuildPremiumHeader() below, which rebuilds the whole header
+    (including the menu button) in one go — kept as a no-op stub only so any
+    stray reference to it elsewhere doesn't throw. */
+}
+
+/* Rebuilds the header to match the same logo+name+tagline construction already
+   used on the PDF/print headers, instead of plain text — and replaces the red
+   "beacon" emoji SOS button and the circular ☰ button with a plainer, more
+   standard pill button and icon button. Runs last, after relabelSosButton()
+   (app-updates.js) and the old tcInjectMenuButton() (now a no-op above) have
+   already run, since this simply rebuilds the whole header fresh regardless of
+   whatever state either of those left it in. */
+function tcBuildPremiumHeader(){
+ const topEl=document.querySelector(".top");
+ if(!topEl) return;
+ const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ topEl.innerHTML=`
+  <div style="display:flex;align-items:center;gap:10px">
+   ${logo?`<img src="${logo}" style="width:36px;height:36px;border-radius:8px;background:#fff;padding:3px;flex-shrink:0">`:""}
+   <div><b>TRAVEL CONNECT</b><small>Professional Travel Business Platform</small></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+   <button id="networkBtn" style="background:#c0392b;color:#fff;border-radius:20px;padding:8px 16px;font-weight:800;font-size:13px;letter-spacing:.5px;border:none">SOS</button>
+   <button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none">&#9776;</button>
+  </div>`;
+ document.querySelector("#networkBtn").onclick=()=>network();
+ document.querySelector("#tcMenuBtn").onclick=tcOpenMenu;
+}
+
 tcHideAdminTabs();
 tcInjectMenuButton();
+tcBuildPremiumHeader();
