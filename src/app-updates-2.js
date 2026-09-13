@@ -23,28 +23,35 @@ function tcShowPinOverlay(mode){
  if (!el) {
   el = document.createElement("div");
   el.id = "tcPinOverlay";
-  el.style.cssText = "position:fixed;inset:0;z-index:99999;background:#0f5a55;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif";
+  el.style.cssText = "position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#082b49,#0f5a55);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
   document.body.appendChild(el);
  }
+ const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ const cardOpen=`<div style="background:#fff;border-radius:18px;max-width:340px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 12px 32px rgba(0,0,0,.35)">
+   ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
+   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:16px">TRAVEL CONNECT</div>
+   <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>`;
+ const cardClose=`</div>`;
  if (mode === "setup") {
-  el.innerHTML = `
-   <div style="font-size:40px;margin-bottom:8px">🔒</div>
-   <h2 style="margin:0 0 6px">Set an App PIN</h2>
-   <p style="opacity:.85;max-width:320px;margin:0 0 18px">Choose a 4-6 digit PIN. You'll need it every time you reopen this app on this device.</p>
-   <input id="tcPinNew" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:8px;border:none;width:180px;margin-bottom:10px">
-   <input id="tcPinConfirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:8px;border:none;width:180px;margin-bottom:14px">
-   <div id="tcPinErr" style="color:#ffd; min-height:20px;margin-bottom:10px"></div>
-   <button onclick="tcSubmitPinSetup()" style="padding:10px 24px;border-radius:8px;border:none;background:#fff;color:#0f5a55;font-weight:bold;font-size:16px">Set PIN</button>
-  `;
+  el.innerHTML = cardOpen+`
+   <div style="font-size:34px;margin:6px 0">&#128274;</div>
+   <h2 style="margin:0 0 6px;color:#172536">Set an App PIN</h2>
+   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">This keeps your business data private on this device — choose a 4-6 digit PIN you'll enter each time you reopen the app here.</p>
+   <input id="tcPinNew" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px">
+   <input id="tcPinConfirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:14px">
+   <div id="tcPinErr" style="color:#a12d2d;min-height:20px;margin-bottom:6px;font-size:13px"></div>
+   <button onclick="tcSubmitPinSetup()" style="padding:11px 24px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px;width:100%">Set PIN</button>
+  `+cardClose;
  } else {
-  el.innerHTML = `
-   <div style="font-size:40px;margin-bottom:8px">🔒</div>
-   <h2 style="margin:0 0 6px">Enter PIN</h2>
-   <input id="tcPinEntry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autofocus style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:8px;border:none;width:180px;margin-bottom:10px" onkeydown="if(event.key==='Enter')tcSubmitPinEntry()">
-   <div id="tcPinErr" style="color:#ffd;min-height:20px;margin-bottom:10px"></div>
-   <button onclick="tcSubmitPinEntry()" style="padding:10px 24px;border-radius:8px;border:none;background:#fff;color:#0f5a55;font-weight:bold;font-size:16px;margin-bottom:16px">Unlock</button>
-   <div><a href="#" onclick="tcForgotPin();return false" style="color:#fff;text-decoration:underline;font-size:13px">Forgot PIN?</a></div>
-  `;
+  el.innerHTML = cardOpen+`
+   <div style="font-size:34px;margin:6px 0">&#128274;</div>
+   <h2 style="margin:0 0 6px;color:#172536">Welcome back</h2>
+   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">Enter your PIN to continue.</p>
+   <input id="tcPinEntry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autofocus style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px" onkeydown="if(event.key==='Enter')tcSubmitPinEntry()">
+   <div id="tcPinErr" style="color:#a12d2d;min-height:20px;margin-bottom:6px;font-size:13px"></div>
+   <button onclick="tcSubmitPinEntry()" style="padding:11px 24px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px;width:100%;margin-bottom:14px">Unlock</button>
+   <div><a href="#" onclick="tcForgotPin();return false" style="color:#0b6b78;font-size:13px;font-weight:600">Forgot PIN?</a></div>
+  `+cardClose;
   setTimeout(() => document.querySelector("#tcPinEntry")?.focus(), 50);
  }
 }
