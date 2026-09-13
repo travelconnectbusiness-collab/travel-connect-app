@@ -392,15 +392,27 @@ function tcHideAdminTabs(){
   if(btn) btn.style.display="none";
  });
 }
+function tcMenuItem(icon,label,onclick,danger){
+ return `<div style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:13px 2px;border-bottom:1px solid #eef1f4" onclick="${onclick}">
+  <div style="width:40px;height:40px;border-radius:50%;background:${danger?"#fdeceb":"#e8f5f4"};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>
+  <div style="font-weight:600;color:${danger?"#a12d2d":"#172536"};font-size:14.5px">${label}</div>
+ </div>`;
+}
 function tcOpenMenu(){
- modal(`<h2>Menu</h2>
-  <p class="muted">Owner / admin settings — password protected.</p>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('master')">&#128202; Rate Master</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('accounts')">&#128176; Accounts</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;view('admin')">&#9881;&#65039; Admin</div>
-  <div class="listitem" style="cursor:pointer" onclick="closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</div>
-  <hr>
-  <div class="listitem" style="cursor:pointer;color:#a12d2d" onclick="closeModal();logout()">&#128682; Log out of this device</div>`);
+ const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ modal(`
+  <div style="text-align:center;margin-bottom:4px">
+   ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
+   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">MENU</div>
+   <div style="color:#6a7a87;font-size:11.5px">Owner / admin settings — password protected</div>
+  </div>
+  <div style="margin-top:8px">
+  ${tcMenuItem("&#128202;","Rate Master","closeModal();tcMenuNavPending=true;view('master')")}
+  ${tcMenuItem("&#128176;","Accounts","closeModal();tcMenuNavPending=true;view('accounts')")}
+  ${tcMenuItem("&#9881;&#65039;","Admin","closeModal();tcMenuNavPending=true;view('admin')")}
+  ${tcMenuItem("&#128274;","Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
+  ${tcMenuItem("&#128682;","Log out of this device","closeModal();logout()",true)}
+  </div>`);
 }
 function tcInjectMenuButton(){
  /* superseded by tcBuildPremiumHeader() below, which rebuilds the whole header
