@@ -317,10 +317,20 @@ function view(v){
  render();
  tcUpdateActiveTab();
 }
-/* Fires on the phone's/browser's own Back button. If the page being left was
-   opened via the ☰ Menu, reopen that Menu once we land back on Dashboard —
-   otherwise landing on Dashboard is the whole story. */
+/* Fires on the phone's/browser's own Back button. If a MODAL was open at that
+   moment (see the modal()/closeModal() overrides below — every modal, in every
+   feature, now pushes one history entry while it's open), just close the modal
+   and stop there — this is what fixes Quick Bill (and any other modal-based
+   form) so Back closes it one step at a time instead of jumping straight out
+   of the app. Otherwise, fall through to the page-level logic: if the page
+   being left was opened via the ☰ Menu, reopen that Menu once we land back on
+   Dashboard — otherwise landing on Dashboard is the whole story. */
 window.addEventListener("popstate",function(){
+ if(tcModalHistoryPushed){
+  tcModalHistoryPushed=false;
+  document.querySelector("#modal")?.classList.add("hidden");
+  return;
+ }
  const wasFromMenu=tcCurrentIsFromMenu;
  tcCurrentIsFromMenu=false;
  render();
@@ -329,6 +339,35 @@ window.addEventListener("popstate",function(){
   tcOpenMenu();
  }
 });
+
+/* Redefines modal()/closeModal() (already in app.js) purely to push one history
+   entry while a modal is open, and cleanly undo it when closed — so the phone's
+   Back button always closes whatever modal is open first, before it ever
+   touches page-level navigation. closeModal() uses replaceState (synchronous)
+   rather than history.back() (which fires its popstate on a later tick) so that
+   code immediately following a closeModal() call — like a ☰ Menu item's own
+   navigation — never races against a still-pending pop. */
+let tcModalHistoryPushed=false;
+let tcPreModalState=null;
+let tcPreModalUrl=null;
+
+function modal(html){
+ modalBody.innerHTML=html;
+ document.querySelector("#modal").classList.remove("hidden");
+ if(!tcModalHistoryPushed){
+  tcPreModalState=history.state;
+  tcPreModalUrl=location.href;
+  history.pushState({tcModal:true},"",location.href);
+  tcModalHistoryPushed=true;
+ }
+}
+function closeModal(){
+ document.querySelector("#modal").classList.add("hidden");
+ if(tcModalHistoryPushed){
+  tcModalHistoryPushed=false;
+  history.replaceState(tcPreModalState,"",tcPreModalUrl);
+ }
+}
 
 /* ---------- HAMBURGER MENU (moves admin-only pages out of the main tabs) ----------
    Injected via JS rather than editing index.html directly — this app doesn't
