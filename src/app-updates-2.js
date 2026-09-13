@@ -557,20 +557,25 @@ async function loadSosHistory(){
   const res=await fetch("/api/sos?action=history");
   const data=await res.json();
   if(!data.ok||!data.alerts||!data.alerts.length){ box.innerHTML="<p class='muted'>No SOS alerts in the last 48 hours.</p>"; return; }
+  const myMobile=(getCurrentUser()||{}).mobile;
   box.innerHTML=data.alerts.map(a=>{
    const when=new Date(a.created_at).toLocaleString();
    const mapLink=(a.lat!=null&&a.lon!=null)?`<a href="https://maps.google.com/?q=${a.lat},${a.lon}" target="_blank">View location</a>`:"";
    const callLink=a.sender_mobile?`<a href="tel:${esc(a.sender_mobile)}">${esc(a.sender_mobile)}</a>`:"-";
+   const isMine=myMobile&&a.sender_mobile&&myMobile===a.sender_mobile;
    return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> — ${esc(when)}<br>
    Mobile: ${callLink} ${mapLink?" &nbsp;|&nbsp; "+mapLink:""}
    ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}
-   <div class="actions"><button class="primary" onclick="tcResolveSos(${a.id})">&#9989; Mark Resolved</button></div></div>`;
+   ${isMine?`<div class="actions"><button class="primary" onclick="tcResolveSos(${a.id})">&#9989; Mark Resolved (I got help)</button></div>`:""}</div>`;
   }).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
 }
 async function tcResolveSos(id){
  try{
-  await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"resolve",id})});
+  const mobile=(getCurrentUser()||{}).mobile;
+  const res=await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"resolve",id,mobile})});
+  const data=await res.json().catch(()=>({}));
+  if(!data.ok){ toast("Could not mark resolved"); return; }
   toast("Marked resolved");
   loadSosHistory();
  }catch(e){ toast("Network error — try again"); }
