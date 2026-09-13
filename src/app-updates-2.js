@@ -234,3 +234,31 @@ async function checkStillAllowed(){
 }
 
 render();
+
+/* Redefines submitLogin() (already in app.js) purely to give a specific,
+   understandable message when the mobile number isn't on the allowlist —
+   the previous generic "Login failed. Please try again." looked exactly like
+   a network glitch, so someone blocked this way would just keep retrying
+   forever instead of understanding they need to contact the owner. */
+async function submitLogin(inviteToken){
+ const name=document.querySelector("#loginName").value.trim();
+ const mobile=document.querySelector("#loginMobile").value.trim();
+ const errBox=document.querySelector("#loginError");
+ if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const data=await res.json();
+  if(!data.ok){
+   if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
+   else if(data.error==="not_authorized") errBox.textContent="This mobile number is not authorized to use this app. Contact the app owner to be added.";
+   else errBox.textContent="Login failed. Please try again.";
+   return;
+  }
+  localStorage.setItem("tc_user",JSON.stringify({name,mobile}));
+  await syncConfigFromServer();
+  location.hash="dashboard";
+  render();
+ }catch(e){
+  errBox.textContent="Network error — check your connection and try again.";
+ }
+}
