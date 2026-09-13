@@ -49,8 +49,16 @@ export async function onRequestPost({ request, env }) {
      person is safe (e.g. a different traveler who reached them first). This is
      intentionally simple, matching how the rest of the SOS system already
      trusts any logged-in device. */
+  /* Only the mobile number that actually sent this SOS can mark it resolved —
+     otherwise anyone using the app could clear someone else's still-active
+     emergency out of the list without them actually having gotten help. */
   if (body.action === "resolve") {
     if (!body.id) return Response.json({ ok: false, error: "missing_id" }, { status: 400 });
+    const alert = await env.DB.prepare("SELECT sender_mobile FROM sos_alerts WHERE id=?").bind(body.id).first();
+    if (!alert) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (!body.mobile || alert.sender_mobile !== body.mobile) {
+      return Response.json({ ok: false, error: "not_owner" }, { status: 403 });
+    }
     await env.DB.prepare("UPDATE sos_alerts SET resolved=1 WHERE id=?").bind(body.id).run();
     return Response.json({ ok: true });
   }
