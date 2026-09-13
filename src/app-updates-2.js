@@ -264,10 +264,12 @@ async function submitLogin(inviteToken){
  const email=document.querySelector("#loginEmail")?.value.trim()||"";
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
+ const lat=window.tcLoginCoords?window.tcLoginCoords.lat:null;
+ const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
  const errBox=document.querySelector("#loginError");
  if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
   const data=await res.json();
   if(!data.ok){
    if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
@@ -474,7 +476,11 @@ function renderLogin(){
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Email (optional)</label>
     <input id="loginEmail" type="email" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Location / town (optional)</label>
-    <input id="loginLocation" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+     <input id="loginLocation" style="flex:1;padding:11px;border-radius:9px;border:1px solid #c9d4dc;font-size:15px;box-sizing:border-box">
+     <button type="button" onclick="tcUseMyLocation()" title="Use my current location" style="padding:0 12px;border-radius:9px;border:1px solid #c9d4dc;background:#f5f8fa;font-size:16px">&#128205;</button>
+    </div>
+    <div id="loginLocStatus" style="font-size:11.5px;color:#6a7a87;margin:-8px 0 10px"></div>
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Pincode (optional)</label>
     <input id="loginPincode" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
    </div>
@@ -504,4 +510,38 @@ async function doLoadUsersList(){
    <div class="actions">${u.blocked?`<button onclick="setUserBlocked('${esc(u.mobile)}',false)">Unblock</button>`:`<button class="danger" onclick="setUserBlocked('${esc(u.mobile)}',true)">Block</button>`}</div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+
+/* Captures precise GPS coordinates and looks up a human-readable place name +
+   postcode for them (via OpenStreetMap's free Nominatim reverse-geocoding
+   service — no API key needed) to auto-fill the Location/Pincode fields on
+   the login form, instead of only allowing manual typing. The raw lat/lon are
+   kept too (sent along at login) so partners can later be found by actual
+   proximity, not just by matching typed town names. */
+async function tcUseMyLocation(){
+ const status=document.querySelector("#loginLocStatus");
+ if(!navigator.geolocation){ if(status) status.textContent="Location isn't supported on this browser."; return; }
+ if(status) status.textContent="Getting your location...";
+ navigator.geolocation.getCurrentPosition(async (pos)=>{
+  const lat=pos.coords.latitude, lon=pos.coords.longitude;
+  window.tcLoginCoords={lat,lon};
+  if(status) status.textContent="Looking up address...";
+  try{
+   const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`);
+   const data=await res.json();
+   const a=data.address||{};
+   const place=a.suburb||a.town||a.city||a.village||a.county||"";
+   const district=a.state_district||a.county||"";
+   const combined=[place,district].filter(Boolean).filter((v,i,arr)=>arr.indexOf(v)===i).join(", ");
+   const locEl=document.querySelector("#loginLocation");
+   const pinEl=document.querySelector("#loginPincode");
+   if(locEl&&combined) locEl.value=combined;
+   if(pinEl&&a.postcode) pinEl.value=a.postcode;
+   if(status) status.textContent="\u2705 Location added.";
+  }catch(e){
+   if(status) status.textContent="Got your location, but couldn't look up the address name — coordinates saved anyway.";
+  }
+ },()=>{
+  if(status) status.textContent="Location permission denied — you can still type it in manually.";
+ },{timeout:10000});
 }
