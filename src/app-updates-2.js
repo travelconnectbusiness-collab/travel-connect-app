@@ -94,11 +94,7 @@ function tcCheckPinLock(){
    keeping that file frozen as agreed. The later-loaded file's version wins, same
    principle as app-updates.js overriding app.js. */
 function dashboard(){
- app().innerHTML=card("Travel Connect Dashboard",`<div class="grid">
- <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
- <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
- </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
- <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ app().innerHTML=card("Travel Connect Dashboard",`
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
   <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
@@ -106,6 +102,12 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <hr>
+ <div class="grid">
+ <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
+ <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
  <div class="actions" style="margin-top:8px"><button onclick="tcAuthorizedUsersPage()">&#128274; Authorized Users (Login Allowlist)</button></div>
  <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>`);
 }
