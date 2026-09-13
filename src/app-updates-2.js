@@ -276,3 +276,18 @@ function tcUpdateActiveTab(){
 }
 window.addEventListener("hashchange",tcUpdateActiveTab);
 tcUpdateActiveTab();
+
+/* Redefines view() (already in app.js) so that switching between tabs REPLACES
+   the current browser history entry instead of pushing a new one every time.
+   Previously, visiting Dashboard -> Enquiries -> Quotations -> Billing meant
+   the phone's own Back button had to be pressed 4 times just to leave the app,
+   since each tab visit piled up its own history entry. With replaceState,
+   there's only ever ONE entry for "being in this app" — one Back press exits
+   immediately, no matter how many tabs were visited in between. The explicit
+   "← Back to Dashboard" link inside a page (goBack()) is unaffected — it's a
+   normal in-app button, not something that relied on browser history depth. */
+function view(v){
+ history.replaceState(null,"",location.pathname+location.search+"#"+v);
+ render();
+ tcUpdateActiveTab(); /* replaceState doesn't fire "hashchange", so call this directly too */
+}
