@@ -419,7 +419,7 @@ function tcBuildPremiumHeader(){
   </div>
   <div style="display:flex;align-items:center;gap:8px">
    <button id="networkBtn" style="background:#c0392b;color:#fff;border-radius:20px;padding:8px 16px;font-weight:800;font-size:13px;letter-spacing:.5px;border:none">SOS</button>
-   <button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none">&#9776;</button>
+   <button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">&#9776;</button>
   </div>`;
  document.querySelector("#networkBtn").onclick=()=>network();
  document.querySelector("#tcMenuBtn").onclick=tcOpenMenu;
