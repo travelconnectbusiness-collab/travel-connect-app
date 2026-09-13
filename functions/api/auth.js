@@ -13,7 +13,7 @@ export async function onRequestGet({ request, env }) {
     }
     const { results } = await env.DB
       .prepare(
-        "SELECT id,name,mobile,first_login_at,last_login_at,login_count,blocked FROM app_users ORDER BY last_login_at DESC"
+        "SELECT id,name,mobile,email,location,pincode,first_login_at,last_login_at,login_count,blocked FROM app_users ORDER BY last_login_at DESC"
       )
       .all();
     return Response.json({ ok: true, users: results });
@@ -128,19 +128,22 @@ export async function onRequestPost({ request, env }) {
     }
 
     const now = new Date().toISOString();
+    const email = (body.email || "").trim();
+    const location = (body.location || "").trim();
+    const pincode = (body.pincode || "").trim();
     if (existing) {
       await env.DB
         .prepare(
-          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=? WHERE mobile=?"
+          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=?, email=COALESCE(NULLIF(?,''),email), location=COALESCE(NULLIF(?,''),location), pincode=COALESCE(NULLIF(?,''),pincode) WHERE mobile=?"
         )
-        .bind(name, now, deviceToken || existing.device_token || null, mobile)
+        .bind(name, now, deviceToken || existing.device_token || null, email, location, pincode, mobile)
         .run();
     } else {
       await env.DB
         .prepare(
-          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token) VALUES (?,?,?,?,?,1,0,?)"
+          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode) VALUES (?,?,?,?,?,1,0,?,?,?,?)"
         )
-        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null)
+        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode)
         .run();
     }
 
