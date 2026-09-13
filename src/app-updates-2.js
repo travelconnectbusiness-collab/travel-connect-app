@@ -262,3 +262,17 @@ async function submitLogin(inviteToken){
   errBox.textContent="Network error — check your connection and try again.";
  }
 }
+
+/* Highlights whichever top tab button matches the current page, so scrolling
+   down (past the page title) doesn't lose the "which page am I on" cue. Added
+   as its own hashchange listener rather than editing render() — multiple
+   listeners for the same event are fine, and view() already changes the hash
+   for every tab click, so this fires exactly when it needs to. */
+function tcUpdateActiveTab(){
+ const current=location.hash.slice(1)||"dashboard";
+ document.querySelectorAll(".tabs button").forEach(b=>{
+  b.classList.toggle("active", b.dataset.view===current);
+ });
+}
+window.addEventListener("hashchange",tcUpdateActiveTab);
+tcUpdateActiveTab();
