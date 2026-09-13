@@ -261,10 +261,13 @@ render();
 async function submitLogin(inviteToken){
  const name=document.querySelector("#loginName").value.trim();
  const mobile=document.querySelector("#loginMobile").value.trim();
+ const email=document.querySelector("#loginEmail")?.value.trim()||"";
+ const location_=document.querySelector("#loginLocation")?.value.trim()||"";
+ const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
  const errBox=document.querySelector("#loginError");
  if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
   const data=await res.json();
   if(!data.ok){
    if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
@@ -467,10 +470,38 @@ function renderLogin(){
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Your name</label>
     <input id="loginName" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Mobile number</label>
-    <input id="loginMobile" type="tel" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
+    <input id="loginMobile" type="tel" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Email (optional)</label>
+    <input id="loginEmail" type="email" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Location / town (optional)</label>
+    <input id="loginLocation" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Pincode (optional)</label>
+    <input id="loginPincode" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
    </div>
    <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
    <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">Continue</button>
   </div>
  </div>`;
+}
+
+/* Redefines doLoadUsersList() (already in app.js) to also show each user's
+   email/location/pincode (now collected at login, all optional) alongside
+   what was already shown — used to look up who's near a given pickup point,
+   e.g. for an SOS or an overflow trip. */
+async function doLoadUsersList(){
+ const box=document.querySelector("#usersList");
+ box.innerHTML="<p class='muted'>Loading...</p>";
+ try{
+  const res=await fetch("/api/auth?action=users&token="+encodeURIComponent(adminToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load users.</p>"; return; }
+  if(!data.users.length){ box.innerHTML="<p class='muted'>No one has logged in yet.</p>"; return; }
+  box.innerHTML=data.users.map(u=>`<div class="listitem">
+   <b>${esc(u.name)}</b> — ${esc(u.mobile)} ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
+   ${u.email?`<span class="muted">${esc(u.email)}</span><br>`:""}
+   ${(u.location||u.pincode)?`<span class="muted">${esc(u.location||"")} ${esc(u.pincode||"")}</span><br>`:""}
+   <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} • Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} • Logins: ${u.login_count}</span>
+   <div class="actions">${u.blocked?`<button onclick="setUserBlocked('${esc(u.mobile)}',false)">Unblock</button>`:`<button class="danger" onclick="setUserBlocked('${esc(u.mobile)}',true)">Block</button>`}</div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
