@@ -420,6 +420,7 @@ function tcOpenMenu(){
   ${tcMenuItem('<line x1="4" y1="6" x2="20" y2="6"></line><circle cx="8" cy="6" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2" fill="#0b6b78" stroke="none"></circle>',"Admin","closeModal();tcMenuNavPending=true;view('admin')")}
   ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
   ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',"Feedback / Suggestions","closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
+  ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"></path><path d="M17 11l2 2 4-4"></path>',"Partner Plans (Free / Paid)","closeModal();tcMenuNavPending=true;tcOpenPartnerPlans()")}
   ${tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true)}
   </div>`);
 }
@@ -879,4 +880,299 @@ async function tcRenderFeedbackAdmin(){
    <div style="margin-top:6px">${esc(f.message)}</div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+
+/* Admin-only Partner Plans page — same history-management pattern as
+   tcAuthorizedUsersPage()/tcOpenFeedbackAdmin() (reached only via the ☰ Menu,
+   Back should reopen the Menu). Lets the owner mark each registered partner
+   as free, paid, or owner_free (their own account / staff — permanently
+   free) — this flag is what future print/PDF branding logic will read. */
+function tcOpenPartnerPlans(){
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#partnerplans");
+ }else{
+  history.replaceState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#partnerplans");
+ }
+ tcCurrentIsFromMenu=true;
+ tcMenuNavPending=false;
+ requireAdmin(()=>tcRenderPartnerPlans());
+}
+async function tcRenderPartnerPlans(){
+ app().innerHTML=card("Partner Plans (Free / Paid)",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations. Paid = their own business branding. Owner Free = your own account/staff — always free, full features.</p><div id="tcPlansList">Loading...</div>`);
+ tcLoadPartnerPlans();
+}
+async function tcLoadPartnerPlans(){
+ const box=document.querySelector("#tcPlansList");
+ if(!box) return;
+ try{
+  const token=sessionStorage.getItem("tc_admin_token");
+  const res=await fetch("/api/partner_plan?action=list&token="+encodeURIComponent(token));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load partners.</p>"; return; }
+  if(!data.partners.length){ box.innerHTML="<p class='muted'>No partners registered yet.</p>"; return; }
+  box.innerHTML=data.partners.map(p=>`<div class="listitem">
+   <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'}<br>
+   <span class="muted">${esc(p.owner_name)} • ${esc(p.mobile1)}${p.location?" • "+esc(p.location):""}</span>
+   <div class="actions" style="margin-top:6px">
+    <select id="plan_${p.id}">
+     <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
+     <option value="paid" ${p.plan==="paid"?"selected":""}>Paid</option>
+     <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Free</option>
+    </select>
+    <button class="primary" onclick="tcSetPartnerPlan(${p.id})">Save</button>
+   </div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function tcSetPartnerPlan(partnerId){
+ const plan=document.querySelector("#plan_"+partnerId).value;
+ const token=sessionStorage.getItem("tc_admin_token");
+ try{
+  await fetch("/api/partner_plan",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_plan",partner_id:partnerId,plan,token})});
+  toast("Plan updated");
+ }catch(e){ toast("Network error"); }
+}
+
+/* ---------- PLAN-BASED PRINT BRANDING ----------
+   Redefines partnerView() to also remember this partner's plan (free/paid/
+   owner_free) locally, and adds a shared branding-box builder used by both
+   printQuoteObj() and printBill() below. Paid/owner_free partners see their
+   own business name/contact prominently (unchanged from before). Free-plan
+   partners' prints instead lead with Travel Connect's own contact details and
+   a "book directly" prompt, with the partner's name shown small underneath —
+   this is the incentive to upgrade. Actual logo upload/embedding is a larger
+   feature (needs image upload + storage) left for a future update; this only
+   changes which NAME/CONTACT details are shown prominently. */
+async function partnerView(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Partner",`<div id="partnerBox">Loading...</div>`);
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partner){ renderPartnerRegisterForm(); }
+  else{
+   window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password;
+   db.settings.myPlan=data.partner.plan||"free"; save();
+   renderPartnerDashboard(data.partner);
+  }
+ }catch(e){
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error — check your connection and try again.</p>";
+ }
+}
+function tcBrandingBox(partnerPhones){
+ const isPaid=db.settings.myPlan==="paid"||db.settings.myPlan==="owner_free";
+ if(isPaid){
+  return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+   <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+   ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
+   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+  </div>`;
+ }
+ return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.platform.name||"Travel Connect")}</div>
+  <div style="color:#555;font-size:12px">Book your next trip directly — fast, reliable service</div>
+  ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
+  ${db.platform.email?`<div style="font-size:12px;color:#555">${esc(db.platform.email)}</div>`:""}
+  <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
+ </div>`;
+}
+
+function printQuoteObj(q){
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const c=db.categories[q.categoryId];
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
+ const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
+ const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
+ const totalSavings=rateSaving+(q.discountAmount||0);
+ const showCompare=!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard";
+
+ let advanceHtml="";
+ if(q.advanceAmount>0){
+  let qrImg="";
+  if(db.business.upiId){
+   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
+   if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
+  }
+  advanceHtml=`<div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+   <div>
+    <div style="font-weight:bold;font-size:15px;color:#7a5a1e">ADVANCE REQUESTED</div>
+    <div style="font-size:22px;font-weight:bold">${money(q.advanceAmount)}</div>
+    <div style="font-size:12px;color:#7a5a1e">${q.advanceReceived?"&#9989; Received":"Please pay in advance to confirm this trip"}</div>
+   </div>
+   ${!q.advanceReceived&&qrImg?`<div style="text-align:center"><b style="font-size:11px">SCAN &amp; PAY ADVANCE</b><br>${qrImg}</div>`:""}
+  </div>`;
+ }
+
+ printContent("Quotation "+q.no,`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div>
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ ${tcBrandingBox(partnerPhones)}
+ <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
+ <table>${row("Date",q.entryDate||(q.created||"").slice(0,10))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <table>
+  ${row("Trip Type",q.type,true)}
+  ${q.days>1?row("Number of days",q.days+" days",true):""}
+  ${q.restHours>0?row("Overnight rest hours (excluded)",q.restHours+" hrs"):""}
+  ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
+ </table>
+ ${showCompare?`
+ <h3 style="margin:12px 0 4px;font-size:15px;color:#143c5a">Standard vs Offer Rate</h3>
+ <table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  <tr><td style="padding:3px 0">Fare</td><td style="text-align:right;padding:3px 0">${money(stdFareTotal)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
+ </table>
+ ${totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:10px;margin:8px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
+ </div>`:""}
+ `:""}
+ ${sumExtraCharges(q.extraCharges)>0?`<table><tr><td style="padding:3px 0;color:#555">Other Charges${extraChargesShortLabel(q.extraCharges)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(sumExtraCharges(q.extraCharges))}</td></tr></table>`:""}
+ ${q.gstAmount>0?`<table><tr><td style="padding:3px 0;color:#555">GST @ ${q.gstPct}%</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(q.gstAmount)}</td></tr></table>`:""}
+ <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
+  <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
+  <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
+ </div>
+ ${advanceHtml}
+ <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
+  &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
+  ${extraChargesHtml(q.extraCharges)}
+ </div>
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
+ `);
+}
+
+function printBill(tripId){
+ const t=db.trips.find(x=>x.id===tripId);if(!t)return;
+ const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ const bd=billBreakdown(t,q,c);
+ const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
+ const driver=findDriverForVehicleNo(q.vehicleNo);
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const billDate=billPrintDate();
+
+ let qrHtml="";
+ if(balance>0&&db.business.upiId){
+  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+ }
+
+ const row=(label,value,bold)=>`<tr><td style="padding:3px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(value)}</td></tr>`;
+
+ let detailRows="";
+ detailRows+=row("Customer",t.customer||q.customer);
+ detailRows+=row("Customer Mobile",q.mobile||"-");
+ detailRows+=row("Trip Type",q.type||"-");
+ detailRows+=row("Vehicle Category",q.category||"-");
+ detailRows+=row("Vehicle",q.vehicle||"Not specified");
+ detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
+ if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
+ if(q.service) detailRows+=row("Service",q.service);
+ detailRows+=row("Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-");
+ detailRows+=row("Trip Date",q.startDate||"-");
+
+ let usageRows="";
+ usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs",true);
+ if(r.days>1) usageRows+=row("Number of days",r.days+" days");
+ if(r.restHours>0) usageRows+=row("Overnight rest hours (excluded)",r.restHours+" hrs");
+ if(r.incKm!=null){
+  usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
+  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
+  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+money(r.hourExtra||0));
+ }
+
+ const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
+ const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
+ const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:3px 0;font-weight:${bold?"bold":"normal"};font-size:14px">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(sv)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(ov)}</td></tr>`;
+ const compareTable=`<table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  ${cmpRow("Base Rate",stdBase,offBase)}
+  ${cmpRow("Additional Charge",stdExtra,offExtra)}
+  <tr style="border-top:2px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
+ </table>`;
+
+ const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:12px;margin:10px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:18px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+  <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
+ </div>`:"";
+
+ let summaryRows="";
+ summaryRows+=row("Base Rate",money(r.base));
+ summaryRows+=row("Additional Charge (higher of KM/Hour)",money(r.extra||0));
+ if(r.driverBata) summaryRows+=row("Driver Bata",money(r.driverBata));
+ if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
+ if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
+ if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+ if(r.extraTotal>0) summaryRows+=row("Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+money(r.extraTotal));
+ if(r.gstAmount>0) summaryRows+=row("GST @ "+r.gstPct+"%","+"+money(r.gstAmount));
+
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ printContent("Bill "+(q.no||""),`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div>
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ ${tcBrandingBox(partnerPhones)}
+ <div style="display:flex;justify-content:space-between;align-items:baseline">
+  <h2 style="color:#143c5a;margin:4px 0;font-size:20px">FINAL TRIP BILL</h2>
+  <span style="color:#888;font-size:12px">Bill printed on: ${esc(billDate)}</span>
+ </div>
+ <table>${detailRows}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0">
+  <div style="font-weight:bold;font-size:14px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <hr>
+ <h3 style="margin:6px 0;font-size:16px;color:#143c5a">1. Usage Details</h3>
+ <table>${usageRows}</table>
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">2. Standard vs Offer Rate</h3>
+ ${compareTable}
+ ${savingsHtml}
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">4. Final Payment Summary</h3>
+ <table>${summaryRows}</table>
+ <div style="background:#0f5a55;border-radius:8px;padding:14px;text-align:center;margin:12px 0">
+  <div style="font-size:14px;color:#eafaf8">FINAL BILL AMOUNT</div>
+  <div style="font-size:32px;font-weight:bold;color:#fff">${money(r.final)}</div>
+ </div>
+ <div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div style="font-size:15px">
+   Balance Due: <b style="font-size:18px">${balance>0?money(balance):"FULLY PAID"}</b>
+  </div>
+  ${qrHtml}
+ </div>
+ ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11px;color:#555">
+  ${extraChargesHtml(r.extraCharges)}
+ </div>
+ <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
+ `);
 }
