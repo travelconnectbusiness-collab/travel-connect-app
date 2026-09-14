@@ -110,6 +110,9 @@ function dashboard(){
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button></div>
+  ${(db.settings.myPlan==="paid"||db.settings.myPlan==="owner_free")?
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">&#11088; Premium — your own business name/contact shown on every bill & quotation</div>`:
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">&#128274; Free plan — bills currently show Travel Connect's contact details, with your name shown small. <b>Upgrade to Premium</b> to show YOUR business name & contact prominently on every bill/quotation. Contact Travel Connect to upgrade.</div>`}
  </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
