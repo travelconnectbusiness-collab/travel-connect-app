@@ -33,7 +33,7 @@ export async function onRequestGet({ request, env }) {
     }
 
     const row = await env.DB
-      .prepare("SELECT blocked FROM app_users WHERE mobile=?")
+      .prepare("SELECT blocked, role FROM app_users WHERE mobile=?")
       .bind(mobile)
       .first();
     let blocked = !!(row && row.blocked);
@@ -47,10 +47,13 @@ export async function onRequestGet({ request, env }) {
     /* Also re-checks the allowlist on every ongoing session (not just at the
        login moment) — so removing someone's number actually logs them out on
        their next check, not just prevents a brand-new login. Skipped entirely
-       while the allowlist table is empty, same as at login. */
+       while the allowlist table is empty, same as at login — and skipped for
+       customers too, same as at login, since the allowlist only ever governed
+       who can act as a business owner/partner/staff. */
     let authorized = true;
+    const isCustomer = row && row.role === "customer";
     const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
-    if (allowlistCount && allowlistCount.c > 0) {
+    if (!isCustomer && allowlistCount && allowlistCount.c > 0) {
       const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
       authorized = !!allowed;
     }
