@@ -699,16 +699,22 @@ function customerHome(){
   <p class="muted">Get a quick estimate for your trip, or browse vehicles ready for a trip right now.</p>
   <div class="grid">
    <label>Vehicle category<select id="custCat">${cat}</select></label>
+   <label>Vehicle start point (garage)<input id="custVehicleStart" placeholder="e.g. Nadapuram"></label>
    <label>Pickup point<input id="custPickup" placeholder="e.g. Valayam"></label>
    <label>Destination 1<input id="custDest" placeholder="e.g. Vadakara"></label>
   </div>
   <div id="custStopsContainer"></div>
   <div class="actions"><button type="button" onclick="tcAddCustDestField()">+ Add another destination</button></div>
   <div class="grid">
+   <label>Vehicle closing point (usually same as start)<input id="custVehicleClose" placeholder="e.g. Nadapuram"></label>
+  </div>
+  <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; Open route in Google Maps (to check KM)</button></div>
+  <div class="grid" style="margin-top:8px">
    <label>Estimated KM (total — garage to pickup, all destinations, and back to garage)<input id="custKm" type="number" value="80"></label>
    <label>Estimated hours<input id="custHours" type="number" value="8"></label>
    <label>Number of days<input id="custDays" type="number" value="1" min="1"></label>
   </div>
+  <p class="muted" style="font-size:12px">&#8505;&#65039; Tip: Tap "Open route in Google Maps" above to check the actual distance, then enter that KM below for a more accurate estimate.</p>
   <div class="actions"><button class="primary" onclick="tcCalcCustomerFare()">Calculate Estimate</button></div>
   <div id="custFareResult" class="ratebox"></div>
   <hr>
@@ -724,6 +730,18 @@ function tcAddCustDestField(value=""){
  row.style.marginTop="4px";
  row.innerHTML=`<label style="flex:1">Additional destination<input class="cust-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">✕ Remove</button>`;
  c.appendChild(row);
+}
+function tcOpenCustomerRoute(){
+ const start=document.querySelector("#custVehicleStart").value;
+ const pickup=document.querySelector("#custPickup").value;
+ const stops=[document.querySelector("#custDest")?.value||"",...Array.from(document.querySelectorAll(".cust-stop-input")).map(i=>i.value)].map(v=>v.trim()).filter(Boolean);
+ const closing=document.querySelector("#custVehicleClose").value||start;
+ const points=[start,pickup,...stops,closing].map(v=>v.trim()).filter(Boolean);
+ if(points.length<2){toast("Enter at least a pickup and destination first");return}
+ const origin=points[0], destination=points[points.length-1], waypoints=points.slice(1,-1).join("|");
+ let url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination);
+ if(waypoints) url+="&waypoints="+encodeURIComponent(waypoints);
+ window.open(url,"_blank");
 }
 function tcCalcCustomerFare(){
  const c=db.categories[+document.querySelector("#custCat").value];
