@@ -13,7 +13,7 @@ export async function onRequestGet({ request, env }) {
     }
     const { results } = await env.DB
       .prepare(
-        "SELECT id,name,mobile,email,location,pincode,first_login_at,last_login_at,login_count,blocked FROM app_users ORDER BY last_login_at DESC"
+        "SELECT id,name,mobile,email,location,pincode,role,first_login_at,last_login_at,login_count,blocked FROM app_users ORDER BY last_login_at DESC"
       )
       .all();
     return Response.json({ ok: true, users: results });
@@ -90,15 +90,21 @@ export async function onRequestPost({ request, env }) {
     const name = (body.name || "").trim();
     const mobile = (body.mobile || "").trim();
     const deviceToken = (body.device_token || "").trim();
+    const role = body.role === "customer" ? "customer" : "owner";
     if (!name || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
 
-    /* The owner's number always skips the allowlist check entirely. */
+    /* The owner's number always skips the allowlist check entirely. Customers
+       ALSO skip it — the allowlist is only meant to control who can act as a
+       business owner/partner/staff; customers are meant to be open to anyone,
+       since the whole point of the customer role is public reach. Blocking
+       (below) still applies equally to everyone, including customers. */
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     const isOwner = !!(ownerRow && ownerRow.mobile === mobile);
+    const skipAllowlist = isOwner || role === "customer";
 
-    if (!isOwner) {
+    if (!skipAllowlist) {
       const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
       if (allowlistCount && allowlistCount.c > 0) {
         const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
@@ -143,9 +149,9 @@ export async function onRequestPost({ request, env }) {
     } else {
       await env.DB
         .prepare(
-          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode,lat,lon) VALUES (?,?,?,?,?,1,0,?,?,?,?,?,?)"
+          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode,lat,lon,role) VALUES (?,?,?,?,?,1,0,?,?,?,?,?,?,?)"
         )
-        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode, lat, lon)
+        .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode, lat, lon, role)
         .run();
     }
 
