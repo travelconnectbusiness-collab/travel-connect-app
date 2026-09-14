@@ -101,7 +101,16 @@ function tcCheckPinLock(){
    keeping that file frozen as agreed. The later-loaded file's version wins, same
    principle as app-updates.js overriding app.js. */
 function dashboard(){
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card("Travel Connect Dashboard",`
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
+  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||"Your Business Name")}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button></div>
+ </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
   <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
@@ -417,21 +426,7 @@ function tcMenuItem(iconPaths,label,onclick,danger){
 }
 function tcOpenMenu(){
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
- const user=getCurrentUser()||{};
  const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true);
- /* A regular travel partner (not the one true app owner) only ever needs to
-    log out here — everything else in this menu is Krishna Tours & Travels'
-    own admin/rate/allowlist/feedback tools, not relevant to another agency
-    using this app to be found on the network. */
- if(!user.isAppOwner){
-  modal(`
-   <div style="text-align:center;margin-bottom:4px">
-    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
-    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">MENU</div>
-   </div>
-   <div style="margin-top:8px">${logoutItem}</div>`);
-  return;
- }
  modal(`
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
@@ -702,19 +697,11 @@ function render(){
   else customerHome();
   return;
  }
- /* A "Business Owner" who is NOT the one true app owner (see app_owner /
-    isAppOwner) is another travel agency using this app to be found/network —
-    they see their own partner profile page (platform branding above, their
-    own business details below — partnerView() already builds exactly this),
-    not Krishna Tours & Travels' internal Enquiry/Quotation/Billing tools.
-    Menu stays visible but reduced to just Logout (everything else there is
-    admin-password-gated anyway, which isn't this partner's concern). */
- if(user.role==="owner"&&!user.isAppOwner){
-  if(tabsEl) tabsEl.style.display="none";
-  if(menuBtn) menuBtn.style.display="";
-  partnerView();
-  return;
- }
+ /* All "owner"-role users (the app owner and every other authorized travel
+    partner) get the same full Dashboard/Enquiries/Quotations/Trips/Billing
+    tools — a partner's own business identity is shown as a card at the top
+    of dashboard() instead (see dashboard() below), so it feels like their
+    own branded workspace while using the exact same underlying tools. */
  if(tabsEl) tabsEl.style.display="";
  if(menuBtn) menuBtn.style.display="";
  startSosPolling();
@@ -1236,3 +1223,38 @@ function tcPreviewPage(hashName,renderFn){
 }
 function tcPreviewPartnerPage(){ tcPreviewPage("previewpartner",partnerView); }
 function tcPreviewCustomerPage(){ tcPreviewPage("previewcustomer",customerHome); }
+
+/* Redefines openEditBillingIdentity()/saveBillingIdentity() (already in
+   app.js) to add an Email field — used on the new dashboard identity card
+   above, alongside the fields that already existed. */
+function openEditBillingIdentity(){
+ modal(`<h2>Edit Billing Details</h2>
+  <p class="muted">Shown on your bills and quotations printed from this device.</p>
+  <div class="grid">
+   <label>Business name<input id="bizName" value="${esc(db.business.name)}"></label>
+   <label>Tagline<input id="bizTagline" value="${esc(db.business.tagline||"")}"></label>
+   <label>Address<input id="bizAddress" value="${esc(db.business.address||"")}"></label>
+   <label>Email<input id="bizEmail" type="email" value="${esc(db.business.email||"")}"></label>
+   <label>Contact number 1<input id="bizPhone1" value="${esc(db.business.phone||"")}"></label>
+   <label>Contact number 2<input id="bizPhone2" value="${esc(db.business.phone2||"")}"></label>
+   <label>UPI ID (for payment QR)<input id="bizUpiId" value="${esc(db.business.upiId||"")}"></label>
+   <label>UPI name<input id="bizUpiName" value="${esc(db.business.upiName||"")}"></label>
+  </div>
+  <button class="primary" onclick="saveBillingIdentity()">Save</button>`);
+}
+function saveBillingIdentity(){
+ Object.assign(db.business,{
+  name:document.querySelector("#bizName").value,
+  tagline:document.querySelector("#bizTagline").value,
+  address:document.querySelector("#bizAddress").value,
+  email:document.querySelector("#bizEmail").value,
+  phone:document.querySelector("#bizPhone1").value,
+  phone2:document.querySelector("#bizPhone2").value,
+  upiId:document.querySelector("#bizUpiId").value,
+  upiName:document.querySelector("#bizUpiName").value
+ });
+ save();
+ closeModal();
+ toast("Billing details saved");
+ renderBillingIdentitySection(window._myPartner);
+}
