@@ -468,12 +468,12 @@ function renderLogin(){
    ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
    <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
-   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. This app helps manage enquiries, quotations, trips and billing for your travel business.</p>
+   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business — or book a vehicle and check fare estimates for your own trips.</p>
    <div style="text-align:left;margin-bottom:14px">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">I am a...</label>
     <div style="display:flex;gap:8px">
-     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" checked> Business Owner</label>
-     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer"> Customer</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" checked onchange="tcUpdateLoginIntro()"> Business Owner</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer" onchange="tcUpdateLoginIntro()"> Customer</label>
     </div>
    </div>
    <div style="text-align:left">
@@ -642,4 +642,15 @@ async function sos(){
  }
  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
  navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+}
+
+/* Swaps the login intro line to match whichever role is selected, so the
+   page doesn't read as if it's only for business owners. */
+function tcUpdateLoginIntro(){
+ const el=document.querySelector("#loginIntro");
+ if(!el) return;
+ const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
+ el.textContent = role==="customer"
+  ? "Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination."
+  : "Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business.";
 }
