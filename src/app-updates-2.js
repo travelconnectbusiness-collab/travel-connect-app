@@ -445,6 +445,8 @@ function tcOpenMenu(){
   ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
   ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',"Feedback / Suggestions","closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
   ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"></path><path d="M17 11l2 2 4-4"></path>',"Partner Plans (Free / Paid)","closeModal();tcMenuNavPending=true;tcOpenPartnerPlans()")}
+  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',"Preview: Partner Page","closeModal();tcMenuNavPending=true;tcPreviewPartnerPage()")}
+  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',"Preview: Customer Page","closeModal();tcMenuNavPending=true;tcPreviewCustomerPage()")}
   ${logoutItem}
   </div>`);
 }
@@ -1213,3 +1215,24 @@ function printBill(tripId){
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
  `);
 }
+
+/* Owner-only preview shortcuts — shows exactly what a regular Travel Partner
+   or a Customer sees, without logging out and back in as a different role.
+   Uses history the same way tcAuthorizedUsersPage()/tcOpenFeedbackAdmin() do
+   (reached only from the Menu, so Back reopens the Menu). The existing
+   "← Back to Dashboard" link on the previewed page returns to the owner's
+   own dashboard normally. */
+function tcPreviewPage(hashName,renderFn){
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#"+hashName);
+ }else{
+  history.replaceState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#"+hashName);
+ }
+ tcCurrentIsFromMenu=true;
+ tcMenuNavPending=false;
+ const tabsEl=document.querySelector(".tabs");
+ if(tabsEl) tabsEl.style.display="none";
+ renderFn();
+}
+function tcPreviewPartnerPage(){ tcPreviewPage("previewpartner",partnerView); }
+function tcPreviewCustomerPage(){ tcPreviewPage("previewcustomer",customerHome); }
