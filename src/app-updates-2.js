@@ -476,6 +476,16 @@ function tcBuildPremiumHeader(){
   </div>`;
  document.querySelector("#networkBtn").onclick=()=>network();
  document.querySelector("#tcMenuBtn").onclick=tcOpenMenu;
+ /* This function can run before OR after render() at page load, depending on
+    script order — so it must apply the customer-hides-SOS/Menu rule itself
+    too, instead of relying only on render() having already run. Customers
+    aren't part of the partner SOS network, so the SOS button is hidden for
+    them the same as the tabs/menu. */
+ const user=getCurrentUser();
+ if(user&&user.role==="customer"){
+  document.querySelector("#networkBtn").style.display="none";
+  document.querySelector("#tcMenuBtn").style.display="none";
+ }
 }
 
 tcHideAdminTabs();
@@ -693,13 +703,16 @@ function render(){
  const user=getCurrentUser();
  const tabsEl=document.querySelector(".tabs");
  const menuBtn=document.querySelector("#tcMenuBtn");
+ const sosBtn=document.querySelector("#networkBtn");
  if(user.role==="customer"){
   if(tabsEl) tabsEl.style.display="none";
   if(menuBtn) menuBtn.style.display="none";
+  if(sosBtn) sosBtn.style.display="none";
   if((location.hash.slice(1)||"")==="activeboard") activeBoard();
   else customerHome();
   return;
  }
+ if(sosBtn) sosBtn.style.display="";
  /* All "owner"-role users (the app owner and every other authorized travel
     partner) get the same full Dashboard/Enquiries/Quotations/Trips/Billing
     tools — a partner's own business identity is shown as a card at the top
