@@ -654,3 +654,118 @@ function tcUpdateLoginIntro(){
   ? "Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination."
   : "Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business.";
 }
+
+/* ---------- CUSTOMER-ONLY EXPERIENCE ----------
+   Redefines render() (already in app.js) so a "customer" role ALWAYS sees
+   their own simple page — never the business tabs (Enquiries/Quotations/
+   Trips/Billing/Master/Accounts/Admin) — regardless of what hash is in the
+   URL. Also hides the tabs bar and ☰ menu entirely for customers, since none
+   of that is relevant to them. */
+function render(){
+ if(!getCurrentUser()){ renderLogin(); return; }
+ checkStillAllowed();
+ const user=getCurrentUser();
+ const tabsEl=document.querySelector(".tabs");
+ const menuBtn=document.querySelector("#tcMenuBtn");
+ if(user.role==="customer"){
+  if(tabsEl) tabsEl.style.display="none";
+  if(menuBtn) menuBtn.style.display="none";
+  if((location.hash.slice(1)||"")==="activeboard") activeBoard();
+  else customerHome();
+  return;
+ }
+ if(tabsEl) tabsEl.style.display="";
+ if(menuBtn) menuBtn.style.display="";
+ startSosPolling();
+ const v=location.hash.slice(1)||"dashboard";
+ if(v==="dashboard") dashboard();
+ else if(v==="enquiries") enquiries();
+ else if(v==="quotations") quotations();
+ else if(v==="trips") trips();
+ else if(v==="billing") billing();
+ else if(v==="master") master();
+ else if(v==="accounts") accounts();
+ else if(v==="admin") requireAdmin(admin);
+ else if(v==="partner") partnerView();
+ else if(v==="activeboard") activeBoard();
+ else network();
+}
+
+function customerHome(){
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ app().innerHTML=card("Fare Estimate & Vehicle Booking",`
+  <p class="muted">Get a quick estimate for your trip, or browse vehicles ready for a trip right now.</p>
+  <div class="grid">
+   <label>Vehicle category<select id="custCat">${cat}</select></label>
+   <label>Estimated KM<input id="custKm" type="number" value="80"></label>
+   <label>Estimated hours<input id="custHours" type="number" value="8"></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="tcCalcCustomerFare()">Calculate Estimate</button></div>
+  <div id="custFareResult" class="ratebox"></div>
+  <hr>
+  <div class="actions"><button onclick="view('activeboard')">&#128663; Browse Available Vehicles</button></div>
+  <div class="actions" style="margin-top:10px"><button class="danger" onclick="logout()">Log out</button></div>
+ `);
+}
+function tcCalcCustomerFare(){
+ const c=db.categories[+document.querySelector("#custCat").value];
+ const km=+document.querySelector("#custKm").value||0, h=+document.querySelector("#custHours").value||0;
+ const r=calcFare(c,"standard",km,h,1,0);
+ const box=document.querySelector("#custFareResult");
+ if(r.invalid){ box.innerHTML=`<div class="danger">${esc(r.reason)}</div>`; return; }
+ box.innerHTML=`
+  <div>Base fare: <b>${money(r.base)}</b></div>
+  <div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>
+  <div>Extra (if you exceed the above): ${money(r.addKm)}/KM or ${money(r.addHour)}/hr</div>
+  <div class="total">Estimated fare: ${money(r.total)}</div>
+  <div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin-top:12px">
+   <div style="font-weight:bold;color:#7a5a1e">This is a standard estimate — actual offers may be lower.</div>
+   <p class="muted" style="margin:6px 0">For the best price and to confirm your trip, contact us directly:</p>
+   ${db.platform.phone1?`<div><a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a></div>`:""}
+   ${db.platform.phone2?`<div><a href="tel:${esc(db.platform.phone2)}">&#128222; ${esc(db.platform.phone2)}</a></div>`:""}
+   ${db.platform.email?`<div><a href="mailto:${esc(db.platform.email)}">&#9993;&#65039; ${esc(db.platform.email)}</a></div>`:""}
+  </div>`;
+}
+
+/* Redefines activeBoard() (already in app.js) to add a location search box —
+   customer or partner types a town/pincode ("Kozhikode") and the list filters
+   to just vehicles whose partner registered that location, so the board is
+   actually usable once there are vehicles from many different towns instead
+   of one single scrollable list of everyone. */
+let _tcActiveBoardVehicles=[];
+async function activeBoard(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Active Vehicles Board",`<p class="muted">Vehicles other travel partners have marked ready for a trip right now.</p>
+ <label>Search by town / pincode<input id="tcBoardSearch" placeholder="e.g. Kozhikode, Vadakara, 673001" oninput="tcFilterActiveBoard()"></label>
+ <div id="activeBoardList">Loading...</div>`);
+ try{
+  const res=await fetch("/api/vehicles?action=active");
+  const data=await res.json();
+  _tcActiveBoardVehicles=(data.ok&&data.vehicles)?data.vehicles:[];
+  tcRenderActiveBoardList(_tcActiveBoardVehicles);
+ }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
+}
+function tcRenderActiveBoardList(vehicles){
+ const box=document.querySelector("#activeBoardList");
+ if(!box) return;
+ if(!vehicles.length){box.innerHTML="<p class='muted'>No matching vehicles found.</p>";return}
+ box.innerHTML=vehicles.map(v=>`<div class="listitem">
+  <b>${esc(v.category||"Vehicle")}</b> — ${esc(v.vehicle_number)}<br>
+  ${esc(v.business_name)}${v.location?` • ${esc(v.location)} ${esc(v.pincode||"")}`:""}
+  <div class="actions">
+   <a href="tel:${esc(v.mobile1)}"><button class="primary">&#128222; Call ${esc(v.mobile1)}</button></a>
+   ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
+  </div>
+ </div>`).join("");
+}
+function tcFilterActiveBoard(){
+ const q=(document.querySelector("#tcBoardSearch")?.value||"").trim().toLowerCase();
+ if(!q){ tcRenderActiveBoardList(_tcActiveBoardVehicles); return; }
+ const filtered=_tcActiveBoardVehicles.filter(v=>
+  (v.location||"").toLowerCase().includes(q) ||
+  (v.pincode||"").toLowerCase().includes(q) ||
+  (v.business_name||"").toLowerCase().includes(q) ||
+  (v.category||"").toLowerCase().includes(q)
+ );
+ tcRenderActiveBoardList(filtered);
+}
