@@ -694,11 +694,20 @@ function render(){
 function customerHome(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  app().innerHTML=card("Fare Estimate & Vehicle Booking",`
+  <div class="notice">&#128161; <b>How to use this:</b> (1) Fill in your trip details and tap "Calculate Estimate" to see an approximate fare. (2) Tap "Browse Available Vehicles" and search by town/pincode to find and call a travel partner directly.</div>
+  <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px">&#9888;&#65039; <b>Please note:</b> Travel Connect only connects you with travel partners — it does not own vehicles, fix final prices, or handle payments. Charges, timing and any disputes are between you and the travel partner directly. Please confirm the fare and trip details by phone with the travel partner before starting your journey.</div>
   <p class="muted">Get a quick estimate for your trip, or browse vehicles ready for a trip right now.</p>
   <div class="grid">
    <label>Vehicle category<select id="custCat">${cat}</select></label>
-   <label>Estimated KM<input id="custKm" type="number" value="80"></label>
+   <label>Pickup point<input id="custPickup" placeholder="e.g. Valayam"></label>
+   <label>Destination 1<input id="custDest" placeholder="e.g. Vadakara"></label>
+  </div>
+  <div id="custStopsContainer"></div>
+  <div class="actions"><button type="button" onclick="tcAddCustDestField()">+ Add another destination</button></div>
+  <div class="grid">
+   <label>Estimated KM (total — garage to pickup, all destinations, and back to garage)<input id="custKm" type="number" value="80"></label>
    <label>Estimated hours<input id="custHours" type="number" value="8"></label>
+   <label>Number of days<input id="custDays" type="number" value="1" min="1"></label>
   </div>
   <div class="actions"><button class="primary" onclick="tcCalcCustomerFare()">Calculate Estimate</button></div>
   <div id="custFareResult" class="ratebox"></div>
@@ -707,13 +716,24 @@ function customerHome(){
   <div class="actions" style="margin-top:10px"><button class="danger" onclick="logout()">Log out</button></div>
  `);
 }
+function tcAddCustDestField(value=""){
+ const c=document.querySelector("#custStopsContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.className="grid";
+ row.style.marginTop="4px";
+ row.innerHTML=`<label style="flex:1">Additional destination<input class="cust-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">✕ Remove</button>`;
+ c.appendChild(row);
+}
 function tcCalcCustomerFare(){
  const c=db.categories[+document.querySelector("#custCat").value];
  const km=+document.querySelector("#custKm").value||0, h=+document.querySelector("#custHours").value||0;
- const r=calcFare(c,"standard",km,h,1,0);
+ const days=+document.querySelector("#custDays").value||1;
+ const r=calcFare(c,"standard",km,h,days,0);
  const box=document.querySelector("#custFareResult");
  if(r.invalid){ box.innerHTML=`<div class="danger">${esc(r.reason)}</div>`; return; }
  box.innerHTML=`
+  ${days>1?`<div class="muted">${days} day trip</div>`:""}
   <div>Base fare: <b>${money(r.base)}</b></div>
   <div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>
   <div>Extra (if you exceed the above): ${money(r.addKm)}/KM or ${money(r.addHour)}/hr</div>
@@ -745,11 +765,11 @@ async function activeBoard(){
   tcRenderActiveBoardList(_tcActiveBoardVehicles);
  }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
 }
-function tcRenderActiveBoardList(vehicles){
+function tcRenderActiveBoardList(vehicles,append){
  const box=document.querySelector("#activeBoardList");
  if(!box) return;
- if(!vehicles.length){box.innerHTML="<p class='muted'>No matching vehicles found.</p>";return}
- box.innerHTML=vehicles.map(v=>`<div class="listitem">
+ if(!vehicles.length){ if(!append) box.innerHTML="<p class='muted'>No matching vehicles found.</p>"; return; }
+ const html=vehicles.map(v=>`<div class="listitem">
   <b>${esc(v.category||"Vehicle")}</b> — ${esc(v.vehicle_number)}<br>
   ${esc(v.business_name)}${v.location?` • ${esc(v.location)} ${esc(v.pincode||"")}`:""}
   <div class="actions">
@@ -757,9 +777,11 @@ function tcRenderActiveBoardList(vehicles){
    ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
   </div>
  </div>`).join("");
+ if(append) box.innerHTML+=html; else box.innerHTML=html;
 }
 function tcFilterActiveBoard(){
  const q=(document.querySelector("#tcBoardSearch")?.value||"").trim().toLowerCase();
+ const box=document.querySelector("#activeBoardList");
  if(!q){ tcRenderActiveBoardList(_tcActiveBoardVehicles); return; }
  const filtered=_tcActiveBoardVehicles.filter(v=>
   (v.location||"").toLowerCase().includes(q) ||
@@ -767,5 +789,15 @@ function tcFilterActiveBoard(){
   (v.business_name||"").toLowerCase().includes(q) ||
   (v.category||"").toLowerCase().includes(q)
  );
+ if(!filtered.length&&_tcActiveBoardVehicles.length&&box){
+  /* No partner registered in the searched area — say so clearly instead of
+     just showing an empty list (which reads as "broken"), and fall back to
+     showing the nearest/other currently-available vehicles plus a direct
+     contact option, so the customer still has somewhere to go. */
+  const contactLine=[db.platform.phone1?`<a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a>`:"",db.platform.email?`<a href="mailto:${esc(db.platform.email)}">&#9993;&#65039; ${esc(db.platform.email)}</a>`:""].filter(Boolean).join(" &nbsp;|&nbsp; ");
+  box.innerHTML=`<div class="notice">No Travel Connect partners are registered in "${esc(document.querySelector("#tcBoardSearch").value)}" yet. Here are other currently available vehicles instead — or contact us directly: ${contactLine}</div>`;
+  tcRenderActiveBoardList(_tcActiveBoardVehicles,true);
+  return;
+ }
  tcRenderActiveBoardList(filtered);
 }
