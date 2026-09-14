@@ -286,7 +286,6 @@ async function submitLogin(inviteToken){
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
  const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
- toast("DEBUG: role selected = "+role); /* temporary — remove once the bug is found */
  const lat=window.tcLoginCoords?window.tcLoginCoords.lat:null;
  const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
  const errBox=document.querySelector("#loginError");
@@ -705,7 +704,6 @@ function render(){
  if(!getCurrentUser()){ renderLogin(); return; }
  checkStillAllowed();
  const user=getCurrentUser();
- console.log("DEBUG render(): tc_user =",JSON.stringify(user)); /* temporary */
  const tabsEl=document.querySelector(".tabs");
  const menuBtn=document.querySelector("#tcMenuBtn");
  const sosBtn=document.querySelector("#networkBtn");
@@ -1278,4 +1276,53 @@ function saveBillingIdentity(){
  closeModal();
  toast("Billing details saved");
  renderBillingIdentitySection(window._myPartner);
+}
+
+/* Redefines saveQuickBill() (already in app-updates.js) to fix a real crash:
+   "billTrip.value=trip.id" relied on an implicit global (the #billTrip select
+   element only exists as `window.billTrip` while the Billing page happens to
+   be the one currently rendered) — if navigation landed anywhere else in
+   between (e.g. a customer-role render intercepting it), this threw an
+   uncaught ReferenceError that broke whatever ran right after it, which is
+   what caused the erratic page-switching seen while testing. Using a proper
+   querySelector with a null-check means this can never crash, regardless of
+   what's currently on screen. */
+function saveQuickBill(){
+ const name=document.querySelector("#qbName").value, mobile=document.querySelector("#qbMobile").value;
+ if(!name||!mobile){toast("Enter the customer's name and mobile number");return}
+ const c=db.categories[+document.querySelector("#qbCat").value];
+ const km=+document.querySelector("#qbKm").value||0, h=+document.querySelector("#qbHours").value||0;
+ const days=+document.querySelector("#qbDays").value||1, restHours=+document.querySelector("#qbRestHours").value||0;
+ const overrideAddKm=document.querySelector("#qbOverrideAddKm").value||"", overrideAddHour=document.querySelector("#qbOverrideAddHour").value||"";
+ const ratePlan=document.querySelector("#qbRate").value;
+ const r=calcFare(c,ratePlan,km,h,days,restHours,{addKm:overrideAddKm,addHour:overrideAddHour});
+ if(r.invalid){toast("Correct Local Trip limits first");return}
+ const qId=crypto.randomUUID();
+ const quote={
+  id:qId,no:"QTN-"+Date.now(),created:new Date().toISOString(),status:"billed",
+  customer:name,mobile,type:document.querySelector("#qbType").value,category:c.name,categoryId:+document.querySelector("#qbCat").value,
+  vehicle:document.querySelector("#qbVehicle").value,vehicleNo:document.querySelector("#qbVehicleNo").value,
+  pickup:document.querySelector("#qbPickup").value,vehicleStart:document.querySelector("#qbVehicleStart").value,
+  destinations:collectQuickBillDestinations(),destination:collectQuickBillDestinations()[0]||"",
+  returnPoint:document.querySelector("#qbReturn").value,
+  estimatedKm:km,estimatedHours:h,days,restHours,startDate:document.querySelector("#qbDate").value,
+  ratePlan,overrideAddKm,overrideAddHour,
+  discountType:"none",discountValue:0,roundOff:0,
+  subtotal:r.total,quotedAmount:r.total,
+  advanceAmount:0,advanceReceived:false,
+  extraCharges:readExtraChargeFields("qbExtra"),
+  gstOn:false,gstPct:0,gstAmount:0
+ };
+ db.quotes.unshift(quote);
+ const trip={id:crypto.randomUUID(),quoteId:qId,customer:name,status:"completed",actualKm:km,actualHours:h,days,restHours,
+  entryDate:new Date().toISOString().slice(0,10),startDate:document.querySelector("#qbDate").value,
+  pickup:document.querySelector("#qbPickup").value,dest:collectQuickBillDestinations().join(", "),returnPoint:document.querySelector("#qbReturn").value,
+  payments:[],extraCharges:quote.extraCharges,created:new Date().toISOString()};
+ db.trips.unshift(trip);
+ save();closeModal();toast("Bill created");
+ view("billing");
+ setTimeout(()=>{
+  const bt=document.querySelector("#billTrip");
+  if(bt){ bt.value=trip.id; loadBill(); }
+ },0);
 }
