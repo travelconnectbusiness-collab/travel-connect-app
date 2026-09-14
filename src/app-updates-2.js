@@ -286,6 +286,7 @@ async function submitLogin(inviteToken){
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
  const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
+ toast("DEBUG: role selected = "+role); /* temporary — remove once the bug is found */
  const lat=window.tcLoginCoords?window.tcLoginCoords.lat:null;
  const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
  const errBox=document.querySelector("#loginError");
@@ -704,6 +705,7 @@ function render(){
  if(!getCurrentUser()){ renderLogin(); return; }
  checkStillAllowed();
  const user=getCurrentUser();
+ console.log("DEBUG render(): tc_user =",JSON.stringify(user)); /* temporary */
  const tabsEl=document.querySelector(".tabs");
  const menuBtn=document.querySelector("#tcMenuBtn");
  const sosBtn=document.querySelector("#networkBtn");
