@@ -29,7 +29,7 @@ export async function onRequestGet({ request, env }) {
        never lock themselves out of their own app. */
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     if (ownerRow && ownerRow.mobile === mobile) {
-      return Response.json({ ok: true, blocked: false, authorized: true });
+      return Response.json({ ok: true, blocked: false, authorized: true, isOwner: true });
     }
 
     const row = await env.DB
@@ -57,7 +57,7 @@ export async function onRequestGet({ request, env }) {
       const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
       authorized = !!allowed;
     }
-    return Response.json({ ok: true, blocked, authorized });
+    return Response.json({ ok: true, blocked, authorized, isOwner: false });
   }
 
   return Response.json({ ok: false, error: "unknown_action" });
@@ -171,7 +171,7 @@ export async function onRequestPost({ request, env }) {
       }
     }
 
-    return Response.json({ ok: true, name, mobile });
+    return Response.json({ ok: true, name, mobile, isOwner });
   }
 
   /* Owner-only: blocking a mobile ALSO blocks the device token last used by that
