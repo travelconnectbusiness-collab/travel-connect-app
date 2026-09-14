@@ -264,12 +264,13 @@ async function submitLogin(inviteToken){
  const email=document.querySelector("#loginEmail")?.value.trim()||"";
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
+ const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
  const lat=window.tcLoginCoords?window.tcLoginCoords.lat:null;
  const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
  const errBox=document.querySelector("#loginError");
  if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,role,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
   const data=await res.json();
   if(!data.ok){
    if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
@@ -277,7 +278,7 @@ async function submitLogin(inviteToken){
    else errBox.textContent="Login failed. Please try again.";
    return;
   }
-  localStorage.setItem("tc_user",JSON.stringify({name,mobile}));
+  localStorage.setItem("tc_user",JSON.stringify({name,mobile,role}));
   await syncConfigFromServer();
   location.hash="dashboard";
   render();
@@ -468,6 +469,13 @@ function renderLogin(){
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
    <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
    <p style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. This app helps manage enquiries, quotations, trips and billing for your travel business.</p>
+   <div style="text-align:left;margin-bottom:14px">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">I am a...</label>
+    <div style="display:flex;gap:8px">
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" checked> Business Owner</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer"> Customer</label>
+    </div>
+   </div>
    <div style="text-align:left">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Your name</label>
     <input id="loginName" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
