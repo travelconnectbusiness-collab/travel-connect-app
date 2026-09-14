@@ -5,6 +5,7 @@ import { onRequestGet as vehiclesGet, onRequestPost as vehiclesPost } from "./fu
 import { onRequestGet as sosGet, onRequestPost as sosPost } from "./functions/api/sos.js";
 import { onRequestGet as pushGet, onRequestPost as pushPost } from "./functions/api/push.js";
 import { onRequestGet as authorizedGet, onRequestPost as authorizedPost } from "./functions/api/authorized.js";
+import { onRequestGet as feedbackGet, onRequestPost as feedbackPost } from "./functions/api/feedback.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -43,6 +44,11 @@ export default {
     if (url.pathname === "/api/authorized") {
       if (request.method === "GET") return authorizedGet({ request, env });
       if (request.method === "POST") return authorizedPost({ request, env });
+    }
+
+    if (url.pathname === "/api/feedback") {
+      if (request.method === "GET") return feedbackGet({ request, env });
+      if (request.method === "POST") return feedbackPost({ request, env });
     }
 
     return env.ASSETS.fetch(request);
