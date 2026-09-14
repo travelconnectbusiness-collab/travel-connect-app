@@ -419,6 +419,7 @@ function tcOpenMenu(){
   ${tcMenuItem('<rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path><circle cx="17" cy="14.5" r="1.3" fill="#0b6b78" stroke="none"></circle>',"Accounts","closeModal();tcMenuNavPending=true;view('accounts')")}
   ${tcMenuItem('<line x1="4" y1="6" x2="20" y2="6"></line><circle cx="8" cy="6" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2" fill="#0b6b78" stroke="none"></circle>',"Admin","closeModal();tcMenuNavPending=true;view('admin')")}
   ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
+  ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',"Feedback / Suggestions","closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
   ${tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true)}
   </div>`);
 }
@@ -696,9 +697,16 @@ function customerHome(){
  app().innerHTML=card("Fare Estimate & Vehicle Booking",`
   <div class="notice">&#128161; <b>How to use this:</b> (1) Fill in your trip details and tap "Calculate Estimate" to see an approximate fare. (2) Tap "Browse Available Vehicles" and search by town/pincode to find and call a travel partner directly.</div>
   <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px">&#9888;&#65039; <b>Please note:</b> Travel Connect only connects you with travel partners — it does not own vehicles, fix final prices, or handle payments. Charges, timing and any disputes are between you and the travel partner directly. Please confirm the fare and trip details by phone with the travel partner before starting your journey.</div>
+  <p class="muted" style="font-size:11.5px">&#128736;&#65039; This app is under continuous development — you may occasionally notice small issues. Your feedback helps us improve it faster.</p>
   <p class="muted">Get a quick estimate for your trip, or browse vehicles ready for a trip right now.</p>
   <div class="grid">
    <label>Vehicle category<select id="custCat">${cat}</select></label>
+   <label>Trip type<select id="custType" onchange="tcCustTypeChanged()">
+     <option value="local">Local Trip</option>
+     <option value="one_day">One Day</option>
+     <option value="multiday">Multi-day</option>
+     <option value="drop">Drop</option>
+   </select></label>
    <label>Vehicle start point (garage)<input id="custVehicleStart" placeholder="e.g. Nadapuram"></label>
    <label>Pickup point<input id="custPickup" placeholder="e.g. Valayam"></label>
    <label>Destination 1<input id="custDest" placeholder="e.g. Vadakara"></label>
@@ -719,8 +727,23 @@ function customerHome(){
   <div id="custFareResult" class="ratebox"></div>
   <hr>
   <div class="actions"><button onclick="view('activeboard')">&#128663; Browse Available Vehicles</button></div>
+  <hr>
+  <h3>&#128172; Feedback / Suggestions</h3>
+  <p class="muted">Noticed an issue, or have an idea to make this better? Let us know.</p>
+  <label>Your message<textarea id="custFeedback" rows="3"></textarea></label>
+  <div class="actions"><button onclick="tcSendFeedback()">Send Feedback</button></div>
   <div class="actions" style="margin-top:10px"><button class="danger" onclick="logout()">Log out</button></div>
  `);
+}
+async function tcSendFeedback(){
+ const msg=document.querySelector("#custFeedback").value.trim();
+ if(!msg){ toast("Type a message first"); return; }
+ const user=getCurrentUser()||{};
+ try{
+  await fetch("/api/feedback",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:user.name||"",mobile:user.mobile||"",message:msg})});
+  document.querySelector("#custFeedback").value="";
+  toast("Thank you — your feedback has been sent");
+ }catch(e){ toast("Network error — try again"); }
 }
 function tcAddCustDestField(value=""){
  const c=document.querySelector("#custStopsContainer");
@@ -743,11 +766,19 @@ function tcOpenCustomerRoute(){
  if(waypoints) url+="&waypoints="+encodeURIComponent(waypoints);
  window.open(url,"_blank");
 }
+function tcCustTypeChanged(){
+ const type=document.querySelector("#custType").value;
+ const daysField=document.querySelector("#custDays");
+ if(daysField) daysField.disabled=(type==="local"||type==="drop");
+ if(daysField&&(type==="local"||type==="drop")) daysField.value=1;
+}
 function tcCalcCustomerFare(){
  const c=db.categories[+document.querySelector("#custCat").value];
+ const type=document.querySelector("#custType").value;
+ const plan=type==="local"?"local":type==="drop"?"drop":"standard";
  const km=+document.querySelector("#custKm").value||0, h=+document.querySelector("#custHours").value||0;
- const days=+document.querySelector("#custDays").value||1;
- const r=calcFare(c,"standard",km,h,days,0);
+ const days=(type==="local"||type==="drop")?1:(+document.querySelector("#custDays").value||1);
+ const r=calcFare(c,plan,km,h,days,0);
  const box=document.querySelector("#custFareResult");
  if(r.invalid){ box.innerHTML=`<div class="danger">${esc(r.reason)}</div>`; return; }
  box.innerHTML=`
@@ -818,4 +849,34 @@ function tcFilterActiveBoard(){
   return;
  }
  tcRenderActiveBoardList(filtered);
+}
+
+/* Admin-only feedback viewer — same history-management pattern as
+   tcAuthorizedUsersPage() (this page is only ever reached from the ☰ Menu,
+   so Back should reopen the Menu, not just land on Dashboard). */
+function tcOpenFeedbackAdmin(){
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#feedback");
+ }else{
+  history.replaceState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#feedback");
+ }
+ tcCurrentIsFromMenu=true;
+ tcMenuNavPending=false;
+ requireAdmin(()=>tcRenderFeedbackAdmin());
+}
+async function tcRenderFeedbackAdmin(){
+ app().innerHTML=card("Feedback / Suggestions",`<div id="tcFeedbackList">Loading...</div>`);
+ const box=document.querySelector("#tcFeedbackList");
+ try{
+  const token=sessionStorage.getItem("tc_admin_token");
+  const res=await fetch("/api/feedback?action=list&token="+encodeURIComponent(token));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load feedback.</p>"; return; }
+  if(!data.feedback.length){ box.innerHTML="<p class='muted'>No feedback yet.</p>"; return; }
+  box.innerHTML=data.feedback.map(f=>`<div class="listitem">
+   <b>${esc(f.name||"Anonymous")}</b> ${f.mobile?`— ${esc(f.mobile)}`:""}<br>
+   <span class="muted">${esc((f.created_at||"").slice(0,16).replace("T"," "))}</span>
+   <div style="margin-top:6px">${esc(f.message)}</div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
