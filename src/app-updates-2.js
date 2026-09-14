@@ -247,6 +247,15 @@ async function checkStillAllowed(){
    localStorage.removeItem("tc_user");
    toast("Your access has been removed. Please contact the app owner.");
    renderLogin();
+   return;
+  }
+  /* Self-heals the isAppOwner flag for sessions that logged in before this
+     flag existed, or if it's ever out of date — re-render if it just changed
+     so the correct page (full dashboard vs partner-only page) shows without
+     needing a fresh login. */
+  if(data.ok && !!data.isOwner!==!!user.isAppOwner){
+   localStorage.setItem("tc_user",JSON.stringify({...user,isAppOwner:!!data.isOwner}));
+   render();
   }
  }catch(e){}
 }
@@ -278,7 +287,7 @@ async function submitLogin(inviteToken){
    else errBox.textContent="Login failed. Please try again.";
    return;
   }
-  localStorage.setItem("tc_user",JSON.stringify({name,mobile,role}));
+  localStorage.setItem("tc_user",JSON.stringify({name,mobile,role,isAppOwner:!!data.isOwner}));
   await syncConfigFromServer();
   location.hash="dashboard";
   render();
@@ -408,6 +417,21 @@ function tcMenuItem(iconPaths,label,onclick,danger){
 }
 function tcOpenMenu(){
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ const user=getCurrentUser()||{};
+ const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true);
+ /* A regular travel partner (not the one true app owner) only ever needs to
+    log out here — everything else in this menu is Krishna Tours & Travels'
+    own admin/rate/allowlist/feedback tools, not relevant to another agency
+    using this app to be found on the network. */
+ if(!user.isAppOwner){
+  modal(`
+   <div style="text-align:center;margin-bottom:4px">
+    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
+    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">MENU</div>
+   </div>
+   <div style="margin-top:8px">${logoutItem}</div>`);
+  return;
+ }
  modal(`
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
@@ -421,7 +445,7 @@ function tcOpenMenu(){
   ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
   ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',"Feedback / Suggestions","closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
   ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"></path><path d="M17 11l2 2 4-4"></path>',"Partner Plans (Free / Paid)","closeModal();tcMenuNavPending=true;tcOpenPartnerPlans()")}
-  ${tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true)}
+  ${logoutItem}
   </div>`);
 }
 function tcInjectMenuButton(){
@@ -674,6 +698,19 @@ function render(){
   if(menuBtn) menuBtn.style.display="none";
   if((location.hash.slice(1)||"")==="activeboard") activeBoard();
   else customerHome();
+  return;
+ }
+ /* A "Business Owner" who is NOT the one true app owner (see app_owner /
+    isAppOwner) is another travel agency using this app to be found/network —
+    they see their own partner profile page (platform branding above, their
+    own business details below — partnerView() already builds exactly this),
+    not Krishna Tours & Travels' internal Enquiry/Quotation/Billing tools.
+    Menu stays visible but reduced to just Logout (everything else there is
+    admin-password-gated anyway, which isn't this partner's concern). */
+ if(user.role==="owner"&&!user.isAppOwner){
+  if(tabsEl) tabsEl.style.display="none";
+  if(menuBtn) menuBtn.style.display="";
+  partnerView();
   return;
  }
  if(tabsEl) tabsEl.style.display="";
