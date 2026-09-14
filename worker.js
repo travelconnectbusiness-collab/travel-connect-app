@@ -6,6 +6,7 @@ import { onRequestGet as sosGet, onRequestPost as sosPost } from "./functions/ap
 import { onRequestGet as pushGet, onRequestPost as pushPost } from "./functions/api/push.js";
 import { onRequestGet as authorizedGet, onRequestPost as authorizedPost } from "./functions/api/authorized.js";
 import { onRequestGet as feedbackGet, onRequestPost as feedbackPost } from "./functions/api/feedback.js";
+import { onRequestGet as partnerPlanGet, onRequestPost as partnerPlanPost } from "./functions/api/partner_plan.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -49,6 +50,11 @@ export default {
     if (url.pathname === "/api/feedback") {
       if (request.method === "GET") return feedbackGet({ request, env });
       if (request.method === "POST") return feedbackPost({ request, env });
+    }
+
+    if (url.pathname === "/api/partner_plan") {
+      if (request.method === "GET") return partnerPlanGet({ request, env });
+      if (request.method === "POST") return partnerPlanPost({ request, env });
     }
 
     return env.ASSETS.fetch(request);
