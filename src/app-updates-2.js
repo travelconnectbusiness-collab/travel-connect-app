@@ -546,8 +546,11 @@ async function doLoadUsersList(){
   const data=await res.json();
   if(!data.ok){ box.innerHTML="<p class='danger'>Could not load users.</p>"; return; }
   if(!data.users.length){ box.innerHTML="<p class='muted'>No one has logged in yet.</p>"; return; }
-  box.innerHTML=data.users.map(u=>`<div class="listitem">
-   <b>${esc(u.name)}</b> — ${esc(u.mobile)} ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
+  const customerCount=data.users.filter(u=>u.role==="customer").length;
+  box.innerHTML=`<p class="muted">${data.users.length} total — ${customerCount} customers, ${data.users.length-customerCount} owners/partners.</p>`+
+   data.users.map(u=>`<div class="listitem">
+   <b>${esc(u.name)}</b> <span class="chip">${u.role==="customer"?"Customer":"Owner/Partner"}</span> ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
+   <a href="tel:${esc(u.mobile)}">&#128222; ${esc(u.mobile)}</a><br>
    ${u.email?`<span class="muted">${esc(u.email)}</span><br>`:""}
    ${(u.location||u.pincode)?`<span class="muted">${esc(u.location||"")} ${esc(u.pincode||"")}</span><br>`:""}
    <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} • Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} • Logins: ${u.login_count}</span>
