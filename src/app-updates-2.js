@@ -1326,3 +1326,88 @@ function saveQuickBill(){
   if(bt){ bt.value=trip.id; loadBill(); }
  },0);
 }
+
+/* Redefines submitAddVehicle() (already in app.js) to make the document
+   photos mandatory instead of optional — RC, Insurance, Permit, Fitness and
+   PUC (plus the front photo showing the plate) must all be uploaded before
+   the vehicle can be saved, since a partial submission just makes admin
+   verification slower/harder later. */
+async function submitAddVehicle(partnerId){
+ const no=document.querySelector("#vNoNew").value.trim();
+ const errBox=document.querySelector("#vAddErr");
+ if(!no){errBox.textContent="Enter the vehicle number.";return}
+ const requiredPhotos={vFrontPhoto:"Front photo",vRcPhoto:"RC photo",vInsPhoto:"Insurance photo",vPermitPhoto:"Permit photo",vFitnessPhoto:"Fitness photo",vPucPhoto:"PUC photo"};
+ const missing=Object.entries(requiredPhotos).filter(([elId])=>{
+  const el=document.querySelector("#"+elId);
+  return !(el&&el.files&&el.files[0]);
+ }).map(([,label])=>label);
+ if(missing.length){
+  errBox.textContent="Please upload: "+missing.join(", ")+" — all vehicle documents are required for verification.";
+  return;
+ }
+ const saveBtn=document.querySelector("#vSaveBtn");
+ if(saveBtn.disabled) return; /* prevents duplicate entries from double/rapid taps */
+ saveBtn.disabled=true; saveBtn.textContent="Saving...";
+ const fd=new FormData();
+ fd.append("partner_id",partnerId);
+ fd.append("vehicle_number",no);
+ fd.append("category",document.querySelector("#vCatNew").value);
+ fd.append("driver_name",document.querySelector("#vDriverName").value);
+ fd.append("driver_mobile1",document.querySelector("#vDriverMobile1").value);
+ fd.append("driver_mobile2",document.querySelector("#vDriverMobile2").value);
+ fd.append("driver_license_number",document.querySelector("#vLicNo").value);
+ fd.append("driver_license_expiry",document.querySelector("#vLicExp").value);
+ fd.append("rc_expiry",document.querySelector("#vRcExp").value);
+ fd.append("insurance_expiry",document.querySelector("#vInsExp").value);
+ fd.append("permit_expiry",document.querySelector("#vPermitExp").value);
+ fd.append("fitness_expiry",document.querySelector("#vFitnessExp").value);
+ fd.append("puc_expiry",document.querySelector("#vPucExp").value);
+ const fileMap={vLicPhoto:"driver_license_photo",vFrontPhoto:"front_photo",vRcPhoto:"rc_photo",vInsPhoto:"insurance_photo",vPermitPhoto:"permit_photo",vFitnessPhoto:"fitness_photo",vPucPhoto:"puc_photo"};
+ Object.entries(fileMap).forEach(([elId,field])=>{
+  const el=document.querySelector("#"+elId);
+  if(el&&el.files&&el.files[0]) fd.append(field,el.files[0]);
+ });
+ try{
+  const res=await fetch("/api/vehicles?action=register",{method:"POST",body:fd});
+  const data=await res.json();
+  if(!data.ok){errBox.textContent="Could not save vehicle. Please try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";return}
+  closeModal();
+  toast("Vehicle added — waiting for admin verification");
+  loadMyVehicles(partnerId);
+ }catch(e){errBox.textContent="Network error — check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";}
+}
+
+/* Redefines openAddVehicle() (already in app.js) purely to mark the document
+   fields as required (*) in the label text, matching the new validation. */
+function openAddVehicle(partnerId){
+ modal(`<h2>Add Vehicle</h2>
+ <div class="grid">
+  <label>Vehicle number<input id="vNoNew" placeholder="e.g. KL 07 AB 1234"></label>
+  <label>Category<input id="vCatNew" placeholder="e.g. Sedan, 17 Seat Urbania"></label>
+ </div>
+ <h4>Driver (optional — leave blank if same as RC owner)</h4>
+ <div class="grid">
+  <label>Driver name<input id="vDriverName"></label>
+  <label>Driver mobile 1<input id="vDriverMobile1"></label>
+  <label>Driver mobile 2<input id="vDriverMobile2"></label>
+  <label>Driving License number<input id="vLicNo"></label>
+  <label>License expiry<input id="vLicExp" type="date"></label>
+  <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
+ </div>
+ <h4>Vehicle documents — all required for verification</h4>
+ <div class="grid">
+  <label>Front photo * (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
+  <label>RC photo *<input id="vRcPhoto" type="file" accept="image/*"></label>
+  <label>RC expiry<input id="vRcExp" type="date"></label>
+  <label>Insurance photo *<input id="vInsPhoto" type="file" accept="image/*"></label>
+  <label>Insurance expiry<input id="vInsExp" type="date"></label>
+  <label>Permit photo *<input id="vPermitPhoto" type="file" accept="image/*"></label>
+  <label>Permit expiry<input id="vPermitExp" type="date"></label>
+  <label>Fitness photo *<input id="vFitnessPhoto" type="file" accept="image/*"></label>
+  <label>Fitness expiry<input id="vFitnessExp" type="date"></label>
+  <label>PUC photo *<input id="vPucPhoto" type="file" accept="image/*"></label>
+  <label>PUC expiry<input id="vPucExp" type="date"></label>
+ </div>
+ <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
+ <div id="vAddErr" class="danger"></div>`);
+}
