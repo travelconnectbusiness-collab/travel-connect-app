@@ -37,8 +37,8 @@ function tcShowPinOverlay(mode){
    <div style="width:56px;height:56px;border-radius:50%;background:#e8f5f4;display:flex;align-items:center;justify-content:center;margin:6px auto"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b6b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
    <h2 style="margin:0 0 6px;color:#172536">Set an App PIN</h2>
    <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">This keeps your business data private on this device — choose a 4-6 digit PIN you'll enter each time you reopen the app here.</p>
-   <input id="tcPinNew" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px">
-   <input id="tcPinConfirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:14px">
+   <input id="tcPinNew" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px">
+   <input id="tcPinConfirm" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:14px">
    <div id="tcPinErr" style="color:#a12d2d;min-height:20px;margin-bottom:6px;font-size:13px"></div>
    <button onclick="tcSubmitPinSetup()" style="padding:11px 24px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px;width:100%">Set PIN</button>
   `+cardClose;
@@ -47,7 +47,7 @@ function tcShowPinOverlay(mode){
    <div style="width:56px;height:56px;border-radius:50%;background:#e8f5f4;display:flex;align-items:center;justify-content:center;margin:6px auto"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b6b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
    <h2 style="margin:0 0 6px;color:#172536">Welcome back</h2>
    <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">Enter your PIN to continue.</p>
-   <input id="tcPinEntry" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autofocus style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px" onkeydown="if(event.key==='Enter')tcSubmitPinEntry()">
+   <input id="tcPinEntry" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autofocus style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px" onkeydown="if(event.key==='Enter')tcSubmitPinEntry()">
    <div id="tcPinErr" style="color:#a12d2d;min-height:20px;margin-bottom:6px;font-size:13px"></div>
    <button onclick="tcSubmitPinEntry()" style="padding:11px 24px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px;width:100%;margin-bottom:14px">Unlock</button>
    <div><a href="#" onclick="tcForgotPin();return false" style="color:#0b6b78;font-size:13px;font-weight:600">Forgot PIN?</a></div>
