@@ -23,7 +23,7 @@ export async function onRequestPost({ request, env }) {
   if (!(await verifyAdminToken(env, body.token))) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  if (!body.partner_id || !["free", "paid", "owner_free"].includes(body.plan)) {
+  if (!body.partner_id || !["free", "paid", "premium", "owner_free"].includes(body.plan)) {
     return Response.json({ ok: false, error: "invalid_input" }, { status: 400 });
   }
   await env.DB.prepare("UPDATE travel_partners SET plan=? WHERE id=?").bind(body.plan, body.partner_id).run();
