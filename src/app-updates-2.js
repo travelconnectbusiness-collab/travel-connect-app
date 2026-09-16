@@ -1,11 +1,11 @@
-/* app-updates-2.js — a SECOND, separate file loaded after app-updates.js.
+/* app-updates-2.js - a SECOND, separate file loaded after app-updates.js.
    This is entirely new, self-contained code (an App PIN lock) that doesn't
    redefine any existing function from app.js/app-updates.js, so it's kept in
-   its own file rather than growing app-updates.js further — see the comments
+   its own file rather than growing app-updates.js further - see the comments
    in app-updates.js for why the file-splitting approach exists at all.
 
    How it works: after the user is already logged in (name+mobile, unchanged),
-   this adds ONE MORE local, per-device gate — a short PIN — so a phone picked
+   this adds ONE MORE local, per-device gate - a short PIN - so a phone picked
    up by someone else can't just reopen the app and start using it. It's
    implemented as a full-screen overlay appended on top of everything else,
    so it never needs to touch render() or any of the view-routing logic. */
@@ -36,7 +36,7 @@ function tcShowPinOverlay(mode){
   el.innerHTML = cardOpen+`
    <div style="width:56px;height:56px;border-radius:50%;background:#e8f5f4;display:flex;align-items:center;justify-content:center;margin:6px auto"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b6b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
    <h2 style="margin:0 0 6px;color:#172536">Set an App PIN</h2>
-   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">This keeps your business data private on this device — choose a 4-6 digit PIN you'll enter each time you reopen the app here.</p>
+   <p style="color:#6a7a87;font-size:13px;margin:0 0 18px">This keeps your business data private on this device - choose a 4-6 digit PIN you'll enter each time you reopen the app here.</p>
    <input id="tcPinNew" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:10px">
    <input id="tcPinConfirm" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="font-size:22px;text-align:center;letter-spacing:6px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;width:180px;margin-bottom:14px">
    <div id="tcPinErr" style="color:#a12d2d;min-height:20px;margin-bottom:6px;font-size:13px"></div>
@@ -82,7 +82,7 @@ async function tcSubmitPinEntry(){
  }
 }
 function tcForgotPin(){
- if (!confirm("Forgetting your PIN will also log you out of this device — you'll need to log in again with your name and mobile number, then set a new PIN. Continue?")) return;
+ if (!confirm("Forgetting your PIN will also log you out of this device - you'll need to log in again with your name and mobile number, then set a new PIN. Continue?")) return;
  localStorage.removeItem("tc_pin_hash");
  localStorage.removeItem("tc_user");
  sessionStorage.removeItem("tc_pin_unlocked");
@@ -91,19 +91,19 @@ function tcForgotPin(){
 function tcCheckPinLock(){
  let user = null;
  try { user = JSON.parse(localStorage.getItem("tc_user") || "null"); } catch (e) {}
- if (!user) return; /* not logged in yet — the normal login screen handles this, no PIN needed before that */
+ if (!user) return; /* not logged in yet - the normal login screen handles this, no PIN needed before that */
  if (tcPinUnlockedThisSession()) return;
  tcShowPinOverlay(tcHasPinSet() ? "entry" : "setup");
 }
 
 /* Redefines dashboard() again (it already lives in app-updates.js) purely to add
-   one button — done here in app-updates-2.js instead of touching app-updates.js,
+   one button - done here in app-updates-2.js instead of touching app-updates.js,
    keeping that file frozen as agreed. The later-loaded file's version wins, same
    principle as app-updates.js overriding app.js. */
 function dashboard(){
  /* A registered non-taxi business (Auto Rickshaw, Restaurant, Petrol Pump,
     Workshop, Hospital, Homestay/Resort/Hotel) has no use for the Quotation/
-    Billing tools — they land straight on their own Partner page (business
+    Billing tools - they land straight on their own Partner page (business
     identity + Available-now toggle + Directory search) instead. This only
     takes effect once db.settings.myBusinessType has been cached (i.e. after
     their first visit to "Travel Partner / Vehicles"); until then, a brand
@@ -123,8 +123,8 @@ function dashboard(){
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button></div>
   ${(db.settings.myPlan==="paid"||db.settings.myPlan==="owner_free")?
-   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">&#11088; Premium — your own business name/contact shown on every bill & quotation</div>`:
-   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">&#128274; Free plan — bills currently show Travel Connect's contact details, with your name shown small. <b>Upgrade to Premium</b> to show YOUR business name & contact prominently on every bill/quotation. Contact Travel Connect to upgrade.</div>`}
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">&#11088; Premium - your own business name/contact shown on every bill & quotation</div>`:
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">&#128274; Free plan - bills currently show Travel Connect's contact details, with your name shown small. <b>Upgrade to Premium</b> to show YOUR business name & contact prominently on every bill/quotation. Contact Travel Connect to upgrade.</div>`}
  </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
@@ -138,15 +138,15 @@ function dashboard(){
  <div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
  <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
- </div><div class="card"><h3>Business workflow</h3><p>Enquiry → Quotation → Confirmation → Trip → Final Bill → Payment → Accounts</p>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry -> Quotation -> Confirmation -> Trip -> Final Bill -> Payment -> Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
  `);
 }
 
 tcCheckPinLock();
 
-/* Moved here (from later in the file) because renderLogin() — defined and
-   potentially called very early — needs tcBusinessTypeOptions() available. */
+/* Moved here (from later in the file) because renderLogin() - defined and
+   potentially called very early - needs tcBusinessTypeOptions() available. */
 const TC_BUSINESS_TYPES={
  taxi_travel:"Taxi / Travel Agency",
  auto_rickshaw:"Auto Rickshaw",
@@ -160,16 +160,16 @@ function tcBusinessTypeOptions(selected){
  return Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}"${k===(selected||"taxi_travel")?" selected":""}>${label}</option>`).join("");
 }
 
-/* ---------- ALLOWLIST LOGIN — Authorized Users management (admin panel) ----------
+/* ---------- ALLOWLIST LOGIN - Authorized Users management (admin panel) ----------
    Reachable from the Dashboard (a new button, since dashboard() is already known
    and safe to extend). Add/remove which mobile numbers are allowed to log in at
-   all — matching is by mobile number only, not name, so a spelling difference
+   all - matching is by mobile number only, not name, so a spelling difference
    never locks out someone whose number IS on the list. Actual enforcement at the
    login screen itself lives in auth.js (a separate change, since that file's
    current content isn't available here yet). */
 function tcAuthorizedUsersPage(){
- /* Manages its own history entry the same way view() does — this page is
-    reached only from the ☰ Menu, never from a tab, so it always marks
+ /* Manages its own history entry the same way view() does - this page is
+    reached only from the [menu] Menu, never from a tab, so it always marks
     fromMenu:true; Back from here correctly reopens the Menu. */
  if(!history.state||!history.state.tcPage){
   history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#authorized");
@@ -184,11 +184,11 @@ async function tcRenderAuthorizedUsersPage(){
  app().innerHTML = card("Authorized Users (Login Allowlist)", `
   <div class="card" style="background:#fff8e8;border:2px solid #d2b478">
    <h3 style="margin-top:0">&#128081; Owner Number</h3>
-   <p class="muted">This one number can never be blocked and never needs to be on the list below — a safety net so you can never lock yourself out. Editing it still needs the admin password (already entered to reach this page).</p>
+   <p class="muted">This one number can never be blocked and never needs to be on the list below - a safety net so you can never lock yourself out. Editing it still needs the admin password (already entered to reach this page).</p>
    <div id="tcOwnerBox">Loading...</div>
   </div>
   <hr>
-  <p class="muted">Only mobile numbers added here can log in to this app. Matching is by mobile number only — the name is just a label to help you remember whose number it is.</p>
+  <p class="muted">Only mobile numbers added here can log in to this app. Matching is by mobile number only - the name is just a label to help you remember whose number it is.</p>
   <div class="grid">
    <label>Mobile number<input id="tcAuthMobile" type="tel"></label>
    <label>Name (optional label)<input id="tcAuthName"></label>
@@ -208,7 +208,7 @@ async function tcLoadOwner(){
   const data = await res.json();
   const owner = data.ok ? data.owner : null;
   box.innerHTML = `
-   <div style="margin-bottom:8px">${owner ? `<b>${esc(owner.mobile)}</b>${owner.name ? " — " + esc(owner.name) : ""}` : "<span class='muted'>No owner number set yet.</span>"}</div>
+   <div style="margin-bottom:8px">${owner ? `<b>${esc(owner.mobile)}</b>${owner.name ? " - " + esc(owner.name) : ""}` : "<span class='muted'>No owner number set yet.</span>"}</div>
    <div class="grid">
     <label>Owner mobile number<input id="tcOwnerMobile" type="tel" value="${owner ? esc(owner.mobile) : ""}"></label>
     <label>Owner name<input id="tcOwnerName" value="${owner ? esc(owner.name || "") : ""}"></label>
@@ -235,9 +235,9 @@ async function tcLoadAuthorizedUsers(){
   const data = await res.json();
   if (!data.ok) { box.innerHTML = "<p class='danger'>Could not load the list.</p>"; return; }
   box.innerHTML = (data.users || []).map(u => `
-   <div class="listitem"><b>${esc(u.mobile)}</b>${u.name ? " — " + esc(u.name) : ""}
+   <div class="listitem"><b>${esc(u.mobile)}</b>${u.name ? " - " + esc(u.name) : ""}
    <div class="actions"><button class="danger" onclick="tcRemoveAuthorizedUser('${esc(u.mobile)}')">Remove</button></div></div>
-  `).join("") || "<p class='muted'>No numbers added yet — no one is currently allowed to log in.</p>";
+  `).join("") || "<p class='muted'>No numbers added yet - no one is currently allowed to log in.</p>";
  } catch (e) { box.innerHTML = "<p class='danger'>Network error.</p>"; }
 }
 async function tcAddAuthorizedUser(){
@@ -262,12 +262,12 @@ async function tcRemoveAuthorizedUser(mobile){
 /* Same reasoning as the trailing calls at the end of app-updates.js: this file
    loads AFTER app-updates.js, so app-updates.js's own trailing render() call
    already ran and painted the dashboard using the version of dashboard() that
-   existed at THAT point — before this file's further override of it (adding the
+   existed at THAT point - before this file's further override of it (adding the
    Authorized Users button) was even in place. Calling render() again here, now
    that this file's overrides are applied too, is what makes the button show up
    on the very first paint instead of only after navigating away and back. */
 /* Redefines checkStillAllowed() (already in app.js) to ALSO log out a session
-   whose mobile number has been removed from (or never added to) the allowlist —
+   whose mobile number has been removed from (or never added to) the allowlist -
    not just a blocked mobile/device as before. This is what makes removing
    someone's number actually end their current session, not just prevent a
    future login. */
@@ -290,7 +290,7 @@ async function checkStillAllowed(){
    return;
   }
   /* Self-heals the isAppOwner flag for sessions that logged in before this
-     flag existed, or if it's ever out of date — re-render if it just changed
+     flag existed, or if it's ever out of date - re-render if it just changed
      so the correct page (full dashboard vs partner-only page) shows without
      needing a fresh login. */
   if(data.ok && !!data.isOwner!==!!user.isAppOwner){
@@ -303,7 +303,7 @@ async function checkStillAllowed(){
 render();
 
 /* Redefines submitLogin() (already in app.js) purely to give a specific,
-   understandable message when the mobile number isn't on the allowlist —
+   understandable message when the mobile number isn't on the allowlist -
    the previous generic "Login failed. Please try again." looked exactly like
    a network glitch, so someone blocked this way would just keep retrying
    forever instead of understanding they need to contact the owner. */
@@ -334,13 +334,13 @@ async function submitLogin(inviteToken){
   location.hash="dashboard";
   render();
  }catch(e){
-  errBox.textContent="Network error — check your connection and try again.";
+  errBox.textContent="Network error - check your connection and try again.";
  }
 }
 
 /* Highlights whichever top tab button matches the current page, so scrolling
    down (past the page title) doesn't lose the "which page am I on" cue. Added
-   as its own hashchange listener rather than editing render() — multiple
+   as its own hashchange listener rather than editing render() - multiple
    listeners for the same event are fine, and view() already changes the hash
    for every tab click, so this fires exactly when it needs to. */
 function tcUpdateActiveTab(){
@@ -352,14 +352,14 @@ function tcUpdateActiveTab(){
 window.addEventListener("hashchange",tcUpdateActiveTab);
 tcUpdateActiveTab();
 
-/* Redefines view() again — one level deeper than the previous version. Rather
+/* Redefines view() again - one level deeper than the previous version. Rather
    than a flat "always replace" (which meant Back always exited the app
    immediately, from anywhere), this keeps exactly ONE level of depth:
    Dashboard is the base; any other page reached from Dashboard (by a tab OR a
    Menu item) pushes ONE history entry; switching sideways between other pages
    while already at that depth (e.g. Enquiries -> Quotations -> Billing) keeps
    REPLACING that same entry instead of stacking more. So Back from anywhere
-   goes straight to Dashboard in one press — but a page opened via the ☰ Menu
+   goes straight to Dashboard in one press - but a page opened via the [menu] Menu
    remembers that, and Back from there reopens the Menu instead, matching
    where the user actually came from. */
 let tcCurrentIsFromMenu=false;
@@ -382,13 +382,13 @@ function view(v){
  tcUpdateActiveTab();
 }
 /* Fires on the phone's/browser's own Back button. If a MODAL was open at that
-   moment (see the modal()/closeModal() overrides below — every modal, in every
+   moment (see the modal()/closeModal() overrides below - every modal, in every
    feature, now pushes one history entry while it's open), just close the modal
-   and stop there — this is what fixes Quick Bill (and any other modal-based
+   and stop there - this is what fixes Quick Bill (and any other modal-based
    form) so Back closes it one step at a time instead of jumping straight out
    of the app. Otherwise, fall through to the page-level logic: if the page
-   being left was opened via the ☰ Menu, reopen that Menu once we land back on
-   Dashboard — otherwise landing on Dashboard is the whole story. */
+   being left was opened via the [menu] Menu, reopen that Menu once we land back on
+   Dashboard - otherwise landing on Dashboard is the whole story. */
 window.addEventListener("popstate",function(){
  if(tcModalHistoryPushed){
   tcModalHistoryPushed=false;
@@ -405,12 +405,12 @@ window.addEventListener("popstate",function(){
 });
 
 /* Redefines modal()/closeModal() (already in app.js) purely to push one history
-   entry while a modal is open, and cleanly undo it when closed — so the phone's
+   entry while a modal is open, and cleanly undo it when closed - so the phone's
    Back button always closes whatever modal is open first, before it ever
    touches page-level navigation. closeModal() uses replaceState (synchronous)
    rather than history.back() (which fires its popstate on a later tick) so that
-   code immediately following a closeModal() call — like a ☰ Menu item's own
-   navigation — never races against a still-pending pop. */
+   code immediately following a closeModal() call - like a [menu] Menu item's own
+   navigation - never races against a still-pending pop. */
 let tcModalHistoryPushed=false;
 let tcPreModalState=null;
 let tcPreModalUrl=null;
@@ -434,12 +434,12 @@ function closeModal(){
 }
 
 /* ---------- HAMBURGER MENU (moves admin-only pages out of the main tabs) ----------
-   Injected via JS rather than editing index.html directly — this app doesn't
+   Injected via JS rather than editing index.html directly - this app doesn't
    have that file's exact content available here, and doing it this way also
    keeps everything for this feature self-contained in one file. A normal user
    only ever needs Dashboard/Enquiries/Quotations/Trips/Billing day to day;
    Master Data (rates), Accounts, Admin and Authorized Users are all owner-only
-   already (password-gated) — hiding them from the always-visible tab row too
+   already (password-gated) - hiding them from the always-visible tab row too
    reduces clutter without changing any of that existing protection. */
 const TC_MENU_ONLY_VIEWS=["master","accounts","admin"];
 
@@ -464,7 +464,7 @@ function tcOpenMenu(){
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">MENU</div>
-   <div style="color:#6a7a87;font-size:11.5px">Owner / admin settings — password protected</div>
+   <div style="color:#6a7a87;font-size:11.5px">Owner / admin settings - password protected</div>
   </div>
   <div style="margin-top:8px">
   ${tcMenuItem('<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',"Rate Master","closeModal();tcMenuNavPending=true;view('master')")}
@@ -480,13 +480,13 @@ function tcOpenMenu(){
 }
 function tcInjectMenuButton(){
  /* superseded by tcBuildPremiumHeader() below, which rebuilds the whole header
-    (including the menu button) in one go — kept as a no-op stub only so any
+    (including the menu button) in one go - kept as a no-op stub only so any
     stray reference to it elsewhere doesn't throw. */
 }
 
 /* Rebuilds the header to match the same logo+name+tagline construction already
-   used on the PDF/print headers, instead of plain text — and replaces the red
-   "beacon" emoji SOS button and the circular ☰ button with a plainer, more
+   used on the PDF/print headers, instead of plain text - and replaces the red
+   "beacon" emoji SOS button and the circular [menu] button with a plainer, more
    standard pill button and icon button. Runs last, after relabelSosButton()
    (app-updates.js) and the old tcInjectMenuButton() (now a no-op above) have
    already run, since this simply rebuilds the whole header fresh regardless of
@@ -507,7 +507,7 @@ function tcBuildPremiumHeader(){
  document.querySelector("#networkBtn").onclick=()=>network();
  document.querySelector("#tcMenuBtn").onclick=tcOpenMenu;
  /* This function can run before OR after render() at page load, depending on
-    script order — so it must apply the customer-hides-SOS/Menu rule itself
+    script order - so it must apply the customer-hides-SOS/Menu rule itself
     too, instead of relying only on render() having already run. Customers
     aren't part of the partner SOS network, so the SOS button is hidden for
     them the same as the tabs/menu. */
@@ -523,8 +523,8 @@ tcInjectMenuButton();
 tcBuildPremiumHeader();
 
 /* Redefines renderLogin() (already in app.js) with the same premium card
-   style as the PIN screen — logo, name/tagline, a short intro line about the
-   app, and cleanly styled inputs — instead of the plain default-styled card. */
+   style as the PIN screen - logo, name/tagline, a short intro line about the
+   app, and cleanly styled inputs - instead of the plain default-styled card. */
 function renderLogin(){
  const inviteToken=new URLSearchParams(location.search).get("invite")||"";
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
@@ -534,7 +534,7 @@ function renderLogin(){
    ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
    <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
-   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business — or book a vehicle and check fare estimates for your own trips.</p>
+   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business - or book a vehicle and check fare estimates for your own trips.</p>
    <div style="text-align:left;margin-bottom:14px">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">I am a...</label>
     <div style="display:flex;gap:8px">
@@ -570,7 +570,7 @@ function renderLogin(){
 
 /* Redefines doLoadUsersList() (already in app.js) to also show each user's
    email/location/pincode (now collected at login, all optional) alongside
-   what was already shown — used to look up who's near a given pickup point,
+   what was already shown - used to look up who's near a given pickup point,
    e.g. for an SOS or an overflow trip. */
 async function doLoadUsersList(){
  const box=document.querySelector("#usersList");
@@ -581,13 +581,13 @@ async function doLoadUsersList(){
   if(!data.ok){ box.innerHTML="<p class='danger'>Could not load users.</p>"; return; }
   if(!data.users.length){ box.innerHTML="<p class='muted'>No one has logged in yet.</p>"; return; }
   const customerCount=data.users.filter(u=>u.role==="customer").length;
-  box.innerHTML=`<p class="muted">${data.users.length} total — ${customerCount} customers, ${data.users.length-customerCount} owners/partners.</p>`+
+  box.innerHTML=`<p class="muted">${data.users.length} total - ${customerCount} customers, ${data.users.length-customerCount} owners/partners.</p>`+
    data.users.map(u=>`<div class="listitem">
    <b>${esc(u.name)}</b> <span class="chip">${u.role==="customer"?"Customer":"Owner/Partner"}</span> ${u.blocked?'<span class="danger">(BLOCKED)</span>':''}<br>
    <a href="tel:${esc(u.mobile)}">&#128222; ${esc(u.mobile)}</a><br>
    ${u.email?`<span class="muted">${esc(u.email)}</span><br>`:""}
    ${(u.location||u.pincode)?`<span class="muted">${esc(u.location||"")} ${esc(u.pincode||"")}</span><br>`:""}
-   <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} • Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} • Logins: ${u.login_count}</span>
+   <span class="muted">First: ${esc((u.first_login_at||"").slice(0,16).replace("T"," "))} * Last: ${esc((u.last_login_at||"").slice(0,16).replace("T"," "))} * Logins: ${u.login_count}</span>
    <div class="actions">${u.blocked?`<button onclick="setUserBlocked('${esc(u.mobile)}',false)">Unblock</button>`:`<button class="danger" onclick="setUserBlocked('${esc(u.mobile)}',true)">Block</button>`}</div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
@@ -595,7 +595,7 @@ async function doLoadUsersList(){
 
 /* Captures precise GPS coordinates and looks up a human-readable place name +
    postcode for them (via OpenStreetMap's free Nominatim reverse-geocoding
-   service — no API key needed) to auto-fill the Location/Pincode fields on
+   service - no API key needed) to auto-fill the Location/Pincode fields on
    the login form, instead of only allowing manual typing. The raw lat/lon are
    kept too (sent along at login) so partners can later be found by actual
    proximity, not just by matching typed town names. */
@@ -620,15 +620,15 @@ async function tcUseMyLocation(){
    if(pinEl&&a.postcode) pinEl.value=a.postcode;
    if(status) status.textContent="\u2705 Location added.";
   }catch(e){
-   if(status) status.textContent="Got your location, but couldn't look up the address name — coordinates saved anyway.";
+   if(status) status.textContent="Got your location, but couldn't look up the address name - coordinates saved anyway.";
   }
  },()=>{
-  if(status) status.textContent="Location permission denied — you can still type it in manually.";
+  if(status) status.textContent="Location permission denied - you can still type it in manually.";
  },{timeout:10000});
 }
 
 /* Redefines loadSosHistory() (already in app-updates.js) to add a "Mark
-   Resolved" button per alert — instead of waiting the full 48 hours for an
+   Resolved" button per alert - instead of waiting the full 48 hours for an
    already-handled SOS to age out, anyone can clear it immediately once the
    person is confirmed safe. */
 async function loadSosHistory(){
@@ -644,12 +644,12 @@ async function loadSosHistory(){
    const mapLink=(a.lat!=null&&a.lon!=null)?`<a href="https://maps.google.com/?q=${a.lat},${a.lon}" target="_blank">View location</a>`:"";
    const callLink=a.sender_mobile?`<a href="tel:${esc(a.sender_mobile)}">${esc(a.sender_mobile)}</a>`:"-";
    const isMine=myMobile&&a.sender_mobile&&myMobile===a.sender_mobile;
-   return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> — ${esc(when)}<br>
+   return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> - ${esc(when)}<br>
    Mobile: ${callLink} ${mapLink?" &nbsp;|&nbsp; "+mapLink:""}
    ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}
    ${isMine?`<div class="actions"><button class="primary" onclick="tcResolveSos(${a.id})">&#9989; Mark Resolved (I got help)</button></div>`:""}</div>`;
   }).join("");
- }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history — check your connection.</p>"; }
+ }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history - check your connection.</p>"; }
 }
 async function tcResolveSos(id){
  try{
@@ -659,13 +659,13 @@ async function tcResolveSos(id){
   if(!data.ok){ toast("Could not mark resolved"); return; }
   toast("Marked resolved");
   loadSosHistory();
- }catch(e){ toast("Network error — try again"); }
+ }catch(e){ toast("Network error - try again"); }
 }
 
 /* ---------- OFFLINE SOS QUEUE ----------
    Redefines sos() (already in app-updates.js) so that if the POST to
    /api/sos fails (no network at that moment), the alert is saved locally
-   instead of just failing silently — and gets sent automatically the moment
+   instead of just failing silently - and gets sent automatically the moment
    connectivity returns, without the person needing to remember to press SOS
    again. Nothing about the actual SOS content or in-app alerting changes;
    this only adds a safety net for the "no signal right now" case. */
@@ -690,7 +690,7 @@ async function tcFlushSosQueue(){
  }
  localStorage.setItem("tc_sos_queue",JSON.stringify(remaining));
  if(remaining.length<q.length){
-  toast(remaining.length===0?"Queued SOS sent — you're back online.":"Some queued SOS messages sent — still retrying the rest.");
+  toast(remaining.length===0?"Queued SOS sent - you're back online.":"Some queued SOS messages sent - still retrying the rest.");
   loadSosHistory();
  }
 }
@@ -707,11 +707,11 @@ async function sos(){
  const payload={sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null};
  const sent=await tcSendSos(payload);
  if(sent){
-  toast(window.tcLoc?"SOS sent with your location — every logged-in user will be alerted":"SOS sent (no location — check location permission) — every logged-in user will be alerted");
+  toast(window.tcLoc?"SOS sent with your location - every logged-in user will be alerted":"SOS sent (no location - check location permission) - every logged-in user will be alerted");
   loadSosHistory();
  }else{
   tcQueueSos(payload);
-  toast("No connection right now — SOS saved and will send automatically the moment you're back online.");
+  toast("No connection right now - SOS saved and will send automatically the moment you're back online.");
  }
  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
  navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
@@ -730,9 +730,9 @@ function tcUpdateLoginIntro(){
 
 /* ---------- CUSTOMER-ONLY EXPERIENCE ----------
    Redefines render() (already in app.js) so a "customer" role ALWAYS sees
-   their own simple page — never the business tabs (Enquiries/Quotations/
-   Trips/Billing/Master/Accounts/Admin) — regardless of what hash is in the
-   URL. Also hides the tabs bar and ☰ menu entirely for customers, since none
+   their own simple page - never the business tabs (Enquiries/Quotations/
+   Trips/Billing/Master/Accounts/Admin) - regardless of what hash is in the
+   URL. Also hides the tabs bar and [menu] menu entirely for customers, since none
    of that is relevant to them. */
 function render(){
  if(!getCurrentUser()){ renderLogin(); return; }
@@ -752,7 +752,7 @@ function render(){
  if(sosBtn) sosBtn.style.display="";
  /* All "owner"-role users (the app owner and every other authorized travel
     partner) get the same full Dashboard/Enquiries/Quotations/Trips/Billing
-    tools — a partner's own business identity is shown as a card at the top
+    tools - a partner's own business identity is shown as a card at the top
     of dashboard() instead (see dashboard() below), so it feels like their
     own branded workspace while using the exact same underlying tools. */
  if(tabsEl) tabsEl.style.display="";
@@ -776,8 +776,8 @@ function customerHome(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  app().innerHTML=card("Fare Estimate & Vehicle Booking",`
   <div class="notice">&#128161; <b>How to use this:</b> (1) Fill in your trip details and tap "Calculate Estimate" to see an approximate fare. (2) Tap "Browse Available Vehicles" and search by town/pincode to find and call a travel partner directly.</div>
-  <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px">&#9888;&#65039; <b>Please note:</b> Travel Connect only connects you with travel partners — it does not own vehicles, fix final prices, or handle payments. Charges, timing and any disputes are between you and the travel partner directly. Please confirm the fare and trip details by phone with the travel partner before starting your journey.</div>
-  <p class="muted" style="font-size:11.5px">&#128736;&#65039; This app is under continuous development — you may occasionally notice small issues. Your feedback helps us improve it faster.</p>
+  <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px">&#9888;&#65039; <b>Please note:</b> Travel Connect only connects you with travel partners - it does not own vehicles, fix final prices, or handle payments. Charges, timing and any disputes are between you and the travel partner directly. Please confirm the fare and trip details by phone with the travel partner before starting your journey.</div>
+  <p class="muted" style="font-size:11.5px">&#128736;&#65039; This app is under continuous development - you may occasionally notice small issues. Your feedback helps us improve it faster.</p>
   <p class="muted">Get a quick estimate for your trip, or browse vehicles ready for a trip right now.</p>
   <div class="grid">
    <label>Vehicle category<select id="custCat">${cat}</select></label>
@@ -798,7 +798,7 @@ function customerHome(){
   </div>
   <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; Open route in Google Maps (to check KM)</button></div>
   <div class="grid" style="margin-top:8px">
-   <label>Estimated KM (total — garage to pickup, all destinations, and back to garage)<input id="custKm" type="number" value="80"></label>
+   <label>Estimated KM (total - garage to pickup, all destinations, and back to garage)<input id="custKm" type="number" value="80"></label>
    <label>Estimated hours<input id="custHours" type="number" value="8"></label>
    <label>Number of days<input id="custDays" type="number" value="1" min="1"></label>
   </div>
@@ -823,8 +823,8 @@ async function tcSendFeedback(){
  try{
   await fetch("/api/feedback",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:user.name||"",mobile:user.mobile||"",message:msg})});
   document.querySelector("#custFeedback").value="";
-  toast("Thank you — your feedback has been sent");
- }catch(e){ toast("Network error — try again"); }
+  toast("Thank you - your feedback has been sent");
+ }catch(e){ toast("Network error - try again"); }
 }
 function tcAddCustDestField(value=""){
  const c=document.querySelector("#custStopsContainer");
@@ -832,7 +832,7 @@ function tcAddCustDestField(value=""){
  const row=document.createElement("div");
  row.className="grid";
  row.style.marginTop="4px";
- row.innerHTML=`<label style="flex:1">Additional destination<input class="cust-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">✕ Remove</button>`;
+ row.innerHTML=`<label style="flex:1">Additional destination<input class="cust-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">&#10005; Remove</button>`;
  c.appendChild(row);
 }
 function tcOpenCustomerRoute(){
@@ -869,7 +869,7 @@ function tcCalcCustomerFare(){
   <div>Extra (if you exceed the above): ${money(r.addKm)}/KM or ${money(r.addHour)}/hr</div>
   <div class="total">Estimated fare: ${money(r.total)}</div>
   <div style="background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin-top:12px">
-   <div style="font-weight:bold;color:#7a5a1e">This is a standard estimate — actual offers may be lower.</div>
+   <div style="font-weight:bold;color:#7a5a1e">This is a standard estimate - actual offers may be lower.</div>
    <p class="muted" style="margin:6px 0">For the best price and to confirm your trip, contact us directly:</p>
    ${db.platform.phone1?`<div><a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a></div>`:""}
    ${db.platform.phone2?`<div><a href="tel:${esc(db.platform.phone2)}">&#128222; ${esc(db.platform.phone2)}</a></div>`:""}
@@ -877,7 +877,7 @@ function tcCalcCustomerFare(){
   </div>`;
 }
 
-/* Redefines activeBoard() (already in app.js) to add a location search box —
+/* Redefines activeBoard() (already in app.js) to add a location search box -
    customer or partner types a town/pincode ("Kozhikode") and the list filters
    to just vehicles whose partner registered that location, so the board is
    actually usable once there are vehicles from many different towns instead
@@ -900,8 +900,8 @@ function tcRenderActiveBoardList(vehicles,append){
  if(!box) return;
  if(!vehicles.length){ if(!append) box.innerHTML="<p class='muted'>No matching vehicles found.</p>"; return; }
  const html=vehicles.map(v=>`<div class="listitem">
-  <b>${esc(v.category||"Vehicle")}</b> — ${esc(v.vehicle_number)}<br>
-  ${esc(v.business_name)}${v.location?` • ${esc(v.location)} ${esc(v.pincode||"")}`:""}
+  <b>${esc(v.category||"Vehicle")}</b> - ${esc(v.vehicle_number)}<br>
+  ${esc(v.business_name)}${v.location?` * ${esc(v.location)} ${esc(v.pincode||"")}`:""}
   <div class="actions">
    <a href="tel:${esc(v.mobile1)}"><button class="primary">&#128222; Call ${esc(v.mobile1)}</button></a>
    ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
@@ -920,20 +920,20 @@ function tcFilterActiveBoard(){
   (v.category||"").toLowerCase().includes(q)
  );
  if(!filtered.length&&_tcActiveBoardVehicles.length&&box){
-  /* No partner registered in the searched area — say so clearly instead of
+  /* No partner registered in the searched area - say so clearly instead of
      just showing an empty list (which reads as "broken"), and fall back to
      showing the nearest/other currently-available vehicles plus a direct
      contact option, so the customer still has somewhere to go. */
   const contactLine=[db.platform.phone1?`<a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a>`:"",db.platform.email?`<a href="mailto:${esc(db.platform.email)}">&#9993;&#65039; ${esc(db.platform.email)}</a>`:""].filter(Boolean).join(" &nbsp;|&nbsp; ");
-  box.innerHTML=`<div class="notice">No Travel Connect partners are registered in "${esc(document.querySelector("#tcBoardSearch").value)}" yet. Here are other currently available vehicles instead — or contact us directly: ${contactLine}</div>`;
+  box.innerHTML=`<div class="notice">No Travel Connect partners are registered in "${esc(document.querySelector("#tcBoardSearch").value)}" yet. Here are other currently available vehicles instead - or contact us directly: ${contactLine}</div>`;
   tcRenderActiveBoardList(_tcActiveBoardVehicles,true);
   return;
  }
  tcRenderActiveBoardList(filtered);
 }
 
-/* Admin-only feedback viewer — same history-management pattern as
-   tcAuthorizedUsersPage() (this page is only ever reached from the ☰ Menu,
+/* Admin-only feedback viewer - same history-management pattern as
+   tcAuthorizedUsersPage() (this page is only ever reached from the [menu] Menu,
    so Back should reopen the Menu, not just land on Dashboard). */
 function tcOpenFeedbackAdmin(){
  if(!history.state||!history.state.tcPage){
@@ -955,18 +955,18 @@ async function tcRenderFeedbackAdmin(){
   if(!data.ok){ box.innerHTML="<p class='danger'>Could not load feedback.</p>"; return; }
   if(!data.feedback.length){ box.innerHTML="<p class='muted'>No feedback yet.</p>"; return; }
   box.innerHTML=data.feedback.map(f=>`<div class="listitem">
-   <b>${esc(f.name||"Anonymous")}</b> ${f.mobile?`— ${esc(f.mobile)}`:""}<br>
+   <b>${esc(f.name||"Anonymous")}</b> ${f.mobile?`- ${esc(f.mobile)}`:""}<br>
    <span class="muted">${esc((f.created_at||"").slice(0,16).replace("T"," "))}</span>
    <div style="margin-top:6px">${esc(f.message)}</div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
 
-/* Admin-only Partner Plans page — same history-management pattern as
-   tcAuthorizedUsersPage()/tcOpenFeedbackAdmin() (reached only via the ☰ Menu,
+/* Admin-only Partner Plans page - same history-management pattern as
+   tcAuthorizedUsersPage()/tcOpenFeedbackAdmin() (reached only via the [menu] Menu,
    Back should reopen the Menu). Lets the owner mark each registered partner
-   as free, paid, or owner_free (their own account / staff — permanently
-   free) — this flag is what future print/PDF branding logic will read. */
+   as free, paid, or owner_free (their own account / staff - permanently
+   free) - this flag is what future print/PDF branding logic will read. */
 function tcOpenPartnerPlans(){
  if(!history.state||!history.state.tcPage){
   history.pushState({tcPage:true,fromMenu:true},"",location.pathname+location.search+"#partnerplans");
@@ -978,7 +978,7 @@ function tcOpenPartnerPlans(){
  requireAdmin(()=>tcRenderPartnerPlans());
 }
 async function tcRenderPartnerPlans(){
- app().innerHTML=card("Partner Plans (Free / Paid)",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations. Paid = their own business branding. Owner Free = your own account/staff — always free, full features.</p><div id="tcPlansList">Loading...</div>`);
+ app().innerHTML=card("Partner Plans (Free / Paid)",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations. Paid = their own business branding. Owner Free = your own account/staff - always free, full features.</p><div id="tcPlansList">Loading...</div>`);
  tcLoadPartnerPlans();
 }
 async function tcLoadPartnerPlans(){
@@ -992,7 +992,7 @@ async function tcLoadPartnerPlans(){
   if(!data.partners.length){ box.innerHTML="<p class='muted'>No partners registered yet.</p>"; return; }
   box.innerHTML=data.partners.map(p=>`<div class="listitem">
    <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'}<br>
-   <span class="muted">${esc(p.owner_name)} • ${esc(p.mobile1)}${p.location?" • "+esc(p.location):""}</span>
+   <span class="muted">${esc(p.owner_name)} * ${esc(p.mobile1)}${p.location?" * "+esc(p.location):""}</span>
    <div class="actions" style="margin-top:6px">
     <select id="plan_${p.id}">
      <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
@@ -1019,7 +1019,7 @@ async function tcSetPartnerPlan(partnerId){
    printQuoteObj() and printBill() below. Paid/owner_free partners see their
    own business name/contact prominently (unchanged from before). Free-plan
    partners' prints instead lead with Travel Connect's own contact details and
-   a "book directly" prompt, with the partner's name shown small underneath —
+   a "book directly" prompt, with the partner's name shown small underneath -
    this is the incentive to upgrade. Actual logo upload/embedding is a larger
    feature (needs image upload + storage) left for a future update; this only
    changes which NAME/CONTACT details are shown prominently. */
@@ -1039,7 +1039,7 @@ async function partnerView(){
    renderPartnerDashboard(data.partner);
   }
  }catch(e){
-  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error — check your connection and try again.</p>";
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error - check your connection and try again.</p>";
  }
 }
 function renderPartnerRegisterForm(){
@@ -1078,13 +1078,13 @@ async function submitPartnerRegister(){
    errBox.textContent=data.error==="already_registered"?"This mobile number is already registered as a partner.":"Could not register. Please try again.";
    return;
   }
-  toast("Registered — waiting for admin verification");
+  toast("Registered - waiting for admin verification");
   partnerView();
- }catch(e){errBox.textContent="Network error — check your connection and try again.";}
+ }catch(e){errBox.textContent="Network error - check your connection and try again.";}
 }
 
 /* Redefines renderPartnerDashboard() to show the business type, an "Available
-   now" toggle, and — only for Taxi/Travel Agency — the vehicles section
+   now" toggle, and - only for Taxi/Travel Agency - the vehicles section
    (other business types don't have "vehicles" to register). */
 function renderPartnerDashboard(p){
  const isTaxi=(p.business_type||"taxi_travel")==="taxi_travel";
@@ -1092,7 +1092,7 @@ function renderPartnerDashboard(p){
  <div class="card">
   <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
   <div class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}</div>
-  <div class="muted">Owner: ${esc(p.owner_name)} • ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
+  <div class="muted">Owner: ${esc(p.owner_name)} * ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
   ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
   ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
   ${p.verified?`<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" ${p.available?"checked":""} onchange="tcTogglePartnerAvailable(${p.id},this.checked)"> Available now (show in directory search)</label>`:""}
