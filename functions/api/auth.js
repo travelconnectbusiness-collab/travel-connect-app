@@ -1,10 +1,28 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 
 /* GET ?action=users&token=...        — owner: list all logged-in users
-   GET ?action=check&mobile=...&device=... — is this mobile OR this device blocked? */
+   GET ?action=check&mobile=...&device=... — is this mobile OR this device blocked?
+   GET ?action=lookup&mobile=...       — returns this mobile's own previously-saved
+                                          name/location/pincode (if it has logged in
+                                          before), so the login screen can pre-fill
+                                          them for a returning user instead of asking
+                                          again every time. No auth needed — this only
+                                          returns what that person themselves already
+                                          typed in on an earlier login, nothing new. */
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
+
+  if (action === "lookup") {
+    const mobile = (url.searchParams.get("mobile") || "").trim();
+    if (!mobile) return Response.json({ ok: true, found: false });
+    const row = await env.DB
+      .prepare("SELECT name, location, pincode FROM app_users WHERE mobile=?")
+      .bind(mobile)
+      .first();
+    if (!row) return Response.json({ ok: true, found: false });
+    return Response.json({ ok: true, found: true, name: row.name, location: row.location, pincode: row.pincode });
+  }
 
   if (action === "users") {
     const token = url.searchParams.get("token");
