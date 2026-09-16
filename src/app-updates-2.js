@@ -101,6 +101,18 @@ function tcCheckPinLock(){
    keeping that file frozen as agreed. The later-loaded file's version wins, same
    principle as app-updates.js overriding app.js. */
 function dashboard(){
+ /* A registered non-taxi business (Auto Rickshaw, Restaurant, Petrol Pump,
+    Workshop, Hospital, Homestay/Resort/Hotel) has no use for the Quotation/
+    Billing tools — they land straight on their own Partner page (business
+    identity + Available-now toggle + Directory search) instead. This only
+    takes effect once db.settings.myBusinessType has been cached (i.e. after
+    their first visit to "Travel Partner / Vehicles"); until then, a brand
+    new registrant still sees this normal Dashboard, which is exactly where
+    that first visit happens from. */
+ if(db.settings.myBusinessType&&db.settings.myBusinessType!=="taxi_travel"){
+  partnerView();
+  return;
+ }
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card("Travel Connect Dashboard",`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
@@ -121,6 +133,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button></div>
  <hr>
  <div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
@@ -773,6 +786,7 @@ function customerHome(){
   <div id="custFareResult" class="ratebox"></div>
   <hr>
   <div class="actions"><button onclick="view('activeboard')">&#128663; Browse Available Vehicles</button></div>
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button></div>
   <hr>
   <h3>&#128172; Feedback / Suggestions</h3>
   <p class="muted">Noticed an issue, or have an idea to make this better? Let us know.</p>
@@ -998,7 +1012,9 @@ async function partnerView(){
   if(!data.ok||!data.partner){ renderPartnerRegisterForm(); }
   else{
    window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password;
-   db.settings.myPlan=data.partner.plan||"free"; save();
+   db.settings.myPlan=data.partner.plan||"free";
+   db.settings.myBusinessType=data.partner.business_type||"taxi_travel";
+   save();
    renderPartnerDashboard(data.partner);
   }
  }catch(e){
@@ -1410,4 +1426,188 @@ function openAddVehicle(partnerId){
  </div>
  <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
  <div id="vAddErr" class="danger"></div>`);
+}
+
+/* ---------- LOCAL BUSINESS DIRECTORY ----------
+   Every Travel Partner registration now picks a "Business Type" — Taxi/Travel
+   Agency keeps the full internal Quotation/Billing tools (unchanged); every
+   other type (Auto Rickshaw, Restaurant, Petrol Pump, Workshop, Hospital,
+   Homestay/Resort/Hotel) is a much simpler LISTING — a searchable directory
+   entry with location + contact, no rates/billing at all. This is what turns
+   the app into a small local directory, not just a taxi-fare tool. */
+const TC_BUSINESS_TYPES={
+ taxi_travel:"Taxi / Travel Agency",
+ auto_rickshaw:"Auto Rickshaw",
+ restaurant:"Restaurant / Tea Shop",
+ petrol_pump:"Petrol Pump",
+ workshop:"Workshop",
+ hospital:"Hospital",
+ homestay:"Homestay / Resort / Hotel"
+};
+function tcBusinessTypeOptions(selected){
+ return Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}"${k===(selected||"taxi_travel")?" selected":""}>${label}</option>`).join("");
+}
+
+/* Redefines renderPartnerRegisterForm() (already in app.js) to add the
+   Business Type dropdown. */
+function renderPartnerRegisterForm(){
+ const user=getCurrentUser();
+ document.querySelector("#partnerBox").innerHTML=`
+ <p class="muted">Register your business to appear in the local directory and (for Taxi/Travel Agency) use the full quotation/billing tools. An admin will verify your details first.</p>
+ <div class="grid">
+  <label>Business type<select id="pBizType">${tcBusinessTypeOptions()}</select></label>
+  <label>Business name<input id="pBizName"></label>
+  <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
+  <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
+  <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Email (optional)<input id="pEmail"></label>
+  <label>Location<input id="pLocation" placeholder="Town / area"></label>
+  <label>Pincode<input id="pPincode"></label>
+ </div>
+ <button class="primary" onclick="submitPartnerRegister()">Register</button>
+ <div id="pRegErr" class="danger"></div>`;
+}
+async function submitPartnerRegister(){
+ const business_name=document.querySelector("#pBizName").value.trim();
+ const owner_name=document.querySelector("#pOwnerName").value.trim();
+ const mobile1=document.querySelector("#pMobile1").value.trim();
+ const errBox=document.querySelector("#pRegErr");
+ if(!business_name||!owner_name||!mobile1){errBox.textContent="Fill in business name, owner name and mobile number.";return}
+ const body={action:"register",business_name,owner_name,mobile1,
+  business_type:document.querySelector("#pBizType").value,
+  mobile2:document.querySelector("#pMobile2").value.trim(),
+  email:document.querySelector("#pEmail").value.trim(),
+  location:document.querySelector("#pLocation").value.trim(),
+  pincode:document.querySelector("#pPincode").value.trim()};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){
+   errBox.textContent=data.error==="already_registered"?"This mobile number is already registered as a partner.":"Could not register. Please try again.";
+   return;
+  }
+  toast("Registered — waiting for admin verification");
+  partnerView();
+ }catch(e){errBox.textContent="Network error — check your connection and try again.";}
+}
+
+/* Redefines renderPartnerDashboard() to show the business type, an "Available
+   now" toggle, and — only for Taxi/Travel Agency — the vehicles section
+   (other business types don't have "vehicles" to register). */
+function renderPartnerDashboard(p){
+ const isTaxi=(p.business_type||"taxi_travel")==="taxi_travel";
+ document.querySelector("#partnerBox").innerHTML=`
+ <div class="card">
+  <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
+  <div class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}</div>
+  <div class="muted">Owner: ${esc(p.owner_name)} • ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
+  ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
+  ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
+  ${p.verified?`<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" ${p.available?"checked":""} onchange="tcTogglePartnerAvailable(${p.id},this.checked)"> Available now (show in directory search)</label>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">Edit Details</button></div>
+ </div>
+ ${isTaxi?`
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(the name/phone/UPI shown on YOUR bills)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>
+ <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
+ <h3>My Vehicles</h3>
+ <div id="myVehiclesList">Loading...</div>`:""}
+ <hr>
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
+ if(isTaxi){ renderBillingIdentitySection(p); loadMyVehicles(p.id); }
+}
+async function tcTogglePartnerAvailable(partnerId,available){
+ const user=getCurrentUser();
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_available",partner_id:partnerId,mobile:user.mobile,available})});
+  toast(available?"Marked available":"Marked unavailable");
+ }catch(e){toast("Network error");}
+}
+function tcOpenEditPartnerDetails(partnerId){
+ const p=window._myPartner;
+ modal(`<h2>Edit Business Details</h2>
+  <div class="grid">
+   <label>Business type<select id="peBizType">${tcBusinessTypeOptions(p.business_type)}</select></label>
+   <label>Business name<input id="peBizName" value="${esc(p.business_name)}"></label>
+   <label>Owner name<input id="peOwnerName" value="${esc(p.owner_name)}"></label>
+   <label>Mobile 2<input id="peMobile2" value="${esc(p.mobile2||"")}"></label>
+   <label>Email<input id="peEmail" value="${esc(p.email||"")}"></label>
+   <label>Location<input id="peLocation" value="${esc(p.location||"")}"></label>
+   <label>Pincode<input id="pePincode" value="${esc(p.pincode||"")}"></label>
+  </div>
+  <button class="primary" onclick="tcSavePartnerDetails(${partnerId})">Save</button>`);
+}
+async function tcSavePartnerDetails(partnerId){
+ const user=getCurrentUser();
+ const body={action:"update",partner_id:partnerId,mobile:user.mobile,
+  business_type:document.querySelector("#peBizType").value,
+  business_name:document.querySelector("#peBizName").value,
+  owner_name:document.querySelector("#peOwnerName").value,
+  mobile2:document.querySelector("#peMobile2").value,
+  email:document.querySelector("#peEmail").value,
+  location:document.querySelector("#peLocation").value,
+  pincode:document.querySelector("#pePincode").value};
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  toast("Details updated");
+  closeModal();
+  partnerView();
+ }catch(e){toast("Network error");}
+}
+
+/* The Directory search page — a category dropdown + town/pincode text search
+   over every verified business of any type. Reachable from Dashboard, the
+   Partner page, and the Customer page. */
+let _tcDirectoryEntries=[];
+function tcOpenDirectory(){
+ /* Reached from several places (Dashboard, Partner page, Customer page) —
+    NOT exclusively the ☰ Menu — so Back should just land on Dashboard/
+    Customer-home normally, not try to reopen the owner-only Menu. */
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:false},"",location.pathname+location.search+"#directory");
+ }else{
+  history.replaceState({tcPage:true,fromMenu:false},"",location.pathname+location.search+"#directory");
+ }
+ tcCurrentIsFromMenu=false;
+ tcMenuNavPending=false;
+ tcRenderDirectory();
+}
+async function tcRenderDirectory(){
+ const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("");
+ app().innerHTML=card("Local Directory",`
+  <p class="muted">Search verified local businesses — taxis, autos, restaurants, workshops and more.</p>
+  <div class="grid">
+   <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
+   <label>Town / pincode<input id="tcDirSearch" placeholder="e.g. Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+  </div>
+  <div id="tcDirList">Loading...</div>`);
+ try{
+  const res=await fetch("/api/partners?action=directory");
+  const data=await res.json();
+  _tcDirectoryEntries=(data.ok&&data.partners)?data.partners:[];
+  tcRenderDirectoryList(_tcDirectoryEntries);
+ }catch(e){document.querySelector("#tcDirList").innerHTML="<p class='danger'>Network error.</p>"}
+}
+function tcRenderDirectoryList(entries){
+ const box=document.querySelector("#tcDirList");
+ if(!box) return;
+ if(!entries.length){box.innerHTML="<p class='muted'>No matching businesses found.</p>";return}
+ box.innerHTML=entries.map(p=>`<div class="listitem">
+  <b>${esc(p.business_name)}</b> ${p.available?'<span class="ok">Available now</span>':''}<br>
+  <span class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}${p.location?" • "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
+  <div class="actions">
+   <a href="tel:${esc(p.mobile1)}"><button class="primary">&#128222; Call ${esc(p.mobile1)}</button></a>
+   ${p.mobile2?`<a href="tel:${esc(p.mobile2)}"><button>&#128222; Call ${esc(p.mobile2)}</button></a>`:""}
+  </div>
+ </div>`).join("");
+}
+function tcFilterDirectory(){
+ const type=document.querySelector("#tcDirType").value;
+ const q=(document.querySelector("#tcDirSearch").value||"").trim().toLowerCase();
+ let filtered=_tcDirectoryEntries;
+ if(type) filtered=filtered.filter(p=>(p.business_type||"taxi_travel")===type);
+ if(q) filtered=filtered.filter(p=>(p.location||"").toLowerCase().includes(q)||(p.pincode||"").toLowerCase().includes(q)||(p.business_name||"").toLowerCase().includes(q));
+ tcRenderDirectoryList(filtered);
 }
