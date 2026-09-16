@@ -1,5 +1,10 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /* GET ?action=mine&mobile=...           — a partner looks up their own record
    GET ?action=pending&token=...         — admin: partners awaiting verification
    GET ?action=all&token=...             — admin: every partner */
@@ -14,7 +19,9 @@ export async function onRequestGet({ request, env }) {
       .prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?")
       .bind(mobile, mobile)
       .first();
-    return Response.json({ ok: true, partner: row || null });
+    const hasPassword = !!(row && row.portal_password_hash);
+    if (row) delete row.portal_password_hash; /* never send the hash to the client */
+    return Response.json({ ok: true, partner: row || null, has_password: hasPassword });
   }
 
   if (action === "pending" || action === "all") {
@@ -27,6 +34,22 @@ export async function onRequestGet({ request, env }) {
         ? "SELECT * FROM travel_partners WHERE verified=0 ORDER BY created_at DESC"
         : "SELECT * FROM travel_partners ORDER BY created_at DESC";
     const { results } = await env.DB.prepare(sql).all();
+    return Response.json({ ok: true, partners: results });
+  }
+
+  /* Public, no auth needed — the searchable local business directory. Any
+     logged-in user (customer, auto driver, another business owner) can look
+     up verified businesses of any type by category/location. Deliberately
+     returns everyone verified, not just those marked "available now" — a
+     restaurant or workshop doesn't toggle availability the way a vehicle
+     does, so the frontend just shows an "Available now" badge when the flag
+     is set instead of filtering it out entirely. */
+  if (action === "directory") {
+    const { results } = await env.DB
+      .prepare(
+        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, available FROM travel_partners WHERE verified=1 ORDER BY business_name"
+      )
+      .all();
     return Response.json({ ok: true, partners: results });
   }
 
@@ -67,8 +90,8 @@ export async function onRequestPost({ request, env }) {
     const result = await env.DB
       .prepare(
         `INSERT INTO travel_partners
-          (business_name, owner_name, mobile1, mobile2, email, location, pincode, verified, created_at)
-         VALUES (?,?,?,?,?,?,?,0,?)`
+          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, verified, created_at)
+         VALUES (?,?,?,?,?,?,?,?,0,?)`
       )
       .bind(
         business_name,
@@ -78,6 +101,7 @@ export async function onRequestPost({ request, env }) {
         body.email || null,
         body.location || null,
         body.pincode || null,
+        body.business_type || "taxi_travel",
         now
       )
       .run();
@@ -98,7 +122,7 @@ export async function onRequestPost({ request, env }) {
     }
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
          WHERE id=?`
       )
       .bind(
@@ -108,8 +132,32 @@ export async function onRequestPost({ request, env }) {
         body.email || null,
         body.location || null,
         body.pincode || null,
+        body.business_type || "taxi_travel",
         body.partner_id
       )
+      .run();
+    return Response.json({ ok: true });
+  }
+
+  /* A business owner (any type) flips their own "available now" flag —
+     ownership checked by matching mobile, same pattern as vehicles' own
+     toggle_active. Meaningful for auto drivers/taxis; other business types
+     can just leave it on if they don't use the concept of "available now". */
+  if (action === "set_available") {
+    const mobile = (body.mobile || "").trim();
+    if (!mobile || !body.partner_id) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?")
+      .bind(body.partner_id)
+      .first();
+    if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    await env.DB
+      .prepare("UPDATE travel_partners SET available=? WHERE id=?")
+      .bind(body.available ? 1 : 0, body.partner_id)
       .run();
     return Response.json({ ok: true });
   }
@@ -122,6 +170,51 @@ export async function onRequestPost({ request, env }) {
       .prepare("UPDATE travel_partners SET verified=? WHERE id=?")
       .bind(body.verified ? 1 : 0, body.partner_id)
       .run();
+    return Response.json({ ok: true });
+  }
+
+  /* A partner sets their OWN password for editing the billing identity shown on
+     their bills (business name / phone / UPI) — this is separate from, and does
+     NOT require, the owner's admin password. It can only actually be used to
+     unlock anything once the owner has verified this partner (see action=verify
+     above) — this is enforced in action=verify_password below, not here. */
+  if (action === "set_password") {
+    const mobile = (body.mobile || "").trim();
+    const password = (body.password || "").trim();
+    if (!mobile || !password || password.length < 4) {
+      return Response.json({ ok: false, error: "invalid_input" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?")
+      .bind(body.partner_id)
+      .first();
+    if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const hash = await sha256Hex(password);
+    await env.DB
+      .prepare("UPDATE travel_partners SET portal_password_hash=? WHERE id=?")
+      .bind(hash, body.partner_id)
+      .run();
+    return Response.json({ ok: true });
+  }
+
+  /* Checks a partner's own password. Only succeeds if the owner has already
+     verified this partner — this is the "admin must approve before the partner's
+     own password can be used" gate the owner asked for. */
+  if (action === "verify_password") {
+    const password = (body.password || "").trim();
+    const row = await env.DB
+      .prepare("SELECT verified, portal_password_hash FROM travel_partners WHERE id=?")
+      .bind(body.partner_id)
+      .first();
+    if (!row || !row.verified || !row.portal_password_hash) {
+      return Response.json({ ok: false, error: "not_available" }, { status: 403 });
+    }
+    const hash = await sha256Hex(password);
+    if (hash !== row.portal_password_hash) {
+      return Response.json({ ok: false, error: "wrong_password" }, { status: 401 });
+    }
     return Response.json({ ok: true });
   }
 
