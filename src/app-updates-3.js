@@ -11,7 +11,7 @@ function tcBrandingBox(partnerPhones){
  }
  return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
   <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.platform.name||"Travel Connect")}</div>
-  <div style="color:#555;font-size:12px">Book your next trip directly — fast, reliable service</div>
+  <div style="color:#555;font-size:12px">Book your next trip directly - fast, reliable service</div>
   ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
   ${db.platform.email?`<div style="font-size:12px;color:#555">${esc(db.platform.email)}</div>`:""}
   <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
@@ -151,7 +151,7 @@ function printBill(tripId){
  </table>`;
 
  const savingsHtml=totalSavings>0?`<div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:12px;margin:10px 0;color:#1c6b2c">
-  <div style="font-weight:bold;font-size:18px">🎉 Your Total Savings: ${money(totalSavings)}</div>
+  <div style="font-weight:bold;font-size:18px">&#127881; Your Total Savings: ${money(totalSavings)}</div>
   <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div>
  </div>`:"";
 
@@ -215,11 +215,11 @@ function printBill(tripId){
  `);
 }
 
-/* Owner-only preview shortcuts — shows exactly what a regular Travel Partner
+/* Owner-only preview shortcuts - shows exactly what a regular Travel Partner
    or a Customer sees, without logging out and back in as a different role.
    Uses history the same way tcAuthorizedUsersPage()/tcOpenFeedbackAdmin() do
    (reached only from the Menu, so Back reopens the Menu). The existing
-   "← Back to Dashboard" link on the previewed page returns to the owner's
+   "<- Back to Dashboard" link on the previewed page returns to the owner's
    own dashboard normally. */
 function tcPreviewPage(hashName,renderFn){
  if(!history.state||!history.state.tcPage){
@@ -237,7 +237,7 @@ function tcPreviewPartnerPage(){ tcPreviewPage("previewpartner",partnerView); }
 function tcPreviewCustomerPage(){ tcPreviewPage("previewcustomer",customerHome); }
 
 /* Redefines openEditBillingIdentity()/saveBillingIdentity() (already in
-   app.js) to add an Email field — used on the new dashboard identity card
+   app.js) to add an Email field - used on the new dashboard identity card
    above, alongside the fields that already existed. */
 function openEditBillingIdentity(){
  modal(`<h2>Edit Billing Details</h2>
@@ -274,7 +274,7 @@ function saveBillingIdentity(){
 /* Redefines saveQuickBill() (already in app-updates.js) to fix a real crash:
    "billTrip.value=trip.id" relied on an implicit global (the #billTrip select
    element only exists as `window.billTrip` while the Billing page happens to
-   be the one currently rendered) — if navigation landed anywhere else in
+   be the one currently rendered) - if navigation landed anywhere else in
    between (e.g. a customer-role render intercepting it), this threw an
    uncaught ReferenceError that broke whatever ran right after it, which is
    what caused the erratic page-switching seen while testing. Using a proper
@@ -321,7 +321,7 @@ function saveQuickBill(){
 }
 
 /* Redefines submitAddVehicle() (already in app.js) to make the document
-   photos mandatory instead of optional — RC, Insurance, Permit, Fitness and
+   photos mandatory instead of optional - RC, Insurance, Permit, Fitness and
    PUC (plus the front photo showing the plate) must all be uploaded before
    the vehicle can be saved, since a partial submission just makes admin
    verification slower/harder later. */
@@ -335,7 +335,7 @@ async function submitAddVehicle(partnerId){
   return !(el&&el.files&&el.files[0]);
  }).map(([,label])=>label);
  if(missing.length){
-  errBox.textContent="Please upload: "+missing.join(", ")+" — all vehicle documents are required for verification.";
+  errBox.textContent="Please upload: "+missing.join(", ")+" - all vehicle documents are required for verification.";
   return;
  }
  const saveBtn=document.querySelector("#vSaveBtn");
@@ -365,9 +365,9 @@ async function submitAddVehicle(partnerId){
   const data=await res.json();
   if(!data.ok){errBox.textContent="Could not save vehicle. Please try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";return}
   closeModal();
-  toast("Vehicle added — waiting for admin verification");
+  toast("Vehicle added - waiting for admin verification");
   loadMyVehicles(partnerId);
- }catch(e){errBox.textContent="Network error — check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";}
+ }catch(e){errBox.textContent="Network error - check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";}
 }
 
 /* Redefines openAddVehicle() (already in app.js) purely to mark the document
@@ -378,7 +378,7 @@ function openAddVehicle(partnerId){
   <label>Vehicle number<input id="vNoNew" placeholder="e.g. KL 07 AB 1234"></label>
   <label>Category<input id="vCatNew" placeholder="e.g. Sedan, 17 Seat Urbania"></label>
  </div>
- <h4>Driver (optional — leave blank if same as RC owner)</h4>
+ <h4>Driver (optional - leave blank if same as RC owner)</h4>
  <div class="grid">
   <label>Driver name<input id="vDriverName"></label>
   <label>Driver mobile 1<input id="vDriverMobile1"></label>
@@ -387,7 +387,7 @@ function openAddVehicle(partnerId){
   <label>License expiry<input id="vLicExp" type="date"></label>
   <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
- <h4>Vehicle documents — all required for verification</h4>
+ <h4>Vehicle documents - all required for verification</h4>
  <div class="grid">
   <label>Front photo * (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo *<input id="vRcPhoto" type="file" accept="image/*"></label>
@@ -406,23 +406,23 @@ function openAddVehicle(partnerId){
 }
 
 /* ---------- LOCAL BUSINESS DIRECTORY ----------
-   Every Travel Partner registration now picks a "Business Type" — Taxi/Travel
+   Every Travel Partner registration now picks a "Business Type" - Taxi/Travel
    Agency keeps the full internal Quotation/Billing tools (unchanged); every
    other type (Auto Rickshaw, Restaurant, Petrol Pump, Workshop, Hospital,
-   Homestay/Resort/Hotel) is a much simpler LISTING — a searchable directory
+   Homestay/Resort/Hotel) is a much simpler LISTING - a searchable directory
    entry with location + contact, no rates/billing at all. This is what turns
    the app into a small local directory, not just a taxi-fare tool. */
 
 /* Redefines renderPartnerRegisterForm() (already in app.js) to add the
    Business Type dropdown. */
 
-/* The Directory search page — a category dropdown + town/pincode text search
+/* The Directory search page - a category dropdown + town/pincode text search
    over every verified business of any type. Reachable from Dashboard, the
    Partner page, and the Customer page. */
 let _tcDirectoryEntries=[];
 function tcOpenDirectory(){
- /* Reached from several places (Dashboard, Partner page, Customer page) —
-    NOT exclusively the ☰ Menu — so Back should just land on Dashboard/
+ /* Reached from several places (Dashboard, Partner page, Customer page) -
+    NOT exclusively the [menu] Menu - so Back should just land on Dashboard/
     Customer-home normally, not try to reopen the owner-only Menu. */
  if(!history.state||!history.state.tcPage){
   history.pushState({tcPage:true,fromMenu:false},"",location.pathname+location.search+"#directory");
@@ -436,7 +436,7 @@ function tcOpenDirectory(){
 async function tcRenderDirectory(){
  const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("");
  app().innerHTML=card("Local Directory",`
-  <p class="muted">Search verified local businesses — taxis, autos, restaurants, workshops and more.</p>
+  <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops and more.</p>
   <div class="grid">
    <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
    <label>Town / pincode<input id="tcDirSearch" placeholder="e.g. Vadakara, 673001" oninput="tcFilterDirectory()"></label>
@@ -455,7 +455,7 @@ function tcRenderDirectoryList(entries){
  if(!entries.length){box.innerHTML="<p class='muted'>No matching businesses found.</p>";return}
  box.innerHTML=entries.map(p=>`<div class="listitem">
   <b>${esc(p.business_name)}</b> ${p.available?'<span class="ok">Available now</span>':''}<br>
-  <span class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}${p.location?" • "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
+  <span class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}${p.location?" * "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
   <div class="actions">
    <a href="tel:${esc(p.mobile1)}"><button class="primary">&#128222; Call ${esc(p.mobile1)}</button></a>
    ${p.mobile2?`<a href="tel:${esc(p.mobile2)}"><button>&#128222; Call ${esc(p.mobile2)}</button></a>`:""}
@@ -478,10 +478,10 @@ function tcToggleLoginBizType(){
 }
 
 /* When someone finishes typing their mobile number on the login screen, look
-   up whether it's logged in before — if so, pre-fill Name/Location/Pincode
+   up whether it's logged in before - if so, pre-fill Name/Location/Pincode
    with what was saved LAST time (their "permanent" location), instead of
    leaving those blank and making a returning partner retype or re-GPS their
-   location on every single login. Only fills fields that are still empty —
+   location on every single login. Only fills fields that are still empty -
    never overwrites something the person already typed this session. The GPS
    "Use my current location" button stays available for the optional case
    (temporarily working from a different town) and simply overrides this. */
@@ -499,6 +499,6 @@ async function tcLookupReturningUser(){
   if(locEl&&!locEl.value&&data.location) locEl.value=data.location;
   if(pinEl&&!pinEl.value&&data.pincode) pinEl.value=data.pincode;
   const status=document.querySelector("#loginLocStatus");
-  if(status&&(data.location||data.pincode)) status.textContent="Filled in from your last login — tap 📍 only if you're somewhere different right now.";
+  if(status&&(data.location||data.pincode)) status.textContent="Filled in from your last login - tap [pin] only if you're somewhere different right now.";
  }catch(e){}
 }
