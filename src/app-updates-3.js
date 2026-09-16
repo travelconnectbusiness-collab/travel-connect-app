@@ -625,3 +625,209 @@ function calcQuote(){
  ${extraChargesHtml(extraCharges)}`;
  return {...r,...dr,driverBata:bata,extraCharges,extraTotal,gstOn,gstPct,gstAmount,final:finalWithExtras};
 }
+
+/* Redefines openEditBillingIdentity()/saveBillingIdentity() (already in
+   app-updates-2.js) to restrict the UPI ID/name fields to Paid/Owner Free
+   plan partners only - a Free-plan partner's own UPI QR isn't part of what
+   they get on the free tier, matching the same free-vs-paid distinction
+   already applied to print/PDF branding. Free-plan partners still fully
+   edit their own name/tagline/address/email/contact numbers, which stay
+   available to everyone regardless of plan. */
+function openEditBillingIdentity(){
+ const isPaid=db.settings.myPlan==="paid"||db.settings.myPlan==="owner_free";
+ modal(`<h2>Edit Billing Details</h2>
+  <p class="muted">Shown on your bills and quotations printed from this device.</p>
+  <div class="grid">
+   <label>Business name<input id="bizName" value="${esc(db.business.name)}"></label>
+   <label>Tagline<input id="bizTagline" value="${esc(db.business.tagline||"")}"></label>
+   <label>Address<input id="bizAddress" value="${esc(db.business.address||"")}"></label>
+   <label>Email<input id="bizEmail" type="email" value="${esc(db.business.email||"")}"></label>
+   <label>Contact number 1<input id="bizPhone1" value="${esc(db.business.phone||"")}"></label>
+   <label>Contact number 2<input id="bizPhone2" value="${esc(db.business.phone2||"")}"></label>
+  </div>
+  ${isPaid?`
+  <div class="grid">
+   <label>UPI ID (for payment QR)<input id="bizUpiId" value="${esc(db.business.upiId||"")}"></label>
+   <label>UPI name<input id="bizUpiName" value="${esc(db.business.upiName||"")}"></label>
+  </div>`:`
+  <div style="background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:10px;margin-top:8px;font-size:12.5px;color:#7a5a1e">
+   Your own UPI payment QR is a Premium feature. Upgrade to Premium to accept payments directly via your own UPI ID on your bills.
+  </div>`}
+  <button class="primary" onclick="saveBillingIdentity()">Save</button>`);
+}
+function saveBillingIdentity(){
+ const isPaid=db.settings.myPlan==="paid"||db.settings.myPlan==="owner_free";
+ const update={
+  name:document.querySelector("#bizName").value,
+  tagline:document.querySelector("#bizTagline").value,
+  address:document.querySelector("#bizAddress").value,
+  email:document.querySelector("#bizEmail").value,
+  phone:document.querySelector("#bizPhone1").value,
+  phone2:document.querySelector("#bizPhone2").value
+ };
+ if(isPaid){
+  update.upiId=document.querySelector("#bizUpiId").value;
+  update.upiName=document.querySelector("#bizUpiName").value;
+ }
+ Object.assign(db.business,update);
+ save();
+ closeModal();
+ toast("Billing details saved");
+ renderBillingIdentitySection(window._myPartner);
+}
+
+/* ---------- THREE-TIER PLAN SYSTEM (Free / Paid / Premium) ----------
+   Adds a shared helper for "does this plan get premium features" (Paid,
+   Premium and Owner Free all count) and redefines the functions that need
+   to use it. Also changes the UX pattern for Free-plan UPI fields: instead
+   of hiding them entirely, they're now shown (greyed out / disabled) so a
+   Free user can SEE what they're missing, with an "Unlock" button next to
+   them that shows an upgrade prompt when tapped - this is what creates the
+   upgrade temptation, rather than the feature being invisible. */
+function tcIsPremiumPlan(){
+ return db.settings.myPlan==="paid"||db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
+}
+function tcShowUpgradePrompt(feature){
+ modal(`<h2>Premium Feature</h2>
+  <p class="muted">${esc(feature||"This")} is available on Paid and Premium plans.</p>
+  <p>Contact Travel Connect to upgrade your plan and unlock this and other features (your own branding on bills, your own UPI payment QR, and more).</p>
+  ${db.platform.phone1?`<div><a href="tel:${esc(db.platform.phone1)}">Call ${esc(db.platform.phone1)}</a></div>`:""}
+  ${db.platform.email?`<div><a href="mailto:${esc(db.platform.email)}">${esc(db.platform.email)}</a></div>`:""}
+  <div class="actions" style="margin-top:10px"><button onclick="closeModal()">Close</button></div>`);
+}
+
+/* Redefines openEditBillingIdentity()/saveBillingIdentity() again - UPI
+   fields are now always shown, but disabled with an "Unlock" button for
+   Free-plan partners instead of being hidden outright. */
+function openEditBillingIdentity(){
+ const unlocked=tcIsPremiumPlan();
+ modal(`<h2>Edit Billing Details</h2>
+  <p class="muted">Shown on your bills and quotations printed from this device.</p>
+  <div class="grid">
+   <label>Business name<input id="bizName" value="${esc(db.business.name)}"></label>
+   <label>Tagline<input id="bizTagline" value="${esc(db.business.tagline||"")}"></label>
+   <label>Address<input id="bizAddress" value="${esc(db.business.address||"")}"></label>
+   <label>Email<input id="bizEmail" type="email" value="${esc(db.business.email||"")}"></label>
+   <label>Contact number 1<input id="bizPhone1" value="${esc(db.business.phone||"")}"></label>
+   <label>Contact number 2<input id="bizPhone2" value="${esc(db.business.phone2||"")}"></label>
+  </div>
+  <div class="grid">
+   <label>UPI ID (for payment QR) ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Paid/Premium)</span>'}
+    <input id="bizUpiId" value="${esc(db.business.upiId||"")}" ${unlocked?"":"disabled"}></label>
+   <label>UPI name ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Paid/Premium)</span>'}
+    <input id="bizUpiName" value="${esc(db.business.upiName||"")}" ${unlocked?"":"disabled"}></label>
+  </div>
+  ${unlocked?"":`<div class="actions"><button onclick="tcShowUpgradePrompt('Your own UPI payment QR')">&#128274; Unlock UPI payment QR</button></div>`}
+  <button class="primary" onclick="saveBillingIdentity()">Save</button>`);
+}
+function saveBillingIdentity(){
+ const unlocked=tcIsPremiumPlan();
+ const update={
+  name:document.querySelector("#bizName").value,
+  tagline:document.querySelector("#bizTagline").value,
+  address:document.querySelector("#bizAddress").value,
+  email:document.querySelector("#bizEmail").value,
+  phone:document.querySelector("#bizPhone1").value,
+  phone2:document.querySelector("#bizPhone2").value
+ };
+ if(unlocked){
+  update.upiId=document.querySelector("#bizUpiId").value;
+  update.upiName=document.querySelector("#bizUpiName").value;
+ }
+ Object.assign(db.business,update);
+ save();
+ closeModal();
+ toast("Billing details saved");
+ renderBillingIdentitySection(window._myPartner);
+}
+
+/* Redefines tcBrandingBox() (already in app-updates-2.js) to use the shared
+   three-tier check instead of its own inline "paid"/"owner_free" check. */
+function tcBrandingBox(partnerPhones){
+ if(tcIsPremiumPlan()){
+  return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+   <div style="font-weight:bold;font-size:21px;color:#0f5a55">${esc(db.business.name)}</div>
+   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+   ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
+   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+  </div>`;
+ }
+ return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.platform.name||"Travel Connect")}</div>
+  <div style="color:#555;font-size:12px">Book your next trip directly - fast, reliable service</div>
+  ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
+  ${db.platform.email?`<div style="font-size:12px;color:#555">${esc(db.platform.email)}</div>`:""}
+  <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
+ </div>`;
+}
+
+/* Redefines dashboard() (already in app-updates-2.js) purely for the
+   plan-status line at the bottom of the identity card, to use the shared
+   three-tier check and mention "Premium" as the upgrade target. */
+function dashboard(){
+ if(db.settings.myBusinessType&&db.settings.myBusinessType!=="taxi_travel"){
+  partnerView();
+  return;
+ }
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
+ app().innerHTML=card("Travel Connect Dashboard",`
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
+  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||"Your Business Name")}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button></div>
+  ${tcIsPremiumPlan()?
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill & quotation</div>`:
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name & contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
+ </div>
+ <div class="actions">
+  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
+  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
+  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
+ </div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">Local Directory (autos, restaurants, workshops...)</button></div>
+ <hr>
+ <div class="grid">
+ <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry -> Quotation -> Confirmation -> Trip -> Final Bill -> Payment -> Accounts</p>
+ <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ `);
+}
+
+/* Redefines tcRenderPartnerPlans()/tcLoadPartnerPlans() (already in
+   app-updates-2.js) to add "Premium" as a third selectable tier alongside
+   Free/Paid/Owner Free. */
+async function tcRenderPartnerPlans(){
+ app().innerHTML=card("Partner Plans",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations, no own UPI QR. Paid/Premium = their own business branding + own UPI payment QR. Owner Free = your own account/staff - always free, full features.</p><div id="tcPlansList">Loading...</div>`);
+ tcLoadPartnerPlans();
+}
+async function tcLoadPartnerPlans(){
+ const box=document.querySelector("#tcPlansList");
+ if(!box) return;
+ try{
+  const token=sessionStorage.getItem("tc_admin_token");
+  const res=await fetch("/api/partner_plan?action=list&token="+encodeURIComponent(token));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load partners.</p>"; return; }
+  if(!data.partners.length){ box.innerHTML="<p class='muted'>No partners registered yet.</p>"; return; }
+  box.innerHTML=data.partners.map(p=>`<div class="listitem">
+   <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'}<br>
+   <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
+   <div class="actions" style="margin-top:6px">
+    <select id="plan_${p.id}">
+     <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
+     <option value="paid" ${p.plan==="paid"?"selected":""}>Paid</option>
+     <option value="premium" ${p.plan==="premium"?"selected":""}>Premium</option>
+     <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Free</option>
+    </select>
+    <button class="primary" onclick="tcSetPartnerPlan(${p.id})">Save</button>
+   </div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
