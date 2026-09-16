@@ -502,3 +502,101 @@ async function tcLookupReturningUser(){
   if(status&&(data.location||data.pincode)) status.textContent="Filled in from your last login - tap [pin] only if you're somewhere different right now.";
  }catch(e){}
 }
+
+/* ---------- QUOTATION FORM FIXES ----------
+   Redefines quoteForm() (already in app.js) purely to change the default
+   Estimated KM/Hours from "80"/"8" to blank. Those defaults were already
+   ABOVE the Local Trip limit on a fresh form (localMaxKm is admin-set, e.g.
+   60) — so simply changing Vehicle Category (which also fires
+   handleTripTypeChange()) triggered a premature "switched to One Day" popup
+   before the person had even reached the KM field to enter their real
+   number. A blank default can never exceed any limit, so no popup fires
+   until KM/Hours actually holds a real, user-entered value. */
+function quoteForm(){
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ return `<div class="grid">
+ <label>Customer name<input id="qName"></label><label>Customer mobile<input id="qMobile"></label>
+ <label>Trip type<select id="qType" onchange="handleTripTypeChange()">
+   <option value="local">Local Trip</option>
+   <option value="one_day">One Day</option>
+   <option value="round">Round Trip</option>
+   <option value="outstation">Outstation</option>
+   <option value="drop">Drop</option>
+ </select></label>
+ <label>Vehicle category<select id="qCat" onchange="handleTripTypeChange()">${cat}</select></label>
+ <label>Vehicle<input id="qVehicle"></label><label>Vehicle number<input id="qVehicleNo"></label>
+ <label><b>&#128663; Vehicle start point (garage/office)</b><input id="qVehicleStart" value="${esc(db.business.officeLocation)}"></label>
+ <label><b>Customer pickup point</b><input id="qPickup"></label>
+ <label>Destination 1<input id="qDest"></label></div>
+ <div id="qStopsContainer"></div>
+ <div class="actions">
+  <button type="button" onclick="addStopField()">+ Add another destination</button>
+  <button type="button" onclick="openRoute()">🗺️ Open route in Google Maps</button>
+ </div>
+ <div class="grid">
+ <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
+ <label>Estimated KM<input id="qKm" type="number" placeholder="e.g. 40" oninput="handleLocalCheck()"></label>
+ <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
+ <label>Estimated hours<input id="qHours" type="number" placeholder="e.g. 4" oninput="handleLocalCheck()"></label>
+ <label>Start date<input id="qStart" type="date"></label>
+ <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
+ <label>Closing time<input id="qCloseTime" type="time"></label>
+ <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
+ <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
+ <label>Rate<select id="qRate">${rateOptions()}</select></label>
+ <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
+ <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
+ <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
+ <label>Discount type<select id="qDiscType">
+   <option value="none">No discount</option>
+   <option value="percent">Percentage (%)</option>
+   <option value="fixed">Fixed amount (₹)</option>
+ </select></label>
+ <label>Discount value<input id="qDiscValue" type="number" value="0"></label>
+ <label>Round off to<select id="qRound">
+   <option value="0">No rounding</option>
+   <option value="10">Nearest ₹10</option>
+   <option value="50">Nearest ₹50</option>
+   <option value="100">Nearest ₹100</option>
+ </select></label>
+ <label><b>Advance requested (optional)</b><select id="qAdvancePct" onchange="updateAdvanceAmount()">
+   <option value="0">No advance</option>
+   <option value="10">10%</option>
+   <option value="25">25%</option>
+   <option value="50">50%</option>
+   <option value="manual">Manual amount</option>
+ </select></label>
+ <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
+ </div>
+ <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
+}
+
+/* Redefines calcQuote() (already in app.js) purely to show the actual excess
+   KM/hours quantity next to the extra charge — e.g. "Extra KM: 5 KM = ₹805"
+   instead of just "Extra KM: ₹805" — matching how the Final Bill screen
+   already shows this (loadBill()), so a partner can see WHY the extra charge
+   is what it is, not just the rupee figure. */
+function calcQuote(){
+ handleLocalCheck();
+ const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
+ if(r.invalid){
+  qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
+  return r;
+ }
+ const bata=(document.querySelector("#qBataOn")?.checked)?(+qBata.value||0):0;
+ const preDiscount=r.total+bata;
+ const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
+ const km=+qKm.value||0, h=+qHours.value||0;
+ qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
+ ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>
+ <div>Extra KM: ${Math.max(0,km-r.incKm)} KM = ${money(r.kmExtra||0)}</div><div>Extra Hour: ${Math.max(0,h-r.incHours)} hrs = ${money(r.hourExtra||0)}</div>`:
+ `<div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>`}
+ <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
+ <div>Fare Subtotal: ${money(r.total)}</div>
+ ${bata?`<div>Driver Bata: ${money(bata)}</div>`:""}
+ <div>Subtotal: ${money(preDiscount)}</div>
+ ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
+ ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
+ <div class="total">Final quoted fare: ${money(dr.final)}</div>`;
+ return {...r,...dr,driverBata:bata};
+}
