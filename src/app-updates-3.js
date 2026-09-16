@@ -503,15 +503,16 @@ async function tcLookupReturningUser(){
  }catch(e){}
 }
 
-/* ---------- QUOTATION FORM FIXES ----------
-   Redefines quoteForm() (already in app.js) purely to change the default
-   Estimated KM/Hours from "80"/"8" to blank. Those defaults were already
-   ABOVE the Local Trip limit on a fresh form (localMaxKm is admin-set, e.g.
-   60) — so simply changing Vehicle Category (which also fires
-   handleTripTypeChange()) triggered a premature "switched to One Day" popup
-   before the person had even reached the KM field to enter their real
-   number. A blank default can never exceed any limit, so no popup fires
-   until KM/Hours actually holds a real, user-entered value. */
+/* ---------- QUOTATION FORM FIX (CORRECTED) ----------
+   Redefines quoteForm() (already in app-updates.js) to fix the premature
+   "switched to One Day" popup: Estimated KM/Hours had a fixed default
+   ("80"/"8", above localMaxKm) - so simply changing Vehicle Category
+   (which fires handleTripTypeChange()) triggered the switch before the
+   person had reached the KM field at all. This version is otherwise
+   IDENTICAL to app-updates.js's quoteForm() (Days/Rest Hours/Override
+   Rates/Entry Date/Valid Until/Extra Charges/GST/inline Print+PDF buttons
+   all preserved) - only the two default values changed to blank
+   placeholders, since a blank value can never exceed any limit. */
 function quoteForm(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  return `<div class="grid">
@@ -531,17 +532,22 @@ function quoteForm(){
  <div id="qStopsContainer"></div>
  <div class="actions">
   <button type="button" onclick="addStopField()">+ Add another destination</button>
-  <button type="button" onclick="openRoute()">🗺️ Open route in Google Maps</button>
+  <button type="button" onclick="openRoute()">Open route in Google Maps</button>
  </div>
  <div class="grid">
  <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
  <label>Estimated KM<input id="qKm" type="number" placeholder="e.g. 40" oninput="handleLocalCheck()"></label>
- <button type="button" onclick="doubleKm()" style="align-self:flex-end">&harr; Double KM (for Drop / return trip)</button>
+ <button type="button" onclick="doubleKm()" style="align-self:flex-end">Double KM (for Drop / return trip)</button>
  <label>Estimated hours<input id="qHours" type="number" placeholder="e.g. 4" oninput="handleLocalCheck()"></label>
+ <label>Number of days (for outstation trips)<input id="qDays" type="number" value="1" min="1"></label>
+ <label>Overnight rest hours (excluded from billing - customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
+ <label>Override Extra KM Rate (optional - for high-range/heavy-traffic/bad-road trips)<input id="qOverrideAddKm" type="number" placeholder="Leave blank to use selected rate's own value"></label>
+ <label>Override Extra Hour Rate (optional)<input id="qOverrideAddHour" type="number" placeholder="Leave blank to use selected rate's own value"></label>
+ <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
  <label>Start date<input id="qStart" type="date"></label>
  <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
- <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">&#8635; Calculate hours from Start/Closing time</button>
+ <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">Calculate hours from Start/Closing time</button>
  <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
  <label>Rate<select id="qRate">${rateOptions()}</select></label>
  <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
@@ -550,14 +556,14 @@ function quoteForm(){
  <label>Discount type<select id="qDiscType">
    <option value="none">No discount</option>
    <option value="percent">Percentage (%)</option>
-   <option value="fixed">Fixed amount (₹)</option>
+   <option value="fixed">Fixed amount (Rs.)</option>
  </select></label>
  <label>Discount value<input id="qDiscValue" type="number" value="0"></label>
  <label>Round off to<select id="qRound">
    <option value="0">No rounding</option>
-   <option value="10">Nearest ₹10</option>
-   <option value="50">Nearest ₹50</option>
-   <option value="100">Nearest ₹100</option>
+   <option value="10">Nearest Rs.10</option>
+   <option value="50">Nearest Rs.50</option>
+   <option value="100">Nearest Rs.100</option>
  </select></label>
  <label><b>Advance requested (optional)</b><select id="qAdvancePct" onchange="updateAdvanceAmount()">
    <option value="0">No advance</option>
@@ -567,18 +573,27 @@ function quoteForm(){
    <option value="manual">Manual amount</option>
  </select></label>
  <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
+ <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
  </div>
- <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
+ ${extraChargeFieldsHtml("qExtra")}
+ <div class="grid">
+  <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
+  <label>GST %<input id="qGstPct" type="number" value="0" disabled></label>
+ </div>
+ <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
 }
 
-/* Redefines calcQuote() (already in app.js) purely to show the actual excess
-   KM/hours quantity next to the extra charge — e.g. "Extra KM: 5 KM = ₹805"
-   instead of just "Extra KM: ₹805" — matching how the Final Bill screen
-   already shows this (loadBill()), so a partner can see WHY the extra charge
-   is what it is, not just the rupee figure. */
+/* Redefines calcQuote() (already in app-updates.js) to show the actual
+   excess KM/hours quantity next to the extra charge - e.g.
+   "Extra KM: 5 KM = Rs.805" instead of just "Extra KM: Rs.805" - matching
+   how the Final Bill screen already shows this. Everything else (Days,
+   Rest Hours, Override rates, Extra Charges, GST) is unchanged. */
 function calcQuote(){
  handleLocalCheck();
- const c=db.categories[+qCat.value],r=calcFare(c,qRate.value,+qKm.value||0,+qHours.value||0);
+ const c=db.categories[+qCat.value],days=+document.querySelector("#qDays").value||1,restHours=+document.querySelector("#qRestHours").value||0;
+ const overrides={addKm:document.querySelector("#qOverrideAddKm").value,addHour:document.querySelector("#qOverrideAddHour").value};
+ const km=+qKm.value||0, h=+qHours.value||0;
+ const r=calcFare(c,qRate.value,km,h,days,restHours,overrides);
  if(r.invalid){
   qCalc.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b><br>Select another trip type/rate.</div>`;
   return r;
@@ -586,17 +601,27 @@ function calcQuote(){
  const bata=(document.querySelector("#qBataOn")?.checked)?(+qBata.value||0):0;
  const preDiscount=r.total+bata;
  const dr=applyDiscountRound(preDiscount,qDiscType.value,+qDiscValue.value||0,+qRound.value||0);
- const km=+qKm.value||0, h=+qHours.value||0;
+ const extraCharges=readExtraChargeFields("qExtra");
+ const extraTotal=sumExtraCharges(extraCharges);
+ const gstOn=document.querySelector("#qGstOn")?.checked||false;
+ const gstPct=gstOn?(+document.querySelector("#qGstPct").value||0):0;
+ const preGst=dr.final+extraTotal;
+ const gstAmount=gstOn?Math.round(preGst*gstPct/100):0;
+ const finalWithExtras=preGst+gstAmount;
  qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>
  <div>Extra KM: ${Math.max(0,km-r.incKm)} KM = ${money(r.kmExtra||0)}</div><div>Extra Hour: ${Math.max(0,h-r.incHours)} hrs = ${money(r.hourExtra||0)}</div>`:
  `<div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>`}
+ ${(r.addKmOverridden||r.addHourOverridden)?`<div class="muted">Using overridden extra rate: Rs.${r.addKm}/KM, Rs.${r.addHour}/hr</div>`:""}
  <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
  <div>Fare Subtotal: ${money(r.total)}</div>
  ${bata?`<div>Driver Bata: ${money(bata)}</div>`:""}
  <div>Subtotal: ${money(preDiscount)}</div>
  ${dr.discountAmount?`<div>Discount: -${money(dr.discountAmount)}</div>`:""}
  ${dr.roundAdjustment?`<div>Round off: ${dr.roundAdjustment>=0?"+":""}${money(dr.roundAdjustment)}</div>`:""}
- <div class="total">Final quoted fare: ${money(dr.final)}</div>`;
- return {...r,...dr,driverBata:bata};
+ ${extraTotal>0?`<div>Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
+ ${gstAmount>0?`<div>GST @ ${gstPct}%: +${money(gstAmount)}</div>`:""}
+ <div class="total">Final quoted fare: ${money(finalWithExtras)}</div>
+ ${extraChargesHtml(extraCharges)}`;
+ return {...r,...dr,driverBata:bata,extraCharges,extraTotal,gstOn,gstPct,gstAmount,final:finalWithExtras};
 }
