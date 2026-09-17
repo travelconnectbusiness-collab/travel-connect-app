@@ -439,7 +439,7 @@ async function tcRenderDirectory(){
   <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops and more.</p>
   <div class="grid">
    <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
-   <label>Town / pincode<input id="tcDirSearch" placeholder="e.g. Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+   <label>Business name, town or pincode<input id="tcDirSearch" placeholder="e.g. Hotel Anugraha, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
   </div>
   <div id="tcDirList">Loading...</div>`);
  try{
@@ -467,13 +467,57 @@ function tcRenderDirectoryList(entries){
  </div>`;
  }).join("");
 }
+/* Related search terms grouped together - searching any one term in a group
+   also matches businesses using another term in the SAME group (e.g.
+   "textiles" finds a "Readymade Shop", "barber" finds a "Beauty Parlour").
+   This list is deliberately easy to extend - just add more groups/terms as
+   more local business types register. */
+const TC_SEARCH_SYNONYMS=[
+ ["textiles","readymade","readymade shop","garments","clothes","clothing","tailor","tailoring"],
+ ["barber","barber shop","salon","beauty parlour","beauty parlor","hair salon","hair cutting","spa"],
+ ["supermarket","grocery","grocery store","provision store","kirana","general store","pala charakku","palachakku"],
+ ["hospital","clinic","medical","doctor","pharmacy","medical store","medicals"],
+ ["hotel","restaurant","food","eatery","dine","dining","tea shop","bakery"],
+ ["auto","auto rickshaw","rickshaw","three wheeler","autorickshaw"],
+ ["workshop","garage","service center","service centre","mechanic","car service","bike service"],
+ ["petrol pump","fuel station","gas station","bunk","diesel"],
+ ["homestay","resort","lodge","guest house","hotel stay"],
+ ["pet shop","pet store","animal shop","aquarium"],
+ ["taxi","cab","travel agency","tour operator","tours and travels"]
+];
+function tcExpandSearchTerms(q){
+ const terms=new Set([q]);
+ TC_SEARCH_SYNONYMS.forEach(group=>{
+  const matches=group.some(term=>term.includes(q)||q.includes(term));
+  if(matches) group.forEach(term=>terms.add(term));
+ });
+ return [...terms];
+}
 function tcFilterDirectory(){
  const type=document.querySelector("#tcDirType").value;
  const q=(document.querySelector("#tcDirSearch").value||"").trim().toLowerCase();
  let filtered=_tcDirectoryEntries;
  if(type==="other") filtered=filtered.filter(p=>!TC_BUSINESS_TYPES.hasOwnProperty(p.business_type||"taxi_travel"));
  else if(type) filtered=filtered.filter(p=>(p.business_type||"taxi_travel")===type);
- if(q) filtered=filtered.filter(p=>(p.location||"").toLowerCase().includes(q)||(p.pincode||"").toLowerCase().includes(q)||(p.business_name||"").toLowerCase().includes(q));
+ if(q){
+  const terms=tcExpandSearchTerms(q);
+  filtered=filtered.filter(p=>{
+   const haystack=[(p.location||""),(p.pincode||""),(p.business_name||""),tcBizLabel(p.business_type)].join(" ").toLowerCase();
+   return terms.some(t=>haystack.includes(t));
+  });
+ }
+ const box=document.querySelector("#tcDirList");
+ if(!filtered.length&&q&&box){
+  /* Nothing registered matches this search - offer a Google Maps fallback
+     so the customer still finds SOMETHING, clearly separated from our own
+     verified listings (which are never mixed in with external results). */
+  const areaHint=document.querySelector("#loginLocation")?.value||"";
+  const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q+(areaHint?", "+areaHint:""));
+  box.innerHTML=`<div class="notice">No Travel Connect partners registered under "${esc(document.querySelector("#tcDirSearch").value)}" yet.
+   <div class="actions" style="margin-top:8px"><a href="${mapsUrl}" target="_blank"><button>&#128269; Search on Google Maps instead</button></a></div>
+  </div>`;
+  return;
+ }
  tcRenderDirectoryList(filtered);
 }
 
