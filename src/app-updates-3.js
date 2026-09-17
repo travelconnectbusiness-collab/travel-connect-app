@@ -1016,3 +1016,327 @@ function tcFilterActiveBoard(){
  }
  tcRenderActiveBoardList(filtered);
 }
+
+/* ---------- "OTHER" BUSINESS CATEGORY ----------
+   Redefines tcBusinessTypeOptions() and adds helpers so any business type
+   dropdown (login, registration, edit) can offer "Other (please specify)" -
+   selecting it reveals a text field for a custom category name, which is
+   stored directly as business_type (no schema change needed; any value not
+   matching a known key is just displayed as typed everywhere). */
+function tcBusinessTypeOptions(selected){
+ const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
+ let html=Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}"${k===(selected||"taxi_travel")?" selected":""}>${label}</option>`).join("");
+ html+=`<option value="other"${!isKnown?" selected":""}>Other (please specify)</option>`;
+ return html;
+}
+function tcBizLabel(businessType){
+ return TC_BUSINESS_TYPES[businessType]||businessType||"Taxi / Travel Agency";
+}
+function tcBizTypeFieldHtml(selectId,otherId,selected){
+ const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
+ const otherValue=isKnown?"":selected;
+ return `<select id="${selectId}" onchange="tcToggleOtherBizType('${selectId}','${otherId}')">${tcBusinessTypeOptions(selected)}</select>
+  <input id="${otherId}" placeholder="Enter your business category" value="${esc(otherValue)}" style="${isKnown?"display:none;":""}margin-top:6px;width:100%;box-sizing:border-box">`;
+}
+function tcToggleOtherBizType(selectId,otherId){
+ const sel=document.querySelector("#"+selectId);
+ const other=document.querySelector("#"+otherId);
+ if(!sel||!other) return;
+ other.style.display=sel.value==="other"?"":"none";
+}
+function tcResolveBizType(selectId,otherId){
+ const sel=document.querySelector("#"+selectId)?.value||"taxi_travel";
+ if(sel==="other"){
+  const custom=(document.querySelector("#"+otherId)?.value||"").trim();
+  return custom||"other";
+ }
+ return sel;
+}
+
+/* Redefines renderLogin() again - just the Business Type block, now using
+   the shared "Other" field helper. */
+function renderLogin(){
+ const inviteToken=new URLSearchParams(location.search).get("invite")||"";
+ const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
+ document.querySelector("#app").innerHTML=`
+ <div style="display:flex;align-items:center;justify-content:center;padding:30px 16px">
+  <div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:30px 26px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+   ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
+   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
+   <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
+   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business - or book a vehicle and check fare estimates for your own trips.</p>
+   <div style="text-align:left;margin-bottom:14px">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">I am a...</label>
+    <div style="display:flex;gap:8px">
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" checked onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> Business Owner</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer" onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> Customer</label>
+    </div>
+   </div>
+   <div id="loginBizTypeWrap" style="text-align:left;margin-bottom:14px">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">What kind of business?</label>
+    ${tcBizTypeFieldHtml("loginBizType","loginBizTypeOther")}
+   </div>
+   <div style="text-align:left">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Your name</label>
+    <input id="loginName" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Mobile number</label>
+    <input id="loginMobile" type="tel" onblur="tcLookupReturningUser()" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Email (optional)</label>
+    <input id="loginEmail" type="email" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Location / town (optional)</label>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+     <input id="loginLocation" style="flex:1;padding:11px;border-radius:9px;border:1px solid #c9d4dc;font-size:15px;box-sizing:border-box">
+     <button type="button" onclick="tcUseMyLocation()" title="Use my current location" style="padding:0 12px;border-radius:9px;border:1px solid #c9d4dc;background:#f5f8fa;font-size:16px">&#128205;</button>
+    </div>
+    <div id="loginLocStatus" style="font-size:11.5px;color:#6a7a87;margin:-8px 0 10px"></div>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Pincode (optional)</label>
+    <input id="loginPincode" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
+   </div>
+   <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
+   <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">Continue</button>
+  </div>
+ </div>`;
+}
+
+/* Redefines submitLogin() again - businessType now resolved via
+   tcResolveBizType() so "Other" + custom text works at login time too. */
+async function submitLogin(inviteToken){
+ const name=document.querySelector("#loginName").value.trim();
+ const mobile=document.querySelector("#loginMobile").value.trim();
+ const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
+ const businessType=(role==="owner")?tcResolveBizType("loginBizType","loginBizTypeOther"):"";
+ const email=document.querySelector("#loginEmail")?.value.trim()||"";
+ const location_=document.querySelector("#loginLocation")?.value.trim()||"";
+ const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
+ const lat=window.tcLoginCoords?window.tcLoginCoords.lat:null;
+ const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
+ const errBox=document.querySelector("#loginError");
+ if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,role,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const data=await res.json();
+  if(!data.ok){
+   if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
+   else if(data.error==="not_authorized") errBox.textContent="This mobile number is not authorized to use this app. Contact the app owner to be added.";
+   else errBox.textContent="Login failed. Please try again.";
+   return;
+  }
+  localStorage.setItem("tc_user",JSON.stringify({name,mobile,role,isAppOwner:!!data.isOwner}));
+  if(businessType) localStorage.setItem("tc_chosen_business_type",businessType);
+  await syncConfigFromServer();
+  location.hash="dashboard";
+  render();
+ }catch(e){
+  errBox.textContent="Network error - check your connection and try again.";
+ }
+}
+
+/* Redefines renderPartnerRegisterForm()/submitPartnerRegister() again to
+   use the shared "Other" business type field. */
+function renderPartnerRegisterForm(){
+ const user=getCurrentUser();
+ document.querySelector("#partnerBox").innerHTML=`
+ <p class="muted">Register your business to appear in the local directory and (for Taxi/Travel Agency) use the full quotation/billing tools. An admin will verify your details first.</p>
+ <div class="grid">
+  <label>Business type<div>${tcBizTypeFieldHtml("pBizType","pBizTypeOther",localStorage.getItem("tc_chosen_business_type"))}</div></label>
+  <label>Business name<input id="pBizName"></label>
+  <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
+  <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
+  <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Email (optional)<input id="pEmail"></label>
+  <label>Location<input id="pLocation" placeholder="Town / area"></label>
+  <label>Pincode<input id="pPincode"></label>
+ </div>
+ <button class="primary" onclick="submitPartnerRegister()">Register</button>
+ <div id="pRegErr" class="danger"></div>`;
+}
+async function submitPartnerRegister(){
+ const business_name=document.querySelector("#pBizName").value.trim();
+ const owner_name=document.querySelector("#pOwnerName").value.trim();
+ const mobile1=document.querySelector("#pMobile1").value.trim();
+ const errBox=document.querySelector("#pRegErr");
+ if(!business_name||!owner_name||!mobile1){errBox.textContent="Fill in business name, owner name and mobile number.";return}
+ const body={action:"register",business_name,owner_name,mobile1,
+  business_type:tcResolveBizType("pBizType","pBizTypeOther"),
+  mobile2:document.querySelector("#pMobile2").value.trim(),
+  email:document.querySelector("#pEmail").value.trim(),
+  location:document.querySelector("#pLocation").value.trim(),
+  pincode:document.querySelector("#pPincode").value.trim()};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){
+   errBox.textContent=data.error==="already_registered"?"This mobile number is already registered as a partner.":"Could not register. Please try again.";
+   return;
+  }
+  toast("Registered - waiting for admin verification");
+  partnerView();
+ }catch(e){errBox.textContent="Network error - check your connection and try again.";}
+}
+
+/* Redefines tcOpenEditPartnerDetails()/tcSavePartnerDetails() again for the
+   shared "Other" business type field. */
+function tcOpenEditPartnerDetails(partnerId){
+ const p=window._myPartner;
+ modal(`<h2>Edit Business Details</h2>
+  <div class="grid">
+   <label>Business type<div>${tcBizTypeFieldHtml("peBizType","peBizTypeOther",p.business_type)}</div></label>
+   <label>Business name<input id="peBizName" value="${esc(p.business_name)}"></label>
+   <label>Owner name<input id="peOwnerName" value="${esc(p.owner_name)}"></label>
+   <label>Mobile 2<input id="peMobile2" value="${esc(p.mobile2||"")}"></label>
+   <label>Email<input id="peEmail" value="${esc(p.email||"")}"></label>
+   <label>Location<input id="peLocation" value="${esc(p.location||"")}"></label>
+   <label>Pincode<input id="pePincode" value="${esc(p.pincode||"")}"></label>
+  </div>
+  <button class="primary" onclick="tcSavePartnerDetails(${partnerId})">Save</button>`);
+}
+async function tcSavePartnerDetails(partnerId){
+ const user=getCurrentUser();
+ const body={action:"update",partner_id:partnerId,mobile:user.mobile,
+  business_type:tcResolveBizType("peBizType","peBizTypeOther"),
+  business_name:document.querySelector("#peBizName").value,
+  owner_name:document.querySelector("#peOwnerName").value,
+  mobile2:document.querySelector("#peMobile2").value,
+  email:document.querySelector("#peEmail").value,
+  location:document.querySelector("#peLocation").value,
+  pincode:document.querySelector("#pePincode").value};
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  toast("Details updated");
+  closeModal();
+  partnerView();
+ }catch(e){toast("Network error");}
+}
+
+/* Redefines tcRenderDirectoryList()/tcRenderPartnerPlans()/
+   renderPartnerDashboard() display bits again, to use tcBizLabel() instead
+   of the old fallback that wrongly showed "Taxi / Travel Agency" for a
+   custom "Other" category. */
+function tcRenderDirectoryList(entries){
+ const box=document.querySelector("#tcDirList");
+ if(!box) return;
+ if(!entries.length){box.innerHTML="<p class='muted'>No matching businesses found.</p>";return}
+ box.innerHTML=entries.map(p=>{
+  const mapsQuery=[p.business_name,p.location,p.pincode].filter(Boolean).join(", ");
+  const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
+  return `<div class="listitem">
+  <b>${esc(p.business_name)}</b> ${p.available?'<span class="ok">Available now</span>':''}<br>
+  <span class="muted">${esc(tcBizLabel(p.business_type))}${p.location?" * "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
+  <div class="actions">
+   <a href="tel:${esc(p.mobile1)}"><button class="primary">&#128222; Call ${esc(p.mobile1)}</button></a>
+   ${p.mobile2?`<a href="tel:${esc(p.mobile2)}"><button>&#128222; Call ${esc(p.mobile2)}</button></a>`:""}
+   ${p.location?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
+  </div>
+ </div>`;
+ }).join("");
+}
+async function tcLoadPartnerPlans(){
+ const box=document.querySelector("#tcPlansList");
+ if(!box) return;
+ try{
+  const token=sessionStorage.getItem("tc_admin_token");
+  const res=await fetch("/api/partner_plan?action=list&token="+encodeURIComponent(token));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML="<p class='danger'>Could not load partners.</p>"; return; }
+  if(!data.partners.length){ box.innerHTML="<p class='muted'>No partners registered yet.</p>"; return; }
+  box.innerHTML=data.partners.map(p=>`<div class="listitem">
+   <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizLabel(p.business_type))}</span><br>
+   <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
+   <div class="actions" style="margin-top:6px">
+    <select id="plan_${p.id}">
+     <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
+     <option value="paid" ${p.plan==="paid"?"selected":""}>Paid</option>
+     <option value="premium" ${p.plan==="premium"?"selected":""}>Premium</option>
+     <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Free</option>
+    </select>
+    <button class="primary" onclick="tcSetPartnerPlan(${p.id})">Save</button>
+   </div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+function renderPartnerDashboard(p){
+ const isTaxi=(p.business_type||"taxi_travel")==="taxi_travel";
+ document.querySelector("#partnerBox").innerHTML=`
+ <div class="card">
+  <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
+  <div class="muted">${esc(tcBizLabel(p.business_type))}</div>
+  <div class="muted">Owner: ${esc(p.owner_name)} - ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
+  ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
+  ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
+  ${p.verified?`<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" ${p.available?"checked":""} onchange="tcTogglePartnerAvailable(${p.id},this.checked)"> Available now (show in directory search)</label>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">Edit Details</button></div>
+ </div>
+ ${isTaxi?`
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(the name/phone/UPI shown on YOUR bills)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>
+ <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
+ <h3>My Vehicles</h3>
+ <div id="myVehiclesList">Loading...</div>`:`
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(the name/phone/UPI shown if you ever bill someone)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>`}
+ <hr>
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
+ renderBillingIdentitySection(p);
+ if(isTaxi) loadMyVehicles(p.id);
+}
+
+/* ---------- SIMPLE PAY-BY-QR FOR NON-TAXI PARTNERS ----------
+   Redefines renderPartnerDashboard() again to add a "Collect Payment" card
+   for non-taxi business types (a hotel/restaurant/auto driver without their
+   own printed QR sign can type an amount and show a UPI QR right on this
+   phone screen for the customer to scan) - only shown once they've set a
+   UPI ID via Billing Details. */
+function renderPartnerDashboard(p){
+ const isTaxi=(p.business_type||"taxi_travel")==="taxi_travel";
+ document.querySelector("#partnerBox").innerHTML=`
+ <div class="card">
+  <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
+  <div class="muted">${esc(tcBizLabel(p.business_type))}</div>
+  <div class="muted">Owner: ${esc(p.owner_name)} - ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
+  ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
+  ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
+  ${p.verified?`<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" ${p.available?"checked":""} onchange="tcTogglePartnerAvailable(${p.id},this.checked)"> Available now (show in directory search)</label>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">Edit Details</button></div>
+ </div>
+ ${isTaxi?`
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(the name/phone/UPI shown on YOUR bills)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>
+ <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
+ <h3>My Vehicles</h3>
+ <div id="myVehiclesList">Loading...</div>`:`
+ <div class="card" id="billingIdentityCard">
+  <h3>Billing Details <span class="muted">(your UPI ID, used below to collect payments)</span></h3>
+  <div id="billingIdentityBody"></div>
+ </div>
+ <div class="card">
+  <h3>&#128241; Collect Payment</h3>
+  ${db.business.upiId?`
+  <p class="muted">Type the amount and show the QR on this screen for your customer to scan.</p>
+  <div class="grid">
+   <label>Amount<input id="ncAmount" type="number" placeholder="e.g. 500"></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="tcGenerateNonTaxiQR()">Generate QR</button></div>
+  <div id="ncQrBox" style="text-align:center;margin-top:10px"></div>`:
+  `<p class="muted">Set your UPI ID in Billing Details above first, then come back here to collect payments by QR.</p>`}
+ </div>`}
+ <hr>
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
+ renderBillingIdentitySection(p);
+ if(isTaxi) loadMyVehicles(p.id);
+}
+function tcGenerateNonTaxiQR(){
+ const amt=+document.querySelector("#ncAmount").value||0;
+ const box=document.querySelector("#ncQrBox");
+ if(amt<=0){ toast("Enter an amount first"); return; }
+ if(!db.business.upiId){ toast("Set your UPI ID first"); return; }
+ box.innerHTML="";
+ if(typeof QRCode==="undefined"){ box.innerHTML="<p class='muted'>QR library not loaded.</p>"; return; }
+ new QRCode(box,{text:buildUpiLink(amt,db.business.name||"Payment"),width:200,height:200});
+ box.insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">Scan to pay: ${money(amt)}</div>`);
+}
