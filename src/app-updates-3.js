@@ -831,3 +831,83 @@ async function tcLoadPartnerPlans(){
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
+
+/* ---------- FIRST-LOGIN ROUTING FIX ----------
+   Redefines dashboard() and partnerView() again. Previously, ANYONE with
+   role "owner" landed on the full Quotation/Billing dashboard immediately
+   on login, even before registering a business at all - confusing for a
+   hotel/auto owner who briefly saw taxi-business tools before ever picking
+   their own category. Now: dashboard() only shows once we've actually
+   CONFIRMED (from the server, via partnerView()) that this mobile is
+   registered as "taxi_travel". Until that's confirmed one way or the
+   other, it routes to partnerView() instead, which shows either the
+   neutral "Register your business" form (not registered yet) or the
+   simple business-profile page (registered as a non-taxi type). Once
+   partnerView() confirms taxi_travel, it calls dashboard() again so the
+   full toolset appears - this only causes a brief one-time detour per
+   device, since db.settings.myBusinessType is cached locally afterward. */
+function dashboard(){
+ if(db.settings.myBusinessType==null||db.settings.myBusinessType!=="taxi_travel"){
+  partnerView();
+  return;
+ }
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
+ app().innerHTML=card("Travel Connect Dashboard",`
+ <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
+  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||"Your Business Name")}</div>
+  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+  ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button></div>
+  ${tcIsPremiumPlan()?
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill & quotation</div>`:
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name & contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
+ </div>
+ <div class="actions">
+  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
+  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
+  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('master')">Rate Master</button>
+ </div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">Local Directory (autos, restaurants, workshops...)</button></div>
+ <hr>
+ <div class="grid">
+ <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ </div><div class="card"><h3>Business workflow</h3><p>Enquiry -> Quotation -> Confirmation -> Trip -> Final Bill -> Payment -> Accounts</p>
+ <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ `);
+}
+async function partnerView(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Partner",`<div id="partnerBox">Checking your registration...</div>`);
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partner){
+   db.settings.myBusinessType="none"; save();
+   renderPartnerRegisterForm();
+  }
+  else{
+   window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password;
+   db.settings.myPlan=data.partner.plan||"free";
+   const confirmedType=data.partner.business_type||"taxi_travel";
+   const wasUnknown=db.settings.myBusinessType==null;
+   db.settings.myBusinessType=confirmedType;
+   save();
+   if(confirmedType==="taxi_travel"&&wasUnknown){
+    /* Just confirmed this mobile is a taxi/travel agency for the first time
+       on this device - send them to the real dashboard instead of the
+       simple partner-profile page. */
+    dashboard();
+    return;
+   }
+   renderPartnerDashboard(data.partner);
+  }
+ }catch(e){
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error - check your connection and try again.</p>";
+ }
+}
