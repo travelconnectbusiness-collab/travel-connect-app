@@ -434,7 +434,7 @@ function tcOpenDirectory(){
  tcRenderDirectory();
 }
 async function tcRenderDirectory(){
- const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("");
+ const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("")+`<option value="other">Other</option>`;
  app().innerHTML=card("Local Directory",`
   <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops and more.</p>
   <div class="grid">
@@ -471,7 +471,8 @@ function tcFilterDirectory(){
  const type=document.querySelector("#tcDirType").value;
  const q=(document.querySelector("#tcDirSearch").value||"").trim().toLowerCase();
  let filtered=_tcDirectoryEntries;
- if(type) filtered=filtered.filter(p=>(p.business_type||"taxi_travel")===type);
+ if(type==="other") filtered=filtered.filter(p=>!TC_BUSINESS_TYPES.hasOwnProperty(p.business_type||"taxi_travel"));
+ else if(type) filtered=filtered.filter(p=>(p.business_type||"taxi_travel")===type);
  if(q) filtered=filtered.filter(p=>(p.location||"").toLowerCase().includes(q)||(p.pincode||"").toLowerCase().includes(q)||(p.business_name||"").toLowerCase().includes(q));
  tcRenderDirectoryList(filtered);
 }
@@ -1339,4 +1340,157 @@ function tcGenerateNonTaxiQR(){
  if(typeof QRCode==="undefined"){ box.innerHTML="<p class='muted'>QR library not loaded.</p>"; return; }
  new QRCode(box,{text:buildUpiLink(amt,db.business.name||"Payment"),width:200,height:200});
  box.insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">Scan to pay: ${money(amt)}</div>`);
+}
+
+/* ---------- PRECISE LOCATION (GPS) FOR DIRECTORY LISTINGS ----------
+   Text-only location ("Valayam") is ambiguous for Google Maps search - it
+   can match the wrong nearby business, as reported. This adds a "Use my
+   current location" GPS button (same pattern as the login page) to the
+   registration and edit forms, capturing precise lat/lon which is then
+   used for an EXACT map pin instead of a fuzzy text search, wherever
+   available. Falls back to the text-search link when no pin has been set
+   yet (e.g. older registrations). */
+async function tcCapturePartnerLocation(locInputId,pinInputId,statusId){
+ const status=document.querySelector("#"+statusId);
+ if(!navigator.geolocation){ if(status) status.textContent="Location isn't supported on this browser."; return; }
+ if(status) status.textContent="Getting your location...";
+ navigator.geolocation.getCurrentPosition(async (pos)=>{
+  const lat=pos.coords.latitude, lon=pos.coords.longitude;
+  const pinEl=document.querySelector("#"+pinInputId);
+  if(pinEl) pinEl.value=lat+","+lon;
+  if(status) status.textContent="Looking up address...";
+  try{
+   const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`);
+   const data=await res.json();
+   const a=data.address||{};
+   const place=a.suburb||a.town||a.city||a.village||a.county||"";
+   const district=a.state_district||a.county||"";
+   const combined=[place,district].filter(Boolean).filter((v,i,arr)=>arr.indexOf(v)===i).join(", ");
+   const locEl=document.querySelector("#"+locInputId);
+   if(locEl&&combined&&!locEl.value) locEl.value=combined;
+   if(status) status.textContent="\u2705 Exact location pinned - directions will go straight here.";
+  }catch(e){
+   if(status) status.textContent="\u2705 Exact location pinned (address lookup failed, but the pin itself is saved).";
+  }
+ },()=>{
+  if(status) status.textContent="Location permission denied - directions will use the typed town name instead.";
+ },{timeout:10000});
+}
+function tcReadPin(pinInputId){
+ const v=document.querySelector("#"+pinInputId)?.value||"";
+ const parts=v.split(",");
+ if(parts.length===2){
+  const lat=parseFloat(parts[0]), lon=parseFloat(parts[1]);
+  if(!isNaN(lat)&&!isNaN(lon)) return {lat,lon};
+ }
+ return null;
+}
+
+/* Redefines renderPartnerRegisterForm()/submitPartnerRegister() again to
+   add the GPS pin button. */
+function renderPartnerRegisterForm(){
+ const user=getCurrentUser();
+ document.querySelector("#partnerBox").innerHTML=`
+ <p class="muted">Register your business to appear in the local directory and (for Taxi/Travel Agency) use the full quotation/billing tools. An admin will verify your details first.</p>
+ <div class="grid">
+  <label>Business type<div>${tcBizTypeFieldHtml("pBizType","pBizTypeOther",localStorage.getItem("tc_chosen_business_type"))}</div></label>
+  <label>Business name<input id="pBizName"></label>
+  <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
+  <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
+  <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Email (optional)<input id="pEmail"></label>
+  <label>Location<div style="display:flex;gap:6px"><input id="pLocation" placeholder="Town / area" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('pLocation','pPin','pLocStatus')">&#128205;</button></div></label>
+  <label>Pincode<input id="pPincode"></label>
+ </div>
+ <input type="hidden" id="pPin">
+ <div id="pLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">Tap &#128205; to pin your exact location - makes Directions accurate for customers.</div>
+ <button class="primary" onclick="submitPartnerRegister()">Register</button>
+ <div id="pRegErr" class="danger"></div>`;
+}
+async function submitPartnerRegister(){
+ const business_name=document.querySelector("#pBizName").value.trim();
+ const owner_name=document.querySelector("#pOwnerName").value.trim();
+ const mobile1=document.querySelector("#pMobile1").value.trim();
+ const errBox=document.querySelector("#pRegErr");
+ if(!business_name||!owner_name||!mobile1){errBox.textContent="Fill in business name, owner name and mobile number.";return}
+ const pin=tcReadPin("pPin");
+ const body={action:"register",business_name,owner_name,mobile1,
+  business_type:tcResolveBizType("pBizType","pBizTypeOther"),
+  mobile2:document.querySelector("#pMobile2").value.trim(),
+  email:document.querySelector("#pEmail").value.trim(),
+  location:document.querySelector("#pLocation").value.trim(),
+  pincode:document.querySelector("#pPincode").value.trim(),
+  lat:pin?pin.lat:null,lon:pin?pin.lon:null};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){
+   errBox.textContent=data.error==="already_registered"?"This mobile number is already registered as a partner.":"Could not register. Please try again.";
+   return;
+  }
+  toast("Registered - waiting for admin verification");
+  partnerView();
+ }catch(e){errBox.textContent="Network error - check your connection and try again.";}
+}
+
+/* Redefines tcOpenEditPartnerDetails()/tcSavePartnerDetails() again to add
+   the GPS pin button for correcting an existing registration's location. */
+function tcOpenEditPartnerDetails(partnerId){
+ const p=window._myPartner;
+ modal(`<h2>Edit Business Details</h2>
+  <div class="grid">
+   <label>Business type<div>${tcBizTypeFieldHtml("peBizType","peBizTypeOther",p.business_type)}</div></label>
+   <label>Business name<input id="peBizName" value="${esc(p.business_name)}"></label>
+   <label>Owner name<input id="peOwnerName" value="${esc(p.owner_name)}"></label>
+   <label>Mobile 2<input id="peMobile2" value="${esc(p.mobile2||"")}"></label>
+   <label>Email<input id="peEmail" value="${esc(p.email||"")}"></label>
+   <label>Location<div style="display:flex;gap:6px"><input id="peLocation" value="${esc(p.location||"")}" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('peLocation','pePin','peLocStatus')">&#128205;</button></div></label>
+   <label>Pincode<input id="pePincode" value="${esc(p.pincode||"")}"></label>
+  </div>
+  <input type="hidden" id="pePin">
+  <div id="peLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">${p.lat!=null?"\u2705 Exact location already pinned. Tap \ud83d\udccd again only if this business has moved.":"Tap \ud83d\udccd to pin your exact location - makes Directions accurate for customers."}</div>
+  <button class="primary" onclick="tcSavePartnerDetails(${partnerId})">Save</button>`);
+}
+async function tcSavePartnerDetails(partnerId){
+ const user=getCurrentUser();
+ const pin=tcReadPin("pePin");
+ const body={action:"update",partner_id:partnerId,mobile:user.mobile,
+  business_type:tcResolveBizType("peBizType","peBizTypeOther"),
+  business_name:document.querySelector("#peBizName").value,
+  owner_name:document.querySelector("#peOwnerName").value,
+  mobile2:document.querySelector("#peMobile2").value,
+  email:document.querySelector("#peEmail").value,
+  location:document.querySelector("#peLocation").value,
+  pincode:document.querySelector("#pePincode").value,
+  lat:pin?pin.lat:null,lon:pin?pin.lon:null};
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  toast("Details updated");
+  closeModal();
+  partnerView();
+ }catch(e){toast("Network error");}
+}
+
+/* Redefines tcRenderDirectoryList() again to use a precise lat/lon pin for
+   Directions when available, falling back to the text-search link
+   otherwise. */
+function tcRenderDirectoryList(entries){
+ const box=document.querySelector("#tcDirList");
+ if(!box) return;
+ if(!entries.length){box.innerHTML="<p class='muted'>No matching businesses found.</p>";return}
+ box.innerHTML=entries.map(p=>{
+  const hasPin=p.lat!=null&&p.lon!=null;
+  const mapsUrl=hasPin
+   ?"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lon
+   :"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([p.business_name,p.location,p.pincode].filter(Boolean).join(", "));
+  return `<div class="listitem">
+  <b>${esc(p.business_name)}</b> ${p.available?'<span class="ok">Available now</span>':''}<br>
+  <span class="muted">${esc(tcBizLabel(p.business_type))}${p.location?" * "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
+  <div class="actions">
+   <a href="tel:${esc(p.mobile1)}"><button class="primary">&#128222; Call ${esc(p.mobile1)}</button></a>
+   ${p.mobile2?`<a href="tel:${esc(p.mobile2)}"><button>&#128222; Call ${esc(p.mobile2)}</button></a>`:""}
+   ${(p.location||hasPin)?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
+  </div>
+ </div>`;
+ }).join("");
 }
