@@ -453,14 +453,19 @@ function tcRenderDirectoryList(entries){
  const box=document.querySelector("#tcDirList");
  if(!box) return;
  if(!entries.length){box.innerHTML="<p class='muted'>No matching businesses found.</p>";return}
- box.innerHTML=entries.map(p=>`<div class="listitem">
+ box.innerHTML=entries.map(p=>{
+  const mapsQuery=[p.business_name,p.location,p.pincode].filter(Boolean).join(", ");
+  const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
+  return `<div class="listitem">
   <b>${esc(p.business_name)}</b> ${p.available?'<span class="ok">Available now</span>':''}<br>
   <span class="muted">${esc(TC_BUSINESS_TYPES[p.business_type]||"Taxi / Travel Agency")}${p.location?" * "+esc(p.location)+" "+esc(p.pincode||""):""}</span>
   <div class="actions">
    <a href="tel:${esc(p.mobile1)}"><button class="primary">&#128222; Call ${esc(p.mobile1)}</button></a>
    ${p.mobile2?`<a href="tel:${esc(p.mobile2)}"><button>&#128222; Call ${esc(p.mobile2)}</button></a>`:""}
+   ${p.location?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
   </div>
- </div>`).join("");
+ </div>`;
+ }).join("");
 }
 function tcFilterDirectory(){
  const type=document.querySelector("#tcDirType").value;
@@ -910,4 +915,26 @@ async function partnerView(){
  }catch(e){
   document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error - check your connection and try again.</p>";
  }
+}
+
+/* Redefines tcRenderActiveBoardList() (already in app-updates-2.js) to add
+   the same "Directions" button as the Local Directory listings. */
+function tcRenderActiveBoardList(vehicles,append){
+ const box=document.querySelector("#activeBoardList");
+ if(!box) return;
+ if(!vehicles.length){ if(!append) box.innerHTML="<p class='muted'>No matching vehicles found.</p>"; return; }
+ const html=vehicles.map(v=>{
+  const mapsQuery=[v.business_name,v.location,v.pincode].filter(Boolean).join(", ");
+  const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
+  return `<div class="listitem">
+  <b>${esc(v.category||"Vehicle")}</b> - ${esc(v.vehicle_number)}<br>
+  ${esc(v.business_name)}${v.location?` * ${esc(v.location)} ${esc(v.pincode||"")}`:""}
+  <div class="actions">
+   <a href="tel:${esc(v.mobile1)}"><button class="primary">&#128222; Call ${esc(v.mobile1)}</button></a>
+   ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
+   ${v.location?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
+  </div>
+ </div>`;
+ }).join("");
+ if(append) box.innerHTML+=html; else box.innerHTML=html;
 }
