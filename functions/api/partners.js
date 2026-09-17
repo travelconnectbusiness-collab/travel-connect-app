@@ -47,7 +47,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, available FROM travel_partners WHERE verified=1 ORDER BY business_name"
+        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, lat, lon, available FROM travel_partners WHERE verified=1 ORDER BY business_name"
       )
       .all();
     return Response.json({ ok: true, partners: results });
@@ -90,8 +90,8 @@ export async function onRequestPost({ request, env }) {
     const result = await env.DB
       .prepare(
         `INSERT INTO travel_partners
-          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, verified, created_at)
-         VALUES (?,?,?,?,?,?,?,?,0,?)`
+          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, lat, lon, verified, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,0,?)`
       )
       .bind(
         business_name,
@@ -102,6 +102,8 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         body.business_type || "taxi_travel",
+        body.lat != null && body.lat !== "" ? Number(body.lat) : null,
+        body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         now
       )
       .run();
@@ -120,9 +122,13 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    /* lat/lon are only updated when a fresh GPS reading was actually taken
+       this time (COALESCE keeps the previously-saved precise pin otherwise)
+       — so re-saving the form without re-tapping "Use my current location"
+       never silently wipes an already-correct pin. */
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon)
          WHERE id=?`
       )
       .bind(
@@ -133,6 +139,8 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         body.business_type || "taxi_travel",
+        body.lat != null && body.lat !== "" ? Number(body.lat) : null,
+        body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         body.partner_id
       )
       .run();
