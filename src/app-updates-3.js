@@ -938,3 +938,81 @@ function tcRenderActiveBoardList(vehicles,append){
  }).join("");
  if(append) box.innerHTML+=html; else box.innerHTML=html;
 }
+
+/* ---------- TEMPORARY LOCATION FOR ACTIVE VEHICLES ----------
+   Redefines loadMyVehicles()/toggleVehicleActive() (already in app.js) to
+   add an optional "Current location" field next to the Active Now toggle -
+   a driver who just dropped off in a different town can mark themselves
+   active THERE (for a return trip) without changing their permanent
+   registered garage location. Also redefines the Active Board/Directory
+   renderer to prefer this temporary location when shown. */
+async function loadMyVehicles(partnerId){
+ const box=document.querySelector("#myVehiclesList");
+ try{
+  const res=await fetch("/api/vehicles?action=list&partner_id="+partnerId);
+  const data=await res.json();
+  if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
+  box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
+   ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
+   ${vehicleExpiryWarnings(v)}
+   <label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px">
+    <input type="checkbox" id="vActive_${v.id}" ${v.active?"checked":""} onchange="toggleVehicleActive(${v.id},this.checked)"> Active Now (ready for a trip)
+   </label>
+   <div style="margin-top:6px">
+    <input id="vTempLoc_${v.id}" placeholder="Current location, if different from your registered garage (optional)" value="${esc(v.temp_location||"")}" style="width:100%;box-sizing:border-box">
+   </div>
+  </div>`).join("");
+ }catch(e){box.innerHTML="<p class='danger'>Network error.</p>"}
+}
+async function toggleVehicleActive(vehicleId,active){
+ const user=getCurrentUser();
+ const locEl=document.querySelector("#vTempLoc_"+vehicleId);
+ const location=locEl?locEl.value.trim():"";
+ try{
+  await fetch("/api/vehicles?action=toggle_active",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:vehicleId,mobile:user.mobile,active,location})});
+  toast(active?(location?"Marked active near "+location:"Marked Active Now"):"Marked inactive");
+ }catch(e){toast("Network error");}
+}
+
+/* Prefers the vehicle's temporary location (set when marked Active) over
+   the partner's permanent registered location, everywhere it's shown. */
+function tcRenderActiveBoardList(vehicles,append){
+ const box=document.querySelector("#activeBoardList");
+ if(!box) return;
+ if(!vehicles.length){ if(!append) box.innerHTML="<p class='muted'>No matching vehicles found.</p>"; return; }
+ const html=vehicles.map(v=>{
+  const shownLocation=v.temp_location||v.location;
+  const mapsQuery=[v.business_name,shownLocation,v.temp_location?"":v.pincode].filter(Boolean).join(", ");
+  const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
+  return `<div class="listitem">
+  <b>${esc(v.category||"Vehicle")}</b> - ${esc(v.vehicle_number)}<br>
+  ${esc(v.business_name)}${shownLocation?` * ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
+  <div class="actions">
+   <a href="tel:${esc(v.mobile1)}"><button class="primary">&#128222; Call ${esc(v.mobile1)}</button></a>
+   ${v.mobile2?`<a href="tel:${esc(v.mobile2)}"><button>&#128222; Call ${esc(v.mobile2)}</button></a>`:""}
+   ${shownLocation?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
+  </div>
+ </div>`;
+ }).join("");
+ if(append) box.innerHTML+=html; else box.innerHTML=html;
+}
+function tcFilterActiveBoard(){
+ const q=(document.querySelector("#tcBoardSearch")?.value||"").trim().toLowerCase();
+ const box=document.querySelector("#activeBoardList");
+ if(!q){ tcRenderActiveBoardList(_tcActiveBoardVehicles); return; }
+ const filtered=_tcActiveBoardVehicles.filter(v=>
+  (v.temp_location||"").toLowerCase().includes(q) ||
+  (v.location||"").toLowerCase().includes(q) ||
+  (v.pincode||"").toLowerCase().includes(q) ||
+  (v.business_name||"").toLowerCase().includes(q) ||
+  (v.category||"").toLowerCase().includes(q)
+ );
+ if(!filtered.length&&_tcActiveBoardVehicles.length&&box){
+  const contactLine=[db.platform.phone1?`<a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a>`:"",db.platform.email?`<a href="mailto:${esc(db.platform.email)}">&#9993;&#65039; ${esc(db.platform.email)}</a>`:""].filter(Boolean).join(" &nbsp;|&nbsp; ");
+  box.innerHTML=`<div class="notice">No Travel Connect partners are registered in "${esc(document.querySelector("#tcBoardSearch").value)}" yet. Here are other currently available vehicles instead - or contact us directly: ${contactLine}</div>`;
+  tcRenderActiveBoardList(_tcActiveBoardVehicles,true);
+  return;
+ }
+ tcRenderActiveBoardList(filtered);
+}
