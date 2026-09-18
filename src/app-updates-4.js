@@ -97,3 +97,73 @@ function tcBrandingBox(partnerPhones){
   <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
  </div>`;
 }
+
+/* ---------- FIX: LOGO/COLOR NOT SHOWING ON PRINT ----------
+   Root cause: window._myPartner (holding logo_key/brand_color) is only
+   populated by visiting the "Travel Partner" page - if a bill/quotation is
+   printed without having done that first in the CURRENT session (e.g. app
+   was reopened and Billing was opened directly), window._myPartner is
+   empty and the logo/color silently don't appear. Fix: cache the id/
+   logo_key/brand_color into db.settings (persisted to localStorage, same
+   as myPlan/myBusinessType already are) whenever partnerView() fetches
+   fresh data, and have tcBrandingBox() read from THAT instead - so it
+   survives across page navigation and app reopens, not just within one
+   still-open Partner-page visit. */
+async function partnerView(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Partner",`<div id="partnerBox">Checking your registration...</div>`);
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partner){
+   db.settings.myBusinessType="none"; save();
+   renderPartnerRegisterForm();
+  }
+  else{
+   window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password;
+   db.settings.myPlan=data.partner.plan||"free";
+   db.settings.myPartnerId=data.partner.id;
+   db.settings.myLogoKey=data.partner.logo_key||null;
+   db.settings.myBrandColor=data.partner.brand_color||null;
+   const confirmedType=data.partner.business_type||"taxi_travel";
+   const wasUnknown=db.settings.myBusinessType==null;
+   db.settings.myBusinessType=confirmedType;
+   save();
+   if(confirmedType==="taxi_travel"&&wasUnknown){
+    dashboard();
+    return;
+   }
+   renderPartnerDashboard(data.partner);
+  }
+ }catch(e){
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error - check your connection and try again.</p>";
+ }
+}
+
+/* Redefines tcBrandingBox() again to read the persisted db.settings cache
+   instead of the transient window._myPartner. */
+function tcBrandingBox(partnerPhones){
+ const plan=db.settings.myPlan;
+ const isPremiumTier=plan==="premium"||plan==="owner_free";
+ const isPaidTier=tcIsPremiumPlan();
+ if(isPaidTier){
+  const color=(isPremiumTier&&db.settings.myBrandColor)?db.settings.myBrandColor:"#148c76";
+  const logoImg=(isPremiumTier&&db.settings.myLogoKey&&db.settings.myPartnerId)?`<img src="/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:56px;max-height:56px;border-radius:8px;margin-bottom:4px">`:"";
+  return `<div style="background:#e8f5f4;border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+   ${logoImg}
+   <div style="font-weight:bold;font-size:21px;color:${color}">${esc(db.business.name)}</div>
+   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
+   ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
+   ${partnerPhones?`<div style="font-weight:bold;color:${color};font-size:15px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
+  </div>`;
+ }
+ return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+  <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.platform.name||"Travel Connect")}</div>
+  <div style="color:#555;font-size:12px">Book your next trip directly - fast, reliable service</div>
+  ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
+  ${db.platform.email?`<div style="font-size:12px;color:#555">${esc(db.platform.email)}</div>`:""}
+  <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
+ </div>`;
+}
