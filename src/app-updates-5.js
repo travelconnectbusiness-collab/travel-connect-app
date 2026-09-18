@@ -458,39 +458,53 @@ function downloadBillImage(tripId){
    Wraps quotations()/loadBill() (whichever versions are currently active
    after every earlier file has loaded) to inject an "Image" button right
    next to each existing PDF button, instead of duplicating those large
-   list-rendering functions just to add one button. */
-const _tcOrigQuotations=quotations;
-function quotations(){
- _tcOrigQuotations();
- document.querySelectorAll('[onclick^="downloadQuotePDF("]').forEach(btn=>{
-  const m=(btn.getAttribute("onclick")||"").match(/downloadQuotePDF\('([^']+)'\)/);
-  if(m){
+   list-rendering functions just to add one button. Uses an IIFE with a
+   function EXPRESSION assignment (quotations = function(){...}) rather
+   than a "function quotations(){}" declaration - a plain declaration here
+   would get hoisted to the top of this file's execution, meaning "const
+   orig = quotations" would capture THIS new function instead of the real
+   previous one, causing infinite self-recursion (exactly what happened -
+   RangeError: Maximum call stack size exceeded). An IIFE with an
+   assignment avoids that, since "orig" is captured only when this line
+   actually runs, after every earlier file's own quotations()/loadBill()
+   is already in place. */
+(function(){
+ const orig=quotations;
+ quotations=function(){
+  orig();
+  document.querySelectorAll('[onclick^="downloadQuotePDF("]').forEach(btn=>{
+   const m=(btn.getAttribute("onclick")||"").match(/downloadQuotePDF\('([^']+)'\)/);
+   if(m){
+    const imgBtn=document.createElement("button");
+    imgBtn.textContent="Image";
+    imgBtn.onclick=()=>downloadQuoteImage(m[1]);
+    btn.after(imgBtn);
+   }
+  });
+  const formPdfBtn=document.querySelector('[onclick="downloadCurrentQuotePDF()"]');
+  if(formPdfBtn&&!document.querySelector('[onclick="downloadCurrentQuoteImage()"]')){
    const imgBtn=document.createElement("button");
    imgBtn.textContent="Image";
-   imgBtn.onclick=()=>downloadQuoteImage(m[1]);
-   btn.after(imgBtn);
+   imgBtn.setAttribute("onclick","downloadCurrentQuoteImage()");
+   imgBtn.onclick=downloadCurrentQuoteImage;
+   formPdfBtn.after(imgBtn);
   }
- });
- const formPdfBtn=document.querySelector('[onclick="downloadCurrentQuotePDF()"]');
- if(formPdfBtn&&!document.querySelector('[onclick="downloadCurrentQuoteImage()"]')){
-  const imgBtn=document.createElement("button");
-  imgBtn.textContent="Image";
-  imgBtn.setAttribute("onclick","downloadCurrentQuoteImage()");
-  imgBtn.onclick=downloadCurrentQuoteImage;
-  formPdfBtn.after(imgBtn);
- }
-}
-const _tcOrigLoadBill=loadBill;
-function loadBill(){
- _tcOrigLoadBill();
- const pdfBtn=document.querySelector('[onclick^="downloadBillPDF("]');
- if(pdfBtn){
-  const m=(pdfBtn.getAttribute("onclick")||"").match(/downloadBillPDF\('([^']+)'\)/);
-  if(m&&!document.querySelector('[onclick^="downloadBillImage("]')){
-   const imgBtn=document.createElement("button");
-   imgBtn.textContent="Image";
-   imgBtn.onclick=()=>downloadBillImage(m[1]);
-   pdfBtn.after(imgBtn);
+ };
+})();
+(function(){
+ const orig=loadBill;
+ loadBill=function(){
+  orig();
+  const pdfBtn=document.querySelector('[onclick^="downloadBillPDF("]');
+  if(pdfBtn){
+   const m=(pdfBtn.getAttribute("onclick")||"").match(/downloadBillPDF\('([^']+)'\)/);
+   if(m&&!document.querySelector('[onclick^="downloadBillImage("]')){
+    const imgBtn=document.createElement("button");
+    imgBtn.textContent="Image";
+    imgBtn.onclick=()=>downloadBillImage(m[1]);
+    pdfBtn.after(imgBtn);
+   }
   }
- }
-}
+ };
+})();
+
