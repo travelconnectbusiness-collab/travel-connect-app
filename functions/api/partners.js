@@ -7,7 +7,11 @@ async function sha256Hex(text) {
 
 /* GET ?action=mine&mobile=...           — a partner looks up their own record
    GET ?action=pending&token=...         — admin: partners awaiting verification
-   GET ?action=all&token=...             — admin: every partner */
+   GET ?action=all&token=...             — admin: every partner
+   GET ?action=logo&partner_id=...       — public: serves a partner's uploaded logo image
+                                            (Premium branding only — no auth needed, since
+                                            this has to load inside a printed bill/PDF the
+                                            customer views, not just inside the app) */
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -53,6 +57,18 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, partners: results });
   }
 
+  if (action === "logo") {
+    const partnerId = url.searchParams.get("partner_id");
+    if (!partnerId) return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
+    const row = await env.DB.prepare("SELECT logo_key FROM travel_partners WHERE id=?").bind(partnerId).first();
+    if (!row || !row.logo_key) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    const obj = await env.FILES.get(row.logo_key);
+    if (!obj) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    return new Response(obj.body, {
+      headers: { "content-type": obj.httpMetadata?.contentType || "image/jpeg" },
+    });
+  }
+
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
@@ -61,6 +77,43 @@ export async function onRequestGet({ request, env }) {
                            checked by matching mobile, not by admin token)
    POST action=verify   — admin: approve or un-approve a partner */
 export async function onRequestPost({ request, env }) {
+  const url = new URL(request.url);
+  const urlAction = url.searchParams.get("action");
+
+  /* Checked via the URL (not the JSON body, like every other action here)
+     because this one arrives as multipart form data, not JSON — same
+     pattern as vehicles.js's own file uploads. Premium-plan only: the
+     ownership check (mobile match) still applies underneath that, same as
+     every other partner-editing action. */
+  if (urlAction === "upload_logo") {
+    const form = await request.formData();
+    const partner_id = form.get("partner_id");
+    const mobile = (form.get("mobile") || "").toString().trim();
+    const file = form.get("logo");
+    if (!partner_id || !mobile || !file || typeof file.arrayBuffer !== "function") {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare("SELECT mobile1, mobile2, plan FROM travel_partners WHERE id=?")
+      .bind(partner_id)
+      .first();
+    if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    if (row.plan !== "premium" && row.plan !== "owner_free") {
+      return Response.json({ ok: false, error: "not_premium" }, { status: 403 });
+    }
+    const buf = await file.arrayBuffer();
+    const nameParts = (file.name || "").split(".");
+    const ext = nameParts.length > 1 ? nameParts.pop() : "jpg";
+    const key = `partners/${partner_id}/logo-${Date.now()}.${ext}`;
+    await env.FILES.put(key, buf, {
+      httpMetadata: { contentType: file.type || "image/jpeg" },
+    });
+    await env.DB.prepare("UPDATE travel_partners SET logo_key=? WHERE id=?").bind(key, partner_id).run();
+    return Response.json({ ok: true, logo_key: key });
+  }
+
   let body;
   try {
     body = await request.json();
@@ -116,7 +169,7 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
     const row = await env.DB
-      .prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?")
+      .prepare("SELECT mobile1, mobile2, plan FROM travel_partners WHERE id=?")
       .bind(body.partner_id)
       .first();
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
@@ -125,10 +178,14 @@ export async function onRequestPost({ request, env }) {
     /* lat/lon are only updated when a fresh GPS reading was actually taken
        this time (COALESCE keeps the previously-saved precise pin otherwise)
        — so re-saving the form without re-tapping "Use my current location"
-       never silently wipes an already-correct pin. */
+       never silently wipes an already-correct pin. brand_color is Premium
+       (or Owner Free) only — silently ignored (kept unchanged) for anyone
+       else, same principle as the UPI-field gating already in the app. */
+    const isPremium = row.plan === "premium" || row.plan === "owner_free";
+    const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color)
          WHERE id=?`
       )
       .bind(
@@ -141,6 +198,7 @@ export async function onRequestPost({ request, env }) {
         body.business_type || "taxi_travel",
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
+        brandColor,
         body.partner_id
       )
       .run();
