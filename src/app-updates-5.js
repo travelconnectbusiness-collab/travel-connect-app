@@ -128,8 +128,15 @@ function tcBrandingBox(partnerPhones){
   const detailPx=(isPremiumTier&&TC_DETAIL_SIZES[db.settings.myBrandDetailSize])?TC_DETAIL_SIZES[db.settings.myBrandDetailSize]:12;
   const logoPx=(isPremiumTier&&TC_LOGO_SIZES[db.settings.myBrandLogoSize])?TC_LOGO_SIZES[db.settings.myBrandLogoSize]:220;
   const hasLogo=isPremiumTier&&db.settings.myLogoKey&&db.settings.myPartnerId;
-  const logoImg=hasLogo?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:${logoPx}px;max-height:${Math.round(logoPx/2)}px;margin-bottom:6px">`:"";
-  return `<div style="background:#e8f5f4;border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0;font-family:${fontCss}">
+  /* max-height was previously capped at half the width (logoPx/2), which
+     visually cropped/cut off taller graphics (like a peacock-feather mark
+     above the text) whose natural height exceeds a 2:1 width:height ratio -
+     max-width alone (no max-height cap) lets the browser scale it to its
+     own natural proportions instead. page-break-inside:avoid on the whole
+     box (added below) is the main fix though - the image was actually
+     being split across a print page boundary, not just squeezed. */
+  const logoImg=hasLogo?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:${logoPx}px;height:auto;margin-bottom:6px">`:"";
+  return `<div style="page-break-inside:avoid;break-inside:avoid;background:#e8f5f4;border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0;font-family:${fontCss}">
    ${hasLogo?logoImg:`<div style="font-weight:bold;font-size:${fontSize}px;color:${color}">${esc(db.business.name)}</div>`}
    ${db.business.tagline?`<div style="color:#555;font-size:${detailPx}px">${esc(db.business.tagline)}</div>`:""}
    ${db.business.address?`<div style="font-size:${detailPx}px;color:#555">${esc(db.business.address)}</div>`:""}
@@ -137,7 +144,7 @@ function tcBrandingBox(partnerPhones){
    ${partnerPhones?`<div style="font-weight:bold;color:${color};font-size:${detailPx+3}px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
   </div>`;
  }
- return `<div style="background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
+ return `<div style="page-break-inside:avoid;break-inside:avoid;background:#e8f5f4;border:2px solid #148c76;border-radius:8px;padding:12px;text-align:center;margin:10px 0">
   <div style="font-weight:bold;font-size:19px;color:#0f5a55">${esc(db.platform.name||"Travel Connect")}</div>
   <div style="color:#555;font-size:12px">Book your next trip directly - fast, reliable service</div>
   ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
