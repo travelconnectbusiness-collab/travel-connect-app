@@ -183,9 +183,10 @@ export async function onRequestPost({ request, env }) {
        else, same principle as the UPI-field gating already in the app. */
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
     const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
+    const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size)
          WHERE id=?`
       )
       .bind(
@@ -199,6 +200,7 @@ export async function onRequestPost({ request, env }) {
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         brandColor,
+        brandFontSize,
         body.partner_id
       )
       .run();
