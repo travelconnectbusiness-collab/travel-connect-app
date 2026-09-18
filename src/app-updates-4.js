@@ -510,3 +510,14 @@ async function downloadBillPDF(tripId){
 
  doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
 }
+
+/* This file loads LAST, so its trailing render() call is what makes the
+   very first paint use every override above (plan tier check, logo/color
+   cache, etc.) instead of a now-stale version from an earlier-loaded file -
+   same reasoning as the similar trailing render() calls in app-updates.js
+   and app-updates-2.js. Without this, the dashboard briefly shows using
+   whichever dashboard()/tcBrandingBox() was current when THAT file's own
+   trailing render() ran, which can be an outdated version (e.g. one that
+   doesn't yet know about the "premium" plan tier) until the next
+   navigation happens to call render() again. */
+render();
