@@ -375,3 +375,122 @@ function printBill(tripId){
  </div>
  `);
 }
+
+/* ---------- IMAGE EXPORT (Quotation / Bill as PNG) ----------
+   Redefines printContent() again to accept an optional 3rd parameter -
+   when true, instead of opening the print dialog, it waits for images to
+   load (same logic as before) then uses html2canvas to capture the SAME
+   hidden iframe's content as a PNG and triggers a download, cleaning up
+   the iframe afterward. This reuses printQuoteObj()/printBill()'s existing
+   HTML-building - only the very last step (print vs. image) differs. */
+function printContent(title,html,asImage){
+ let frame=document.querySelector("#printFrame");
+ if(frame) frame.remove();
+ frame=document.createElement("iframe");
+ frame.id="printFrame";
+ frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width=asImage?"800px":"0";frame.style.height=asImage?"1px":"0";frame.style.border="0";
+ frame.style.visibility="hidden";
+ document.body.appendChild(frame);
+ const doc=frame.contentWindow.document;
+ doc.open();
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
+ doc.close();
+ const images=Array.from(doc.images||[]);
+ const waitForImages=Promise.all(images.map(img=>{
+  if(img.complete) return Promise.resolve();
+  return new Promise(resolve=>{
+   img.addEventListener("load",resolve,{once:true});
+   img.addEventListener("error",resolve,{once:true});
+   setTimeout(resolve,3000);
+  });
+ }));
+ waitForImages.then(async ()=>{
+  if(!asImage){
+   frame.contentWindow.focus();
+   frame.contentWindow.print();
+   return;
+  }
+  if(typeof html2canvas==="undefined"){
+   toast("Image export library not loaded - try again in a moment");
+   frame.remove();
+   return;
+  }
+  try{
+   const bodyHeight=doc.body.scrollHeight;
+   frame.style.height=bodyHeight+"px";
+   await new Promise(r=>setTimeout(r,50)); /* let the resize settle before capture */
+   const canvas=await html2canvas(doc.body,{backgroundColor:"#ffffff",useCORS:true,scale:2});
+   const link=document.createElement("a");
+   link.download=title.replace(/[^a-z0-9]+/gi,"-")+".png";
+   link.href=canvas.toDataURL("image/png");
+   link.click();
+   toast("Image downloaded");
+  }catch(e){
+   toast("Could not create image - try Print instead");
+  }
+  frame.remove();
+ });
+}
+
+/* Wrappers that reuse printQuoteObj()/printBill()'s HTML-building by
+   temporarily intercepting printContent() calls - avoids duplicating those
+   large functions a second time just to swap the output mode. */
+function downloadQuoteImage(id){
+ const q=db.quotes.find(x=>x.id===id);if(!q)return;
+ const original=printContent;
+ window.printContent=(title,html)=>original(title,html,true);
+ try{ printQuoteObj(q); } finally { window.printContent=original; }
+}
+function downloadCurrentQuoteImage(){
+ const r=calcQuote();
+ if(r.invalid){toast("Correct Local Trip limits first");return}
+ const original=printContent;
+ window.printContent=(title,html)=>original(title,html,true);
+ try{ printQuoteObj(buildQuoteObjFromForm(r)); } finally { window.printContent=original; }
+}
+function downloadBillImage(tripId){
+ const original=printContent;
+ window.printContent=(title,html)=>original(title,html,true);
+ try{ printBill(tripId); } finally { window.printContent=original; }
+}
+
+/* ---------- "Image" BUTTONS next to existing PDF buttons ----------
+   Wraps quotations()/loadBill() (whichever versions are currently active
+   after every earlier file has loaded) to inject an "Image" button right
+   next to each existing PDF button, instead of duplicating those large
+   list-rendering functions just to add one button. */
+const _tcOrigQuotations=quotations;
+function quotations(){
+ _tcOrigQuotations();
+ document.querySelectorAll('[onclick^="downloadQuotePDF("]').forEach(btn=>{
+  const m=(btn.getAttribute("onclick")||"").match(/downloadQuotePDF\('([^']+)'\)/);
+  if(m){
+   const imgBtn=document.createElement("button");
+   imgBtn.textContent="Image";
+   imgBtn.onclick=()=>downloadQuoteImage(m[1]);
+   btn.after(imgBtn);
+  }
+ });
+ const formPdfBtn=document.querySelector('[onclick="downloadCurrentQuotePDF()"]');
+ if(formPdfBtn&&!document.querySelector('[onclick="downloadCurrentQuoteImage()"]')){
+  const imgBtn=document.createElement("button");
+  imgBtn.textContent="Image";
+  imgBtn.setAttribute("onclick","downloadCurrentQuoteImage()");
+  imgBtn.onclick=downloadCurrentQuoteImage;
+  formPdfBtn.after(imgBtn);
+ }
+}
+const _tcOrigLoadBill=loadBill;
+function loadBill(){
+ _tcOrigLoadBill();
+ const pdfBtn=document.querySelector('[onclick^="downloadBillPDF("]');
+ if(pdfBtn){
+  const m=(pdfBtn.getAttribute("onclick")||"").match(/downloadBillPDF\('([^']+)'\)/);
+  if(m&&!document.querySelector('[onclick^="downloadBillImage("]')){
+   const imgBtn=document.createElement("button");
+   imgBtn.textContent="Image";
+   imgBtn.onclick=()=>downloadBillImage(m[1]);
+   pdfBtn.after(imgBtn);
+  }
+ }
+}
