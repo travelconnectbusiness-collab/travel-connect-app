@@ -638,4 +638,40 @@ async function partnerView(){
 }
 
 
+/* ---------- FIX: LOGO NOT SHOWING IN PRINT/SAVE-AS-PDF ----------
+   Root cause: printContent() (already in app-updates.js) opens the print
+   dialog after a FIXED 300ms delay - enough time for CSS (the brand color)
+   to apply instantly, but not always enough for the logo IMAGE to finish
+   its network fetch, especially on a slower connection. The print dialog
+   then captures whatever was on screen at that moment - a broken/blank
+   image if it hadn't loaded yet. This waits for every <img> in the printed
+   content to actually finish loading (or fail, after a safety timeout)
+   before opening the print dialog, instead of guessing a fixed delay. */
+function printContent(title,html){
+ let frame=document.querySelector("#printFrame");
+ if(frame) frame.remove();
+ frame=document.createElement("iframe");
+ frame.id="printFrame";
+ frame.style.position="fixed";frame.style.right="0";frame.style.bottom="0";frame.style.width="0";frame.style.height="0";frame.style.border="0";
+ document.body.appendChild(frame);
+ const doc=frame.contentWindow.document;
+ doc.open();
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
+ doc.close();
+ const images=Array.from(doc.images||[]);
+ const waitForImages=Promise.all(images.map(img=>{
+  if(img.complete) return Promise.resolve();
+  return new Promise(resolve=>{
+   img.addEventListener("load",resolve,{once:true});
+   img.addEventListener("error",resolve,{once:true});
+   setTimeout(resolve,3000); /* safety net - never block printing forever on a slow/broken image */
+  });
+ }));
+ waitForImages.then(()=>{
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+ });
+}
+
+
 render();
