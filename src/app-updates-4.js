@@ -149,7 +149,7 @@ function tcBrandingBox(partnerPhones){
  const isPaidTier=tcIsPremiumPlan();
  if(isPaidTier){
   const color=(isPremiumTier&&db.settings.myBrandColor)?db.settings.myBrandColor:"#148c76";
-  const logoImg=(isPremiumTier&&db.settings.myLogoKey&&db.settings.myPartnerId)?`<img src="/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:56px;max-height:56px;border-radius:8px;margin-bottom:4px">`:"";
+  const logoImg=(isPremiumTier&&db.settings.myLogoKey&&db.settings.myPartnerId)?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:56px;max-height:56px;border-radius:8px;margin-bottom:4px">`:"";
   return `<div style="background:#e8f5f4;border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0">
    ${logoImg}
    <div style="font-weight:bold;font-size:21px;color:${color}">${esc(db.business.name)}</div>
