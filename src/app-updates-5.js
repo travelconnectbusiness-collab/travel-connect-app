@@ -135,8 +135,14 @@ function tcBrandingBox(partnerPhones){
      own natural proportions instead. page-break-inside:avoid on the whole
      box (added below) is the main fix though - the image was actually
      being split across a print page boundary, not just squeezed. */
-  const logoImg=hasLogo?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:${logoPx}px;height:auto;margin-bottom:6px">`:"";
-  return `<div style="page-break-inside:avoid;break-inside:avoid;background:#e8f5f4;border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0;font-family:${fontCss}">
+  const logoImg=hasLogo?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:${logoPx}px;height:auto;margin-bottom:6px;display:block;margin-left:auto;margin-right:auto">`:"";
+  /* Logos are usually saved with a plain WHITE background (not
+     transparent) - against the box's light-teal fill, that shows up as a
+     visible rectangle around the logo, like it was "pasted on". Using a
+     plain white box background whenever a logo is present makes the
+     logo's own white background blend in seamlessly instead - the colored
+     border still carries the brand color. */
+  return `<div style="page-break-inside:avoid;break-inside:avoid;background:${hasLogo?"#ffffff":"#e8f5f4"};border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0;font-family:${fontCss}">
    ${hasLogo?logoImg:`<div style="font-weight:bold;font-size:${fontSize}px;color:${color}">${esc(db.business.name)}</div>`}
    ${db.business.tagline?`<div style="color:#555;font-size:${detailPx}px">${esc(db.business.tagline)}</div>`:""}
    ${db.business.address?`<div style="font-size:${detailPx}px;color:#555">${esc(db.business.address)}</div>`:""}
