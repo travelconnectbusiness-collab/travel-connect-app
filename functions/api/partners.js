@@ -184,9 +184,12 @@ export async function onRequestPost({ request, env }) {
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
     const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
     const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
+    const brandFontFamily = isPremium && body.brand_font_family ? String(body.brand_font_family).trim() : null;
+    const brandDetailSize = isPremium && body.brand_detail_size ? String(body.brand_detail_size).trim() : null;
+    const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
          WHERE id=?`
       )
       .bind(
@@ -201,6 +204,9 @@ export async function onRequestPost({ request, env }) {
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         brandColor,
         brandFontSize,
+        brandFontFamily,
+        brandDetailSize,
+        brandLogoSize,
         body.partner_id
       )
       .run();
