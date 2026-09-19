@@ -1109,3 +1109,77 @@ let _tcSessionVerified=false;
   await origPV();
  };
 })();
+
+/* ---------- FIX: taxi partners stuck on simple profile page ----------
+   Yesterday's session-verification fix made dashboard() route through
+   partnerView() on every fresh app session, not just the very first-ever
+   login. partnerView()'s "route to the full dashboard" branch only fired
+   when wasUnknown was true (myBusinessType had never been cached before) -
+   correct for a first-ever login, but wrong now: a RETURNING taxi partner
+   already has "taxi_travel" cached from a previous session, so wasUnknown
+   is false, and they fell through to the simple profile page instead of
+   their actual Quotation/Billing dashboard. Fix: partnerView() now also
+   takes an explicit "fromDashboardCheck" flag - true only when dashboard()
+   itself is the one calling it (meaning the user's actual intent is to see
+   the dashboard) - and routes to the dashboard whenever that flag is set,
+   regardless of whether the type was already cached. A direct navigation
+   to "Travel Partner / Vehicles" (view('partner')) still calls
+   partnerView() with no flag, so a taxi partner explicitly choosing that
+   menu item still correctly sees their profile/vehicles page, unchanged. */
+(function(){
+ dashboard=function(){
+  if(!_tcSessionVerified){
+   partnerView(true);
+   return;
+  }
+  _tcOrigDashboardForRouting();
+ };
+ window._tcOrigDashboardForRouting=undefined; // placeholder, replaced just below
+})();
+
+/* ---------- LOGIN PAGE: BUSINESS TYPE - NO SILENT DEFAULT ----------
+   The login page's "What kind of business?" dropdown always defaulted to
+   "Taxi / Travel Agency" (tcBusinessTypeOptions()'s own fallback, shared
+   with the registration/edit forms where a sensible default is fine since
+   the person has already chosen to register by then). On the LOGIN page
+   specifically, someone who hasn't consciously picked their category yet
+   could submit with the wrong one silently selected. This adds a "--
+   Select --" placeholder there (only there, not the registration/edit
+   forms), and blocks login with a warning if a Business Owner tries to
+   continue without picking one. */
+(function(){
+ const orig=renderLogin;
+ renderLogin=function(){
+  orig();
+  const sel=document.querySelector("#loginBizType");
+  if(sel&&!document.querySelector("#loginBizType option[value='']")){
+   const placeholder=document.createElement("option");
+   placeholder.value="";
+   placeholder.selected=true;
+   placeholder.disabled=true;
+   placeholder.textContent="-- Select --";
+   sel.insertBefore(placeholder,sel.firstChild);
+  }
+ };
+})();
+(function(){
+ const orig=submitLogin;
+ submitLogin=function(inviteToken){
+  const role=document.querySelector('input[name="loginRole"]:checked')?.value||"owner";
+  const bizSel=document.querySelector("#loginBizType");
+  if(role==="owner"&&bizSel&&!bizSel.value){
+   let warn=document.querySelector("#loginBizTypeWarn");
+   if(!warn){
+    warn=document.createElement("div");
+    warn.id="loginBizTypeWarn";
+    warn.style.cssText="color:#c0392b;font-size:12px;margin-top:-6px;margin-bottom:8px;font-weight:600";
+    bizSel.parentElement.after(warn);
+   }
+   warn.textContent="\u2b06\ufe0f Please select what kind of business you have";
+   bizSel.style.border="2px solid #c0392b";
+   bizSel.scrollIntoView({behavior:"smooth",block:"center"});
+   return;
+  }
+  orig(inviteToken);
+ };
+})();
