@@ -264,6 +264,40 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
+  /* Admin-authorized edit of ANY partner's details (business type, name, etc.) -
+     separate from the "update" action above, which only the partner THEMSELVES
+     can use (checked by matching mobile). This exists for the admin to correct a
+     mistake (e.g. wrong business category picked at registration) even after the
+     partner is already verified and no longer shows in the "pending" list. lat/
+     lon and brand fields are intentionally left untouched here - this is for
+     fixing basic identity/category details, not overriding a partner's own
+     branding choices. */
+  if (action === "admin_update") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    if (!body.partner_id) {
+      return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
+    }
+    await env.DB
+      .prepare(
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
+         WHERE id=?`
+      )
+      .bind(
+        body.business_name,
+        body.owner_name,
+        body.mobile2 || null,
+        body.email || null,
+        body.location || null,
+        body.pincode || null,
+        body.business_type || "taxi_travel",
+        body.partner_id
+      )
+      .run();
+    return Response.json({ ok: true });
+  }
+
   /* A partner sets their OWN password for editing the billing identity shown on
      their bills (business name / phone / UPI) — this is separate from, and does
      NOT require, the owner's admin password. It can only actually be used to
