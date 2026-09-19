@@ -1071,3 +1071,41 @@ async function tcDeleteEmergencyContact(id){
   }
  };
 })();
+
+/* ---------- FIX: STALE CACHED BUSINESS TYPE AFTER CATEGORY CHANGE ----------
+   dashboard() only called partnerView() (which re-fetches business_type
+   from the server) when db.settings.myBusinessType was NULL/unset - once
+   it had ANY value cached (e.g. "taxi_travel" from before), it trusted
+   that cache forever, even after the category was later changed via Edit
+   Details. This made a device stuck showing the old category's page
+   indefinitely after a category change, until something else happened to
+   trigger a fresh partnerView() call. Fix: verify against the server
+   ONCE per app session (tracked in a plain JS variable, not persisted -
+   so it naturally resets on every fresh app open/reload) instead of only
+   on the very first-ever login. Subsequent dashboard() calls within the
+   SAME session skip the extra round-trip, so this doesn't add a network
+   call on every navigation - just once after each fresh app launch. */
+let _tcSessionVerified=false;
+(function(){
+ const origDash=dashboard;
+ dashboard=function(){
+  if(!_tcSessionVerified){
+   partnerView();
+   return;
+  }
+  origDash();
+ };
+})();
+(function(){
+ const origPV=partnerView;
+ partnerView=async function(){
+  /* Set BEFORE the fetch, not after - partnerView() itself calls
+     dashboard() internally when confirmedType is taxi_travel (to route to
+     the full dashboard right after verifying) - if this flag were only
+     set AFTER partnerView() finishes, that internal dashboard() call would
+     see _tcSessionVerified still false and call partnerView() AGAIN,
+     causing a redundant double-fetch (or worse, a loop). */
+  _tcSessionVerified=true;
+  await origPV();
+ };
+})();
