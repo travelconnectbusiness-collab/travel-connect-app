@@ -75,4 +75,20 @@ async function tcSaveAdminEditPartner(id){
  }catch(e){ toast("Network error"); }
 }
 
+/* ---------- FIX: "Available now" toggle showing Network Error ----------
+   Redefines tcTogglePartnerAvailable() from scratch, matching exactly what
+   the backend's set_available action expects (mobile + partner_id +
+   available) - this replaces whatever the previous version was doing,
+   without needing to track down its exact old code, and shows the real
+   server error if it still fails instead of a generic "Network error". */
+async function tcTogglePartnerAvailable(partnerId,available){
+ const user=getCurrentUser();
+ if(!user){ toast("Please log in again"); return; }
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_available",partner_id:partnerId,mobile:user.mobile,available})});
+  const data=await res.json();
+  if(!data.ok){ toast("Could not update: "+(data.error||"unknown error")); return; }
+  toast(available?"Marked available":"Marked unavailable");
+ }catch(e){ toast("Network error"); }
+}
 render();
