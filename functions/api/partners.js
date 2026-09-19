@@ -247,6 +247,23 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
+  /* Admin: permanently remove a partner registration - used mainly to clean up
+     unverified/pending entries the admin doesn't want to approve (e.g. someone
+     who registered a business but the admin never authorized that number for
+     owner access). Also removes any vehicles already added under this
+     partner, since they'd otherwise be orphaned. */
+  if (action === "delete") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    if (!body.partner_id) {
+      return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
+    }
+    await env.DB.prepare("DELETE FROM vehicles WHERE partner_id=?").bind(body.partner_id).run();
+    await env.DB.prepare("DELETE FROM travel_partners WHERE id=?").bind(body.partner_id).run();
+    return Response.json({ ok: true });
+  }
+
   /* A partner sets their OWN password for editing the billing identity shown on
      their bills (business name / phone / UPI) — this is separate from, and does
      NOT require, the owner's admin password. It can only actually be used to
