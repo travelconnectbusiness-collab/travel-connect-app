@@ -681,3 +681,137 @@ async function activeBoard(){
   tcRenderActiveBoardList(_tcActiveBoardVehicles);
  }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
 }
+
+/* ---------- FIX: position:sticky WASN'T STICKING (use position:fixed instead) ----------
+   position:sticky silently fails if ANY ancestor element has an overflow
+   setting other than "visible" - a common, hard-to-spot CSS gotcha. This
+   switches to position:fixed instead, calibrated via JS to sit exactly
+   below the app's own persistent header (.top), which is reliable
+   regardless of any ancestor's overflow setting. A spacer div of the same
+   height is inserted right after it so the fixed bar never overlaps the
+   content below it. */
+function tcMakeFixedBar(barId,spacerId){
+ const bar=document.querySelector("#"+barId);
+ const header=document.querySelector(".top");
+ if(!bar||!header) return;
+ const headerHeight=header.getBoundingClientRect().height;
+ bar.style.position="fixed";
+ bar.style.top=headerHeight+"px";
+ bar.style.left="0";
+ bar.style.right="0";
+ bar.style.zIndex="50";
+ bar.style.background="#fff";
+ bar.style.boxShadow="0 2px 6px rgba(0,0,0,.08)";
+ bar.style.padding="10px 16px";
+ bar.style.boxSizing="border-box";
+ const barHeight=bar.getBoundingClientRect().height;
+ let spacer=document.querySelector("#"+spacerId);
+ if(!spacer){
+  spacer=document.createElement("div");
+  spacer.id=spacerId;
+  bar.after(spacer);
+ }
+ spacer.style.height=barHeight+"px";
+}
+
+/* Redefines customerHome() again - language toggle now sits in a fixed bar
+   at the very top (below the app header), not affected by page scroll. */
+function customerHome(){
+ const t=tcT;
+ const lang=tcLang();
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ app().innerHTML=card(t("title"),`
+  <div id="custLangBar" style="display:flex;justify-content:flex-end;gap:6px">
+   <button onclick="tcSetLang('en')" style="padding:4px 10px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==="en"?"#0b6b78":"#fff"};color:${lang==="en"?"#fff":"#333"}">English</button>
+   <button onclick="tcSetLang('ml')" style="padding:4px 10px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==="ml"?"#0b6b78":"#fff"};color:${lang==="ml"?"#fff":"#333"}">മലയാളം</button>
+  </div>
+  <div id="custLangBarSpacer"></div>
+  <p class="muted">${t("subtitle")}</p>
+  <div style="cursor:pointer;color:#0b6b78;font-size:13px;font-weight:600;margin-bottom:8px" onclick="tcToggleInfo()">${t("infoShort")}</div>
+  <div id="custInfoBox" style="display:none;margin-bottom:12px">
+   <div class="notice" style="font-size:12.5px">${t("howToUse")}</div>
+   <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:8px 0;font-size:12px">&#9888;&#65039; ${t("disclaimer")}</div>
+   <p class="muted" style="font-size:11px">&#128736;&#65039; ${t("underDev")}</p>
+  </div>
+
+  <div class="grid">
+   <label>${t("category")}<select id="custCat">${cat}</select></label>
+   <label>${t("tripType")}<select id="custType" onchange="tcCustTypeChanged()">
+     <option value="local">${t("local")}</option>
+     <option value="one_day">${t("oneDay")}</option>
+     <option value="multiday">${t("multiday")}</option>
+     <option value="drop">${t("drop")}</option>
+   </select></label>
+   <label>${t("pickup")}<input id="custPickup" placeholder="e.g. Valayam"></label>
+   <label>${t("dest")} 1<input id="custDest" placeholder="e.g. Vadakara"></label>
+  </div>
+  <div id="custStopsContainer"></div>
+  <div class="actions"><button type="button" onclick="tcAddCustDestField()">${t("addDest")}</button></div>
+
+  <div class="grid" style="margin-top:8px">
+   <label>${t("km")} <span class="muted" style="font-weight:normal;font-size:11px">(garage→pickup→destinations→garage)</span><input id="custKm" type="number" value="80"></label>
+   <label>${t("hours")}<input id="custHours" type="number" value="8"></label>
+  </div>
+
+  <div class="actions" style="margin-top:6px"><button id="custMoreBtn" type="button" onclick="tcToggleMoreOptions()" style="background:#eef6ff;border:1px solid #3b7bbf;color:#3b7bbf;font-weight:700;padding:8px 14px;border-radius:8px">&#9660; ${t("moreOptions")}</button></div>
+  <div id="custMoreOptions" style="display:none">
+   <div class="grid">
+    <label>${t("vehicleStart")}<input id="custVehicleStart" placeholder="e.g. Nadapuram"></label>
+    <label>${t("vehicleClose")}<input id="custVehicleClose" placeholder="e.g. Nadapuram"></label>
+    <label>${t("days")}<input id="custDays" type="number" value="1" min="1"></label>
+   </div>
+   <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; ${t("openMaps")}</button></div>
+  </div>
+
+  <div class="actions" style="margin-top:12px"><button class="primary" onclick="tcCalcCustomerFare()">${t("calculate")}</button></div>
+  <div id="custFareResult" class="ratebox"></div>
+  <hr>
+  <div class="actions"><button onclick="view('activeboard')">&#128663; ${t("browseVehicles")}</button></div>
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${t("directory")}</button></div>
+  <hr>
+  <h3>&#128172; ${t("feedback")}</h3>
+  <p class="muted">${t("feedbackSub")}</p>
+  <label>${t("yourMsg")}<textarea id="custFeedback" rows="3"></textarea></label>
+  <div class="actions"><button onclick="tcSendFeedback()">${t("send")}</button></div>
+  <div class="actions" style="margin-top:10px"><button class="danger" onclick="logout()">${t("logout")}</button></div>
+ `);
+ setTimeout(()=>tcMakeFixedBar("custLangBar","custLangBarSpacer"),0);
+}
+
+/* Redefines tcRenderDirectory()/activeBoard() again - search box now uses
+   the same fixed-bar approach (position:sticky wasn't taking effect). */
+async function tcRenderDirectory(){
+ const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("")+`<option value="other">Other</option>`;
+ app().innerHTML=card("Local Directory",`
+  <div id="custSearchBar" class="grid">
+   <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
+   <label>Business name, town or pincode<input id="tcDirSearch" placeholder="e.g. Hotel Anugraha, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+  </div>
+  <div id="custSearchBarSpacer"></div>
+  <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops and more.</p>
+  <div id="tcDirList">Loading...</div>`);
+ setTimeout(()=>tcMakeFixedBar("custSearchBar","custSearchBarSpacer"),0);
+ try{
+  const res=await fetch("/api/partners?action=directory");
+  const data=await res.json();
+  _tcDirectoryEntries=(data.ok&&data.partners)?data.partners:[];
+  tcRenderDirectoryList(_tcDirectoryEntries);
+ }catch(e){document.querySelector("#tcDirList").innerHTML="<p class='danger'>Network error.</p>"}
+}
+async function activeBoard(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Active Vehicles Board",`
+ <div id="custSearchBar">
+  <label>Search by town / pincode<input id="tcBoardSearch" placeholder="e.g. Kozhikode, Vadakara, 673001" oninput="tcFilterActiveBoard()"></label>
+ </div>
+ <div id="custSearchBarSpacer"></div>
+ <p class="muted">Vehicles other travel partners have marked ready for a trip right now.</p>
+ <div id="activeBoardList">Loading...</div>`);
+ setTimeout(()=>tcMakeFixedBar("custSearchBar","custSearchBarSpacer"),0);
+ try{
+  const res=await fetch("/api/vehicles?action=active");
+  const data=await res.json();
+  _tcActiveBoardVehicles=(data.ok&&data.vehicles)?data.vehicles:[];
+  tcRenderActiveBoardList(_tcActiveBoardVehicles);
+ }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
+}
