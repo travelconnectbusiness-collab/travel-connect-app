@@ -1004,10 +1004,10 @@ async function tcDeleteEmergencyContact(id){
   if(typeEl&&!document.querySelector("#custType option[value='']")){
    const placeholder=document.createElement("option");
    placeholder.value="";
-   placeholder.selected=true;
    placeholder.disabled=true;
    placeholder.textContent="-- "+((tcLang()==="ml")?"തിരഞ്ഞെടുക്കുക":"Select")+" --";
    typeEl.insertBefore(placeholder,typeEl.firstChild);
+   typeEl.value=""; /* reliably forces the placeholder to show as selected - see the same fix on the login page's dropdown for why */
   }
  };
 })();
@@ -1113,29 +1113,69 @@ let _tcSessionVerified=false;
 /* ---------- FIX: taxi partners stuck on simple profile page ----------
    Yesterday's session-verification fix made dashboard() route through
    partnerView() on every fresh app session, not just the very first-ever
-   login. partnerView()'s "route to the full dashboard" branch only fired
-   when wasUnknown was true (myBusinessType had never been cached before) -
-   correct for a first-ever login, but wrong now: a RETURNING taxi partner
-   already has "taxi_travel" cached from a previous session, so wasUnknown
-   is false, and they fell through to the simple profile page instead of
-   their actual Quotation/Billing dashboard. Fix: partnerView() now also
-   takes an explicit "fromDashboardCheck" flag - true only when dashboard()
-   itself is the one calling it (meaning the user's actual intent is to see
-   the dashboard) - and routes to the dashboard whenever that flag is set,
+   login. partnerView()'s original "route to the full dashboard" branch
+   only fired when wasUnknown was true (myBusinessType had never been
+   cached before) - correct for a first-ever login, but wrong now: a
+   RETURNING taxi partner already has "taxi_travel" cached from a previous
+   session, so wasUnknown is false, and they fell through to the simple
+   profile page instead of their actual Quotation/Billing dashboard (which
+   is also why the Emergency Contacts box, added to dashboard() but not
+   yet rendering, appeared to have vanished). Fix: partnerView() now takes
+   an explicit "fromDashboardCheck" argument - true only when dashboard()
+   itself calls it (meaning the user's actual intent is to see the
+   dashboard) - and routes to the dashboard whenever that flag is set,
    regardless of whether the type was already cached. A direct navigation
    to "Travel Partner / Vehicles" (view('partner')) still calls
-   partnerView() with no flag, so a taxi partner explicitly choosing that
-   menu item still correctly sees their profile/vehicles page, unchanged. */
-(function(){
- dashboard=function(){
-  if(!_tcSessionVerified){
-   partnerView(true);
-   return;
+   partnerView() with no argument, so a taxi partner explicitly choosing
+   that menu item still correctly sees their profile/vehicles page. This
+   fully replaces both the dashboard() and partnerView() wrappers set up
+   just above - defining them directly (not wrapping again) since their
+   internal logic itself needs to change, not just have something added
+   around it. */
+const _tcRealDashboard=dashboard;
+dashboard=function(){
+ if(!_tcSessionVerified){
+  partnerView(true);
+  return;
+ }
+ _tcRealDashboard();
+};
+partnerView=async function(fromDashboardCheck){
+ _tcSessionVerified=true;
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Travel Partner",`<div id="partnerBox">Checking your registration...</div>`);
+ const user=getCurrentUser();
+ try{
+  const res=await fetch("/api/partners?action=mine&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partner){
+   db.settings.myBusinessType="none"; save();
+   renderPartnerRegisterForm();
   }
-  _tcOrigDashboardForRouting();
- };
- window._tcOrigDashboardForRouting=undefined; // placeholder, replaced just below
-})();
+  else{
+   window._myPartner=data.partner; window._myPartnerHasPassword=data.has_password;
+   db.settings.myPlan=data.partner.plan||"free";
+   db.settings.myPartnerId=data.partner.id;
+   db.settings.myLogoKey=data.partner.logo_key||null;
+   db.settings.myBrandColor=data.partner.brand_color||null;
+   db.settings.myBrandFontSize=data.partner.brand_font_size||null;
+   db.settings.myBrandFontFamily=data.partner.brand_font_family||null;
+   db.settings.myBrandDetailSize=data.partner.brand_detail_size||null;
+   db.settings.myBrandLogoSize=data.partner.brand_logo_size||null;
+   const confirmedType=data.partner.business_type||"taxi_travel";
+   const wasUnknown=db.settings.myBusinessType==null;
+   db.settings.myBusinessType=confirmedType;
+   save();
+   if(confirmedType==="taxi_travel"&&(wasUnknown||fromDashboardCheck)){
+    _tcRealDashboard();
+    return;
+   }
+   renderPartnerDashboard(data.partner);
+  }
+ }catch(e){
+  document.querySelector("#partnerBox").innerHTML="<p class='danger'>Network error - check your connection and try again.</p>";
+ }
+};
 
 /* ---------- LOGIN PAGE: BUSINESS TYPE - NO SILENT DEFAULT ----------
    The login page's "What kind of business?" dropdown always defaulted to
@@ -1155,10 +1195,16 @@ let _tcSessionVerified=false;
   if(sel&&!document.querySelector("#loginBizType option[value='']")){
    const placeholder=document.createElement("option");
    placeholder.value="";
-   placeholder.selected=true;
    placeholder.disabled=true;
    placeholder.textContent="-- Select --";
    sel.insertBefore(placeholder,sel.firstChild);
+   /* Setting .selected=true on a DETACHED option (before it's inserted
+      into the <select>) is not guaranteed to correctly override an
+      option that already has the "selected" HTML attribute (like
+      "taxi_travel" here, from tcBusinessTypeOptions()'s own default) -
+      setting sel.value AFTER insertion is the reliable, spec-guaranteed
+      way to force which option is actually showing as selected. */
+   sel.value="";
   }
  };
 })();
@@ -1180,6 +1226,50 @@ let _tcSessionVerified=false;
    bizSel.scrollIntoView({behavior:"smooth",block:"center"});
    return;
   }
+  orig(inviteToken);
+ };
+})();
+
+/* ---------- LOGIN PAGE: ROLE - NO SILENT DEFAULT EITHER ----------
+   "Business Owner" was always pre-checked (radio, from the original
+   renderLogin() template) - a Customer downloading the app and not paying
+   close attention could accidentally submit as a Business Owner. This
+   un-checks both radios on render, and blocks Continue with a warning
+   until the person has consciously picked one. tcToggleLoginBizType()
+   (already defined elsewhere) shows/hides the Business Type section based
+   on the checked radio's value - with neither checked initially, it's
+   called once here too so the Business Type section starts correctly
+   hidden until a role is chosen, matching what it would already do if the
+   person picked "Customer". */
+(function(){
+ const orig=renderLogin;
+ renderLogin=function(){
+  orig();
+  document.querySelectorAll('input[name="loginRole"]').forEach(r=>{ r.checked=false; });
+  if(typeof tcToggleLoginBizType==="function") tcToggleLoginBizType();
+ };
+})();
+(function(){
+ const orig=submitLogin;
+ submitLogin=function(inviteToken){
+  const checked=document.querySelector('input[name="loginRole"]:checked');
+  if(!checked){
+   let warn=document.querySelector("#loginRoleWarn");
+   const roleGroup=document.querySelector('input[name="loginRole"]')?.closest("div");
+   if(!warn&&roleGroup){
+    warn=document.createElement("div");
+    warn.id="loginRoleWarn";
+    warn.style.cssText="color:#c0392b;font-size:12px;margin:6px 0;font-weight:600";
+    roleGroup.after(warn);
+   }
+   if(warn){
+    warn.textContent="\u2b06\ufe0f Please choose Business Owner or Customer";
+    warn.scrollIntoView({behavior:"smooth",block:"center"});
+   }
+   return;
+  }
+  const warn=document.querySelector("#loginRoleWarn");
+  if(warn) warn.remove();
   orig(inviteToken);
  };
 })();
