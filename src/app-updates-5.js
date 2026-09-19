@@ -990,3 +990,84 @@ async function tcDeleteEmergencyContact(id){
   }
  };
 })();
+
+/* ---------- TRIP TYPE: SAME "NO SILENT DEFAULT" TREATMENT ----------
+   Redefines customerHome() again to add a placeholder to the Trip Type
+   dropdown too (it silently defaulted to "Local Trip" the same way
+   Vehicle Category did), and extends the tcCalcCustomerFare() validation
+   wrapper to also check Trip Type. */
+(function(){
+ const orig=customerHome;
+ customerHome=function(){
+  orig();
+  const typeEl=document.querySelector("#custType");
+  if(typeEl&&!document.querySelector("#custType option[value='']")){
+   const placeholder=document.createElement("option");
+   placeholder.value="";
+   placeholder.selected=true;
+   placeholder.disabled=true;
+   placeholder.textContent="-- "+((tcLang()==="ml")?"തിരഞ്ഞെടുക്കുക":"Select")+" --";
+   typeEl.insertBefore(placeholder,typeEl.firstChild);
+  }
+ };
+})();
+(function(){
+ const orig=tcCalcCustomerFare;
+ tcCalcCustomerFare=function(){
+  const typeEl=document.querySelector("#custType");
+  let typeWarn=document.querySelector("#custTypeWarn");
+  if(typeEl&&!typeEl.value){
+   typeEl.style.border="2px solid #c0392b";
+   typeEl.style.background="#fdeceb";
+   if(!typeWarn){
+    typeWarn=document.createElement("div");
+    typeWarn.id="custTypeWarn";
+    typeWarn.style.cssText="color:#c0392b;font-size:12px;margin-top:-8px;margin-bottom:8px;font-weight:600";
+    typeEl.parentElement.after(typeWarn);
+   }
+   typeWarn.textContent=(tcLang()==="ml")?"\u2b06\ufe0f \u0d26\u0dba\u0d35\u0d3e\u0d2f\u0d3f \u0d2f\u0d3e\u0d24\u0d4d\u0d30\u0d3e \u0d24\u0d30\u0d02 \u0d24\u0d3f\u0d30\u0d1e\u0d4d\u0d1e\u0d46\u0d1f\u0d41\u0d15\u0d4d\u0d15\u0d41\u0d15":"\u2b06\ufe0f Please select a trip type";
+   typeEl.scrollIntoView({behavior:"smooth",block:"center"});
+   typeEl.focus();
+   return;
+  }
+  if(typeEl){ typeEl.style.border=""; typeEl.style.background=""; }
+  if(typeWarn) typeWarn.remove();
+  orig();
+ };
+})();
+
+/* ---------- EMERGENCY CONTACTS on Owner/Partner pages too ----------
+   Adds the same Emergency Contacts box to dashboard() (Taxi/Travel Agency
+   owner) and renderPartnerDashboard() (every other business type) - not
+   just the Customer page. */
+(function(){
+ const orig=dashboard;
+ dashboard=function(){
+  orig();
+  const container=document.querySelector(".card");
+  if(container&&!document.querySelector("#ownerEmergencyBox")){
+   const box=document.createElement("div");
+   box.id="ownerEmergencyBox";
+   box.style.cssText="background:#fff5f5;border:2px solid #c0392b;border-radius:8px;padding:10px;margin-bottom:14px";
+   box.innerHTML=`<div style="font-weight:bold;color:#c0392b;font-size:13px;margin-bottom:4px">&#9888;&#65039; Emergency Contacts</div><div id="ownerEmergencyList">Loading...</div>`;
+   const firstChild=container.firstElementChild;
+   if(firstChild) container.insertBefore(box,firstChild); else container.appendChild(box);
+   tcRenderEmergencyContacts("ownerEmergencyList");
+  }
+ };
+})();
+(function(){
+ const orig=renderPartnerDashboard;
+ renderPartnerDashboard=function(p){
+  orig(p);
+  const box=document.querySelector("#partnerBox");
+  if(box&&!document.querySelector("#ownerEmergencyBox")){
+   const wrap=document.createElement("div");
+   wrap.id="ownerEmergencyBox";
+   wrap.style.cssText="background:#fff5f5;border:2px solid #c0392b;border-radius:8px;padding:10px;margin-bottom:14px";
+   wrap.innerHTML=`<div style="font-weight:bold;color:#c0392b;font-size:13px;margin-bottom:4px">&#9888;&#65039; Emergency Contacts</div><div id="ownerEmergencyList">Loading...</div>`;
+   box.insertBefore(wrap,box.firstChild);
+   tcRenderEmergencyContacts("ownerEmergencyList");
+  }
+ };
+})();
