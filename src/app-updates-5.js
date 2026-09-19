@@ -694,6 +694,24 @@ function tcMakeFixedBar(barId,spacerId){
  const bar=document.querySelector("#"+barId);
  const header=document.querySelector(".top");
  if(!bar||!header) return;
+ /* The spacer must be placed at the bar's ORIGINAL spot (inside #app,
+    where it renders normally in the page flow) BEFORE the bar itself gets
+    moved out to <body> below - otherwise the spacer would land in the
+    wrong place and the content below would jump up under the fixed bar. */
+ let spacer=document.querySelector("#"+spacerId);
+ if(!spacer){
+  spacer=document.createElement("div");
+  spacer.id=spacerId;
+  bar.after(spacer);
+ }
+ /* #app gets a CSS "transform" applied during page-transition animations
+    (setupPageTransitions()) - ANY ancestor with a transform creates a new
+    "containing block" for position:fixed descendants, silently turning
+    "fixed" into "fixed relative to that ancestor" instead of the actual
+    viewport. That's why this kept scrolling away with the page instead of
+    staying put. Moving the bar to be a DIRECT CHILD OF <body> (outside
+    #app entirely) sidesteps that ancestor and its transform completely. */
+ if(bar.parentElement!==document.body) document.body.appendChild(bar);
  const headerHeight=header.getBoundingClientRect().height;
  bar.style.position="fixed";
  bar.style.top=headerHeight+"px";
@@ -705,18 +723,21 @@ function tcMakeFixedBar(barId,spacerId){
  bar.style.padding="10px 16px";
  bar.style.boxSizing="border-box";
  const barHeight=bar.getBoundingClientRect().height;
- let spacer=document.querySelector("#"+spacerId);
- if(!spacer){
-  spacer=document.createElement("div");
-  spacer.id=spacerId;
-  bar.after(spacer);
- }
  spacer.style.height=barHeight+"px";
 }
 
 /* Redefines customerHome() again - language toggle now sits in a fixed bar
    at the very top (below the app header), not affected by page scroll. */
 function customerHome(){
+ /* Any fixed bar from a PREVIOUS page (moved out to <body> by
+    tcMakeFixedBar) has to be explicitly removed here - it lives outside
+    #app now, so simply re-rendering #app's content does not clear it on
+    its own, and a stale bar/spacer left over from the last page could
+    shadow or duplicate the new one. */
+ document.querySelector("#custLangBar")?.remove();
+ document.querySelector("#custLangBarSpacer")?.remove();
+ document.querySelector("#custSearchBar")?.remove();
+ document.querySelector("#custSearchBarSpacer")?.remove();
  const t=tcT;
  const lang=tcLang();
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
@@ -781,6 +802,10 @@ function customerHome(){
 /* Redefines tcRenderDirectory()/activeBoard() again - search box now uses
    the same fixed-bar approach (position:sticky wasn't taking effect). */
 async function tcRenderDirectory(){
+ document.querySelector("#custLangBar")?.remove();
+ document.querySelector("#custLangBarSpacer")?.remove();
+ document.querySelector("#custSearchBar")?.remove();
+ document.querySelector("#custSearchBarSpacer")?.remove();
  const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("")+`<option value="other">Other</option>`;
  app().innerHTML=card("Local Directory",`
   <div id="custSearchBar" class="grid">
@@ -800,6 +825,10 @@ async function tcRenderDirectory(){
 }
 async function activeBoard(){
  if(!getCurrentUser()){renderLogin();return;}
+ document.querySelector("#custLangBar")?.remove();
+ document.querySelector("#custLangBarSpacer")?.remove();
+ document.querySelector("#custSearchBar")?.remove();
+ document.querySelector("#custSearchBarSpacer")?.remove();
  app().innerHTML=card("Active Vehicles Board",`
  <div id="custSearchBar">
   <label>Search by town / pincode<input id="tcBoardSearch" placeholder="e.g. Kozhikode, Vadakara, 673001" oninput="tcFilterActiveBoard()"></label>
