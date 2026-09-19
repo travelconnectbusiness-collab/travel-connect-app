@@ -1280,4 +1280,55 @@ partnerView=async function(fromDashboardCheck){
    of whatever render() call already ran earlier (app-updates-4.js's own
    trailing render()) before these fixes existed - same reasoning as that
    file's own trailing render() call for the same class of bug. */
+
+/* ---------- DELETE PENDING PARTNER ----------
+   Adds a Delete button next to Approve on the admin's "Pending Travel
+   Partners" list - for cleaning up registrations the admin never intends
+   to approve (e.g. an unauthorized number that somehow reached the
+   register form). Wraps doLoadPendingPartners() (already in app.js) to
+   inject the button, rather than duplicating that function. */
+(function(){
+ const orig=doLoadPendingPartners;
+ doLoadPendingPartners=async function(){
+  await orig();
+  document.querySelectorAll('[onclick^="approvePartner("]').forEach(btn=>{
+   const m=(btn.getAttribute("onclick")||"").match(/approvePartner\((\d+)\)/);
+   if(m&&!btn.nextElementSibling){
+    const delBtn=document.createElement("button");
+    delBtn.className="danger";
+    delBtn.textContent="Delete";
+    delBtn.onclick=()=>tcDeletePendingPartner(m[1]);
+    btn.after(delBtn);
+   }
+  });
+ };
+})();
+async function tcDeletePendingPartner(id){
+ if(!confirm("Delete this pending partner registration? This cannot be undone.")) return;
+ try{
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"delete",partner_id:id,token:adminToken()})});
+  toast("Partner registration deleted");
+  doLoadPendingPartners();
+ }catch(e){ toast("Network error"); }
+}
+/* ---------- FIX: CUSTOMERS SENT TO BUSINESS OWNER'S DASHBOARD ----------
+   dashboard() (redefined above for the taxi-partner session-verification
+   fix) never checked whether the CURRENT USER is actually a Customer - it
+   always ran the business-owner routing chain (partnerView/full
+   dashboard), regardless of role. A Customer tapping "Dashboard" in the
+   top nav (or landing on the default empty hash, which resolves to
+   "dashboard") ended up seeing the business owner's page (e.g. "Krishna
+   Tours & Travels") instead of their own Fare Estimate page. This checks
+   the logged-in user's role FIRST, before any of that business-owner
+   logic, and routes straight to customerHome() when it's a customer. */
+(function(){
+ const origDash=dashboard;
+ dashboard=function(){
+  const user=getCurrentUser();
+  if(user&&user.role==="customer"){ customerHome(); return; }
+  origDash();
+ };
+})();
+
 render();
+
