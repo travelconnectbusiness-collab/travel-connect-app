@@ -756,7 +756,7 @@ function customerHome(){
   </div>
 
   <div class="grid">
-   <label>${t("category")}<select id="custCat">${cat}</select></label>
+   <label>${t("category")}<select id="custCat"><option value="" selected disabled>-- Select --</option>${cat}</select></label>
    <label>${t("tripType")}<select id="custType" onchange="tcCustTypeChanged()">
      <option value="local">${t("local")}</option>
      <option value="one_day">${t("oneDay")}</option>
@@ -844,3 +844,149 @@ async function activeBoard(){
   tcRenderActiveBoardList(_tcActiveBoardVehicles);
  }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
 }
+
+/* ---------- VEHICLE CATEGORY: NO SILENT DEFAULT + VALIDATION ----------
+   The category dropdown now starts on a disabled "-- Select --" placeholder
+   (not silently defaulting to the first real category) - a customer must
+   consciously pick one. If they try to Calculate without picking, the
+   field turns red with a warning instead of quietly calculating using
+   whatever the first option happened to be. Wraps tcCalcCustomerFare()
+   (defined earlier, in whichever file set up the customer fare calculator)
+   using the same safe IIFE + function-expression pattern as the
+   quotations()/loadBill() wrapper above - a plain "function
+   tcCalcCustomerFare(){}" here would get hoisted and cause the same
+   infinite-recursion bug we already fixed once. */
+(function(){
+ const orig=tcCalcCustomerFare;
+ tcCalcCustomerFare=function(){
+  const catEl=document.querySelector("#custCat");
+  let warn=document.querySelector("#custCatWarn");
+  if(catEl&&!catEl.value){
+   catEl.style.border="2px solid #c0392b";
+   catEl.style.background="#fdeceb";
+   if(!warn){
+    warn=document.createElement("div");
+    warn.id="custCatWarn";
+    warn.style.cssText="color:#c0392b;font-size:12px;margin-top:-8px;margin-bottom:8px;font-weight:600";
+    catEl.parentElement.after(warn);
+   }
+   warn.textContent=(tcLang()==="ml")?"\u2b06\ufe0f \u0d26\u0dba\u0d35\u0d3e\u0d2f\u0d3f \u0d35\u0d3e\u0d39\u0d28 \u0d35\u0d3f\u0d2d\u0d3e\u0d17\u0d02 \u0d24\u0d3f\u0d30\u0d1e\u0d4d\u0d1e\u0d46\u0d1f\u0d41\u0d15\u0d4d\u0d15\u0d41\u0d15":"\u2b06\ufe0f Please select a vehicle category";
+   catEl.scrollIntoView({behavior:"smooth",block:"center"});
+   catEl.focus();
+   return;
+  }
+  if(catEl){ catEl.style.border=""; catEl.style.background=""; }
+  if(warn) warn.remove();
+  orig();
+ };
+})();
+
+/* ---------- EMERGENCY CONTACTS (Police / Ambulance / Fire / Hospitals etc.) ----------
+   A small, admin-curated list (separate from the self-registered Local
+   Directory, since a police station or fire service would never
+   self-register) - shown with click-to-call numbers to EVERYONE
+   (customers, partners, the owner), and manageable (add/remove) only by
+   the admin. */
+async function tcRenderEmergencyContacts(boxId){
+ const box=document.querySelector("#"+boxId);
+ if(!box) return;
+ try{
+  const res=await fetch("/api/emergency");
+  const data=await res.json();
+  if(!data.ok||!data.contacts.length){ box.innerHTML="<p class='muted' style='font-size:12px'>No emergency contacts added yet.</p>"; return; }
+  box.innerHTML=data.contacts.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eee">
+   <div><b>${esc(c.name)}</b>${c.category?` <span class="muted" style="font-size:11px">(${esc(c.category)})</span>`:""}</div>
+   <a href="tel:${esc(c.number)}"><button class="danger">&#128222; ${esc(c.number)}</button></a>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger' style='font-size:12px'>Could not load emergency contacts.</p>"; }
+}
+
+/* Redefines customerHome() again to add an Emergency Contacts card near
+   the top (right after the language bar / subtitle), since this is
+   safety-relevant and should not require scrolling to find. */
+(function(){
+ const orig=customerHome;
+ customerHome=function(){
+  orig();
+  const anchor=document.querySelector("#custLangBarSpacer");
+  if(anchor&&!document.querySelector("#custEmergencyBox")){
+   const box=document.createElement("div");
+   box.style.cssText="background:#fff5f5;border:2px solid #c0392b;border-radius:8px;padding:10px;margin:10px 0";
+   box.innerHTML=`<div style="font-weight:bold;color:#c0392b;font-size:13px;margin-bottom:4px">&#9888;&#65039; Emergency Contacts</div><div id="custEmergencyList">Loading...</div>`;
+   anchor.after(box);
+   box.id="custEmergencyBox";
+   tcRenderEmergencyContacts("custEmergencyList");
+  }
+ };
+})();
+
+/* Admin management UI: adds an "Emergency Contacts" section to the admin
+   page (below the existing sections there) - list with delete, plus a
+   simple add form. */
+function tcOpenEmergencyAdmin(){ requireAdmin(tcRenderEmergencyAdmin); }
+async function tcRenderEmergencyAdmin(){
+ modal(`<h2>Emergency Contacts</h2>
+  <p class="muted">Police, Ambulance, Fire Force, hospitals, or any other emergency/utility number - visible to everyone in the app.</p>
+  <div class="grid">
+   <label>Name<input id="ecName" placeholder="e.g. Police Control Room"></label>
+   <label>Number<input id="ecNumber" placeholder="e.g. 100"></label>
+   <label>Category (optional)<input id="ecCategory" placeholder="e.g. Police / Ambulance / Fire / Hospital"></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="tcAddEmergencyContact()">Add</button></div>
+  <div id="ecAdminList" style="margin-top:12px">Loading...</div>`);
+ tcLoadEmergencyAdminList();
+}
+async function tcLoadEmergencyAdminList(){
+ const box=document.querySelector("#ecAdminList");
+ if(!box) return;
+ try{
+  const res=await fetch("/api/emergency");
+  const data=await res.json();
+  if(!data.ok||!data.contacts.length){ box.innerHTML="<p class='muted'>No contacts added yet.</p>"; return; }
+  box.innerHTML=data.contacts.map(c=>`<div class="listitem">
+   <b>${esc(c.name)}</b> - ${esc(c.number)} ${c.category?`<span class="muted">(${esc(c.category)})</span>`:""}
+   <div class="actions"><button class="danger" onclick="tcDeleteEmergencyContact(${c.id})">Delete</button></div>
+  </div>`).join("");
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function tcAddEmergencyContact(){
+ const name=document.querySelector("#ecName").value.trim();
+ const number=document.querySelector("#ecNumber").value.trim();
+ const category=document.querySelector("#ecCategory").value.trim();
+ if(!name||!number){ toast("Enter name and number"); return; }
+ try{
+  await fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"add",name,number,category,token:adminToken()})});
+  toast("Contact added");
+  document.querySelector("#ecName").value="";
+  document.querySelector("#ecNumber").value="";
+  document.querySelector("#ecCategory").value="";
+  tcLoadEmergencyAdminList();
+ }catch(e){ toast("Network error"); }
+}
+async function tcDeleteEmergencyContact(id){
+ if(!confirm("Delete this contact?")) return;
+ try{
+  await fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"delete",id,token:adminToken()})});
+  toast("Deleted");
+  tcLoadEmergencyAdminList();
+ }catch(e){ toast("Network error"); }
+}
+
+/* Adds an "Emergency Contacts" management link to the admin page - wraps
+   admin() (already defined elsewhere) the same safe way, appending a card
+   rather than duplicating the whole large function. */
+(function(){
+ const orig=admin;
+ admin=function(){
+  orig();
+  const container=document.querySelector(".card");
+  if(container&&!document.querySelector("#ecAdminLinkCard")){
+   const card=document.createElement("div");
+   card.id="ecAdminLinkCard";
+   card.className="card";
+   card.innerHTML=`<h3>Emergency Contacts</h3><p class="muted">Police, Ambulance, Fire Force and other emergency/utility numbers shown to everyone in the app.</p><div class="actions"><button onclick="tcOpenEmergencyAdmin()">Manage Emergency Contacts</button></div>`;
+   container.appendChild(document.createElement("hr"));
+   container.appendChild(card);
+  }
+ };
+})();
