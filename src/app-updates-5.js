@@ -1330,5 +1330,52 @@ async function tcDeletePendingPartner(id){
  };
 })();
 
+/* ---------- FIX: DELETE SHOWS "SUCCESS" EVEN WHEN IT FAILS ----------
+   tcDeletePendingPartner() never checked the server's actual response -
+   it always showed "Partner registration deleted" as long as the fetch
+   request itself didn't throw (e.g. no network error), regardless of
+   whether the server actually deleted anything. If the delete silently
+   failed server-side (wrong/expired admin token, etc.), the person saw a
+   false "success" message while the record stayed exactly where it was.
+   This checks data.ok and shows the REAL error when it fails, instead of
+   masking it - which will also help pin down why this specific delete is
+   failing, once retried. */
+async function tcDeletePendingPartner(id){
+ if(!confirm("Delete this pending partner registration? This cannot be undone.")) return;
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"delete",partner_id:id,token:adminToken()})});
+  const data=await res.json();
+  if(!data.ok){
+   toast("Could not delete: "+(data.error||"unknown error"));
+   return;
+  }
+  toast("Partner registration deleted");
+  doLoadPendingPartners();
+ }catch(e){ toast("Network error"); }
+}
+
+/* ---------- FIX: STALE FIXED SEARCH/LANGUAGE BAR FOLLOWS TO OTHER PAGES ----------
+   tcMakeFixedBar() moves its bar out to a direct child of <body> (to escape
+   #app's page-transition transform - see that function's own comment) -
+   but the cleanup that removes it was only called at the START of
+   customerHome()/tcRenderDirectory()/activeBoard() themselves. Navigating
+   to any OTHER page (like "Travel Partner") skipped that cleanup entirely,
+   so a bar left over from a previous visit to Directory/Customer stayed
+   floating fixed at the top, overlapping that page's own content, until a
+   full app reload. Wrapping render() - which runs on EVERY navigation, not
+   just these three pages - to always clear them first is the correct,
+   universal place for this cleanup. */
+(function(){
+ const origRender=render;
+ render=function(){
+  document.querySelector("#custLangBar")?.remove();
+  document.querySelector("#custLangBarSpacer")?.remove();
+  document.querySelector("#custSearchBar")?.remove();
+  document.querySelector("#custSearchBarSpacer")?.remove();
+  origRender();
+ };
+})();
+
 render();
+
 
