@@ -521,3 +521,163 @@ function downloadBillImage(tripId){
  };
 })();
 
+/* ---------- SIMPLIFIED CUSTOMER PAGE (with English/Malayalam toggle) ----------
+   New file - redesigns customerHome() for less scrolling and quicker
+   scanning: essential fields visible immediately, advanced/rarely-used
+   fields tucked into a collapsible "More options" section, the three
+   notice boxes condensed into one small collapsible info line, and a
+   language toggle (persisted in localStorage) that swaps the key labels/
+   buttons between English and Malayalam. */
+
+const TC_LANG_STRINGS={
+ en:{
+  title:"Fare Estimate & Vehicle Booking",
+  subtitle:"Get a quick estimate for your trip, or find a vehicle nearby.",
+  infoShort:"ℹ️ How this works / Important notes",
+  howToUse:"How to use: Fill in your trip details, tap Calculate. Or tap \"Browse Available Vehicles\" to find and call a partner directly.",
+  disclaimer:"Travel Connect only connects you with travel partners — it does not own vehicles, fix prices, or handle payments. Please confirm details by phone before your trip.",
+  underDev:"This app is under active development — your feedback helps us improve it.",
+  category:"Vehicle category",tripType:"Trip type",pickup:"Pickup point",dest:"Destination",
+  addDest:"+ Add another destination",km:"Estimated KM",hours:"Estimated hours",
+  calculate:"Calculate Estimate",moreOptions:"More trip details (optional)",
+  vehicleStart:"Vehicle start point (garage)",vehicleClose:"Vehicle closing point",
+  days:"Number of days",openMaps:"Open route in Google Maps (to check KM)",
+  browseVehicles:"Browse Available Vehicles",directory:"Local Directory",
+  feedback:"Feedback / Suggestions",feedbackSub:"Noticed an issue, or have an idea?",
+  yourMsg:"Your message",send:"Send Feedback",logout:"Log out",
+  local:"Local Trip",oneDay:"One Day",multiday:"Multi-day",drop:"Drop"
+ },
+ ml:{
+  title:"ചാർജ് കണക്കാക്കലും വാഹന ബുക്കിംഗും",
+  subtitle:"നിങ്ങളുടെ യാത്രയുടെ ഏകദേശ ചാർജ് അറിയാം, അല്ലെങ്കിൽ അടുത്തുള്ള വാഹനം കണ്ടെത്താം.",
+  infoShort:"ℹ️ എങ്ങനെ ഉപയോഗിക്കാം / പ്രധാന കാര്യങ്ങൾ",
+  howToUse:"എങ്ങനെ ഉപയോഗിക്കാം: യാത്രാ വിവരങ്ങൾ കൊടുത്ത് Calculate അമർത്തുക. അല്ലെങ്കിൽ \"Browse Available Vehicles\" അമർത്തി നേരിട്ട് ഒരു partner-നെ കണ്ടെത്തി വിളിക്കാം.",
+  disclaimer:"Travel Connect വെറും ഒരു connecting platform മാത്രമാണ് — വാഹനങ്ങൾ ഞങ്ങളുടേതല്ല, price/payment ഞങ്ങൾ കൈകാര്യം ചെയ്യുന്നില്ല. യാത്രയ്ക്ക് മുൻപ് partner-നോട് നേരിട്ട് സംസാരിച്ച് ഉറപ്പിക്കുക.",
+  underDev:"ഈ ആപ്പ് തുടർച്ചയായി develop ചെയ്തുകൊണ്ടിരിക്കുന്നു — നിങ്ങളുടെ feedback ഞങ്ങളെ സഹായിക്കും.",
+  category:"വാഹന വിഭാഗം",tripType:"യാത്രാ തരം",pickup:"പിക്കപ്പ് സ്ഥലം",dest:"ലക്ഷ്യസ്ഥാനം",
+  addDest:"+ വേറെ ലക്ഷ്യസ്ഥാനം ചേർക്കുക",km:"ഏകദേശ കിലോമീറ്റർ",hours:"ഏകദേശ മണിക്കൂർ",
+  calculate:"ചാർജ് കാണിക്കുക",moreOptions:"കൂടുതൽ വിവരങ്ങൾ (ഓപ്ഷണൽ)",
+  vehicleStart:"വാഹനം തുടങ്ങുന്ന സ്ഥലം (ഗാരേജ്)",vehicleClose:"വാഹനം അവസാനിക്കുന്ന സ്ഥലം",
+  days:"ദിവസങ്ങളുടെ എണ്ണം",openMaps:"Google Maps-ൽ റൂട്ട് കാണുക (KM അറിയാൻ)",
+  browseVehicles:"ലഭ്യമായ വാഹനങ്ങൾ കാണുക",directory:"ലോക്കൽ ഡയറക്ടറി",
+  feedback:"അഭിപ്രായം / നിർദ്ദേശം",feedbackSub:"എന്തെങ്കിലും പ്രശ്നമോ ആശയമോ ഉണ്ടോ?",
+  yourMsg:"നിങ്ങളുടെ സന്ദേശം",send:"അയക്കുക",logout:"ലോഗ് ഔട്ട്",
+  local:"ലോക്കൽ ട്രിപ്പ്",oneDay:"ഒരു ദിവസം",multiday:"പല ദിവസം",drop:"ഡ്രോപ്പ്"
+ }
+};
+function tcLang(){ return localStorage.getItem("tc_cust_lang")||"en"; }
+function tcT(key){ return (TC_LANG_STRINGS[tcLang()]||TC_LANG_STRINGS.en)[key]||key; }
+function tcSetLang(lang){ localStorage.setItem("tc_cust_lang",lang); customerHome(); }
+function tcToggleInfo(){
+ const box=document.querySelector("#custInfoBox");
+ if(box) box.style.display=box.style.display==="none"?"":"none";
+}
+function tcToggleMoreOptions(){
+ const box=document.querySelector("#custMoreOptions");
+ const btn=document.querySelector("#custMoreBtn");
+ if(!box) return;
+ const hidden=box.style.display==="none";
+ box.style.display=hidden?"":"none";
+ if(btn) btn.textContent=(hidden?"▾ ":"▸ ")+tcT("moreOptions");
+}
+
+/* Redefines customerHome() (already in app-updates-2.js/3.js) - simplified
+   layout: essentials visible immediately, advanced fields collapsed,
+   notices condensed, language toggle added. */
+function customerHome(){
+ const t=tcT;
+ const lang=tcLang();
+ const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
+ app().innerHTML=card(t("title"),`
+  <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px">
+   <button onclick="tcSetLang('en')" style="padding:4px 10px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==="en"?"#0b6b78":"#fff"};color:${lang==="en"?"#fff":"#333"}">English</button>
+   <button onclick="tcSetLang('ml')" style="padding:4px 10px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==="ml"?"#0b6b78":"#fff"};color:${lang==="ml"?"#fff":"#333"}">മലയാളം</button>
+  </div>
+  <p class="muted">${t("subtitle")}</p>
+  <div style="cursor:pointer;color:#0b6b78;font-size:13px;font-weight:600;margin-bottom:8px" onclick="tcToggleInfo()">${t("infoShort")}</div>
+  <div id="custInfoBox" style="display:none;margin-bottom:12px">
+   <div class="notice" style="font-size:12.5px">${t("howToUse")}</div>
+   <div class="danger" style="background:#fdeceb;border:1px solid #e6b0aa;border-radius:8px;padding:10px;margin:8px 0;font-size:12px">&#9888;&#65039; ${t("disclaimer")}</div>
+   <p class="muted" style="font-size:11px">&#128736;&#65039; ${t("underDev")}</p>
+  </div>
+
+  <div class="grid">
+   <label>${t("category")}<select id="custCat">${cat}</select></label>
+   <label>${t("tripType")}<select id="custType" onchange="tcCustTypeChanged()">
+     <option value="local">${t("local")}</option>
+     <option value="one_day">${t("oneDay")}</option>
+     <option value="multiday">${t("multiday")}</option>
+     <option value="drop">${t("drop")}</option>
+   </select></label>
+   <label>${t("pickup")}<input id="custPickup" placeholder="e.g. Valayam"></label>
+   <label>${t("dest")} 1<input id="custDest" placeholder="e.g. Vadakara"></label>
+  </div>
+  <div id="custStopsContainer"></div>
+  <div class="actions"><button type="button" onclick="tcAddCustDestField()">${t("addDest")}</button></div>
+
+  <div class="grid" style="margin-top:8px">
+   <label>${t("km")} <span class="muted" style="font-weight:normal;font-size:11px">(garage→pickup→destinations→garage)</span><input id="custKm" type="number" value="80"></label>
+   <label>${t("hours")}<input id="custHours" type="number" value="8"></label>
+  </div>
+
+  <div class="actions" style="margin-top:6px"><button id="custMoreBtn" type="button" onclick="tcToggleMoreOptions()" style="background:none;border:none;color:#0b6b78;font-weight:600;padding:4px 0">▸ ${t("moreOptions")}</button></div>
+  <div id="custMoreOptions" style="display:none">
+   <div class="grid">
+    <label>${t("vehicleStart")}<input id="custVehicleStart" placeholder="e.g. Nadapuram"></label>
+    <label>${t("vehicleClose")}<input id="custVehicleClose" placeholder="e.g. Nadapuram"></label>
+    <label>${t("days")}<input id="custDays" type="number" value="1" min="1"></label>
+   </div>
+   <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; ${t("openMaps")}</button></div>
+  </div>
+
+  <div class="actions" style="margin-top:12px"><button class="primary" onclick="tcCalcCustomerFare()">${t("calculate")}</button></div>
+  <div id="custFareResult" class="ratebox"></div>
+  <hr>
+  <div class="actions"><button onclick="view('activeboard')">&#128663; ${t("browseVehicles")}</button></div>
+  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${t("directory")}</button></div>
+  <hr>
+  <h3>&#128172; ${t("feedback")}</h3>
+  <p class="muted">${t("feedbackSub")}</p>
+  <label>${t("yourMsg")}<textarea id="custFeedback" rows="3"></textarea></label>
+  <div class="actions"><button onclick="tcSendFeedback()">${t("send")}</button></div>
+  <div class="actions" style="margin-top:10px"><button class="danger" onclick="logout()">${t("logout")}</button></div>
+ `);
+}
+
+/* ---------- STICKY SEARCH BOX ----------
+   Redefines tcRenderDirectory()/activeBoard() again to wrap the search
+   inputs in a sticky container - stays visible at the top while scrolling
+   through a long results list, instead of needing to scroll back up to
+   change the search. */
+async function tcRenderDirectory(){
+ const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("")+`<option value="other">Other</option>`;
+ app().innerHTML=card("Local Directory",`
+  <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops and more.</p>
+  <div style="position:sticky;top:0;background:#fff;z-index:5;padding:8px 0;margin:-4px 0 8px">
+   <div class="grid">
+    <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
+    <label>Business name, town or pincode<input id="tcDirSearch" placeholder="e.g. Hotel Anugraha, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+   </div>
+  </div>
+  <div id="tcDirList">Loading...</div>`);
+ try{
+  const res=await fetch("/api/partners?action=directory");
+  const data=await res.json();
+  _tcDirectoryEntries=(data.ok&&data.partners)?data.partners:[];
+  tcRenderDirectoryList(_tcDirectoryEntries);
+ }catch(e){document.querySelector("#tcDirList").innerHTML="<p class='danger'>Network error.</p>"}
+}
+async function activeBoard(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("Active Vehicles Board",`<p class="muted">Vehicles other travel partners have marked ready for a trip right now.</p>
+ <div style="position:sticky;top:0;background:#fff;z-index:5;padding:8px 0;margin:-4px 0 8px">
+  <label>Search by town / pincode<input id="tcBoardSearch" placeholder="e.g. Kozhikode, Vadakara, 673001" oninput="tcFilterActiveBoard()"></label>
+ </div>
+ <div id="activeBoardList">Loading...</div>`);
+ try{
+  const res=await fetch("/api/vehicles?action=active");
+  const data=await res.json();
+  _tcActiveBoardVehicles=(data.ok&&data.vehicles)?data.vehicles:[];
+  tcRenderActiveBoardList(_tcActiveBoardVehicles);
+ }catch(e){document.querySelector("#activeBoardList").innerHTML="<p class='danger'>Network error.</p>"}
+}
