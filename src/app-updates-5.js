@@ -1273,3 +1273,11 @@ partnerView=async function(fromDashboardCheck){
   orig(inviteToken);
  };
 })();
+
+/* This file loads LAST, so this trailing render() call makes the very
+   first page paint use EVERY override above (login page's "no silent
+   default" fixes for role/business type, business category, etc.) instead
+   of whatever render() call already ran earlier (app-updates-4.js's own
+   trailing render()) before these fixes existed - same reasoning as that
+   file's own trailing render() call for the same class of bug. */
+render();
