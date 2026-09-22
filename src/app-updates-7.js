@@ -64,11 +64,110 @@ function loadBill(){
  if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
 }
 
-/* ---------- FIX: Print output also missing the Discount / Manual Discount lines ----------
-   Ensures printBill() itself (regardless of whether the equivalent fix in
-   app-updates-5.js was actually committed) shows the quotation-level
-   "Discount" and a "Manual Discount (reason)" line in its Final Payment
-   Summary section, matching the on-screen version above. */
+/* ---------- APP DOWNLOAD LINK + QR CODE on Print/PDF ----------
+   Adds a small "Download the Travel Connect app" block with a QR code and
+   the plain URL (for copy-paste/typing) to Quotation and Bill Print
+   output, so a customer receiving a printed/PDF copy can easily install
+   the app themselves - not just book through this one partner. */
+const TC_APP_URL="https://travel-connect-app.travelconnect-business.workers.dev/";
+function tcAppDownloadBlockHtml(){
+ const qrData=getQRDataURL(TC_APP_URL,140);
+ return `<div style="page-break-inside:avoid;break-inside:avoid;text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc">
+  <div style="font-size:12px;color:#444;font-weight:600;margin-bottom:6px">&#128241; Get the Travel Connect app - book vehicles, get fare estimates &amp; more</div>
+  ${qrData?`<img src="${qrData}" style="width:110px;height:110px">`:""}
+  <div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all">${esc(TC_APP_URL)}</div>
+ </div>`;
+}
+
+/* Redefines printQuoteObj() again - identical to the current version, with
+   the app-download block added right before the closing "Thank you" line. */
+function printQuoteObj(q){
+ const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
+ const c=db.categories[q.categoryId];
+ const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
+ const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+
+ const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
+ const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
+ const offerFareTotal=offerRaw.invalid?(q.subtotal??q.quotedAmount):offerRaw.total;
+ const stdFareTotal=standardRaw.invalid?0:standardRaw.total;
+ const rateSaving=(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard")?Math.max(0,stdFareTotal-offerFareTotal):0;
+ const totalSavings=rateSaving+(q.discountAmount||0);
+ const showCompare=!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard";
+
+ let advanceHtml="";
+ if(q.advanceAmount>0){
+  let qrImg="";
+  if(db.business.upiId){
+   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
+   if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
+  }
+  advanceHtml=`<div style="page-break-inside:avoid;break-inside:avoid;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+   <div>
+    <div style="font-weight:bold;font-size:15px;color:#7a5a1e">ADVANCE REQUESTED</div>
+    <div style="font-size:22px;font-weight:bold">${money(q.advanceAmount)}</div>
+    <div style="font-size:12px;color:#7a5a1e">${q.advanceReceived?"&#9989; Received":"Please pay in advance to confirm this trip"}</div>
+   </div>
+   ${!q.advanceReceived&&qrImg?`<div style="text-align:center"><b style="font-size:11px">SCAN &amp; PAY ADVANCE</b><br>${qrImg}</div>`:""}
+  </div>`;
+ }
+
+ printContent("Quotation "+q.no,`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
+  <div style="display:flex;align-items:center;gap:8px">
+   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   <div>
+    <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
+    ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
+    ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+   </div>
+  </div>
+  <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
+ </div>
+ ${tcBrandingBox(partnerPhones)}
+ <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
+ <table>${row("Date",q.entryDate||(q.created||"").slice(0,10))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
+  <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
+ </div>
+ <table>
+  ${row("Trip Type",q.type,true)}
+  ${q.days>1?row("Number of days",q.days+" days",true):""}
+  ${q.restHours>0?row("Overnight rest hours (excluded)",q.restHours+" hrs"):""}
+  ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
+ </table>
+ ${showCompare?`
+ <h3 style="margin:12px 0 4px;font-size:15px;color:#143c5a">Standard vs Offer Rate</h3>
+ <table>
+  <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
+  <tr><td style="padding:3px 0">Fare</td><td style="text-align:right;padding:3px 0">${money(stdFareTotal)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
+ </table>
+ ${totalSavings>0?`<div style="page-break-inside:avoid;break-inside:avoid;background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:10px;margin:8px 0;color:#1c6b2c">
+  <div style="font-weight:bold;font-size:16px">&#127881; You save: ${money(totalSavings)}</div>
+ </div>`:""}
+ `:""}
+ ${sumExtraCharges(q.extraCharges)>0?`<table><tr><td style="padding:3px 0;color:#555">Other Charges${extraChargesShortLabel(q.extraCharges)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(sumExtraCharges(q.extraCharges))}</td></tr></table>`:""}
+ ${q.gstAmount>0?`<table><tr><td style="padding:3px 0;color:#555">GST @ ${q.gstPct}%</td><td style="text-align:right;padding:3px 0;font-weight:bold">+${money(q.gstAmount)}</td></tr></table>`:""}
+ <div style="background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:14px;text-align:center;margin-top:14px">
+  <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
+  <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
+ </div>
+ ${advanceHtml}
+ <div style="page-break-inside:avoid;break-inside:avoid;margin-top:10px">
+  <div style="background:#f2f2f2;border-radius:6px;padding:12px;font-size:13px;font-weight:600;color:#333;line-height:1.5">
+   &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
+   ${extraChargesHtml(q.extraCharges)}
+  </div>
+  <p style="text-align:center;color:#444;font-size:14px;font-weight:600;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
+ </div>
+ ${tcAppDownloadBlockHtml()}
+ `);
+}
+
+/* Redefines printBill() again - identical to the current version, with the
+   app-download block added right before the closing "Thank you" line. */
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
@@ -184,6 +283,7 @@ function printBill(tripId){
   </div>
   <p style="text-align:center;color:#444;font-size:14px;font-weight:600;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
  </div>
+ ${tcAppDownloadBlockHtml()}
  `);
 }
 
