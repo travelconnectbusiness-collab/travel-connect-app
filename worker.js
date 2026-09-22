@@ -8,6 +8,7 @@ import { onRequestGet as authorizedGet, onRequestPost as authorizedPost } from "
 import { onRequestGet as feedbackGet, onRequestPost as feedbackPost } from "./functions/api/feedback.js";
 import { onRequestGet as partnerPlanGet, onRequestPost as partnerPlanPost } from "./functions/api/partner_plan.js";
 import { onRequestGet as emergencyGet, onRequestPost as emergencyPost } from "./functions/api/emergency.js";
+import { onRequestGet as placesGet, onRequestPost as placesPost } from "./functions/api/places.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -61,6 +62,11 @@ export default {
     if (url.pathname === "/api/emergency") {
       if (request.method === "GET") return emergencyGet({ request, env });
       if (request.method === "POST") return emergencyPost({ request, env });
+    }
+
+    if (url.pathname === "/api/places") {
+      if (request.method === "GET") return placesGet({ request, env });
+      if (request.method === "POST") return placesPost({ request, env });
     }
 
     return env.ASSETS.fetch(request);
