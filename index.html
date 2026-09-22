@@ -44,7 +44,7 @@
 <script src="/src/app-updates-6.js"></script>
 <script src="/src/app-updates-7.js"></script>
 <script src="/src/app-updates-8.js"></script>
-<script src="/src/app-updates-9.js"></script> 
-<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));</script>
+<script src="/src/app-updates-9.js"></script>
+<script>if('serviceWorker' in navigator) addEventListener('load',()=>{navigator.serviceWorker.getRegistrations().then(regs=>{regs.forEach(reg=>reg.unregister());}).catch(()=>{});});</script>
 </body>
 </html>
