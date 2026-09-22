@@ -69,6 +69,21 @@ export default {
       if (request.method === "POST") return placesPost({ request, env });
     }
 
-    return env.ASSETS.fetch(request);
+    /* Cloudflare's edge/CDN can cache static assets (JS/CSS/HTML) even when
+       the browser itself asked for a fresh copy - this happened even after
+       fixing the Service Worker's own caching, meaning the stale response
+       was coming from Cloudflare's cache, not the browser's. Explicitly
+       forcing "no-cache, must-revalidate" on the response for these file
+       types makes both the browser AND any intermediate cache always
+       re-check with the origin before using a cached copy - the standard
+       fix for "I deployed a new version but people still see the old one"
+       caused by CDN-level caching. */
+    const res = await env.ASSETS.fetch(request);
+    if (/\.(js|css|html)$/.test(url.pathname) || url.pathname === "/") {
+      const newRes = new Response(res.body, res);
+      newRes.headers.set("Cache-Control", "no-cache, must-revalidate");
+      return newRes;
+    }
+    return res;
   },
 };
