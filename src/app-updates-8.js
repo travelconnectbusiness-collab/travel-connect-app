@@ -75,7 +75,7 @@ async function tcLoadPlacesAdmin(){
   box.innerHTML=data.places.map(p=>`<div class="listitem">
    <b>${esc(p.name)}</b> <span class="muted">(${esc(p.category||"-")})</span><br>
    <span class="muted">${esc(p.location||"")}${p.phone?" - "+esc(p.phone):""}</span>
-   <div class="actions"><button class="danger" onclick="tcDeletePlace(${p.id})">Delete</button></div>
+   <div class="actions"><button onclick="tcOpenEditPlace(${p.id})">Edit</button><button class="danger" onclick="tcDeletePlace(${p.id})">Delete</button></div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
@@ -185,4 +185,64 @@ async function tcRenderUsefulPlaces(boxId){
  };
 })();
 
+/* Edit an existing place - re-fetches the full list and finds the matching
+   record (safer than embedding the whole object in the onclick attribute,
+   which risks breaking on quotes/special characters in the name/address). */
+async function tcOpenEditPlace(id){
+ try{
+  const res=await fetch("/api/places");
+  const data=await res.json();
+  const p=(data.places||[]).find(x=>x.id===id);
+  if(!p){ toast("Place not found"); return; }
+  const catOpts=TC_PLACE_CATEGORIES.map(c=>`<option value="${c}" ${p.category===c?"selected":""}>${c}</option>`).join("");
+  modal(`<h2>Edit Place</h2>
+   <div class="grid">
+    <label>Name<input id="upeName" value="${esc(p.name)}"></label>
+    <label>Category<select id="upeCategory">${catOpts}</select></label>
+    <label>Location / address<div style="display:flex;gap:6px"><input id="upeLocation" value="${esc(p.location||"")}" style="flex:1"><button type="button" onclick="tcSearchEditPlaceLocation()">&#128269;</button></div></label>
+    <label>Phone (optional)<input id="upePhone" value="${esc(p.phone||"")}"></label>
+   </div>
+   <input type="hidden" id="upeLat" value="${p.lat!=null?p.lat:""}"><input type="hidden" id="upeLon" value="${p.lon!=null?p.lon:""}">
+   <div id="upeSearchStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">${p.lat!=null?"\u2705 Exact location already pinned. Search again only if this place has moved.":"No exact pin yet - Directions will use a text search."}</div>
+   <button class="primary" onclick="tcSaveEditPlace(${p.id})">Save</button>`);
+ }catch(e){ toast("Network error"); }
+}
+async function tcSearchEditPlaceLocation(){
+ const nameEl=document.querySelector("#upeName");
+ const locEl=document.querySelector("#upeLocation");
+ const status=document.querySelector("#upeSearchStatus");
+ const query=[nameEl.value,locEl.value].filter(Boolean).join(", ");
+ if(!query){ status.textContent="Type at least a name or location first."; return; }
+ status.textContent="Searching...";
+ try{
+  const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`);
+  const data=await res.json();
+  if(!data.length){ status.textContent="No match found - you can still save without a precise pin."; return; }
+  const hit=data[0];
+  document.querySelector("#upeLat").value=hit.lat;
+  document.querySelector("#upeLon").value=hit.lon;
+  status.textContent="\u2705 Found: "+hit.display_name;
+ }catch(e){ status.textContent="Search failed - check your connection."; }
+}
+async function tcSaveEditPlace(id){
+ const name=document.querySelector("#upeName").value.trim();
+ if(!name){ toast("Enter a name"); return; }
+ try{
+  const res=await fetch("/api/places",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+   action:"update",id,token:adminToken(),name,
+   category:document.querySelector("#upeCategory").value,
+   location:document.querySelector("#upeLocation").value.trim(),
+   phone:document.querySelector("#upePhone").value.trim(),
+   lat:document.querySelector("#upeLat").value,
+   lon:document.querySelector("#upeLon").value
+  })});
+  const data=await res.json();
+  if(!data.ok){ toast("Could not save: "+(data.error||"unknown error")); return; }
+  toast("Place updated");
+  closeModal();
+  tcLoadPlacesAdmin();
+ }catch(e){ toast("Network error"); }
+}
+
 render();
+
