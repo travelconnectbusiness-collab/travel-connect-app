@@ -1,4 +1,4 @@
-const CACHE="tcp-v2-network-first";
+const CACHE="tcp-v3-network-first";
 const ASSETS=["/","/index.html","/src/app.css","/src/app.js","/manifest.webmanifest"];
 
 self.addEventListener("install",e=>{
@@ -15,12 +15,18 @@ self.addEventListener("activate",e=>{
 });
 
 /* Network-first: always tries to fetch the latest version from the server.
-   Only serves from cache if the network request fails (offline). This is what
-   makes new deployments show up immediately instead of the old cached copy. */
+   Only serves from cache if the network request fails (offline). {cache:
+   "no-store"} is essential here - without it, fetch() still consults the
+   BROWSER's own HTTP cache (separate from this Service Worker's Cache API
+   storage), which could silently return a stale copy even though this code
+   correctly went to the network first. This is what caused a "pull to
+   refresh" (a full page reload, not an in-app navigation) to sometimes show
+   an older version of a JS file until deployed script content itself aged
+   out of the browser's HTTP cache. */
 self.addEventListener("fetch",e=>{
  if(e.request.method!=="GET") return;
  e.respondWith(
-  fetch(e.request).then(res=>{
+  fetch(e.request,{cache:"no-store"}).then(res=>{
    const copy=res.clone();
    caches.open(CACHE).then(c=>c.put(e.request,copy));
    return res;
@@ -33,7 +39,7 @@ self.addEventListener("fetch",e=>{
 self.addEventListener("push",(event)=>{
  let data={};
  try{ data=event.data?event.data.json():{}; }catch(e){}
- const title=data.title||"🚨 Travel Connect SOS";
+ const title=data.title||"\ud83d\udea8 Travel Connect SOS";
  const options={
   body:data.body||"Needs urgent assistance.",
   tag:"tc-sos",
