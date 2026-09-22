@@ -7,13 +7,22 @@
 function loadBill(){
  const t=db.trips.find(x=>x.id===billTrip.value);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ /* Bills get their own sequential-style number (separate from the
+    Quotation Number, which was previously reused as-is) - generated ONCE
+    the first time a bill is calculated for this trip, then kept
+    permanently. This matters most for Quick Bills (created with no
+    quotation step at all), which otherwise showed a "QTN-..." reference
+    on what is actually a bill. */
+ if(!t.billNo){ t.billNo="BILL-"+Date.now(); save(); }
  const bd=billBreakdown(t,q,c);
  const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
  const final=r.final;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
  const balance=Math.max(0,final-paid);
  billBox.innerHTML=`<div class="ratebox">
+  <div class="muted">Bill No: <b>${esc(t.billNo)}</b>${q.no?` &nbsp;|&nbsp; Quotation Ref: ${esc(q.no)}`:""}</div>
   <div class="actions"><button onclick="editTrip('${t.id}')">Edit trip details (KM / hours / dates / Other Charges)</button><button onclick="openAdjustBill('${t.id}')">Adjust Final Bill Amount</button></div>
+  ${(t.driverName||t.driverMobile)?`<div class="muted" style="margin-top:6px">Driver: ${esc(t.driverName||"-")}${t.driverMobile?" ("+esc(t.driverMobile)+")":""}</div>`:""}
 
   <h3>1. Usage Details</h3>
   <div>Total KM: <b>${km}</b> &nbsp; Total Hours: <b>${h}</b></div>
@@ -171,6 +180,7 @@ function printQuoteObj(q){
 function printBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
+ if(!t.billNo){ t.billNo="BILL-"+Date.now(); save(); }
  const bd=billBreakdown(t,q,c);
  const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
@@ -193,7 +203,14 @@ function printBill(tripId){
  detailRows+=row("Vehicle Category",q.category||"-");
  detailRows+=row("Vehicle",q.vehicle||"Not specified");
  detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
- if(driver){detailRows+=row("Driver",driver.name||"-");detailRows+=row("Driver Mobile",driver.mobile||"-");}
+  /* Manually-entered driver name/mobile (added via "Edit trip details") take
+    priority over the auto-lookup from findDriverForVehicleNo() - useful
+    whenever the assigned driver isn't in the permanent Vehicles/Drivers
+    list, or is different for this specific trip. */
+ const driverName=t.driverName||(driver&&driver.name)||"";
+ const driverMobile=t.driverMobile||(driver&&driver.mobile)||"";
+ if(driverName) detailRows+=row("Driver",driverName);
+ if(driverMobile) detailRows+=row("Driver Mobile",driverMobile);
  if(q.service) detailRows+=row("Service",q.service);
  detailRows+=row("Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-");
  detailRows+=row("Trip Date",q.startDate||"-");
@@ -236,7 +253,7 @@ function printBill(tripId){
 
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
- printContent("Bill "+(q.no||""),`
+ printContent(t.billNo||("Bill "+(q.no||"")),`
  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
   <div style="display:flex;align-items:center;gap:8px">
    <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
@@ -253,6 +270,7 @@ function printBill(tripId){
   <h2 style="color:#143c5a;margin:4px 0;font-size:20px">FINAL TRIP BILL</h2>
   <span style="color:#888;font-size:12px">Bill printed on: ${esc(billDate)}</span>
  </div>
+ <div class="muted" style="text-align:center;font-size:12px;margin:-6px 0 8px">Bill No: <b>${esc(t.billNo)}</b>${q.no?` &nbsp;|&nbsp; Quotation Ref: ${esc(q.no)}`:""}</div>
  <table>${detailRows}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0">
   <div style="font-weight:bold;font-size:14px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
@@ -287,4 +305,47 @@ function printBill(tripId){
  `);
 }
 
+/* ---------- OPTIONAL DRIVER NAME/MOBILE ON THE BILL ----------
+   Redefines editTrip()/saveTrip() to add optional Driver name/mobile
+   fields (separate from the permanent Vehicles/Drivers list - this is
+   just for THIS trip's bill) - printBill() above already prefers these
+   over the auto-lookup when present. */
+function editTrip(id){
+ const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);
+ modal(`<h2>Actual Trip Details</h2><div class="grid">
+ <label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label>
+ <label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label>
+ <label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label>
+ <label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label>
+ <label>Actual closing time<input id="aCloseTime" type="time"></label>
+ <label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label>
+ <label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label>
+ <label>Actual closing point<input id="aReturn" value="${esc(t.returnPoint||q.returnPoint)}"></label>
+ <label>Actual KM<input id="aKm" type="number" value="${t.actualKm||0}"></label>
+ <label>Actual Hours<input id="aHours" type="number" value="${t.actualHours||0}"></label>
+ <label>Actual number of days<input id="aDays" type="number" value="${t.days||q.days||1}" min="1"></label>
+ <label>Actual overnight rest hours (excluded)<input id="aRestHours" type="number" value="${t.restHours!=null?t.restHours:(q.restHours||0)}"></label>
+ <label>Driver name (optional)<input id="aDriverName" value="${esc(t.driverName||"")}"></label>
+ <label>Driver mobile (optional)<input id="aDriverMobile" value="${esc(t.driverMobile||"")}"></label>
+ </div>${extraChargeFieldsHtml("aExtra",t.extraCharges||q.extraCharges)}<button class="primary" onclick="saveTrip('${id}')">Save Actual Trip</button>`);
+}
+function saveTrip(id){
+ const t=db.trips.find(x=>x.id===id);
+ Object.assign(t,{
+  entryDate:document.querySelector("#aEntryDate").value||t.entryDate||new Date().toISOString().slice(0,10),
+  startDate:aStart.value,startTime:aTime.value,closeDate:aClose.value,closeTime:aCloseTime.value,
+  pickup:aPickup.value,dest:aDest.value,returnPoint:aReturn.value,
+  actualKm:+aKm.value||0,actualHours:+aHours.value||0,
+  days:+document.querySelector("#aDays").value||1,
+  restHours:+document.querySelector("#aRestHours").value||0,
+  driverName:document.querySelector("#aDriverName").value.trim(),
+  driverMobile:document.querySelector("#aDriverMobile").value.trim(),
+  status:"completed",
+  extraCharges:readExtraChargeFields("aExtra")
+ });
+ save();closeModal();toast("Trip updated");
+ if(document.querySelector("#billBox")&&document.querySelector("#billTrip")) loadBill();
+}
+
 render();
+
