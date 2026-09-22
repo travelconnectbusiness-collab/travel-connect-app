@@ -49,6 +49,27 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
+  if (body.action === "update") {
+    if (!body.id) return Response.json({ ok: false, error: "missing_id" }, { status: 400 });
+    const name = (body.name || "").trim();
+    if (!name) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    await env.DB
+      .prepare(
+        "UPDATE useful_places SET name=?, category=?, location=?, phone=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon) WHERE id=?"
+      )
+      .bind(
+        name,
+        body.category || "",
+        body.location || "",
+        body.phone || "",
+        body.lat != null && body.lat !== "" ? Number(body.lat) : null,
+        body.lon != null && body.lon !== "" ? Number(body.lon) : null,
+        body.id
+      )
+      .run();
+    return Response.json({ ok: true });
+  }
+
   if (body.action === "delete") {
     if (!body.id) return Response.json({ ok: false, error: "missing_id" }, { status: 400 });
     await env.DB.prepare("DELETE FROM useful_places WHERE id=?").bind(body.id).run();
