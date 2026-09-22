@@ -331,8 +331,14 @@ function printBill(tripId){
  summaryRows+=row("Base Rate",money(r.base));
  summaryRows+=row("Additional Charge (higher of KM/Hour)",money(r.extra||0));
  if(r.driverBata) summaryRows+=row("Driver Bata",money(r.driverBata));
- if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount));
- if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition));
+ /* r.discountAmount is the QUOTATION's own discount (percent/fixed amount
+    chosen when the quotation was created) - it was already folded into
+    "Your Total Savings" above, but was never shown as its own line here,
+    so Base+Additional+Other Charges never visibly added up to the Final
+    Bill Amount with no explanation of the gap. */
+ if(r.discountAmount) summaryRows+=row("Discount","- "+money(r.discountAmount));
+ if(manualDiscount) summaryRows+=row("Manual Discount"+(r.manualAdjustmentNote?" ("+esc(r.manualAdjustmentNote)+")":""),"- "+money(manualDiscount));
+ if(manualAddition) summaryRows+=row("Manual Addition"+(r.manualAdjustmentNote?" ("+esc(r.manualAdjustmentNote)+")":""),"+ "+money(manualAddition));
  if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
  if(r.extraTotal>0) summaryRows+=row("Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+money(r.extraTotal));
  if(r.gstAmount>0) summaryRows+=row("GST @ "+r.gstPct+"%","+"+money(r.gstAmount));
