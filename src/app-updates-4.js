@@ -963,8 +963,9 @@ async function downloadBillPDF(tripId){
  y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
  y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
  if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
- if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
- if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
+ if(r.discountAmount) y=pdfRow(doc,y,"Discount","- "+pdfMoney(r.discountAmount));
+ if(manualDiscount) y=pdfRow(doc,y,"Manual Discount"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),"- "+pdfMoney(manualDiscount));
+ if(manualAddition) y=pdfRow(doc,y,"Manual Addition"+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""),"+ "+pdfMoney(manualAddition));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
  if(r.extraTotal>0) y=pdfRow(doc,y,"Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+pdfMoney(r.extraTotal));
  if(r.gstAmount>0) y=pdfRow(doc,y,"GST @ "+r.gstPct+"%","+"+pdfMoney(r.gstAmount));
