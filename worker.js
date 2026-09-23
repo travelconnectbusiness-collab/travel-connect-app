@@ -81,7 +81,9 @@ export default {
     const res = await env.ASSETS.fetch(request);
     if (/\.(js|css|html)$/.test(url.pathname) || url.pathname === "/") {
       const newRes = new Response(res.body, res);
-      newRes.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      newRes.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      newRes.headers.set("Pragma", "no-cache");
+      newRes.headers.set("Expires", "0");
       return newRes;
     }
     return res;
