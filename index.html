@@ -8,6 +8,18 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Travel Connect Professional</title>
 <link rel="stylesheet" href="/src/app.css?v=20260924a">
+<style>
+/* Disables the browser's native "pull down to refresh" gesture - this is
+   the trigger for the stale-content issue (a network-level caching layer
+   outside this app's control intercepts that specific reload, even though
+   in-app navigation always correctly loads the latest version). Removing
+   the gesture removes the trigger entirely; in-app navigation (tapping any
+   button) remains completely unaffected and still always shows the latest
+   version, and is now the only way to "refresh" the page - which is fine,
+   since that path was already proven reliable. */
+html,body{overscroll-behavior-y:contain}
+</style>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
