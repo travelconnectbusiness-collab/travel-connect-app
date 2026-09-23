@@ -59,7 +59,20 @@ html,body{overscroll-behavior-y:contain}
 <script src="/src/app-updates-9.js?v=20260924a"></script>
 <script src="/src/app-updates-10.js?v=20260924a"></script>
 <script src="/src/app-updates-11.js?v=20260924a"></script>
-<script>if('serviceWorker' in navigator) addEventListener('load',()=>{navigator.serviceWorker.getRegistrations().then(regs=>{regs.forEach(reg=>reg.unregister());}).catch(()=>{});});</script>
+<script>
+/* Re-registers the Service Worker (previously unregistered while
+   diagnosing the stale-content issue) - now WITH an explicit auto-reload
+   the moment a NEW service worker takes control of the page
+   (controllerchange). sw.js's own skipWaiting()+clients.claim() make a
+   newly-installed SW take over immediately rather than waiting for every
+   tab to close first; this listener is what makes the ALREADY-OPEN page
+   actually pick up that change instead of silently continuing to run
+   under whatever was loaded at open time. */
+if('serviceWorker' in navigator){
+ addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{ location.reload(); });
+}
+</script>
 <script>
 /* If this page is ever restored from the browser's "back-forward cache"
    (bfcache) instead of being freshly loaded from the network - which can
