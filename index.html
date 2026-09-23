@@ -46,5 +46,14 @@
 <script src="/src/app-updates-8.js"></script>
 <script src="/src/app-updates-9.js"></script>
 <script>if('serviceWorker' in navigator) addEventListener('load',()=>{navigator.serviceWorker.getRegistrations().then(regs=>{regs.forEach(reg=>reg.unregister());}).catch(()=>{});});</script>
+<script>
+/* If this page is ever restored from the browser's "back-forward cache"
+   (bfcache) instead of being freshly loaded from the network - which can
+   happen on some mobile browsers' pull-to-refresh gesture - force a real
+   reload. event.persisted is true only when the page came from bfcache,
+   never on a genuine fresh load, so this never causes an extra reload on
+   normal navigation. */
+window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(); });
+</script>
 </body>
 </html>
