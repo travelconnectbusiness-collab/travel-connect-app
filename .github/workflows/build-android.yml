@@ -37,7 +37,7 @@ jobs:
           cp icon-192.png android-app/www/ 2>/dev/null || true
           cp icon-512.png android-app/www/ 2>/dev/null || true
 
-      - name: Add native-app fixes (API calls, Back button, PDF/Image save)
+      - name: Add native-app fixes (API calls, Back button, PDF/Image save, first-paint)
         run: |
           cat > android-app/www/capacitor-native-fixes.js << 'JSEOF'
           (function(){
@@ -57,7 +57,10 @@ jobs:
               return idx >= 0 ? dataUrl.substring(idx + 1) : dataUrl;
             }
 
+            var sharing = false;
             async function saveAndShare(href, filename){
+              if (sharing) return;
+              sharing = true;
               try{
                 var Filesystem = Capacitor.Plugins.Filesystem;
                 var Share = Capacitor.Plugins.Share;
@@ -79,16 +82,18 @@ jobs:
               }catch(e){
                 alert("Could not save/share the file: " + (e && e.message ? e.message : e));
               }
+              sharing = false;
             }
 
-            var origAnchorClick = HTMLAnchorElement.prototype.click;
-            HTMLAnchorElement.prototype.click = function(){
-              if (this.download && this.href && (this.href.indexOf("data:") === 0 || this.href.indexOf("blob:") === 0)) {
-                saveAndShare(this.href, this.download);
-                return;
+            document.addEventListener("click", function(e){
+              var el = e.target;
+              while (el && el.tagName !== "A") el = el.parentElement;
+              if (el && el.download && el.href && (el.href.indexOf("data:") === 0 || el.href.indexOf("blob:") === 0)) {
+                e.preventDefault();
+                e.stopPropagation();
+                saveAndShare(el.href, el.download);
               }
-              return origAnchorClick.call(this);
-            };
+            }, true);
 
             document.addEventListener("deviceready", function(){
               try{
@@ -108,6 +113,12 @@ jobs:
                   }
                 });
               }catch(e){}
+            });
+
+            window.addEventListener("load", function(){
+              setTimeout(function(){
+                try{ if (typeof render === "function") render(); }catch(e){}
+              }, 150);
             });
           })();
           JSEOF
