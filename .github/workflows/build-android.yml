@@ -37,11 +37,12 @@ jobs:
           cp icon-192.png android-app/www/ 2>/dev/null || true
           cp icon-512.png android-app/www/ 2>/dev/null || true
 
-      - name: Fix API calls for the native app (Capacitor-only, does not affect the website)
+      - name: Add native-app fixes (API calls, Back button, PDF/Image save)
         run: |
-          cat > android-app/www/capacitor-api-fix.js << 'JSEOF'
+          cat > android-app/www/capacitor-native-fixes.js << 'JSEOF'
           (function(){
             if (!window.Capacitor) return;
+
             var API_BASE = "https://travel-connect-app.travelconnect-business.workers.dev";
             var origFetch = window.fetch;
             window.fetch = function(input, init){
@@ -50,9 +51,67 @@ jobs:
               }
               return origFetch(input, init);
             };
+
+            function dataUrlToBase64(dataUrl){
+              var idx = dataUrl.indexOf(",");
+              return idx >= 0 ? dataUrl.substring(idx + 1) : dataUrl;
+            }
+
+            async function saveAndShare(href, filename){
+              try{
+                var Filesystem = Capacitor.Plugins.Filesystem;
+                var Share = Capacitor.Plugins.Share;
+                var base64;
+                if (href.indexOf("data:") === 0){
+                  base64 = dataUrlToBase64(href);
+                } else {
+                  var resp = await fetch(href);
+                  var blob = await resp.blob();
+                  base64 = await new Promise(function(resolve, reject){
+                    var reader = new FileReader();
+                    reader.onloadend = function(){ resolve(dataUrlToBase64(reader.result)); };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                }
+                var written = await Filesystem.writeFile({ path: filename, data: base64, directory: "CACHE" });
+                await Share.share({ title: filename, url: written.uri });
+              }catch(e){
+                alert("Could not save/share the file: " + (e && e.message ? e.message : e));
+              }
+            }
+
+            var origAnchorClick = HTMLAnchorElement.prototype.click;
+            HTMLAnchorElement.prototype.click = function(){
+              if (this.download && this.href && (this.href.indexOf("data:") === 0 || this.href.indexOf("blob:") === 0)) {
+                saveAndShare(this.href, this.download);
+                return;
+              }
+              return origAnchorClick.call(this);
+            };
+
+            document.addEventListener("deviceready", function(){
+              try{
+                Capacitor.Plugins.App.addListener("backButton", function(){
+                  var modalEl = document.querySelector("#modal");
+                  if (modalEl && !modalEl.classList.contains("hidden")) {
+                    modalEl.classList.add("hidden");
+                    return;
+                  }
+                  var atDashboard = (location.hash === "" || location.hash === "#dashboard");
+                  if (atDashboard) {
+                    Capacitor.Plugins.App.exitApp();
+                  } else if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    location.hash = "dashboard";
+                  }
+                });
+              }catch(e){}
+            });
           })();
           JSEOF
-          sed -i 's#<script src="/src/TravelConnect-logo-data.js#<script src="capacitor-api-fix.js"></script>\n<script src="/src/TravelConnect-logo-data.js#' android-app/www/index.html
+          sed -i 's#<script src="/src/TravelConnect-logo-data.js#<script src="capacitor-native-fixes.js"></script>\n<script src="/src/TravelConnect-logo-data.js#' android-app/www/index.html
 
       - name: Install Capacitor
         working-directory: android-app
