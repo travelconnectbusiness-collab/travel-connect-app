@@ -1,0 +1,19 @@
+{
+  "name": "travel-connect-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native Android wrapper for Travel Connect",
+  "scripts": {
+    "sync": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/geolocation": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
