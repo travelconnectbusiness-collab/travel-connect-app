@@ -7,11 +7,6 @@
     "allowMixedContent": false
   },
   "server": {
-    "androidScheme": "https",
-    "hostname": "travel-connect-app.travelconnect-business.workers.dev",
-    "allowNavigation": [
-      "travel-connect-app.travelconnect-business.workers.dev",
-      "nominatim.openstreetmap.org"
-    ]
+    "androidScheme": "https"
   }
 }
