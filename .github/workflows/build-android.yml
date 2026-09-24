@@ -37,6 +37,23 @@ jobs:
           cp icon-192.png android-app/www/ 2>/dev/null || true
           cp icon-512.png android-app/www/ 2>/dev/null || true
 
+      - name: Fix API calls for the native app (Capacitor-only, does not affect the website)
+        run: |
+          cat > android-app/www/capacitor-api-fix.js << 'JSEOF'
+          (function(){
+            if (!window.Capacitor) return;
+            var API_BASE = "https://travel-connect-app.travelconnect-business.workers.dev";
+            var origFetch = window.fetch;
+            window.fetch = function(input, init){
+              if (typeof input === "string" && input.indexOf("/api/") === 0) {
+                input = API_BASE + input;
+              }
+              return origFetch(input, init);
+            };
+          })();
+          JSEOF
+          sed -i 's#<script src="/src/TravelConnect-logo-data.js#<script src="capacitor-api-fix.js"></script>\n<script src="/src/TravelConnect-logo-data.js#' android-app/www/index.html
+
       - name: Install Capacitor
         working-directory: android-app
         run: npm install
