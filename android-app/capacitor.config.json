@@ -1,0 +1,13 @@
+{
+  "appId": "com.travelconnect.krishnatours",
+  "appName": "Travel Connect",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "travel-connect-app.travelconnect-business.workers.dev"
+  }
+}
