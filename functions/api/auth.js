@@ -42,9 +42,6 @@ export async function onRequestGet({ request, env }) {
     const device = url.searchParams.get("device");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
 
-    /* The owner's number always passes every check — never blocked, never
-       needs to be on the allowlist. This is the safety net so the owner can
-       never lock themselves out of their own app. */
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     if (ownerRow && ownerRow.mobile === mobile) {
       return Response.json({ ok: true, blocked: false, authorized: true, isOwner: true });
@@ -62,12 +59,6 @@ export async function onRequestGet({ request, env }) {
         .first();
       if (devRow) blocked = true;
     }
-    /* Also re-checks the allowlist on every ongoing session (not just at the
-       login moment) — so removing someone's number actually logs them out on
-       their next check, not just prevents a brand-new login. Skipped entirely
-       while the allowlist table is empty, same as at login — and skipped for
-       customers too, same as at login, since the allowlist only ever governed
-       who can act as a business owner/partner/staff. */
     let authorized = true;
     const isCustomer = row && row.role === "customer";
     const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
@@ -90,23 +81,40 @@ export async function onRequestPost({ request, env }) {
   }
   const action = body.action;
 
-  /* Checks the password (a Cloudflare Secret) — on success issues a temporary session
-     token instead of ever sending the password itself back to the browser. */
   if (action === "admin_login") {
-    if (body.password !== env.ADMIN_PASSWORD) {
+    const override = await env.DB.prepare(
+      "SELECT password FROM admin_password_override WHERE id=1"
+    ).first().catch(() => null);
+    const currentPassword = override ? override.password : env.ADMIN_PASSWORD;
+    if (body.password !== currentPassword) {
       return Response.json({ ok: false, error: "wrong_password" }, { status: 401 });
     }
     const token = await createAdminSession(env);
     return Response.json({ ok: true, token });
   }
 
-  /* Anyone can call this — it just records who is using the app on which device
-     (not SMS-verified). A blocked mobile OR a blocked device is rejected immediately,
-     even if the person types in a brand-new name/mobile from the same device.
-     NEW: the mobile number must also be present in the authorized_users allowlist
-     (added by the owner) — if the allowlist table is completely empty, this check
-     is skipped entirely, so the app keeps working exactly as before until the owner
-     actually starts using the allowlist feature. */
+  /* Owner-only: lets the owner change the admin password from within the app
+     instead of only via the Cloudflare dashboard secret. Stores it the same
+     way — as a Cloudflare Secret would be checked — but since Workers can't
+     rewrite their own secrets from inside a request, this instead stores an
+     override in D1 that admin_login checks FIRST, falling back to the
+     env.ADMIN_PASSWORD secret if no override row exists. */
+  if (action === "admin_change_password") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    if (!body.new_password || body.new_password.length < 4) {
+      return Response.json({ ok: false, error: "password_too_short" }, { status: 400 });
+    }
+    await env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS admin_password_override (id INTEGER PRIMARY KEY CHECK (id=1), password TEXT NOT NULL)"
+    ).run();
+    await env.DB.prepare(
+      "INSERT INTO admin_password_override (id, password) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET password=excluded.password"
+    ).bind(body.new_password).run();
+    return Response.json({ ok: true });
+  }
+
   if (action === "login") {
     const name = (body.name || "").trim();
     const mobile = (body.mobile || "").trim();
@@ -116,11 +124,6 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
 
-    /* The owner's number always skips the allowlist check entirely. Customers
-       ALSO skip it — the allowlist is only meant to control who can act as a
-       business owner/partner/staff; customers are meant to be open to anyone,
-       since the whole point of the customer role is public reach. Blocking
-       (below) still applies equally to everyone, including customers. */
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     const isOwner = !!(ownerRow && ownerRow.mobile === mobile);
     const skipAllowlist = isOwner || role === "customer";
@@ -192,9 +195,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, name, mobile, isOwner });
   }
 
-  /* Owner-only: blocking a mobile ALSO blocks the device token last used by that
-     mobile (if any is on record), so the same phone can't just re-register with a
-     different name/number to get back in immediately. */
   if (action === "block" || action === "unblock") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -220,8 +220,6 @@ export async function onRequestPost({ request, env }) {
           .run();
       }
     } else {
-      /* unblock: also lift the device-level block for this device, otherwise the
-         phone stays locked out even though the mobile number itself was cleared. */
       if (row && row.device_token) {
         await env.DB
           .prepare("DELETE FROM blocked_devices WHERE device_token=?")
@@ -229,6 +227,33 @@ export async function onRequestPost({ request, env }) {
           .run();
       }
     }
+    return Response.json({ ok: true });
+  }
+
+  /* NEW — lets the admin correct a saved display name for any user (business
+     owner or customer) without them needing to do it themselves. */
+  if (action === "admin_update_user") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    if (!body.mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
+    await env.DB
+      .prepare("UPDATE app_users SET name=? WHERE mobile=?")
+      .bind((body.name || "").trim(), body.mobile)
+      .run();
+    return Response.json({ ok: true });
+  }
+
+  /* NEW — permanently removes a user's record (their saved name/location/
+     login history). They can still log in again afterward as if brand new -
+     this does not block them (use "block" for that); it only erases what's
+     currently on file. */
+  if (action === "admin_delete_user") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    if (!body.mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
+    await env.DB.prepare("DELETE FROM app_users WHERE mobile=?").bind(body.mobile).run();
     return Response.json({ ok: true });
   }
 
