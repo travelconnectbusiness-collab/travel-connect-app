@@ -1,86 +1,105 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#082b49">
-<meta name="description" content="Travel Connect Professional — travel business management platform">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Travel Connect</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<title>Travel Connect Professional</title>
-<link rel="stylesheet" href="/src/app.css?v=20260924a">
+<meta name="theme-color" content="#082b49">
 <style>
-/* Disables the browser's native "pull down to refresh" gesture - this is
-   the trigger for the stale-content issue (a network-level caching layer
-   outside this app's control intercepts that specific reload, even though
-   in-app navigation always correctly loads the latest version). Removing
-   the gesture removes the trigger entirely; in-app navigation (tapping any
-   button) remains completely unaffected and still always shows the latest
-   version, and is now the only way to "refresh" the page - which is fine,
-   since that path was already proven reliable. */
-html,body{overscroll-behavior-y:contain}
+:root{
+ --tc-teal:#0f5a55;--tc-navy:#082b49;
+ box-sizing:border-box;
+ padding-top:env(safe-area-inset-top,0px);
+ padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);overscroll-behavior-y:contain}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7f8;color:#172536;overscroll-behavior-y:contain}
+.top{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--tc-navy),var(--tc-teal));color:#fff;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between}
+.top b{display:block;font-size:14px;letter-spacing:.5px}
+.top small{display:block;font-size:10px;opacity:.85}
+.tabs{position:sticky;top:0;z-index:40;display:flex;overflow-x:auto;background:#fff;border-bottom:1px solid #e2e6ea;-webkit-overflow-scrolling:touch}
+.tabs button{flex:0 0 auto;padding:11px 14px;border:none;background:none;font-size:12.5px;font-weight:600;color:#6a7a87;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button.active{color:var(--tc-teal);border-bottom-color:var(--tc-teal)}
+.container{max-width:640px;margin:0 auto;padding:14px}
+.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:14px}
+.card h2{margin-top:0;font-size:18px;color:var(--tc-navy)}
+.card h3{font-size:15px;color:var(--tc-navy)}
+.backbtn{background:none;border:none;color:var(--tc-teal);font-weight:600;font-size:13px;padding:0 0 10px;cursor:pointer}
+.grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.grid label{flex:1 1 45%;min-width:140px;font-size:12px;font-weight:600;color:#445;display:flex;flex-direction:column;gap:4px}
+.grid input,.grid select,.grid textarea,input,select,textarea{padding:10px;border-radius:9px;border:1px solid #c9d4dc;font-size:14px;font-family:inherit;width:100%}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+button{padding:10px 14px;border-radius:9px;border:1px solid #c9d4dc;background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:#172536}
+button.primary{background:var(--tc-teal);color:#fff;border-color:var(--tc-teal)}
+button.danger{background:#fdeceb;color:#a12d2d;border-color:#f3c9c5}
+.listitem{padding:10px 0;border-bottom:1px solid #eef1f4;font-size:13.5px}
+.listitem:last-child{border-bottom:none}
+.metric{flex:1 1 45%;background:#f5f8fa;border-radius:10px;padding:10px;text-align:center}
+.metric b{display:block;font-size:19px;color:var(--tc-teal)}
+.ratebox{background:#f9fafb;border-radius:10px;padding:12px;margin-top:8px;font-size:13.5px}
+.ratebox .total{font-weight:800;font-size:16px;color:var(--tc-teal);margin-top:6px}
+.notice{background:#fdf6e3;border:1px solid #d2b478;border-radius:8px;padding:10px;font-size:12px;color:#7a5a1e;margin-top:8px}
+.muted{color:#6a7a87;font-size:12px}
+.ok{color:#1c6b2c}
+.danger{color:#a12d2d}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table{border-collapse:collapse;width:100%;font-size:12.5px}
+.table th,.table td{padding:6px 8px;border-bottom:1px solid #eef1f4;text-align:left;white-space:nowrap}
+#toast{display:none;position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:#172536;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:9999;max-width:90%;text-align:center}
+#modal{position:fixed;inset:0;z-index:9000;background:rgba(10,20,30,.5);display:flex;align-items:flex-end;justify-content:center}
+#modal.hidden{display:none}
+#modal .modalcard{background:#fff;border-radius:16px 16px 0 0;padding:18px;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+@media(min-width:700px){#modal{align-items:center}#modal .modalcard{border-radius:16px;max-height:80vh}}
 </style>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
-<header class="top">
-  <div><b>TRAVEL CONNECT</b><small>Professional Travel Business Platform</small></div>
-  <button id="networkBtn" class="round">👥</button>
-</header>
-
-<nav class="tabs">
-  <button data-view="dashboard">Dashboard</button>
-  <button data-view="enquiries">Enquiries</button>
-  <button data-view="quotations">Quotations</button>
-  <button data-view="trips">Trips</button>
-  <button data-view="billing">Billing</button>
-  <button data-view="master">Master Data</button>
-  <button data-view="accounts">Accounts</button>
-  <button data-view="admin">Admin</button>
-</nav>
-
-<main id="app"></main>
-
-<div id="modal" class="modal hidden"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalBody"></div></div></div>
+<div class="top" id="topHeader"></div>
+<div class="tabs" id="tabsRow">
+ <button data-view="dashboard">Dashboard</button>
+ <button data-view="enquiries">Enquiries</button>
+ <button data-view="quotations">Quotations</button>
+ <button data-view="trips">Trips</button>
+ <button data-view="billing">Billing</button>
+ <button data-view="master">Rate Master</button>
+ <button data-view="accounts">Accounts</button>
+</div>
+<div id="app"></div>
 <div id="toast"></div>
+<div id="modal" class="hidden"><div class="modalcard" id="modalBody"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 <script>window.addEventListener('error',function(e){alert('LOAD ERROR: '+e.message+' | file: '+e.filename+' | line: '+e.lineno+' col: '+e.colno);});</script>
-<script src="/src/TravelConnect-logo-data.js?v=20260924a"></script>
-<script src="/src/app.js?v=20260924a"></script>
-<script src="/src/app-updates.js?v=20260924a"></script>
-<script src="/src/app-updates-2.js?v=20260924a"></script>
-<script src="/src/app-updates-3.js?v=20260924a"></script>
-<script src="/src/app-updates-4.js?v=20260924a"></script>
-<script src="/src/app-updates-5.js?v=20260924a"></script>
-<script src="/src/app-updates-6.js?v=20260924a"></script>
-<script src="/src/app-updates-7.js?v=20260924a"></script>
-<script src="/src/app-updates-8.js?v=20260924a"></script>
-<script src="/src/app-updates-9.js?v=20260924a"></script>
-<script src="/src/app-updates-10.js?v=20260924a"></script>
-<script src="/src/app-updates-11.js?v=20260924a"></script>
+
 <script>
-/* Re-registers the Service Worker (previously unregistered while
-   diagnosing the stale-content issue) - now WITH an explicit auto-reload
-   the moment a NEW service worker takes control of the page
-   (controllerchange). sw.js's own skipWaiting()+clients.claim() make a
-   newly-installed SW take over immediately rather than waiting for every
-   tab to close first; this listener is what makes the ALREADY-OPEN page
-   actually pick up that change instead of silently continuing to run
-   under whatever was loaded at open time. */
+/* Forces the ENTIRE PAGE to be re-fetched from the network on every fresh
+   open - not just its scripts. Restoring from the browser's back-forward
+   cache (bfcache) skips re-running <script> tags entirely, which was one
+   of several suspected causes of the stale-first-paint issue investigated
+   this session; this is a defensive measure kept from that investigation. */
+window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(); });
+</script>
+
+<script>
+/* Re-registers the Service Worker with an explicit auto-reload the moment
+   a NEW service worker takes control of the page (controllerchange) -
+   sw.js's own skipWaiting()+clients.claim() make a newly-installed SW
+   take over immediately; this listener is what makes an already-open page
+   actually pick up that change. */
 if('serviceWorker' in navigator){
  addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
  navigator.serviceWorker.addEventListener('controllerchange',()=>{ location.reload(); });
 }
 </script>
-<script>
-/* If this page is ever restored from the browser's "back-forward cache"
-   (bfcache) instead of being freshly loaded from the network - which can
-   happen on some mobile browsers' pull-to-refresh gesture - force a real
-   reload. event.persisted is true only when the page came from bfcache,
-   never on a genuine fresh load, so this never causes an extra reload on
-   normal navigation. */
-window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(); });
-</script>
+
+<script src="/src/TravelConnect-logo-data.js?v=20260925a"></script>
+<script src="/src/core.js?v=20260925a"></script>
+<script src="/src/business.js?v=20260925a"></script>
+<script src="/src/directory.js?v=20260925a"></script>
+<script src="/src/customer-safety.js?v=20260925a"></script>
 </body>
 </html>
