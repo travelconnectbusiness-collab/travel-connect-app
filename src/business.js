@@ -1602,7 +1602,11 @@ function dashboard(){
   <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry -&gt; Quotation -&gt; Confirmation -&gt; Trip -&gt; Final Bill -&gt; Payment -&gt; Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
+ ${tcCollapsibleBox("custUsefulPlaces","&#128205; Useful Places",`<div id="custPlacesList">Loading...</div>`,false)}
+ ${tcCollapsibleBox("custEmergency","&#9888; Emergency Contacts",`<div id="custEmergencyList">Loading...</div>`,false)}
  `);
+ tcRenderCustEmergencyContacts();
+ tcRenderCustUsefulPlaces();
 }
 
 /* ---------- BILLING IDENTITY (shared by Taxi dashboard AND non-taxi
