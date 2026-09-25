@@ -22,13 +22,22 @@ async function uploadFile(env, file, vehicleId, field) {
   return key;
 }
 
-/* GET ?action=list&partner_id=...     — a partner's own vehicles
-   GET ?action=active                  — public "Active Board": vehicles currently
+/* Adds the business_hours column the first time this runs after the
+   update - swallows the "duplicate column" error on later runs. */
+async function ensureNewColumns(env) {
+  try {
+    await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN business_hours TEXT").run();
+  } catch (e) { /* already exists */ }
+}
+
+/* GET ?action=list&partner_id=...     - a partner's own vehicles
+   GET ?action=active                  - public "Active Board": vehicles currently
                                           marked ready for a trip, verified vehicle +
                                           verified partner only, no private documents
-   GET ?action=pending&token=...       — admin: vehicles awaiting verification
-   GET ?action=file&key=...&token=...  — admin: view an uploaded document photo */
+   GET ?action=pending&token=...       - admin: vehicles awaiting verification
+   GET ?action=file&key=...&token=...  - admin: view an uploaded document photo */
 export async function onRequestGet({ request, env }) {
+  await ensureNewColumns(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
@@ -45,7 +54,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "active") {
     const { results } = await env.DB
       .prepare(
-        `SELECT v.id, v.vehicle_number, v.category, v.temp_location, p.business_name, p.mobile1, p.mobile2,
+        `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
          WHERE v.active=1 AND v.verified=1 AND p.verified=1
@@ -89,10 +98,12 @@ export async function onRequestGet({ request, env }) {
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
-/* POST ?action=register       — multipart/form-data: vehicle fields + document photos
-   POST ?action=toggle_active  — JSON: the vehicle's own partner turns "Active Now" on/off
-   POST ?action=verify         — JSON: admin approves or un-approves a vehicle */
+/* POST ?action=register       - multipart/form-data: vehicle fields + document photos
+   POST ?action=toggle_active  - JSON: the vehicle's own partner turns "Active Now" on/off
+   POST ?action=set_hours      - JSON: the vehicle's own partner sets its active-hours
+   POST ?action=verify         - JSON: admin approves or un-approves a vehicle */
 export async function onRequestPost({ request, env }) {
+  await ensureNewColumns(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
@@ -176,16 +187,40 @@ export async function onRequestPost({ request, env }) {
     if (row.mobile1 !== mobile && row.mobile2 !== mobile) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    /* A driver can optionally give a TEMPORARY current location when marking
-       Active — e.g. just dropped off in Kallachi and wants to be found for a
-       return trip from there, without changing their permanent registered
-       garage location. Cleared automatically when marked inactive again, so
-       it never lingers stale for the next time they're marked active. */
     const tempLocation = active && location ? String(location).trim() : null;
     await env.DB
       .prepare("UPDATE vehicles SET active=?, temp_location=? WHERE id=?")
       .bind(active ? 1 : 0, tempLocation, vehicle_id)
       .run();
+    return Response.json({ ok: true });
+  }
+
+  /* NEW - a partner sets their OWN vehicle's active-hours (JSON string, same
+     shape core.js/directory.js already use for a partner's own hours) -
+     ownership checked by matching mobile, same pattern as toggle_active. */
+  if (action === "set_hours") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    const { vehicle_id, mobile, business_hours } = body;
+    if (!vehicle_id || !mobile) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare(
+        `SELECT v.id, p.mobile1, p.mobile2 FROM vehicles v
+         JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
+      )
+      .bind(vehicle_id)
+      .first();
+    if (!row) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (row.mobile1 !== mobile && row.mobile2 !== mobile) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    await env.DB.prepare("UPDATE vehicles SET business_hours=? WHERE id=?").bind(business_hours || null, vehicle_id).run();
     return Response.json({ ok: true });
   }
 
