@@ -779,10 +779,17 @@ function setupPageTransitions(){
  observer.observe(el,{childList:true});
 }
 
-/* ---------- BOOTSTRAP ---------- */
+/* ---------- BOOTSTRAP (part 1) ----------
+   Only what's SAFE to run before business.js/directory.js/customer-
+   safety.js have loaded - none of these touch a function defined in
+   those later files. The actual first render() call is deliberately
+   NOT here - it needs dashboard()/customerHome()/startSosPolling() etc.
+   from those other files, so it's the last line of customer-safety.js
+   (the last of the four files to load) instead. Calling it here, before
+   those files exist yet, is exactly the "loaded but not defined yet"
+   bug this whole rewrite was meant to eliminate. */
 migrate();
 tcCheckPinLock();
 setupSwipeNav();
 setupPageTransitions();
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>view(b.dataset.view));
-render();
