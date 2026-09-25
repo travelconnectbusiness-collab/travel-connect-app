@@ -5,14 +5,27 @@ async function sha256Hex(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/* GET ?action=mine&mobile=...           — a partner looks up their own record
-   GET ?action=pending&token=...         — admin: partners awaiting verification
-   GET ?action=all&token=...             — admin: every partner
-   GET ?action=logo&partner_id=...       — public: serves a partner's uploaded logo image
-                                            (Premium branding only — no auth needed, since
+/* Adds the description/business_hours columns the first time this file runs
+   after the update - SQLite has no "ADD COLUMN IF NOT EXISTS", so this just
+   swallows the "duplicate column" error on every run after the first. */
+async function ensureNewColumns(env) {
+  for (const stmt of [
+    "ALTER TABLE travel_partners ADD COLUMN description TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN business_hours TEXT",
+  ]) {
+    try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
+  }
+}
+
+/* GET ?action=mine&mobile=...           - a partner looks up their own record
+   GET ?action=pending&token=...         - admin: partners awaiting verification
+   GET ?action=all&token=...             - admin: every partner
+   GET ?action=logo&partner_id=...       - public: serves a partner's uploaded logo image
+                                            (Premium branding only - no auth needed, since
                                             this has to load inside a printed bill/PDF the
                                             customer views, not just inside the app) */
 export async function onRequestGet({ request, env }) {
+  await ensureNewColumns(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
@@ -20,12 +33,30 @@ export async function onRequestGet({ request, env }) {
     const mobile = url.searchParams.get("mobile");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
     const row = await env.DB
-      .prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?")
+      .prepare("SELECT * FROM travel_partners WHERE (mobile1=? OR mobile2=?) ORDER BY created_at ASC LIMIT 1")
       .bind(mobile, mobile)
       .first();
     const hasPassword = !!(row && row.portal_password_hash);
     if (row) delete row.portal_password_hash; /* never send the hash to the client */
     return Response.json({ ok: true, partner: row || null, has_password: hasPassword });
+  }
+
+  /* Lists EVERY business this mobile has registered - a person can run more
+     than one (e.g. a taxi business and a separate auto-rickshaw, or an
+     aquarium shop, all under one phone number), each its own fully separate
+     partner record/page. directory.js's partnerView() uses this to decide
+     whether to go straight to the one business someone has (unchanged
+     behaviour for the common case), or show a picker when there's more than
+     one. */
+  if (action === "mine_list") {
+    const mobile = url.searchParams.get("mobile");
+    if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
+    const { results } = await env.DB
+      .prepare("SELECT * FROM travel_partners WHERE (mobile1=? OR mobile2=?) ORDER BY created_at ASC")
+      .bind(mobile, mobile)
+      .all();
+    results.forEach((r) => delete r.portal_password_hash);
+    return Response.json({ ok: true, partners: results });
   }
 
   if (action === "pending" || action === "all") {
@@ -41,17 +72,14 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, partners: results });
   }
 
-  /* Public, no auth needed — the searchable local business directory. Any
-     logged-in user (customer, auto driver, another business owner) can look
-     up verified businesses of any type by category/location. Deliberately
-     returns everyone verified, not just those marked "available now" — a
-     restaurant or workshop doesn't toggle availability the way a vehicle
-     does, so the frontend just shows an "Available now" badge when the flag
-     is set instead of filtering it out entirely. */
+  /* Public, no auth needed - the searchable local business directory. Now
+     also returns description and business_hours so the Directory listing
+     can show what the business offers, and can compute (client-side)
+     whether they're within their set hours right now. */
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, lat, lon, available FROM travel_partners WHERE verified=1 ORDER BY business_name"
+        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours FROM travel_partners WHERE verified=1 ORDER BY business_name"
       )
       .all();
     return Response.json({ ok: true, partners: results });
@@ -72,19 +100,15 @@ export async function onRequestGet({ request, env }) {
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
-/* POST action=register — create a new partner (self-registration, not verified yet)
-   POST action=update   — a verified-or-not partner edits their own details (ownership
+/* POST action=register - create a new partner (self-registration, not verified yet)
+   POST action=update   - a verified-or-not partner edits their own details (ownership
                            checked by matching mobile, not by admin token)
-   POST action=verify   — admin: approve or un-approve a partner */
+   POST action=verify   - admin: approve or un-approve a partner */
 export async function onRequestPost({ request, env }) {
+  await ensureNewColumns(env);
   const url = new URL(request.url);
   const urlAction = url.searchParams.get("action");
 
-  /* Checked via the URL (not the JSON body, like every other action here)
-     because this one arrives as multipart form data, not JSON — same
-     pattern as vehicles.js's own file uploads. Premium-plan only: the
-     ownership check (mobile match) still applies underneath that, same as
-     every other partner-editing action. */
   if (urlAction === "upload_logo") {
     const form = await request.formData();
     const partner_id = form.get("partner_id");
@@ -126,12 +150,16 @@ export async function onRequestPost({ request, env }) {
     const business_name = (body.business_name || "").trim();
     const owner_name = (body.owner_name || "").trim();
     const mobile1 = (body.mobile1 || "").trim();
+    const business_type = body.business_type || "taxi_travel";
     if (!business_name || !owner_name || !mobile1) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    /* A mobile can register MULTIPLE businesses (each its own row/page), but
+       never the SAME category twice - that specific combination is what has
+       to stay unique now, not the bare mobile number on its own. */
     const existing = await env.DB
-      .prepare("SELECT id FROM travel_partners WHERE mobile1=?")
-      .bind(mobile1)
+      .prepare("SELECT id FROM travel_partners WHERE mobile1=? AND business_type=?")
+      .bind(mobile1, business_type)
       .first();
     if (existing) {
       return Response.json(
@@ -139,12 +167,26 @@ export async function onRequestPost({ request, env }) {
         { status: 409 }
       );
     }
+    /* Category-level authorization: if this mobile has ANY category grants
+       on file at all, the category being registered now must be one of
+       them - a number the owner only ever authorized for "Taxi" cannot
+       self-register as "Restaurant" just by picking it from the dropdown.
+       A mobile with NO category grants at all is left unrestricted, so this
+       never silently blocks a number authorized before this feature
+       existed, or one the owner simply hasn't categorised yet. */
+    const catCountRow = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_categories WHERE mobile=?").bind(mobile1).first();
+    if (catCountRow && catCountRow.c > 0) {
+      const catAllowed = await env.DB.prepare("SELECT 1 FROM authorized_categories WHERE mobile=? AND category=?").bind(mobile1, business_type).first();
+      if (!catAllowed) {
+        return Response.json({ ok: false, error: "category_not_authorized" }, { status: 403 });
+      }
+    }
     const now = new Date().toISOString();
     const result = await env.DB
       .prepare(
         `INSERT INTO travel_partners
-          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, lat, lon, verified, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,0,?)`
+          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, lat, lon, description, business_hours, verified, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?)`
       )
       .bind(
         business_name,
@@ -154,9 +196,11 @@ export async function onRequestPost({ request, env }) {
         body.email || null,
         body.location || null,
         body.pincode || null,
-        body.business_type || "taxi_travel",
+        business_type,
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
+        body.description || null,
+        body.business_hours || null,
         now
       )
       .run();
@@ -175,12 +219,6 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    /* lat/lon are only updated when a fresh GPS reading was actually taken
-       this time (COALESCE keeps the previously-saved precise pin otherwise)
-       — so re-saving the form without re-tapping "Use my current location"
-       never silently wipes an already-correct pin. brand_color is Premium
-       (or Owner Free) only — silently ignored (kept unchanged) for anyone
-       else, same principle as the UPI-field gating already in the app. */
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
     const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
     const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
@@ -189,7 +227,7 @@ export async function onRequestPost({ request, env }) {
     const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
          WHERE id=?`
       )
       .bind(
@@ -200,6 +238,8 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         body.business_type || "taxi_travel",
+        body.description || null,
+        body.business_hours || null,
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         brandColor,
@@ -213,10 +253,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
-  /* A business owner (any type) flips their own "available now" flag —
-     ownership checked by matching mobile, same pattern as vehicles' own
-     toggle_active. Meaningful for auto drivers/taxis; other business types
-     can just leave it on if they don't use the concept of "available now". */
   if (action === "set_available") {
     const mobile = (body.mobile || "").trim();
     if (!mobile || !body.partner_id) {
@@ -247,11 +283,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
-  /* Admin: permanently remove a partner registration - used mainly to clean up
-     unverified/pending entries the admin doesn't want to approve (e.g. someone
-     who registered a business but the admin never authorized that number for
-     owner access). Also removes any vehicles already added under this
-     partner, since they'd otherwise be orphaned. */
   if (action === "delete") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -264,14 +295,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
-  /* Admin-authorized edit of ANY partner's details (business type, name, etc.) -
-     separate from the "update" action above, which only the partner THEMSELVES
-     can use (checked by matching mobile). This exists for the admin to correct a
-     mistake (e.g. wrong business category picked at registration) even after the
-     partner is already verified and no longer shows in the "pending" list. lat/
-     lon and brand fields are intentionally left untouched here - this is for
-     fixing basic identity/category details, not overriding a partner's own
-     branding choices. */
   if (action === "admin_update") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -281,12 +304,13 @@ export async function onRequestPost({ request, env }) {
     }
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
          WHERE id=?`
       )
       .bind(
         body.business_name,
         body.owner_name,
+        body.mobile1,
         body.mobile2 || null,
         body.email || null,
         body.location || null,
@@ -298,11 +322,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
-  /* A partner sets their OWN password for editing the billing identity shown on
-     their bills (business name / phone / UPI) — this is separate from, and does
-     NOT require, the owner's admin password. It can only actually be used to
-     unlock anything once the owner has verified this partner (see action=verify
-     above) — this is enforced in action=verify_password below, not here. */
   if (action === "set_password") {
     const mobile = (body.mobile || "").trim();
     const password = (body.password || "").trim();
@@ -324,9 +343,6 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
-  /* Checks a partner's own password. Only succeeds if the owner has already
-     verified this partner — this is the "admin must approve before the partner's
-     own password can be used" gate the owner asked for. */
   if (action === "verify_password") {
     const password = (body.password || "").trim();
     const row = await env.DB
