@@ -37,7 +37,7 @@ jobs:
           cp icon-192.png android-app/www/ 2>/dev/null || true
           cp icon-512.png android-app/www/ 2>/dev/null || true
 
-      - name: Add native-app fixes (API calls, Back button, PDF/Image save, first-paint)
+      - name: Add native-app fixes
         run: |
           cat > android-app/www/capacitor-native-fixes.js << 'JSEOF'
           (function(){
@@ -77,23 +77,31 @@ jobs:
                     reader.readAsDataURL(blob);
                   });
                 }
-                var written = await Filesystem.writeFile({ path: filename, data: base64, directory: "CACHE" });
-                await Share.share({ title: filename, url: written.uri });
+                var written = await Filesystem.writeFile({ path: filename || "document.pdf", data: base64, directory: "CACHE" });
+                await Share.share({ title: filename || "document", url: written.uri });
               }catch(e){
                 alert("Could not save/share the file: " + (e && e.message ? e.message : e));
               }
               sharing = false;
             }
 
-            document.addEventListener("click", function(e){
-              var el = e.target;
-              while (el && el.tagName !== "A") el = el.parentElement;
-              if (el && el.download && el.href && (el.href.indexOf("data:") === 0 || el.href.indexOf("blob:") === 0)) {
-                e.preventDefault();
-                e.stopPropagation();
-                saveAndShare(el.href, el.download);
+            var origAnchorClick = HTMLAnchorElement.prototype.click;
+            HTMLAnchorElement.prototype.click = function(){
+              if (this.download && this.href && (this.href.indexOf("data:") === 0 || this.href.indexOf("blob:") === 0)) {
+                saveAndShare(this.href, this.download);
+                return;
               }
-            }, true);
+              return origAnchorClick.call(this);
+            };
+
+            var origOpen = window.open;
+            window.open = function(url, target, features){
+              if (typeof url === "string" && (url.indexOf("data:application/pdf") === 0 || url.indexOf("blob:") === 0)) {
+                saveAndShare(url, "document.pdf");
+                return null;
+              }
+              return origOpen.call(window, url, target, features);
+            };
 
             document.addEventListener("deviceready", function(){
               try{
@@ -115,11 +123,12 @@ jobs:
               }catch(e){}
             });
 
-            window.addEventListener("load", function(){
-              setTimeout(function(){
-                try{ if (typeof render === "function") render(); }catch(e){}
-              }, 150);
-            });
+            try{
+              if (!sessionStorage.getItem("tc_fresh_reload_done")) {
+                sessionStorage.setItem("tc_fresh_reload_done", "1");
+                location.reload();
+              }
+            }catch(e){}
           })();
           JSEOF
           sed -i 's#<script src="/src/TravelConnect-logo-data.js#<script src="capacitor-native-fixes.js"></script>\n<script src="/src/TravelConnect-logo-data.js#' android-app/www/index.html
