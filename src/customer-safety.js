@@ -653,3 +653,13 @@ async function tcRenderFeedbackAdmin(){
   }).join("");
  }catch(e){ document.querySelector("#fbList").innerHTML="<p class='danger'>Network error.</p>"; }
 }
+
+/* ---------- BOOTSTRAP (part 2 - final) ----------
+   The actual first render() call, deliberately placed here at the very
+   end of the LAST-loading file - by this point every function from all
+   four files (core.js, business.js, directory.js, customer-safety.js)
+   is defined, so render() can safely call anything from any of them
+   (dashboard(), customerHome(), startSosPolling(), etc.) without a
+   "not defined yet" error, regardless of which of those functions the
+   current page/role happens to need. */
+render();
