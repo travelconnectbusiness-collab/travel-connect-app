@@ -191,10 +191,21 @@ const TC_BUSINESS_TYPES={
  homestay:"Homestay / Resort / Hotel",
  skilled_work:"Skilled Work (Plumber, Electrician, Carpenter etc.)"
 };
+/* No silent default - when nothing has been chosen yet (selected is
+   null/undefined), a forced "-- Select --" placeholder is shown instead
+   of quietly marking Taxi/Travel Agency as selected. This exact silent-
+   default bug is what the login page's role/business-type fix earlier
+   this session was meant to prevent - reintroducing it here for the
+   business-type dropdown specifically defeats that fix, since
+   submitLogin()'s "did they actually pick one" check relies on the
+   dropdown genuinely having no value until the person chooses one. An
+   EXISTING partner's own business type (editing their details) still
+   shows correctly selected, since `selected` is a real value there. */
 function tcBusinessTypeOptions(selected){
  const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
- let html=Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}"${k===(selected||"taxi_travel")?" selected":""}>${label}</option>`).join("");
- html+=`<option value="other"${!isKnown?" selected":""}>Other (please specify)</option>`;
+ let html=selected==null?`<option value="">-- Select --</option>`:"";
+ html+=Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}"${k===selected?" selected":""}>${label}</option>`).join("");
+ html+=`<option value="other"${(selected!=null&&!isKnown)?" selected":""}>Other (please specify)</option>`;
  return html;
 }
 function tcBizLabel(businessType){
