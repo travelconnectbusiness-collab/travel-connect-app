@@ -1590,6 +1590,12 @@ function enquiryToQuote(id){
    brand-new owner never briefly flashes the full taxi toolset before
    picking their own category. */
 function dashboard(){
+ /* A stale cached myBusinessType (from an earlier session/business on this
+    same device) would otherwise skip partnerView() entirely below, so a
+    business type freshly chosen at THIS login (see partnerView() in
+    directory.js) would never get checked against it - always silently
+    reopening whatever business happens to be cached instead. */
+ if(localStorage.getItem("tc_chosen_business_type")){ partnerView(); return; }
  if(db.settings.myBusinessType==null||!tcIsTaxiType(db.settings.myBusinessType)){
   partnerView();
   return;
@@ -1601,8 +1607,8 @@ function dashboard(){
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
-  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
+  ${partnerPhones?`<div style="folnt-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+    <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
