@@ -350,10 +350,10 @@ async function tcTogglePartnerAvailable(partnerId,available){
  try{
   const res=await fetch("/api/partners?action=set_available",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({partner_id:partnerId,mobile:user.mobile,available})});
   const data=await res.json();
-  if(!data.ok){ toast("Could not update - try again."); return; }
+  if(!data.ok){ alert("DEBUG - Could not update.\nServer said: "+(data.error||"unknown")+"\nSent partner_id: "+partnerId+"\nSent mobile: "+user.mobile); return; }
   toast(available?"You're now shown as Active":"Marked inactive");
   if(window._myPartner) window._myPartner.available=available;
- }catch(e){ toast("Network error"); }
+ }catch(e){ alert("DEBUG - Network/parse error: "+(e&&e.message?e.message:e)); }
 }
 function tcGenerateNonTaxiQR(){
  const amt=+document.querySelector("#ncAmount").value||0;
