@@ -296,6 +296,23 @@ function tcOpenOneBusiness(partner){
  if(partner.brand_settings){
   try{ Object.assign(db.settings,JSON.parse(partner.brand_settings)); }catch(e){}
  }
+ /* db.business (this device's local billing-identity cache) is shared by
+    whichever business is currently open on THIS device - it is NOT scoped
+    per-partner. Without this, opening a different partner's business on a
+    device previously used for someone else's (e.g. a shared test phone,
+    or the owner's own device used to check several registrations) would
+    keep showing the PREVIOUS partner's name/phone/tagline/logo everywhere
+    db.business is read (dashboard header, prints, bills) until this new
+    partner happened to overwrite it themselves via Edit Billing Details.
+    Resetting it here, every time a DIFFERENT partner is opened, to sane
+    defaults drawn from that partner's own server record keeps each
+    business's identity from leaking into another's. */
+ if(db.settings.myBillingIdentityFor!==partner.id){
+  db.business={name:partner.business_name||"Your Business Name",tagline:"",address:partner.location||"",
+   officeLocation:partner.location||"",phone:partner.mobile1||"",phone2:partner.mobile2||"",
+   email:partner.email||"",gstin:"",upiId:"",upiName:partner.business_name||"",description:partner.description||""};
+  db.settings.myBillingIdentityFor=partner.id;
+ }
  const confirmedType=partner.business_type||"taxi_travel";
  const wasUnknown=db.settings.myBusinessType==null;
  db.settings.myBusinessType=confirmedType;
@@ -525,7 +542,7 @@ function tcOpenDirectory(){
 }
 async function tcRenderDirectory(){
  const typeOptions=`<option value="">All types</option>`+Object.entries(TC_BUSINESS_TYPES).map(([k,label])=>`<option value="${k}">${label}</option>`).join("")+`<option value="other">Other</option>`;
- app().innerHTML=card("Local Directory",`
+ app().innerHTML=card("&#128269; Local Directory",`
   <p class="muted">Search verified local businesses - taxis, autos, restaurants, workshops, skilled work and more.</p>
   <div class="grid">
    <label>Category<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
@@ -638,12 +655,13 @@ function tcRenderActiveBoardList(vehicles,append){
   const shownLocation=v.temp_location||v.location;
   const mapsQuery=[v.business_name,shownLocation,v.temp_location?"":v.pincode].filter(Boolean).join(", ");
   const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
+  const targetType=v.isPartnerEntry?"partner":"vehicle";
   return `<div class="listitem">
-  <b>${esc(v.category||"Vehicle")}</b> - ${esc(v.vehicle_number)} <span class="ok">&#9679; Active</span><br>
+  <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span><br>
   ${esc(v.business_name)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
   <div class="actions">
-   ${tcCallButtonHtml(v.mobile1,"vehicle",v.id,(v.business_name||"")+" - "+(v.vehicle_number||""),true)}
-   ${v.mobile2?tcCallButtonHtml(v.mobile2,"vehicle",v.id,(v.business_name||"")+" - "+(v.vehicle_number||""),false):""}
+   ${tcCallButtonHtml(v.mobile1,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),true)}
+   ${v.mobile2?tcCallButtonHtml(v.mobile2,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),false):""}
    ${shownLocation?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
   </div>
  </div>`;
