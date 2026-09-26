@@ -348,12 +348,12 @@ function renderPartnerDashboard(p){
 async function tcTogglePartnerAvailable(partnerId,available){
  const user=getCurrentUser();
  try{
-  const res=await fetch("/api/partners?action=set_available",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({partner_id:partnerId,mobile:user.mobile,available})});
+  const res=await fetch("/api/partners?action=set_available",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_available",partner_id:partnerId,mobile:user.mobile,available})});
   const data=await res.json();
-  if(!data.ok){ alert("DEBUG - Could not update.\nServer said: "+(data.error||"unknown")+"\nSent partner_id: "+partnerId+"\nSent mobile: "+user.mobile); return; }
+  if(!data.ok){ toast("Could not update - try again."); return; }
   toast(available?"You're now shown as Active":"Marked inactive");
   if(window._myPartner) window._myPartner.available=available;
- }catch(e){ alert("DEBUG - Network/parse error: "+(e&&e.message?e.message:e)); }
+ }catch(e){ toast("Network error"); }
 }
 function tcGenerateNonTaxiQR(){
  const amt=+document.querySelector("#ncAmount").value||0;
@@ -686,7 +686,7 @@ async function tcLoadPendingPartners(){
 }
 async function tcApprovePartner(id){
  try{
-  const res=await fetch("/api/partners?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({partner_id:id,verified:true,token:adminToken()})});
+  const res=await fetch("/api/partners?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"verify",partner_id:id,verified:true,token:adminToken()})});
   const data=await res.json();
   if(!data.ok){ toast("Could not approve - try again."); return; }
   toast("Partner approved"); tcLoadPendingPartners();
@@ -695,7 +695,7 @@ async function tcApprovePartner(id){
 async function tcDeletePartner(id){
  if(!confirm("Delete this partner registration? This also removes any vehicles they've added.")) return;
  try{
-  const res=await fetch("/api/partners?action=delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({partner_id:id,token:adminToken()})});
+  const res=await fetch("/api/partners?action=delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"delete",partner_id:id,token:adminToken()})});
   const data=await res.json();
   if(!data.ok){ toast("Could not delete - "+(data.error||"try again.")); return; }
   toast("Partner deleted"); tcLoadPendingPartners();
