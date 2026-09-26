@@ -1160,14 +1160,25 @@ function buildUpiLink(amount,note){
  const params=new URLSearchParams({pa:db.business.upiId||"",pn:db.business.upiName||db.business.name||"Travel Connect",am:String(amount),cu:"INR",tn:note||""});
  return "upi://pay?"+params.toString();
 }
+/* Renders into an element genuinely attached to the live document (hidden
+   off-screen) rather than a detached <div> - the QRCode library's on-
+   screen modal usage (openAdvanceQR(), tcGenerateNonTaxiQR()) already
+   works reliably because it renders into a box that's really in the page;
+   a detached element was the difference, and why this same library call
+   silently produced nothing for Print/PDF/balance-due QR codes even
+   though the identical call worked for the live on-screen modal. */
 function getQRDataURL(text,size){
+ let tmp;
  try{
-  const tmp=document.createElement("div");
+  tmp=document.createElement("div");
+  tmp.style.cssText="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden";
+  document.body.appendChild(tmp);
   new QRCode(tmp,{text,width:size||200,height:size||200});
   const img=tmp.querySelector("img")||tmp.querySelector("canvas");
   if(!img) return null;
   return img.tagName==="CANVAS"?img.toDataURL("image/png"):img.src;
  }catch(e){ return null; }
+ finally{ if(tmp&&tmp.parentNode) tmp.parentNode.removeChild(tmp); }
 }
 function renderBillQR(amount,note){
  const box=document.querySelector("#billQR");
@@ -1591,7 +1602,7 @@ function dashboard(){
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
   <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
-  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
+    <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
@@ -1599,7 +1610,7 @@ function dashboard(){
  <hr>
  <div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
-  <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry -&gt; Quotation -&gt; Confirmation -&gt; Trip -&gt; Final Bill -&gt; Payment -&gt; Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
  ${tcCollapsibleBox("custUsefulPlaces","&#128205; Useful Places",`<div id="custPlacesList">Loading...</div>`,false)}
