@@ -55,13 +55,20 @@ function customerHome(){
   <div id="cTypeWarn" class="danger" style="min-height:16px"></div>
   <div class="grid">
    <label>Pickup point<input id="cPickup"></label>
-   <label>Destination<input id="cDest"></label>
+   <label>Destination 1<input id="cDest"></label>
+  </div>
+  <div id="custStopsContainer"></div>
+  <div class="actions"><button type="button" onclick="tcAddCustDestField()">+ Add another destination</button></div>
+  <div class="grid" style="margin-top:6px">
    <label>Estimated KM<input id="cKm" type="number" placeholder="e.g. 40"></label>
    <label>Estimated hours<input id="cHours" type="number" placeholder="e.g. 4"></label>
   </div>
+  <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; Open route in Google Maps (to check KM)</button></div>
   <details style="margin:6px 0">
-   <summary style="cursor:pointer;font-size:12.5px;color:#0b6b78">More options (days, rest hours)</summary>
+   <summary style="cursor:pointer;font-size:12.5px;color:#0b6b78">More options (vehicle start/close point, days, rest hours)</summary>
    <div class="grid" style="margin-top:6px">
+    <label>Vehicle start point (garage)<input id="cVehicleStart" placeholder="e.g. Nadapuram"></label>
+    <label>Vehicle closing point (usually same as start)<input id="cVehicleClose" placeholder="e.g. Nadapuram"></label>
     <label>Number of days (outstation)<input id="cDays" type="number" value="1" min="1"></label>
     <label>Overnight rest hours<input id="cRestHours" type="number" value="0"></label>
    </div>
@@ -89,6 +96,27 @@ function customerHome(){
  tcRenderCustEmergencyContacts();
  tcRenderCustUsefulPlaces();
  tcRenderMyCalls();
+}
+function tcAddCustDestField(value=""){
+ const c=document.querySelector("#custStopsContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.className="grid";
+ row.style.marginTop="4px";
+ row.innerHTML=`<label style="flex:1">Additional destination<input class="cust-stop-input" value="${esc(value)}"></label><button type="button" onclick="this.parentElement.remove()" style="align-self:flex-end">&#10005; Remove</button>`;
+ c.appendChild(row);
+}
+function tcOpenCustomerRoute(){
+ const start=document.querySelector("#cVehicleStart")?.value||"";
+ const pickup=document.querySelector("#cPickup").value;
+ const stops=[document.querySelector("#cDest")?.value||"",...Array.from(document.querySelectorAll(".cust-stop-input")).map(i=>i.value)].map(v=>v.trim()).filter(Boolean);
+ const closing=document.querySelector("#cVehicleClose")?.value||start;
+ const points=[start,pickup,...stops,closing].map(v=>v.trim()).filter(Boolean);
+ if(points.length<2){toast("Enter at least a pickup and destination first");return}
+ const origin=points[0], destination=points[points.length-1], waypoints=points.slice(1,-1).join("|");
+ let url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination);
+ if(waypoints) url+="&waypoints="+encodeURIComponent(waypoints);
+ window.open(url,"_blank");
 }
 function calcCustomerFare(){
  const catIdx=document.querySelector("#cCat").value, type=document.querySelector("#cType").value;
