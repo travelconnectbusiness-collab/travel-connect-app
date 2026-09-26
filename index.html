@@ -6,52 +6,28 @@
 <title>Travel Connect</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#082b49">
+<link rel="stylesheet" href="/app.css?v=20260925b">
 <style>
-:root{
- --tc-teal:#0f5a55;--tc-navy:#082b49;
- box-sizing:border-box;
- padding-top:env(safe-area-inset-top,0px);
- padding-bottom:env(safe-area-inset-bottom,0px);
+/* Supplementary rules only - app.css above is the real stylesheet and is
+   left untouched. These just (1) add safe-area padding for phones with a
+   notch/status-bar overlay, since app.css predates that concern, and
+   (2) exempt checkbox/radio inputs from app.css's own
+   "input,select,textarea{padding:11px;...}" rule - harmless for a normal
+   checkbox, but it breaks a custom sliding-switch control (used for the
+   partner/vehicle "Active" toggle) built from a zero-sized checkbox with
+   styled spans layered on top: the extra padding/border expands that
+   checkbox's box far beyond its intended invisible sliver, so clicks meant
+   for the switch land somewhere app.css's padding put the real hit target
+   instead. Restated with !important since it must win over that rule
+   regardless of selector order. */
+:root{ padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+html{ scroll-padding-top:env(safe-area-inset-top,0px); overscroll-behavior-y:contain; }
+body{ overscroll-behavior-y:contain; }
+.top{ padding-top:calc(14px + env(safe-area-inset-top,0px)) !important; }
+.tabs{ padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)) !important; }
+input[type="checkbox"],input[type="radio"]{
+ width:auto !important; height:auto !important; padding:0 !important; border:none !important; background:none !important;
 }
-*{box-sizing:border-box}
-html{scroll-padding-top:env(safe-area-inset-top,0px);overscroll-behavior-y:contain}
-body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7f8;color:#172536;overscroll-behavior-y:contain}
-.top{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--tc-navy),var(--tc-teal));color:#fff;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between}
-.top b{display:block;font-size:14px;letter-spacing:.5px}
-.top small{display:block;font-size:10px;opacity:.85}
-.tabs{position:sticky;top:0;z-index:40;display:flex;overflow-x:auto;background:#fff;border-bottom:1px solid #e2e6ea;-webkit-overflow-scrolling:touch}
-.tabs button{flex:0 0 auto;padding:11px 14px;border:none;background:none;font-size:12.5px;font-weight:600;color:#6a7a87;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
-.tabs button.active{color:var(--tc-teal);border-bottom-color:var(--tc-teal)}
-.container{max-width:640px;margin:0 auto;padding:14px}
-.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:14px}
-.card h2{margin-top:0;font-size:18px;color:var(--tc-navy)}
-.card h3{font-size:15px;color:var(--tc-navy)}
-.backbtn{background:none;border:none;color:var(--tc-teal);font-weight:600;font-size:13px;padding:0 0 10px;cursor:pointer}
-.grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
-.grid label{flex:1 1 45%;min-width:140px;font-size:12px;font-weight:600;color:#445;display:flex;flex-direction:column;gap:4px}
-.grid input,.grid select,.grid textarea,input,select,textarea{padding:10px;border-radius:9px;border:1px solid #c9d4dc;font-size:14px;font-family:inherit;width:100%}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-button{padding:10px 14px;border-radius:9px;border:1px solid #c9d4dc;background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:#172536}
-button.primary{background:var(--tc-teal);color:#fff;border-color:var(--tc-teal)}
-button.danger{background:#fdeceb;color:#a12d2d;border-color:#f3c9c5}
-.listitem{padding:10px 0;border-bottom:1px solid #eef1f4;font-size:13.5px}
-.listitem:last-child{border-bottom:none}
-.metric{flex:1 1 45%;background:#f5f8fa;border-radius:10px;padding:10px;text-align:center}
-.metric b{display:block;font-size:19px;color:var(--tc-teal)}
-.ratebox{background:#f9fafb;border-radius:10px;padding:12px;margin-top:8px;font-size:13.5px}
-.ratebox .total{font-weight:800;font-size:16px;color:var(--tc-teal);margin-top:6px}
-.notice{background:#fdf6e3;border:1px solid #d2b478;border-radius:8px;padding:10px;font-size:12px;color:#7a5a1e;margin-top:8px}
-.muted{color:#6a7a87;font-size:12px}
-.ok{color:#1c6b2c}
-.danger{color:#a12d2d}
-.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.table{border-collapse:collapse;width:100%;font-size:12.5px}
-.table th,.table td{padding:6px 8px;border-bottom:1px solid #eef1f4;text-align:left;white-space:nowrap}
-#toast{display:none;position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:#172536;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:9999;max-width:90%;text-align:center}
-#modal{position:fixed;inset:0;z-index:9000;background:rgba(10,20,30,.5);display:flex;align-items:flex-end;justify-content:center}
-#modal.hidden{display:none}
-#modal .modalcard{background:#fff;border-radius:16px 16px 0 0;padding:18px;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
-@media(min-width:700px){#modal{align-items:center}#modal .modalcard{border-radius:16px;max-height:80vh}}
 </style>
 </head>
 <body>
@@ -67,7 +43,7 @@ button.danger{background:#fdeceb;color:#a12d2d;border-color:#f3c9c5}
 </div>
 <div id="app"></div>
 <div id="toast"></div>
-<div id="modal" class="hidden"><div class="modalcard" id="modalBody"></div></div>
+<div id="modal" class="modal hidden"><div class="modalbox" id="modalBody"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -76,30 +52,20 @@ button.danger{background:#fdeceb;color:#a12d2d;border-color:#f3c9c5}
 <script>window.addEventListener('error',function(e){alert('LOAD ERROR: '+e.message+' | file: '+e.filename+' | line: '+e.lineno+' col: '+e.colno);});</script>
 
 <script>
-/* Forces the ENTIRE PAGE to be re-fetched from the network on every fresh
-   open - not just its scripts. Restoring from the browser's back-forward
-   cache (bfcache) skips re-running <script> tags entirely, which was one
-   of several suspected causes of the stale-first-paint issue investigated
-   this session; this is a defensive measure kept from that investigation. */
 window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(); });
 </script>
 
 <script>
-/* Re-registers the Service Worker with an explicit auto-reload the moment
-   a NEW service worker takes control of the page (controllerchange) -
-   sw.js's own skipWaiting()+clients.claim() make a newly-installed SW
-   take over immediately; this listener is what makes an already-open page
-   actually pick up that change. */
 if('serviceWorker' in navigator){
  addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
  navigator.serviceWorker.addEventListener('controllerchange',()=>{ location.reload(); });
 }
 </script>
 
-<script src="/src/TravelConnect-logo-data.js?v=20260925a"></script>
-<script src="/src/core.js?v=20260925a"></script>
-<script src="/src/business.js?v=20260925a"></script>
-<script src="/src/directory.js?v=20260925a"></script>
-<script src="/src/customer-safety.js?v=20260925a"></script>
+<script src="/src/TravelConnect-logo-data.js?v=20260925b"></script>
+<script src="/src/core.js?v=20260925b"></script>
+<script src="/src/business.js?v=20260925b"></script>
+<script src="/src/directory.js?v=20260925b"></script>
+<script src="/src/customer-safety.js?v=20260925b"></script>
 </body>
 </html>
