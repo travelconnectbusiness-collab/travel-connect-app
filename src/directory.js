@@ -239,6 +239,21 @@ async function partnerView(){
    renderPartnerRegisterForm();
    return;
   }
+  /* If the person just picked a business category at login that they don't
+     already have registered under this mobile (e.g. they have an existing
+     Taxi business, but chose "Skilled Work" this time round, meaning they
+     want to add THAT as a new, separate business) - go straight to the
+     registration form for it, instead of silently reopening whichever
+     existing business happens to be first/only. Cleared right after so it
+     only affects the login that actually made this choice, not every
+     future one. */
+  const justChosen=localStorage.getItem("tc_chosen_business_type");
+  if(justChosen&&!list.some(p=>(p.business_type||"taxi_travel")===justChosen)){
+   localStorage.removeItem("tc_chosen_business_type");
+   renderPartnerRegisterForm();
+   return;
+  }
+  localStorage.removeItem("tc_chosen_business_type");
   if(list.length>1){
    const chosenId=sessionStorage.getItem("tc_chosen_partner_id");
    const chosen=chosenId?list.find(p=>String(p.id)===chosenId):null;
