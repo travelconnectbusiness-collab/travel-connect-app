@@ -47,21 +47,45 @@ function tcBusinessHoursNote(hours){
 }
 
 /* ---------- PREMIUM-STYLE ACTIVE/AVAILABLE TOGGLE ----------
-   A clearer sliding switch (rather than a plain checkbox) with an
-   explicit "customers will see you as Active" caption, used for both the
-   partner-level Available toggle and the per-vehicle Active toggle. */
-function tcActiveToggleHtml(id,checked,onchange,label){
- return `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px;background:${checked?"#e6f7e9":"#f5f6f7"};border:1px solid ${checked?"#2e9e44":"#dbe0e4"};border-radius:10px">
-  <label style="position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0">
-   <input type="checkbox" id="${id}" ${checked?"checked":""} onchange="${onchange}" style="opacity:0;width:0;height:0">
-   <span style="position:absolute;inset:0;background:${checked?"#2e9e44":"#c9d4dc"};border-radius:26px;transition:.2s"></span>
-   <span style="position:absolute;height:20px;width:20px;left:${checked?"23px":"3px"};bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
-  </label>
+   Rebuilt as a plain clickable div (no checkbox input at all) after the
+   checkbox+overlaid-span version proved unreliable - clicks either landed
+   wrong or didn't register at all depending on the device/browser, likely
+   from some interaction with a global input styling rule that a hidden,
+   zero-sized checkbox is unusually sensitive to. This version has no
+   native form control to fight with: tcHandleToggleClick() below flips a
+   plain data-attribute, updates the visible pieces directly, and calls
+   the real handler itself - nothing here depends on checkbox/label
+   browser quirks. onToggleExpr is a JS expression string using the bound
+   name "checked" for the NEW state (e.g. "tcTogglePartnerAvailable(5,
+   checked)"), not "this.checked" as the old checkbox version used. */
+function tcActiveToggleHtml(id,checked,onToggleExpr,label){
+ return `<div id="${id}_row" data-checked="${checked?"1":"0"}" data-onchange="${esc(onToggleExpr)}" onclick="tcHandleToggleClick('${id}')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px;background:${checked?"#e6f7e9":"#f5f6f7"};border:1px solid ${checked?"#2e9e44":"#dbe0e4"};border-radius:10px">
+  <div id="${id}_track" style="width:46px;height:26px;border-radius:26px;background:${checked?"#2e9e44":"#c9d4dc"};position:relative;flex-shrink:0;transition:.2s">
+   <div id="${id}_knob" style="position:absolute;top:3px;left:${checked?"23px":"3px"};width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s"></div>
+  </div>
   <div>
-   <div style="font-weight:700;font-size:13.5px;color:${checked?"#1c6b2c":"#172536"}">${checked?"Active now":(label||"Mark as Active")}</div>
-   <div style="font-size:11px;color:#6a7a87">${checked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now"}</div>
+   <div id="${id}_label" style="font-weight:700;font-size:13.5px;color:${checked?"#1c6b2c":"#172536"}">${checked?"Active now":(label||"Mark as Active")}</div>
+   <div id="${id}_sub" style="font-size:11px;color:#6a7a87">${checked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now"}</div>
   </div>
  </div>`;
+}
+function tcHandleToggleClick(id){
+ const row=document.querySelector("#"+id+"_row");
+ if(!row) return;
+ const newChecked=row.dataset.checked!=="1";
+ row.dataset.checked=newChecked?"1":"0";
+ row.style.background=newChecked?"#e6f7e9":"#f5f6f7";
+ row.style.borderColor=newChecked?"#2e9e44":"#dbe0e4";
+ const track=document.querySelector("#"+id+"_track"), knob=document.querySelector("#"+id+"_knob");
+ if(track) track.style.background=newChecked?"#2e9e44":"#c9d4dc";
+ if(knob) knob.style.left=newChecked?"23px":"3px";
+ const labelEl=document.querySelector("#"+id+"_label"), subEl=document.querySelector("#"+id+"_sub");
+ if(labelEl){ labelEl.textContent=newChecked?"Active now":"Mark as Active"; labelEl.style.color=newChecked?"#1c6b2c":"#172536"; }
+ if(subEl) subEl.textContent=newChecked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now";
+ try{
+  const fn=new Function("checked",row.dataset.onchange);
+  fn(newChecked);
+ }catch(e){}
 }
 
 /* ---------- GPS PIN CAPTURE (precise location for Directions) ---------- */
@@ -287,7 +311,7 @@ function renderPartnerDashboard(p){
   ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
   ${p.description?`<div style="margin-top:6px;font-size:13px">${esc(p.description)}</div>`:""}
   ${hours.enabled?`<div class="muted" style="margin-top:4px">&#128337; Business hours: ${esc(hours.open)} - ${esc(hours.close)} (Active status follows these automatically)</div>`:""}
-  ${p.verified?tcActiveToggleHtml("partnerAvailToggle",!!p.available,`tcTogglePartnerAvailable(${p.id},this.checked)`):""}
+  ${p.verified?tcActiveToggleHtml("partnerAvailToggle",!!p.available,`tcTogglePartnerAvailable(${p.id},checked)`):""}
   <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">Edit Details</button></div>
  </div>
  ${isTaxi?`
@@ -442,7 +466,7 @@ async function loadMyVehicles(partnerId){
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
-   ${tcActiveToggleHtml("vActive_"+v.id,!!v.active,`toggleVehicleActive(${v.id},this.checked)`,"Mark this vehicle Active")}
+   ${tcActiveToggleHtml("vActive_"+v.id,!!v.active,`toggleVehicleActive(${v.id},checked)`,"Mark this vehicle Active")}
    <div style="margin-top:6px">
     <input id="vTempLoc_${v.id}" placeholder="Current location, if different from your registered garage (optional)" value="${esc(v.temp_location||"")}" style="width:100%;box-sizing:border-box">
    </div>
