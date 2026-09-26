@@ -59,13 +59,13 @@ function tcBusinessHoursNote(hours){
    name "checked" for the NEW state (e.g. "tcTogglePartnerAvailable(5,
    checked)"), not "this.checked" as the old checkbox version used. */
 function tcActiveToggleHtml(id,checked,onToggleExpr,label){
- return `<div id="${id}_row" data-checked="${checked?"1":"0"}" data-onchange="${esc(onToggleExpr)}" onclick="tcHandleToggleClick('${id}')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px;background:${checked?"#e6f7e9":"#f5f6f7"};border:1px solid ${checked?"#2e9e44":"#dbe0e4"};border-radius:10px">
-  <div id="${id}_track" style="width:46px;height:26px;border-radius:26px;background:${checked?"#2e9e44":"#c9d4dc"};position:relative;flex-shrink:0;transition:.2s">
-   <div id="${id}_knob" style="position:absolute;top:3px;left:${checked?"23px":"3px"};width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s"></div>
+ return `<div id="${id}_row" data-checked="${checked?"1":"0"}" data-onchange="${esc(onToggleExpr)}" onclick="tcHandleToggleClick('${id}')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:12px;margin-top:8px;padding:12px;background:${checked?"#e6f7e9":"#f5f6f7"};border:2px solid ${checked?"#2e9e44":"#c9d4dc"};border-radius:12px">
+  <div id="${id}_track" style="width:58px;height:32px;border-radius:32px;background:${checked?"#2e9e44":"#b7c2ca"};position:relative;flex-shrink:0;transition:.2s;box-shadow:inset 0 1px 3px rgba(0,0,0,.15)">
+   <div id="${id}_knob" style="position:absolute;top:3px;left:${checked?"29px":"3px"};width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.35);transition:.2s"></div>
   </div>
   <div>
-   <div id="${id}_label" style="font-weight:700;font-size:13.5px;color:${checked?"#1c6b2c":"#172536"}">${checked?"Active now":(label||"Mark as Active")}</div>
-   <div id="${id}_sub" style="font-size:11px;color:#6a7a87">${checked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now"}</div>
+   <div id="${id}_label" style="font-weight:800;font-size:15px;color:${checked?"#1c6b2c":"#172536"}">${checked?"Active now":(label||"Mark as Active")}</div>
+   <div id="${id}_sub" style="font-size:12px;color:#6a7a87;font-weight:600">${checked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now"}</div>
   </div>
  </div>`;
 }
@@ -75,10 +75,10 @@ function tcHandleToggleClick(id){
  const newChecked=row.dataset.checked!=="1";
  row.dataset.checked=newChecked?"1":"0";
  row.style.background=newChecked?"#e6f7e9":"#f5f6f7";
- row.style.borderColor=newChecked?"#2e9e44":"#dbe0e4";
+ row.style.borderColor=newChecked?"#2e9e44":"#c9d4dc";
  const track=document.querySelector("#"+id+"_track"), knob=document.querySelector("#"+id+"_knob");
- if(track) track.style.background=newChecked?"#2e9e44":"#c9d4dc";
- if(knob) knob.style.left=newChecked?"23px":"3px";
+ if(track) track.style.background=newChecked?"#2e9e44":"#b7c2ca";
+ if(knob) knob.style.left=newChecked?"29px":"3px";
  const labelEl=document.querySelector("#"+id+"_label"), subEl=document.querySelector("#"+id+"_sub");
  if(labelEl){ labelEl.textContent=newChecked?"Active now":"Mark as Active"; labelEl.style.color=newChecked?"#1c6b2c":"#172536"; }
  if(subEl) subEl.textContent=newChecked?"Customers searching nearby will see you as Active":"Turn on so customers can find you right now";
@@ -604,7 +604,7 @@ async function activeBoard(){
   <label>Search by location, business name or category<input id="tcBoardSearch" oninput="tcFilterActiveBoard()"></label>
   <div id="activeBoardList">Loading...</div>`);
  try{
-  const res=await fetch("/api/vehicles?action=active_board");
+  const res=await fetch("/api/vehicles?action=active");
   const data=await res.json();
   _tcActiveBoardVehicles=(data.ok&&data.vehicles)?data.vehicles:[];
   tcRenderActiveBoardList(_tcActiveBoardVehicles);
