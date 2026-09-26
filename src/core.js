@@ -616,7 +616,15 @@ function tcBuildPremiumHeader(){
 
 /* ---------- NAVIGATION / RENDER ---------- */
 function render(){
- if(!getCurrentUser()){ renderLogin(); return; }
+ if(!getCurrentUser()){
+  const tabsEl=document.querySelector(".tabs");
+  if(tabsEl) tabsEl.style.display="none";
+  const menuBtn=document.querySelector("#tcMenuBtn"), sosBtn=document.querySelector("#networkBtn");
+  if(menuBtn) menuBtn.style.display="none";
+  if(sosBtn) sosBtn.style.display="none";
+  renderLogin();
+  return;
+ }
  checkStillAllowed();
  const user=getCurrentUser();
  const tabsEl=document.querySelector(".tabs");
