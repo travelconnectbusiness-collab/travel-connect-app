@@ -1171,7 +1171,7 @@ function getQRDataURL(text,size){
  let tmp;
  try{
   tmp=document.createElement("div");
-  tmp.style.cssText="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden";
+  tmp.style.cssText="position:fixed;left:-9999px;top:-9999px;";
   document.body.appendChild(tmp);
   new QRCode(tmp,{text,width:size||200,height:size||200});
   const img=tmp.querySelector("img")||tmp.querySelector("canvas");
@@ -1602,7 +1602,8 @@ function dashboard(){
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
   <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
-    <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
+    <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
