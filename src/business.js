@@ -1607,7 +1607,7 @@ function dashboard(){
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
-  ${partnerPhones?`<div style="folnt-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+  ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
     <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
@@ -1620,7 +1620,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">My Business &amp; Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">Local Directory (autos, restaurants, workshops...)</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button></div>
  <hr>
  <div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
