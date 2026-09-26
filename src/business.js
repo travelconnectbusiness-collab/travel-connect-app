@@ -148,7 +148,7 @@ function tcAppDownloadBlockHtml(){
  const qrData=getQRDataURL(TC_APP_URL,140);
  return `<div style="page-break-inside:avoid;break-inside:avoid;text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc">
   <div style="font-size:12px;color:#444;font-weight:600;margin-bottom:6px">&#128241; Get the Travel Connect app - book vehicles, get fare estimates &amp; more</div>
-  ${qrData?`<img src="${qrData}" style="width:110px;height:110px">`:""}
+  ${qrData?`<img src="${qrData}" style="width:150px;height:150px">`:""}
   <div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all">${esc(TC_APP_URL)}</div>
  </div>`;
 }
@@ -222,7 +222,7 @@ function printContent(title,html,asImage){
  document.body.appendChild(frame);
  const doc=frame.contentWindow.document;
  doc.open();
- doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:3px 0}</style></head><body>${html}</body></html>`);
+ doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:16.5px;line-height:1.6;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:4px 0}td b,td strong{font-weight:800}</style></head><body>${html}</body></html>`);
  doc.close();
  const images=Array.from(doc.images||[]);
  const waitForImages=Promise.all(images.map(img=>{
@@ -267,7 +267,7 @@ function printQuoteObj(q,asImage){
  const c=db.categories[q.categoryId];
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
- const row=(label,value,big)=>`<tr><td style="padding:4px 0;color:#555;font-size:${big?"16px":"14px"}">${esc(label)}</td><td style="padding:4px 0;text-align:right;font-weight:bold;font-size:${big?"18px":"14px"}">${esc(value)}</td></tr>`;
+ const row=(label,value,big)=>`<tr><td style="padding:5px 0;color:#444;font-weight:600;font-size:${big?"18px":"15.5px"}">${esc(label)}</td><td style="padding:5px 0;text-align:right;font-weight:800;font-size:${big?"20px":"15.5px"}">${esc(value)}</td></tr>`;
 
  const offerRaw=calcFare(c,q.ratePlan,q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
  const standardRaw=calcFare(c,"standard",q.estimatedKm,q.estimatedHours,q.days||1,q.restHours||0);
@@ -282,7 +282,7 @@ function printQuoteObj(q,asImage){
   let qrImg="";
   if(db.business.upiId){
    const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
-   if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
+   if(qrData) qrImg=`<img src="${qrData}" style="width:150px;height:150px">`;
   }
   advanceHtml=`<div style="page-break-inside:avoid;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
    <div>
@@ -361,10 +361,10 @@ function printBill(tripId,asImage){
  let qrHtml="";
  if(balance>0&&db.business.upiId){
   const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
-  if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
+  if(qrData) qrHtml=`<div style="text-align:center"><b style="font-size:15px">SCAN &amp; PAY</b><br><img src="${qrData}" style="width:190px;height:190px"><br><small style="font-size:13px">UPI: ${esc(db.business.upiId)}</small></div>`;
  }
 
- const row=(label,value,bold)=>`<tr><td style="padding:3px 0;color:${bold?"#111":"#555"};font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:${bold?"15px":"14px"}">${esc(value)}</td></tr>`;
+ const row=(label,value,bold)=>`<tr><td style="padding:5px 0;color:${bold?"#111":"#444"};font-weight:${bold?"800":"600"};font-size:${bold?"17px":"15.5px"}">${esc(label)}</td><td style="padding:5px 0;text-align:right;font-weight:${bold?"800":"700"};font-size:${bold?"17px":"15.5px"}">${esc(value)}</td></tr>`;
 
  let detailRows="";
  detailRows+=row("Customer",t.customer||q.customer);
@@ -1613,7 +1613,7 @@ function dashboard(){
   <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
- <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Travel Partner / Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">My Business &amp; Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">Local Directory (autos, restaurants, workshops...)</button></div>
  <hr>
  <div class="grid">
