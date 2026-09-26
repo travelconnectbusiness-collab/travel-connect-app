@@ -147,7 +147,7 @@ async function tcRenderCustEmergencyContacts(){
   if(!data.ok||!data.contacts||!data.contacts.length){ box.innerHTML="<p class='muted'>No emergency contacts added yet.</p>"; return; }
   box.innerHTML=data.contacts.map(c=>`<div class="listitem">
    <b>${esc(c.name)}</b><br>
-   <a href="tel:${esc(c.phone)}"><button class="primary">&#128222; ${esc(c.phone)}</button></a>
+   <a href="tel:${esc(c.number)}"><button class="primary">&#128222; ${esc(c.number)}</button></a>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Could not load emergency contacts.</p>"; }
 }
@@ -168,7 +168,7 @@ async function tcLoadEmergencyAdmin(){
   const res=await fetch("/api/emergency?action=list");
   const data=await res.json();
   box.innerHTML=(data.ok?data.contacts:[]).map(c=>`<div class="listitem">
-   <b>${esc(c.name)}</b> - ${esc(c.phone)}
+   <b>${esc(c.name)}</b> - ${esc(c.number)}
    <div class="actions" style="margin-top:4px"><button class="danger" onclick="tcDeleteEmergencyContact(${c.id})">Delete</button></div>
   </div>`).join("")||"<p class='muted'>No contacts yet.</p>";
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
@@ -177,7 +177,9 @@ async function tcAddEmergencyContact(){
  const name=document.querySelector("#ecName").value.trim(), phone=document.querySelector("#ecPhone").value.trim();
  if(!name||!phone){ toast("Enter name and phone"); return; }
  try{
-  await fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"add",name,phone,token:adminToken()})});
+  const res=await fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"add",name,number:phone,token:adminToken()})});
+  const data=await res.json();
+  if(!data.ok){ toast("Could not save ("+(data.error||"unknown")+")"); return; }
   toast("Contact added"); document.querySelector("#ecName").value=""; document.querySelector("#ecPhone").value="";
   tcLoadEmergencyAdmin();
  }catch(e){ toast("Network error"); }
@@ -251,7 +253,9 @@ async function tcSavePlace(){
   location:document.querySelector("#upLocation").value.trim(),phone:document.querySelector("#upPhone").value.trim(),
   lat:document.querySelector("#upLat").value||null,lon:document.querySelector("#upLon").value||null,token:adminToken()};
  try{
-  await fetch("/api/places",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const res=await fetch("/api/places",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){ toast("Could not save ("+(data.error||"unknown")+")"); return; }
   toast("Place added");
   document.querySelector("#upName").value="";document.querySelector("#upLocation").value="";document.querySelector("#upPhone").value="";
   document.querySelector("#upLat").value="";document.querySelector("#upLon").value="";document.querySelector("#upGeoStatus").textContent="";
