@@ -1605,7 +1605,7 @@ function dashboard(){
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
-      `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
  </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
@@ -1638,6 +1638,8 @@ function renderBillingIdentitySection(p){
  const box=document.querySelector("#billingIdentityBody");
  if(!box) return;
  const unlocked=tcIsPremiumPlan();
+ const isPremiumTier=db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
+ const fontOpts=Object.entries(TC_FONT_FAMILIES).map(([k,v])=>`<option value="${k}" ${(p.brand_font_family||"helvetica")===k?"selected":""}>${v.label}</option>`).join("");
  box.innerHTML=`
  <div>${esc(db.business.name||"-")}</div>
  ${db.business.tagline?`<div class="muted">${esc(db.business.tagline)}</div>`:""}
@@ -1645,7 +1647,32 @@ function renderBillingIdentitySection(p){
  ${db.business.email?`<div class="muted">${esc(db.business.email)}</div>`:""}
  <div class="muted">${[db.business.phone,db.business.phone2].filter(Boolean).join(" / ")||"No contact number set"}</div>
  ${unlocked?`<div class="muted">UPI: ${esc(db.business.upiId||"Not set")}</div>`:`<div class="muted">UPI payment QR: <span style="color:#a12d2d">Paid/Premium feature</span></div>`}
- <div class="actions" style="margin-top:8px"><button onclick="openEditBillingIdentity()">Edit Billing Details</button>${unlocked?`<button onclick="tcOpenBrandCustomize()">Customize Bill Appearance</button>`:""}</div>`;
+ <div class="actions" style="margin-top:8px"><button onclick="openEditBillingIdentity()">Edit Billing Details</button></div>
+ ${isPremiumTier?`<hr><h4>Custom Branding (Premium)</h4>
+  ${p.logo_key?`<img src="/api/partners?action=logo&partner_id=${p.id}" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid #c9d4dc;display:block;margin-bottom:8px">`:`<p class="muted" style="font-size:12px">No logo uploaded yet.</p>`}
+  <input type="file" id="bizLogoFile" accept="image/*">
+  <div class="actions" style="margin-top:6px"><button onclick="tcUploadPartnerLogo(${p.id})">Upload Logo</button></div>
+  <label style="margin-top:8px;display:block">Logo size on bills<select id="bizLogoSize">
+    <option value="small" ${p.brand_logo_size=="small"?"selected":""}>Small</option>
+    <option value="medium" ${(!p.brand_logo_size||p.brand_logo_size=="medium")?"selected":""}>Medium (default)</option>
+    <option value="large" ${p.brand_logo_size=="large"?"selected":""}>Large</option>
+  </select></label>
+  <label style="margin-top:8px;display:block">Brand color (business name + contact line)<input type="color" id="bizBrandColor" value="${esc(p.brand_color||"#148c76")}" style="width:60px;height:36px;padding:2px"></label>
+  <label style="margin-top:8px;display:block">Business name size (when no logo is used)<select id="bizFontSize">
+    <option value="18" ${p.brand_font_size==18?"selected":""}>Small</option>
+    <option value="21" ${(!p.brand_font_size||p.brand_font_size==21)?"selected":""}>Medium (default)</option>
+    <option value="26" ${p.brand_font_size==26?"selected":""}>Large</option>
+    <option value="32" ${p.brand_font_size==32?"selected":""}>Extra Large</option>
+  </select></label>
+  <label style="margin-top:8px;display:block">Font style (tagline/address/contact)<select id="bizFontFamily">${fontOpts}</select></label>
+  <label style="margin-top:8px;display:block">Tagline/address/contact text size<select id="bizDetailSize">
+    <option value="small" ${p.brand_detail_size=="small"?"selected":""}>Small</option>
+    <option value="medium" ${(!p.brand_detail_size||p.brand_detail_size=="medium")?"selected":""}>Medium (default)</option>
+    <option value="large" ${p.brand_detail_size=="large"?"selected":""}>Large</option>
+  </select></label>
+  <div class="actions"><button class="primary" onclick="tcSaveBrandColor(${p.id})">Save All Branding Settings</button></div>
+  <div id="bizBrandErr" class="danger"></div>`:""}
+ `;
 }
 function openEditBillingIdentity(){
  const unlocked=tcIsPremiumPlan();
@@ -1680,83 +1707,49 @@ function saveBillingIdentity(){
  save(); closeModal(); toast("Billing details saved");
  renderBillingIdentitySection(window._myPartner);
 }
-function tcOpenBrandCustomize(){
- const isPremiumTier=db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
- if(!isPremiumTier){
-  modal(`<h2>Premium Feature</h2><p class="muted">Logo upload, brand colour and font customization are available on the Premium plan.</p>
-   ${db.platform.phone1?`<div><a href="tel:${esc(db.platform.phone1)}">Call ${esc(db.platform.phone1)}</a></div>`:""}
-   <div class="actions" style="margin-top:10px"><button onclick="closeModal()">Close</button></div>`);
-  return;
- }
- modal(`<h2>Customize Bill Appearance</h2>
-  <div class="grid">
-   <label>Logo (shown instead of your business name on bills)<input id="brandLogoFile" type="file" accept="image/*"></label>
-   <label>Logo size<select id="brandLogoSize">
-    <option value="small" ${db.settings.myBrandLogoSize==="small"?"selected":""}>Small</option>
-    <option value="medium" ${(!db.settings.myBrandLogoSize||db.settings.myBrandLogoSize==="medium")?"selected":""}>Medium</option>
-    <option value="large" ${db.settings.myBrandLogoSize==="large"?"selected":""}>Large</option>
-   </select></label>
-   <label>Brand colour<input id="brandColor" type="color" value="${db.settings.myBrandColor||"#148c76"}"></label>
-   <label>Business name font size<input id="brandFontSize" type="number" value="${db.settings.myBrandFontSize||21}"></label>
-   <label>Font family<select id="brandFontFamily">
-    ${Object.entries(TC_FONT_FAMILIES).map(([k,v])=>`<option value="${k}" ${(db.settings.myBrandFontFamily||"helvetica")===k?"selected":""}>${v.label}</option>`).join("")}
-   </select></label>
-   <label>Tagline/address/contact text size<select id="brandDetailSize">
-    <option value="small" ${db.settings.myBrandDetailSize==="small"?"selected":""}>Small</option>
-    <option value="medium" ${(!db.settings.myBrandDetailSize||db.settings.myBrandDetailSize==="medium")?"selected":""}>Medium</option>
-    <option value="large" ${db.settings.myBrandDetailSize==="large"?"selected":""}>Large</option>
-   </select></label>
-  </div>
-  <div class="actions"><button class="primary" onclick="tcSaveBrandCustomize()">Save</button></div>
-  <div id="brandErr" class="danger"></div>`);
-}
-async function tcSaveBrandCustomize(){
- db.settings.myBrandLogoSize=document.querySelector("#brandLogoSize").value;
- db.settings.myBrandColor=document.querySelector("#brandColor").value;
- db.settings.myBrandFontSize=document.querySelector("#brandFontSize").value;
- db.settings.myBrandFontFamily=document.querySelector("#brandFontFamily").value;
- db.settings.myBrandDetailSize=document.querySelector("#brandDetailSize").value;
- const errBox=document.querySelector("#brandErr");
+async function tcUploadPartnerLogo(partnerId){
+ const fileInput=document.querySelector("#bizLogoFile");
+ const errBox=document.querySelector("#bizBrandErr");
+ if(!fileInput.files||!fileInput.files[0]){ if(errBox) errBox.textContent="Choose an image first."; return; }
  const user=getCurrentUser();
- const fileEl=document.querySelector("#brandLogoFile");
- if(fileEl&&fileEl.files&&fileEl.files[0]&&db.settings.myPartnerId){
-  const fd=new FormData();
-  fd.append("partner_id",db.settings.myPartnerId);
-  fd.append("mobile",user?.mobile||"");
-  fd.append("logo",fileEl.files[0]);
-  try{
-   const res=await fetch("/api/partners?action=upload_logo",{method:"POST",body:fd});
-   const data=await res.json();
-   if(!data.ok){ errBox.textContent="Could not upload logo. Please try again."; return; }
-   db.settings.myLogoKey=data.logo_key||"1";
-  }catch(e){ errBox.textContent="Network error uploading logo."; return; }
- }
- /* Persists the colour/font/size choices server-side too (via the same
-    "update" action the basic Edit Details form uses) - not just locally -
-    so they survive a reinstall or apply consistently if this partner ever
-    uses more than one device. partners.js only actually stores these for
-    Premium/Owner-Free plans; sending them on a lower plan is harmless, the
-    server just leaves its own copy unchanged. */
- if(db.settings.myPartnerId&&window._myPartner){
-  const p=window._myPartner;
-  try{
-   await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-    action:"update",partner_id:db.settings.myPartnerId,mobile:user?.mobile||"",
-    business_name:p.business_name,owner_name:p.owner_name,mobile2:p.mobile2,email:p.email,
-    location:p.location,pincode:p.pincode,business_type:p.business_type,
-    description:p.description,business_hours:p.business_hours,
-    brand_color:db.settings.myBrandColor,brand_font_size:db.settings.myBrandFontSize,
-    brand_font_family:db.settings.myBrandFontFamily,brand_detail_size:db.settings.myBrandDetailSize,
-    brand_logo_size:db.settings.myBrandLogoSize
-   })});
-  }catch(e){}
- }
- save(); closeModal(); toast("Bill appearance updated");
- renderBillingIdentitySection(window._myPartner);
+ const fd=new FormData();
+ fd.append("partner_id",partnerId);
+ fd.append("mobile",user.mobile);
+ fd.append("logo",fileInput.files[0]);
+ try{
+  const res=await fetch("/api/partners?action=upload_logo",{method:"POST",body:fd});
+  const data=await res.json();
+  if(!data.ok){ if(errBox) errBox.textContent="Could not upload logo. Please try again."; return; }
+  toast("Logo uploaded");
+  partnerView();
+ }catch(e){ if(errBox) errBox.textContent="Network error."; }
 }
 
+async function tcSaveBrandColor(partnerId){
+ const user=getCurrentUser();
+ const color=document.querySelector("#bizBrandColor").value;
+ const fontSize=document.querySelector("#bizFontSize")?.value||"21";
+ const fontFamily=document.querySelector("#bizFontFamily")?.value||"helvetica";
+ const detailSize=document.querySelector("#bizDetailSize")?.value||"medium";
+ const logoSize=document.querySelector("#bizLogoSize")?.value||"medium";
+ const p=window._myPartner||{};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update",partner_id:partnerId,mobile:user.mobile,
+   business_name:p.business_name,owner_name:p.owner_name,
+   mobile2:p.mobile2,email:p.email,
+   location:p.location,pincode:p.pincode,
+   business_type:p.business_type,description:p.description,business_hours:p.business_hours,
+   brand_color:color,brand_font_size:fontSize,
+   brand_font_family:fontFamily,brand_detail_size:detailSize,brand_logo_size:logoSize})});
+  const data=await res.json();
+  if(!data.ok){ const errBox=document.querySelector("#bizBrandErr"); if(errBox) errBox.textContent="Could not save ("+(data.error||"unknown")+")"; return; }
+  toast("Branding settings saved");
+  Object.assign(window._myPartner,{brand_color:color,brand_font_size:fontSize,brand_font_family:fontFamily,brand_detail_size:detailSize,brand_logo_size:logoSize});
+  Object.assign(db.settings,{myBrandColor:color,myBrandFontSize:fontSize,myBrandFontFamily:fontFamily,myBrandDetailSize:detailSize,myBrandLogoSize:logoSize});
+  save();
+ }catch(e){ toast("Network error"); }
+}
 
-/* ---------- RATE MASTER ---------- */
 function master(){
  const rows=db.categories.map((c,i)=>`<tr>
   <td>${esc(c.name)}</td>
