@@ -144,8 +144,8 @@ function tcShowUpgradePrompt(feature){
   <div class="actions" style="margin-top:10px"><button onclick="closeModal()">Close</button></div>`);
 }
 const TC_APP_URL="https://travel-connect-app.travelconnect-business.workers.dev/";
-function tcAppDownloadBlockHtml(){
- const qrData=getQRDataURL(TC_APP_URL,140);
+async function tcAppDownloadBlockHtml(){
+ const qrData=await getQRDataURL(TC_APP_URL,140);
  return `<div style="page-break-inside:avoid;break-inside:avoid;text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc">
   <div style="font-size:12px;color:#444;font-weight:600;margin-bottom:6px">&#128241; Get the Travel Connect app - book vehicles, get fare estimates &amp; more</div>
   ${qrData?`<img src="${qrData}" style="width:110px;height:110px">`:""}
@@ -262,7 +262,7 @@ function printContent(title,html,asImage){
 }
 
 /* ---------- PRINT: QUOTATION ---------- */
-function printQuoteObj(q,asImage){
+async function printQuoteObj(q,asImage){
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
  const c=db.categories[q.categoryId];
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join(" &nbsp;|&nbsp; ");
@@ -281,7 +281,7 @@ function printQuoteObj(q,asImage){
  if(q.advanceAmount>0){
   let qrImg="";
   if(db.business.upiId){
-   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
+   const qrData=await getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),160);
    if(qrData) qrImg=`<img src="${qrData}" style="width:110px;height:110px">`;
   }
   advanceHtml=`<div style="page-break-inside:avoid;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -341,14 +341,14 @@ function printQuoteObj(q,asImage){
   ${extraChargesHtml(q.extraCharges)}
  </div>
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
- ${tcAppDownloadBlockHtml()}
+ ${await tcAppDownloadBlockHtml()}
  `,asImage);
 }
 function printQuote(id){ const q=db.quotes.find(x=>x.id===id); if(q) printQuoteObj(q); }
 function imageQuote(id){ const q=db.quotes.find(x=>x.id===id); if(q) printQuoteObj(q,true); }
 
 /* ---------- PRINT: FINAL BILL ---------- */
-function printBill(tripId,asImage){
+async function printBill(tripId,asImage){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
@@ -360,7 +360,7 @@ function printBill(tripId,asImage){
 
  let qrHtml="";
  if(balance>0&&db.business.upiId){
-  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  const qrData=await getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
   if(qrData) qrHtml=`<div style="text-align:center"><b>SCAN &amp; PAY</b><br><img src="${qrData}" style="width:140px;height:140px"><br><small>UPI: ${esc(db.business.upiId)}</small></div>`;
  }
 
@@ -464,7 +464,7 @@ function printBill(tripId,asImage){
   ${extraChargesHtml(r.extraCharges)}
  </div>
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for travelling with ${esc(db.business.name)}.</p>
- ${tcAppDownloadBlockHtml()}
+ ${await tcAppDownloadBlockHtml()}
  `,asImage);
 }
 function imageBill(tripId){ printBill(tripId,true); }
@@ -535,14 +535,14 @@ function tcPdfBrandedHeader(doc,titleText){
  doc.setFont(font,"normal");doc.setFontSize(10);
  return y;
 }
-function tcPdfAppDownloadBlock(doc,y){
+async function tcPdfAppDownloadBlock(doc,y){
  const font=tcPdfFontFamily();
  if(y+45>282){doc.addPage();y=18;}
  y+=6;
  doc.setDrawColor(210);doc.line(15,y,195,y);y+=8;
  doc.setFont(font,"bold");doc.setFontSize(9);doc.setTextColor(70);
  doc.text("Get the Travel Connect app - book vehicles, get fare estimates & more",105,y,{align:"center"});y+=4;
- const qrData=getQRDataURL(TC_APP_URL,140);
+ const qrData=await getQRDataURL(TC_APP_URL,140);
  if(qrData){ doc.addImage(qrData,"PNG",90,y,30,30); y+=34; }
  doc.setFont(font,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
  doc.text(TC_APP_URL,105,y,{align:"center"});
@@ -551,7 +551,7 @@ function tcPdfAppDownloadBlock(doc,y){
 }
 
 /* ---------- QUOTATION PDF ---------- */
-function downloadQuotePDFObj(q){
+async function downloadQuotePDFObj(q){
  const doc=pdfDoc();if(!doc)return;
  const font=tcPdfFontFamily();
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
@@ -620,7 +620,7 @@ function downloadQuotePDFObj(q){
   doc.setFont(font,"bold");doc.setFontSize(9.5);doc.text("ADVANCE "+(q.advanceReceived?"RECEIVED":"REQUESTED"),20,y+8);
   doc.setFont(font,"normal");doc.setFontSize(9);doc.text(pdfMoney(q.advanceAmount),20,y+14);
   if(!q.advanceReceived&&db.business.upiId){
-   const qrData=getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),200);
+   const qrData=await getQRDataURL(buildUpiLink(q.advanceAmount,"Advance "+q.no),200);
    if(qrData){doc.setFontSize(7.5);doc.text("SCAN & PAY",170,y+6,{align:"center"});doc.addImage(qrData,"PNG",151,y+8,30,30);}
   }
   y+=boxH+6;
@@ -632,14 +632,14 @@ function downloadQuotePDFObj(q){
  doc.text(wrapped,15,y);y+=wrapped.length*4+3;
  doc.setTextColor(0);doc.setFontSize(10);
  y=extraChargesPdf(doc,y,q.extraCharges);
- tcPdfAppDownloadBlock(doc,y);
+ await tcPdfAppDownloadBlock(doc,y);
 
  doc.save("Quotation-"+q.no+".pdf");
 }
 function downloadQuotePDF(id){ const q=db.quotes.find(x=>x.id===id); if(q) downloadQuotePDFObj(q); }
 
 /* ---------- FINAL BILL PDF ---------- */
-function downloadBillPDF(tripId){
+async function downloadBillPDF(tripId){
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
@@ -750,7 +750,7 @@ function downloadBillPDF(tripId){
  doc.setFont(font,"normal");
 
  if(balance>0&&db.business.upiId){
-  const qrData=getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
+  const qrData=await getQRDataURL(buildUpiLink(balance,q.no||tripId.slice(0,8)),220);
   if(qrData){
    doc.setFontSize(7.5);doc.text("SCAN & PAY",170,boxTop+6,{align:"center"});
    doc.addImage(qrData,"PNG",151,boxTop+8,36,36);
@@ -776,7 +776,7 @@ function downloadBillPDF(tripId){
  doc.text("Thank you for travelling with "+(db.business.name||"us")+".",105,y,{align:"center"});
  doc.setTextColor(0);
  y+=6;
- tcPdfAppDownloadBlock(doc,y);
+ await tcPdfAppDownloadBlock(doc,y);
 
  doc.save("Bill-"+(q.no||tripId.slice(0,8))+".pdf");
 }
@@ -1167,31 +1167,37 @@ function buildUpiLink(amount,note){
    a detached element was the difference, and why this same library call
    silently produced nothing for Print/PDF/balance-due QR codes even
    though the identical call worked for the live on-screen modal. */
-/* A single permanent, hidden container - each call adds a fresh child div
-   to it and never removes any of them, unlike the two earlier attempts
-   here (a plain detached div, then an attach-then-immediately-remove
-   div) which both still failed. The QRCode library likely finishes its
-   actual canvas/image drawing a moment after its constructor call returns
-   rather than perfectly synchronously - removing the element right after
-   construction (as both earlier versions did) could delete it before that
-   drawing lands. Leaving every generated QR element in place permanently
-   avoids that race entirely; the handful of small hidden nodes this
-   accumulates over a session (a few dozen at most, for someone printing
-   many bills) costs nothing meaningful. */
-let _tcQrCache;
-function getQRDataURL(text,size){
+/* Properly asynchronous now, after three synchronous attempts here all
+   failed - the QRCode library apparently finishes its actual canvas/image
+   drawing some time after its constructor call returns rather than
+   synchronously, and no synchronous read-back strategy tried so far
+   reliably caught the finished result. Waiting two animation frames (the
+   browser's own signal that two full render passes have completed) before
+   reading the image back is a standard, reliable way to give a library's
+   own asynchronous rendering genuine time to finish, regardless of
+   exactly how it schedules that work internally. Every caller must now
+   `await` this. */
+function _tcNextFrames(n){
+ return new Promise(resolve=>{
+  function step(){ n--; if(n<=0) resolve(); else requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+ });
+}
+async function getQRDataURL(text,size){
  try{
-  if(!_tcQrCache){
-   _tcQrCache=document.createElement("div");
-   _tcQrCache.style.cssText="position:fixed;left:-9999px;top:-9999px;";
-   document.body.appendChild(_tcQrCache);
-  }
   const holder=document.createElement("div");
-  _tcQrCache.appendChild(holder);
+  holder.style.cssText="position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1;";
+  document.body.appendChild(holder);
   new QRCode(holder,{text,width:size||200,height:size||200});
+  await _tcNextFrames(3);
   const img=holder.querySelector("img")||holder.querySelector("canvas");
-  if(!img) return null;
-  return img.tagName==="CANVAS"?img.toDataURL("image/png"):img.src;
+  let result=null;
+  if(img){
+   result=img.tagName==="CANVAS"?img.toDataURL("image/png"):img.src;
+   if(result&&result.indexOf("data:")!==0) result=null;
+  }
+  holder.parentNode&&holder.parentNode.removeChild(holder);
+  return result;
  }catch(e){ return null; }
 }
 function renderBillQR(amount,note){
@@ -1608,8 +1614,8 @@ function dashboard(){
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
-    ${tcIsPremiumPlan()?
+    <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
+  ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
  </div>
