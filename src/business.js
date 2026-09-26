@@ -1167,18 +1167,32 @@ function buildUpiLink(amount,note){
    a detached element was the difference, and why this same library call
    silently produced nothing for Print/PDF/balance-due QR codes even
    though the identical call worked for the live on-screen modal. */
+/* A single permanent, hidden container - each call adds a fresh child div
+   to it and never removes any of them, unlike the two earlier attempts
+   here (a plain detached div, then an attach-then-immediately-remove
+   div) which both still failed. The QRCode library likely finishes its
+   actual canvas/image drawing a moment after its constructor call returns
+   rather than perfectly synchronously - removing the element right after
+   construction (as both earlier versions did) could delete it before that
+   drawing lands. Leaving every generated QR element in place permanently
+   avoids that race entirely; the handful of small hidden nodes this
+   accumulates over a session (a few dozen at most, for someone printing
+   many bills) costs nothing meaningful. */
+let _tcQrCache;
 function getQRDataURL(text,size){
- let tmp;
  try{
-  tmp=document.createElement("div");
-  tmp.style.cssText="position:fixed;left:-9999px;top:-9999px;";
-  document.body.appendChild(tmp);
-  new QRCode(tmp,{text,width:size||200,height:size||200});
-  const img=tmp.querySelector("img")||tmp.querySelector("canvas");
+  if(!_tcQrCache){
+   _tcQrCache=document.createElement("div");
+   _tcQrCache.style.cssText="position:fixed;left:-9999px;top:-9999px;";
+   document.body.appendChild(_tcQrCache);
+  }
+  const holder=document.createElement("div");
+  _tcQrCache.appendChild(holder);
+  new QRCode(holder,{text,width:size||200,height:size||200});
+  const img=holder.querySelector("img")||holder.querySelector("canvas");
   if(!img) return null;
   return img.tagName==="CANVAS"?img.toDataURL("image/png"):img.src;
  }catch(e){ return null; }
- finally{ if(tmp&&tmp.parentNode) tmp.parentNode.removeChild(tmp); }
 }
 function renderBillQR(amount,note){
  const box=document.querySelector("#billQR");
@@ -1595,14 +1609,13 @@ function dashboard(){
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
-  ${tcIsPremiumPlan()?
+    ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
  </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
   <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
-    <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
   <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
