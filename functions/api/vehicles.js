@@ -54,7 +54,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "active") {
     const { results } = await env.DB
       .prepare(
-        `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, p.business_name, p.mobile1, p.mobile2,
+        `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode, p.business_type
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
          WHERE v.active=1 AND v.verified=1 AND p.verified=1
@@ -89,6 +89,30 @@ export async function onRequestGet({ request, env }) {
     const key = url.searchParams.get("key");
     if (!key) return Response.json({ ok: false, error: "missing_key" }, { status: 400 });
     const obj = await env.FILES.get(key);
+    if (!obj) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    return new Response(obj.body, {
+      headers: { "content-type": obj.httpMetadata?.contentType || "application/octet-stream" },
+    });
+  }
+
+  /* Public (no admin token) - only the front photo, and only for a vehicle
+     that is currently active+verified (and its partner verified) - the
+     same visibility any customer already has on the Active Vehicles
+     Board itself. RC/Insurance/Permit/Fitness/PUC stay admin-only via the
+     "file" action above; front photo is the one document meant to help a
+     customer recognise the vehicle before calling. */
+  if (action === "public_front_photo") {
+    const vehicleId = url.searchParams.get("vehicle_id");
+    if (!vehicleId) return Response.json({ ok: false, error: "missing_vehicle_id" }, { status: 400 });
+    const row = await env.DB
+      .prepare(
+        `SELECT v.front_photo_key FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
+         WHERE v.id=? AND v.active=1 AND v.verified=1 AND p.verified=1`
+      )
+      .bind(vehicleId)
+      .first();
+    if (!row || !row.front_photo_key) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    const obj = await env.FILES.get(row.front_photo_key);
     if (!obj) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     return new Response(obj.body, {
       headers: { "content-type": obj.httpMetadata?.contentType || "application/octet-stream" },
