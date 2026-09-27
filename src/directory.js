@@ -516,7 +516,7 @@ function vehicleExpiryWarnings(v){
   return days<30;
  });
  if(!soon.length) return "";
- return `<div class="danger" style="font-size:12px;margin-top:4px">&#9888; Expiring soon: ${soon.map(([label,d])=>label+" ("+d+")").join(", ")}</div>`;
+ return `<div class="danger" style="font-size:12px;margin-top:4px">&#9888; Expiring soon: ${soon.map(([label,d])=>label+" ("+tcFormatDate(d)+")").join(", ")}</div>`;
 }
 async function loadMyVehicles(partnerId){
  const box=document.querySelector("#myVehiclesList");
@@ -1078,7 +1078,7 @@ async function tcRenderRecentContacts(partnerId){
   const data=await res.json();
   if(!data.ok||!data.calls||!data.calls.length){ box.innerHTML="<p class='muted'>No calls logged through the app yet.</p>"; return; }
   box.innerHTML=data.calls.map(c=>{
-   const when=new Date(c.created_at).toLocaleString();
+   const when=tcFormatDateTime(c.created_at);
    const mapLink=(c.lat!=null&&c.lon!=null)?`<a href="https://maps.google.com/?q=${c.lat},${c.lon}" target="_blank">&#128205; View their location (accurate to their phone's GPS)</a>`:"";
    return `<div class="listitem"><b>${esc(c.caller_name||"A customer")}</b> - <a href="tel:${esc(c.caller_mobile)}">${esc(c.caller_mobile)}</a><br>
    <span class="muted">Called via Travel Connect &bull; ${esc(when)}</span>
