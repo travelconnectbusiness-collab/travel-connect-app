@@ -55,7 +55,7 @@ export async function onRequestGet({ request, env }) {
     const { results } = await env.DB
       .prepare(
         `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, p.business_name, p.mobile1, p.mobile2,
-                p.location, p.pincode
+                p.location, p.pincode, p.business_type
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
          WHERE v.active=1 AND v.verified=1 AND p.verified=1
          ORDER BY v.id DESC`
