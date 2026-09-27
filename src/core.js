@@ -161,6 +161,39 @@ function migrate(){
 function save(){ localStorage.setItem(KEY,JSON.stringify(db)); }
 function money(n){ return "\u20b9"+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2}); }
 function esc(v){ return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+/* Indian-style date/time formatting (DD-MM-YYYY, 12-hour AM/PM) used
+   everywhere a stored date/timestamp is shown to the person, instead of
+   the raw ISO string (YYYY-MM-DD) the database/JS naturally returns.
+   Accepts a plain "YYYY-MM-DD" date, a full ISO timestamp, or a Date
+   object; returns "" for anything missing/unparseable so callers can
+   still show their own fallback text (e.g. "-"). */
+function tcFormatDate(dateStr){
+ if(!dateStr) return "";
+ const d=(dateStr instanceof Date)?dateStr:new Date(dateStr.length===10?dateStr+"T00:00:00":dateStr);
+ if(isNaN(d)) return "";
+ const dd=String(d.getDate()).padStart(2,"0"), mm=String(d.getMonth()+1).padStart(2,"0"), yyyy=d.getFullYear();
+ return dd+"-"+mm+"-"+yyyy;
+}
+function tcFormatDateTime(dateStr){
+ if(!dateStr) return "";
+ const d=(dateStr instanceof Date)?dateStr:new Date(dateStr);
+ if(isNaN(d)) return "";
+ let h=d.getHours(); const m=String(d.getMinutes()).padStart(2,"0"); const ampm=h>=12?"PM":"AM";
+ h=h%12; if(h===0) h=12;
+ return tcFormatDate(d)+", "+h+":"+m+" "+ampm;
+}
+/* For a bare "HH:MM" (24-hour) value from an <input type="time">, with no
+   date attached - e.g. Pickup Time / Closing Time on a quotation/bill. */
+function tcFormatTime(timeStr){
+ if(!timeStr) return "";
+ const parts=timeStr.split(":");
+ if(parts.length<2) return timeStr;
+ let h=parseInt(parts[0],10), m=parts[1];
+ if(isNaN(h)) return timeStr;
+ const ampm=h>=12?"PM":"AM";
+ h=h%12; if(h===0) h=12;
+ return h+":"+m+" "+ampm;
+}
 function toast(s){ const e=document.querySelector("#toast"); e.textContent=s; e.style.display="block"; setTimeout(()=>e.style.display="none",2600); }
 function app(){ return document.querySelector("#app"); }
 
