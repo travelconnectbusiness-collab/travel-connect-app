@@ -308,7 +308,7 @@ function printQuoteObj(q,asImage){
  </div>
  ${tcBrandingBox(partnerPhones)}
  <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
- <table>${row("Date",q.entryDate||(q.created||"").slice(0,10))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <table>${row("Date",tcFormatDate(q.entryDate||q.created))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
   <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
   <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
@@ -379,8 +379,8 @@ function printBill(tripId,asImage){
  if(billDriverMobile){detailRows+=row("Driver Mobile",billDriverMobile);}
  if(q.service) detailRows+=row("Service",q.service);
  detailRows+=row("Bill Number",t.billNo||"-");
- detailRows+=row("Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-");
- detailRows+=row("Trip Date",q.startDate||"-");
+ detailRows+=row("Bill Entry Date",tcFormatDate(t.entryDate||t.created)||"-");
+ detailRows+=row("Trip Date",tcFormatDate(q.startDate)||"-");
 
  let usageRows="";
  usageRows+=row("Total KM / Total Hours",km+" KM / "+h+" hrs",true);
@@ -459,7 +459,7 @@ function printBill(tripId,asImage){
   </div>
   ${qrHtml}
  </div>
- ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+(p.at||"").slice(0,10)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
+ ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+tcFormatDate(p.at)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11px;color:#555">
   ${extraChargesHtml(r.extraCharges)}
  </div>
@@ -558,7 +558,7 @@ function downloadQuotePDFObj(q){
  const c=db.categories[q.categoryId];
  let y=tcPdfBrandedHeader(doc,"QUOTATION "+q.no);
 
- y=pdfRow(doc,y,"Date",q.entryDate||(q.created||"").slice(0,10));
+ y=pdfRow(doc,y,"Date",tcFormatDate(q.entryDate||q.created));
  y=pdfRow(doc,y,"Customer",q.customer);
  y=pdfRow(doc,y,"Mobile",q.mobile);
  y=pdfDivider(doc,y);
@@ -662,7 +662,7 @@ function downloadBillPDF(tripId){
  if(billDriverName) detailRows.push(["Driver",billDriverName]);
  if(billDriverMobile) detailRows.push(["Driver Mobile",billDriverMobile]);
  if(q.service) detailRows.push(["Service",q.service]);
- detailRows.push(["Bill Number",t.billNo||"-"],["Bill Entry Date",t.entryDate||(t.created||"").slice(0,10)||"-"],["Trip Date",q.startDate||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",q.startTime||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
+ detailRows.push(["Bill Number",t.billNo||"-"],["Bill Entry Date",tcFormatDate(t.entryDate||t.created)||"-"],["Trip Date",tcFormatDate(q.startDate)||"-"],["Vehicle Start Point",q.vehicleStart||"-"],["Pickup Time",tcFormatTime(q.startTime)||"-"],["Pickup Point",q.pickup||"-"],["Destination",dests[dests.length-1]||"-"],["Return / Closing Point",q.returnPoint||"-"]);
 
  detailRows.forEach(([label,value])=>{
   if(y>272){doc.addPage();y=18;}
@@ -761,7 +761,7 @@ function downloadBillPDF(tripId){
  if((t.payments||[]).length){
   if(y>265){doc.addPage();y=18;}
   doc.setFont(font,"bold");doc.text("Payments Received",15,y);y+=6;doc.setFont(font,"normal");
-  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+(p.at||"").slice(0,10)+")");});
+  t.payments.forEach(p=>{y=pdfRow(doc,y,p.method,pdfMoney(p.amount)+"  ("+tcFormatDate(p.at)+")");});
   y=pdfRow(doc,y,"Total Paid",pdfMoney(paid));
   y+=3;
  }
@@ -1144,7 +1144,7 @@ function billBreakdown(t,q,c){
 function billPrintDate(){
  const el=document.querySelector("#billDateInput");
  const v=el&&el.value?el.value:new Date().toISOString().slice(0,10);
- return v;
+ return tcFormatDate(v);
 }
 /* Each bill gets its own permanent sequential number, generated once the
    FIRST time it's calculated and kept from then on - separate from the
@@ -1366,7 +1366,7 @@ function loadBill(){
   <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
   ${extraChargesHtml(r.extraCharges)}
 
-  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${(p.at||"").slice(0,16).replace("T"," ")})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
+  ${(t.payments||[]).length?`<h3>Payments received</h3>${t.payments.map(p=>`<div>${esc(p.method)}: ${money(p.amount)} <span class="muted">(${tcFormatDateTime(p.at)})</span></div>`).join("")}<div class="actions"><button onclick="undoLastPayment('${t.id}')">Undo last payment</button></div>`:""}
   <div><b>Total paid: ${money(paid)}</b></div>
   <div class="total">Balance due: ${money(balance)}</div>
   ${balance>0?`
@@ -1457,7 +1457,7 @@ function enquiries(){
  <label>Required date<input id="enqDate" type="date"></label>
  <label>Entry date (leave blank for today)<input id="enqEntryDate" type="date"></label></div>
  <div class="actions"><button class="primary" onclick="saveEnquiry()">Save Enquiry</button></div>
- <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> &bull; ${esc(e.mobile)}<br>${esc(e.pickup)} &rarr; ${esc(e.dest)}<br><span class="muted">${esc(e.type)} &bull; Required: ${esc(e.date)} &bull; Entered: ${esc(e.entryDate||(e.created||"").slice(0,10))} &bull; ${esc(e.status)}</span>
+ <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> &bull; ${esc(e.mobile)}<br>${esc(e.pickup)} &rarr; ${esc(e.dest)}<br><span class="muted">${esc(e.type)} &bull; Required: ${esc(e.date)} &bull; Entered: ${esc(tcFormatDate(e.entryDate||e.created))} &bull; ${esc(e.status)}</span>
  <div class="actions"><button class="primary" onclick="enquiryToQuote('${e.id}')">Create Quotation</button></div></div>`).join("")||"<p class='muted'>No enquiries.</p>"}</div>`);
 }
 function addQuickStopField(value=""){
