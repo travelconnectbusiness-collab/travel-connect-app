@@ -330,6 +330,15 @@ function tcOpenOneBusiness(partner){
    (once a UPI ID is set) a simple type-an-amount payment-QR collector. */
 function renderPartnerDashboard(p){
  const isTaxi=tcIsTaxiType(p.business_type);
+ /* Auto Rickshaw and Pickup/Goods Carrier are vehicle-based businesses too
+    (unlike a restaurant or workshop) - without their own "Add Vehicle",
+    the only way to signal availability was a single partner-level toggle,
+    so their actual vehicle never had a category/number of its own and
+    could never appear on the Active Vehicles Board the way a taxi does.
+    Giving them the same Vehicles section (not the full Taxi
+    quotation/billing tools - just vehicle registration + the per-vehicle
+    Active toggle) fixes both at once. */
+ const hasVehicles=isTaxi||p.business_type==="auto_rickshaw"||p.business_type==="pickup_goods";
  const hasMultiple=(window._myBusinesses||[]).length>1;
  let hours={};
  try{ hours=JSON.parse(p.business_hours||"{}"); }catch(e){}
@@ -346,14 +355,23 @@ function renderPartnerDashboard(p){
   ${p.verified?tcActiveToggleHtml("partnerAvailToggle",!!p.available,`tcTogglePartnerAvailable(${p.id},checked)`):""}
   <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">Edit Details</button></div>
  </div>
- ${isTaxi?`
+ ${hasVehicles?`
  <div class="card" id="billingIdentityCard">
   <h3>Billing Details <span class="muted">(the name/phone/UPI shown on YOUR bills)</span></h3>
   <div id="billingIdentityBody"></div>
  </div>
  <div class="actions"><button class="primary" onclick="openAddVehicle(${p.id})">+ Add Vehicle</button></div>
  <h3>My Vehicles</h3>
- <div id="myVehiclesList">Loading...</div>`:`
+ <div id="myVehiclesList">Loading...</div>${isTaxi?"":`
+ <div class="card">
+  <h3>&#128241; Collect Payment</h3>
+  ${db.business.upiId?`
+  <p class="muted">Type the amount and show the QR on this screen for your customer to scan.</p>
+  <div class="grid"><label>Amount<input id="ncAmount" type="number" placeholder="e.g. 500"></label></div>
+  <div class="actions"><button class="primary" onclick="tcGenerateNonTaxiQR()">Generate QR</button></div>
+  <div id="ncQrBox" style="text-align:center;margin-top:10px"></div>`:
+  `<p class="muted">Set your UPI ID in Billing Details above first, then come back here to collect payments by QR.</p>`}
+ </div>`}`:`
  <div class="card" id="billingIdentityCard">
   <h3>Billing Details <span class="muted">(your UPI ID, used below to collect payments)</span></h3>
   <div id="billingIdentityBody"></div>
@@ -374,7 +392,7 @@ function renderPartnerDashboard(p){
  <hr>
  <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
  renderBillingIdentitySection(p);
- if(isTaxi) loadMyVehicles(p.id);
+ if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
 }
 async function tcTogglePartnerAvailable(partnerId,available){
@@ -657,7 +675,7 @@ function tcRenderActiveBoardList(vehicles,append){
   const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
   const targetType=v.isPartnerEntry?"partner":"vehicle";
   return `<div class="listitem">
-  <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span><br>
+  <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
   ${esc(v.business_name)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
   <div class="actions">
    ${tcCallButtonHtml(v.mobile1,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),true)}
@@ -677,7 +695,8 @@ function tcFilterActiveBoard(){
   (v.location||"").toLowerCase().includes(q) ||
   (v.pincode||"").toLowerCase().includes(q) ||
   (v.business_name||"").toLowerCase().includes(q) ||
-  (v.category||"").toLowerCase().includes(q)
+  (v.category||"").toLowerCase().includes(q) ||
+  (tcBizLabel(v.business_type)||"").toLowerCase().includes(q)
  );
  if(!filtered.length&&_tcActiveBoardVehicles.length&&box){
   const contactLine=[db.platform.phone1?`<a href="tel:${esc(db.platform.phone1)}">&#128222; ${esc(db.platform.phone1)}</a>`:"",db.platform.email?`<a href="mailto:${esc(db.platform.email)}">&#9993; ${esc(db.platform.email)}</a>`:""].filter(Boolean).join(" &nbsp;|&nbsp; ");
