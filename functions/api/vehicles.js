@@ -189,6 +189,57 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, vehicle_id: vehicleId });
   }
 
+  /* Lets the vehicle's own partner (checked by mobile, same ownership
+     pattern as toggle_active below) go back and add or replace any
+     document photo, or correct/update an expiry date, after the vehicle
+     was first registered - e.g. a vehicle added with just a number and
+     dates (common for Auto Rickshaw, where photos are optional) can have
+     its actual photos added later, or an expired document's date/photo
+     refreshed once renewed. Only the fields actually sent are touched -
+     an omitted date field leaves the existing one alone, and a field only
+     gets cleared if explicitly sent as an empty string; only fields
+     present in the form are included in the UPDATE at all. */
+  if (action === "update") {
+    const form = await request.formData();
+    const vehicle_id = form.get("vehicle_id");
+    const mobile = (form.get("mobile") || "").toString().trim();
+    if (!vehicle_id || !mobile) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare(
+        `SELECT p.mobile1, p.mobile2 FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
+      )
+      .bind(vehicle_id)
+      .first();
+    if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const dateFields = ["category", "driver_name", "driver_mobile1", "driver_mobile2", "driver_license_number",
+      "driver_license_expiry", "rc_expiry", "insurance_expiry", "permit_expiry", "fitness_expiry", "puc_expiry"];
+    const setParts = [];
+    const bindVals = [];
+    for (const f of dateFields) {
+      if (form.has(f)) {
+        setParts.push(`${f}=?`);
+        bindVals.push(form.get(f).toString());
+      }
+    }
+    for (const docField of DOC_FIELDS) {
+      const file = form.get(docField);
+      const key = await uploadFile(env, file, vehicle_id, docField);
+      if (key) {
+        setParts.push(`${docField}_key=?`);
+        bindVals.push(key);
+      }
+    }
+    if (setParts.length) {
+      bindVals.push(vehicle_id);
+      await env.DB.prepare(`UPDATE vehicles SET ${setParts.join(",")} WHERE id=?`).bind(...bindVals).run();
+    }
+    return Response.json({ ok: true });
+  }
+
   if (action === "toggle_active") {
     let body;
     try {
