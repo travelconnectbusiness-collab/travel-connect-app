@@ -126,7 +126,7 @@ function calcCustomerFare(){
  const c=db.categories[+catIdx];
  const km=+document.querySelector("#cKm").value||0, h=+document.querySelector("#cHours").value||0;
  const days=+document.querySelector("#cDays").value||1, restHours=+document.querySelector("#cRestHours").value||0;
- const plan=(type==="local")?"local":"competitive";
+ const plan=(type==="local")?"local":(type==="drop")?"drop":"competitive";
  const r=calcFare(c,plan,km,h,days,restHours,{});
  const box=document.querySelector("#cResult");
  if(r.invalid){ box.innerHTML=`<div class="danger"><b>${esc(r.reason)}</b></div>`; return; }
