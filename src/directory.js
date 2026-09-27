@@ -418,6 +418,9 @@ function tcGenerateNonTaxiQR(){
 
 /* ---------- VEHICLE REGISTRATION (Taxi/Travel Agency only) ---------- */
 function openAddVehicle(partnerId){
+ const isTaxiVehicle=(window._myPartner?.business_type||"taxi_travel")==="taxi_travel";
+ const reqPhoto=isTaxiVehicle?" *":" (optional)";
+ const optPhoto=" (optional)"; /* RC/Fitness/PUC - date is enough, even for Taxi */
  modal(`<h2>Add Vehicle</h2>
  <div class="grid">
   <label>Vehicle number<input id="vNoNew" placeholder="e.g. KL 07 AB 1234"></label>
@@ -432,18 +435,18 @@ function openAddVehicle(partnerId){
   <label>License expiry<input id="vLicExp" type="date"></label>
   <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
- <h4>Vehicle documents - all required for verification</h4>
+ <h4>Vehicle documents${isTaxiVehicle?" - Front/Insurance/Permit photos are required; RC/Fitness/PUC just need their expiry date":" - the expiry date is enough; a photo is optional"}</h4>
  <div class="grid">
-  <label>Front photo * (vehicle number must be clearly visible)<input id="vFrontPhoto" type="file" accept="image/*"></label>
-  <label>RC photo *<input id="vRcPhoto" type="file" accept="image/*"></label>
+  <label>Front photo${reqPhoto} (vehicle number must be clearly visible - shown to customers when they search)<input id="vFrontPhoto" type="file" accept="image/*"></label>
+  <label>RC photo${optPhoto}<input id="vRcPhoto" type="file" accept="image/*"></label>
   <label>RC expiry<input id="vRcExp" type="date"></label>
-  <label>Insurance photo *<input id="vInsPhoto" type="file" accept="image/*"></label>
+  <label>Insurance photo${reqPhoto}<input id="vInsPhoto" type="file" accept="image/*"></label>
   <label>Insurance expiry<input id="vInsExp" type="date"></label>
-  <label>Permit photo *<input id="vPermitPhoto" type="file" accept="image/*"></label>
+  <label>Permit photo${reqPhoto}<input id="vPermitPhoto" type="file" accept="image/*"></label>
   <label>Permit expiry<input id="vPermitExp" type="date"></label>
-  <label>Fitness photo *<input id="vFitnessPhoto" type="file" accept="image/*"></label>
+  <label>Fitness photo${optPhoto}<input id="vFitnessPhoto" type="file" accept="image/*"></label>
   <label>Fitness expiry<input id="vFitnessExp" type="date"></label>
-  <label>PUC photo *<input id="vPucPhoto" type="file" accept="image/*"></label>
+  <label>PUC photo${optPhoto}<input id="vPucPhoto" type="file" accept="image/*"></label>
   <label>PUC expiry<input id="vPucExp" type="date"></label>
  </div>
  <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
@@ -453,14 +456,24 @@ async function submitAddVehicle(partnerId){
  const no=document.querySelector("#vNoNew").value.trim();
  const errBox=document.querySelector("#vAddErr");
  if(!no){errBox.textContent="Enter the vehicle number.";return}
- const requiredPhotos={vFrontPhoto:"Front photo",vRcPhoto:"RC photo",vInsPhoto:"Insurance photo",vPermitPhoto:"Permit photo",vFitnessPhoto:"Fitness photo",vPucPhoto:"PUC photo"};
- const missing=Object.entries(requiredPhotos).filter(([elId])=>{
-  const el=document.querySelector("#"+elId);
-  return !(el&&el.files&&el.files[0]);
- }).map(([,label])=>label);
- if(missing.length){
-  errBox.textContent="Please upload: "+missing.join(", ")+" - all vehicle documents are required for verification.";
-  return;
+ /* Photo uploads are only required for Taxi/Travel Agency vehicles - for
+    Auto Rickshaw/Pickup-Goods, entering just the document EXPIRY DATES is
+    enough (front photo is still welcome if they want to add it, just not
+    required). Two reasons: R2 storage has a free-tier cap the owner pays
+    past, and an auto driver's documents typically aren't checked as
+    rigorously as a full taxi fleet's - dates alone still let expiry
+    warnings work correctly. */
+ const isTaxiVehicle=(window._myPartner?.business_type||"taxi_travel")==="taxi_travel";
+ if(isTaxiVehicle){
+  const requiredPhotos={vFrontPhoto:"Front photo",vInsPhoto:"Insurance photo",vPermitPhoto:"Permit photo"};
+  const missing=Object.entries(requiredPhotos).filter(([elId])=>{
+   const el=document.querySelector("#"+elId);
+   return !(el&&el.files&&el.files[0]);
+  }).map(([,label])=>label);
+  if(missing.length){
+   errBox.textContent="Please upload: "+missing.join(", ")+" - all vehicle documents are required for verification.";
+   return;
+  }
  }
  const saveBtn=document.querySelector("#vSaveBtn");
  if(saveBtn.disabled) return;
@@ -675,8 +688,13 @@ function tcRenderActiveBoardList(vehicles,append){
   const mapsUrl="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapsQuery);
   const targetType=v.isPartnerEntry?"partner":"vehicle";
   return `<div class="listitem">
-  <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
-  ${esc(v.business_name)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
+  <div class="row">
+   ${v.front_photo_key?`<img src="/api/vehicles?action=public_front_photo&vehicle_id=${v.id}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">`:""}
+   <div>
+    <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
+    ${esc(v.business_name)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
+   </div>
+  </div>
   <div class="actions">
    ${tcCallButtonHtml(v.mobile1,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),true)}
    ${v.mobile2?tcCallButtonHtml(v.mobile2,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),false):""}
@@ -764,11 +782,18 @@ async function tcLoadPendingVehicles(){
   box.innerHTML=data.vehicles.map(v=>`<div class="listitem">
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} <span class="muted">- ${esc(v.business_name||"")}</span>
    <div class="actions" style="margin-top:4px;flex-wrap:wrap">
-    ${["front_photo","rc_photo","insurance_photo","permit_photo","fitness_photo","puc_photo"].filter(f=>v[f+"_key"]).map(f=>`<a href="/api/vehicles?action=file&key=${encodeURIComponent(v[f+"_key"])}&token=${encodeURIComponent(adminToken())}" target="_blank"><button>${f.replace("_photo","").toUpperCase()}</button></a>`).join("")}
+    ${["front_photo","rc_photo","insurance_photo","permit_photo","fitness_photo","puc_photo"].filter(f=>v[f+"_key"]).map(f=>`<button onclick="tcViewDoc('${esc(v[f+"_key"])}','${f.replace("_photo","").toUpperCase()}')">${f.replace("_photo","").toUpperCase()}</button>`).join("")}
    </div>
    <div class="actions" style="margin-top:6px"><button class="primary" onclick="tcApproveVehicle(${v.id})">Approve</button><button class="danger" onclick="tcDeleteVehicle(${v.id})">Delete</button></div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+/* Shows a document photo inside an in-app modal instead of an <a
+   target="_blank"> link - opening a new browser tab took the admin fully
+   out of the PWA to view it, with no easy way back into the app once
+   they were done looking. */
+function tcViewDoc(key,label){
+ modal(`<h2>${esc(label)}</h2><div style="text-align:center"><img src="/api/vehicles?action=file&key=${encodeURIComponent(key)}&token=${encodeURIComponent(adminToken())}" style="max-width:100%;border-radius:8px"></div>`);
 }
 async function tcApproveVehicle(id){
  try{
@@ -806,7 +831,7 @@ function tcRenderAllVehiclesList(list){
   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'}<br>
   <span class="muted">${esc(v.business_name||"")}</span>
   <div class="actions" style="margin-top:4px;flex-wrap:wrap">
-   ${["front_photo","rc_photo","insurance_photo","permit_photo","fitness_photo","puc_photo"].filter(f=>v[f+"_key"]).map(f=>`<a href="/api/vehicles?action=file&key=${encodeURIComponent(v[f+"_key"])}&token=${encodeURIComponent(adminToken())}" target="_blank"><button>${f.replace("_photo","").toUpperCase()}</button></a>`).join("")}
+   ${["front_photo","rc_photo","insurance_photo","permit_photo","fitness_photo","puc_photo"].filter(f=>v[f+"_key"]).map(f=>`<button onclick="tcViewDoc('${esc(v[f+"_key"])}','${f.replace("_photo","").toUpperCase()}')">${f.replace("_photo","").toUpperCase()}</button>`).join("")}
   </div>
   <div class="actions" style="margin-top:6px">${v.verified?`<button class="danger" onclick="tcUnverifyVehicle(${v.id})">Un-verify</button>`:`<button class="primary" onclick="tcApproveVehicle(${v.id})">Approve</button>`}<button class="danger" onclick="tcDeleteVehicle(${v.id})">Delete</button></div>
  </div>`).join("")||"<p class='muted'>No vehicles found.</p>";
