@@ -156,7 +156,7 @@ async function tcRenderMyCalls(){
   const data=await res.json();
   if(!data.ok||!data.calls||!data.calls.length){ box.innerHTML="<p class='muted'>You haven't called anyone through the app yet.</p>"; return; }
   box.innerHTML=data.calls.map(c=>{
-   const when=new Date(c.created_at).toLocaleString();
+   const when=tcFormatDateTime(c.created_at);
    return `<div class="listitem"><b>${esc(c.target_label||c.callee_mobile)}</b><br>
    <span class="muted">You called ${esc(c.callee_mobile)} &bull; ${esc(when)}</span>
    <div class="actions" style="margin-top:4px"><a href="tel:${esc(c.callee_mobile)}"><button>&#128222; Call again</button></a></div>
@@ -402,7 +402,7 @@ async function loadSosHistory(){
   const data=await res.json();
   if(!data.ok||!data.alerts||!data.alerts.length){ box.innerHTML="<p class='muted'>No SOS alerts in the last 48 hours.</p>"; return; }
   box.innerHTML=data.alerts.map(a=>{
-   const when=new Date(a.created_at).toLocaleString();
+   const when=tcFormatDateTime(a.created_at);
    const mapLink=(a.lat!=null&&a.lon!=null)?`<a href="https://maps.google.com/?q=${a.lat},${a.lon}" target="_blank">View location</a>`:"";
    const callLink=a.sender_mobile?`<a href="tel:${esc(a.sender_mobile)}">${esc(a.sender_mobile)}</a>`:"-";
    return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> - ${esc(when)}<br>
@@ -679,7 +679,7 @@ async function tcRenderFeedbackAdmin(){
   const box=document.querySelector("#fbList");
   if(!data.ok||!data.items||!data.items.length){ box.innerHTML="<p class='muted'>No feedback submitted yet.</p>"; return; }
   box.innerHTML=data.items.map(f=>{
-   const when=new Date(f.created_at).toLocaleString();
+   const when=tcFormatDateTime(f.created_at);
    return `<div class="listitem"><b>${esc(f.name||"Anonymous")}</b> ${f.mobile?"- "+esc(f.mobile):""}<br>
    <span class="muted">${esc(when)}</span><div style="margin-top:4px">${esc(f.message)}</div></div>`;
   }).join("");
