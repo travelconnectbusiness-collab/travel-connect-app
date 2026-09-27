@@ -217,7 +217,9 @@ async function tcSavePartnerDetails(partnerId){
   business_hours:JSON.stringify(tcReadBusinessHoursFields("pe")),
   lat:pin?pin.lat:null,lon:pin?pin.lon:null};
  try{
-  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!data.ok){ toast("Could not save ("+(data.error||"unknown")+")"); return; }
   toast("Details updated");
   closeModal();
   partnerView();
@@ -522,6 +524,7 @@ async function loadMyVehicles(partnerId){
   const res=await fetch("/api/vehicles?action=list&partner_id="+partnerId);
   const data=await res.json();
   if(!data.ok||!data.vehicles.length){box.innerHTML="<p class='muted'>No vehicles added yet.</p>";return}
+  window._myVehicles=data.vehicles;
   box.innerHTML=data.vehicles.map(v=>{
    let hours={};
    try{ hours=JSON.parse(v.business_hours||"{}"); }catch(e){}
@@ -529,6 +532,7 @@ async function loadMyVehicles(partnerId){
    <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
+   <div class="actions" style="margin-top:4px"><button onclick="tcOpenEditVehicle(${v.id})">Edit Vehicle / Documents</button></div>
    ${tcActiveToggleHtml("vActive_"+v.id,!!v.active,`toggleVehicleActive(${v.id},checked)`,"Mark this vehicle Active")}
    <div style="margin-top:6px">
     <input id="vTempLoc_${v.id}" placeholder="Current location, if different from your registered garage (optional)" value="${esc(v.temp_location||"")}" style="width:100%;box-sizing:border-box">
@@ -540,6 +544,82 @@ async function loadMyVehicles(partnerId){
   </div>`;
   }).join("");
  }catch(e){box.innerHTML="<p class='danger'>Network error.</p>"}
+}
+/* Lets the owner add/replace document photos or correct expiry dates any
+   time after the vehicle was first registered - most useful for a
+   vehicle (often Auto Rickshaw, where photos are optional) that was
+   registered with just dates and no photos yet, or a document that has
+   since been renewed. Existing dates pre-fill; leaving a file input
+   empty keeps that document's existing photo untouched (only a newly
+   chosen file replaces it). */
+function tcOpenEditVehicle(vehicleId){
+ const v=(window._myVehicles||[]).find(x=>x.id===vehicleId);
+ if(!v) return;
+ modal(`<h2>Edit Vehicle / Documents</h2>
+ <div class="grid">
+  <label>Vehicle number<input id="evNo" value="${esc(v.vehicle_number||"")}"></label>
+  <label>Category<input id="evCat" value="${esc(v.category||"")}"></label>
+ </div>
+ <h4>Driver</h4>
+ <div class="grid">
+  <label>Driver name<input id="evDriverName" value="${esc(v.driver_name||"")}"></label>
+  <label>Driver mobile 1<input id="evDriverMobile1" value="${esc(v.driver_mobile1||"")}"></label>
+  <label>Driver mobile 2<input id="evDriverMobile2" value="${esc(v.driver_mobile2||"")}"></label>
+  <label>Driving License number<input id="evLicNo" value="${esc(v.driver_license_number||"")}"></label>
+  <label>License expiry<input id="evLicExp" type="date" value="${esc(v.driver_license_expiry||"")}"></label>
+  <label>License photo (leave blank to keep current)<input id="evLicPhoto" type="file" accept="image/*"></label>
+ </div>
+ <h4>Vehicle documents</h4>
+ <p class="muted" style="font-size:12px">Leave a photo field blank to keep the one already on file. Choose a new photo only to add or replace it.</p>
+ <div class="grid">
+  <label>Front photo${v.front_photo_key?" (already on file)":""}<input id="evFrontPhoto" type="file" accept="image/*"></label>
+  <label>RC photo${v.rc_photo_key?" (already on file)":""}<input id="evRcPhoto" type="file" accept="image/*"></label>
+  <label>RC expiry<input id="evRcExp" type="date" value="${esc(v.rc_expiry||"")}"></label>
+  <label>Insurance photo${v.insurance_photo_key?" (already on file)":""}<input id="evInsPhoto" type="file" accept="image/*"></label>
+  <label>Insurance expiry<input id="evInsExp" type="date" value="${esc(v.insurance_expiry||"")}"></label>
+  <label>Permit photo${v.permit_photo_key?" (already on file)":""}<input id="evPermitPhoto" type="file" accept="image/*"></label>
+  <label>Permit expiry<input id="evPermitExp" type="date" value="${esc(v.permit_expiry||"")}"></label>
+  <label>Fitness photo${v.fitness_photo_key?" (already on file)":""}<input id="evFitnessPhoto" type="file" accept="image/*"></label>
+  <label>Fitness expiry<input id="evFitnessExp" type="date" value="${esc(v.fitness_expiry||"")}"></label>
+  <label>PUC photo${v.puc_photo_key?" (already on file)":""}<input id="evPucPhoto" type="file" accept="image/*"></label>
+  <label>PUC expiry<input id="evPucExp" type="date" value="${esc(v.puc_expiry||"")}"></label>
+ </div>
+ <button class="primary" id="evSaveBtn" onclick="tcSubmitEditVehicle(${vehicleId})">Save Changes</button>
+ <div id="evErr" class="danger"></div>`);
+}
+async function tcSubmitEditVehicle(vehicleId){
+ const user=getCurrentUser();
+ const errBox=document.querySelector("#evErr");
+ const saveBtn=document.querySelector("#evSaveBtn");
+ if(saveBtn.disabled) return;
+ saveBtn.disabled=true; saveBtn.textContent="Saving...";
+ const fd=new FormData();
+ fd.append("vehicle_id",vehicleId);
+ fd.append("mobile",user.mobile);
+ fd.append("category",document.querySelector("#evCat").value);
+ fd.append("driver_name",document.querySelector("#evDriverName").value);
+ fd.append("driver_mobile1",document.querySelector("#evDriverMobile1").value);
+ fd.append("driver_mobile2",document.querySelector("#evDriverMobile2").value);
+ fd.append("driver_license_number",document.querySelector("#evLicNo").value);
+ fd.append("driver_license_expiry",document.querySelector("#evLicExp").value);
+ fd.append("rc_expiry",document.querySelector("#evRcExp").value);
+ fd.append("insurance_expiry",document.querySelector("#evInsExp").value);
+ fd.append("permit_expiry",document.querySelector("#evPermitExp").value);
+ fd.append("fitness_expiry",document.querySelector("#evFitnessExp").value);
+ fd.append("puc_expiry",document.querySelector("#evPucExp").value);
+ const fileMap={evLicPhoto:"driver_license_photo",evFrontPhoto:"front_photo",evRcPhoto:"rc_photo",evInsPhoto:"insurance_photo",evPermitPhoto:"permit_photo",evFitnessPhoto:"fitness_photo",evPucPhoto:"puc_photo"};
+ Object.entries(fileMap).forEach(([elId,field])=>{
+  const el=document.querySelector("#"+elId);
+  if(el&&el.files&&el.files[0]) fd.append(field,el.files[0]);
+ });
+ try{
+  const res=await fetch("/api/vehicles?action=update",{method:"POST",body:fd});
+  const data=await res.json();
+  if(!data.ok){errBox.textContent="Could not save. Please try again.";saveBtn.disabled=false;saveBtn.textContent="Save Changes";return}
+  closeModal();
+  toast("Vehicle updated");
+  loadMyVehicles(window._myPartner?.id);
+ }catch(e){errBox.textContent="Network error - check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Changes";}
 }
 async function toggleVehicleActive(vehicleId,active){
  const user=getCurrentUser();
