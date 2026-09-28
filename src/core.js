@@ -182,6 +182,35 @@ function tcFormatDateTime(dateStr){
  h=h%12; if(h===0) h=12;
  return tcFormatDate(d)+", "+h+":"+m+" "+ampm;
 }
+/* ---------- LOCATION (shared by calls, WhatsApp, messages) ----------
+   Every place that reads the phone's location used one high-accuracy GPS
+   attempt with a 4-6 second wait and gave up silently, so it failed
+   indoors or when GPS was slow - and never said why. This tries precise
+   GPS first and, if that merely times out or can't fix a position, falls
+   back to the phone's rough (network/Wi-Fi) location, which almost always
+   works. Returns {lat,lon,accuracy} on success or {error:code} where code
+   is 1 = permission blocked, 2 = position unavailable, 3 = timed out,
+   0 = not supported. quick=true is for a call/WhatsApp tap: a single
+   fast attempt (a recent cached location is fine) so dialling is never
+   held up. */
+function tcGetLocation(quick){
+ const attempt=(high,timeout,maxAge)=>new Promise(resolve=>{
+  if(!navigator.geolocation){ resolve({error:0}); return; }
+  navigator.geolocation.getCurrentPosition(
+   p=>resolve({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+   e=>resolve({error:(e&&e.code)||2}),
+   {enableHighAccuracy:high,timeout:timeout,maximumAge:maxAge});
+ });
+ if(quick) return attempt(false,5000,300000);
+ return attempt(true,8000,0).then(r=>(r.error===undefined||r.error===1||r.error===0)?r:attempt(false,10000,120000));
+}
+function tcLocationErrorText(code){
+ if(code===1) return "Location is blocked for this app. Allow Location for it in your phone settings (Chrome: menu > Settings > Site settings > Location), then tick the box again.";
+ if(code===0) return "This phone or browser does not support location.";
+ if(code===3) return "Finding your location took too long. Make sure Location (GPS) is ON in your phone, move near a window or outdoors, then tick the box again.";
+ return "The phone could not find your location. Turn ON Location (GPS) in your phone settings, then tick the box again.";
+}
+
 /* ---------- DD-MM-YYYY DATE ENTRY ----------
    The native <input type="date"> always shows dates in the phone's own
    language/region order (often month-day-year), which code cannot change.
