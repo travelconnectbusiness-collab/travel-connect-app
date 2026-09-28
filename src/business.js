@@ -337,7 +337,7 @@ function printQuoteObj(q,asImage){
  </div>
  ${advanceHtml}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
-  &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(q.validUntil)}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
+  &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(tcFormatDate(q.validUntil))}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
   ${extraChargesHtml(q.extraCharges)}
  </div>
  <p style="text-align:center;color:#888;font-size:12px;margin-top:14px">Thank you for choosing ${esc(db.business.name)}.</p>
@@ -627,7 +627,7 @@ function downloadQuotePDFObj(q){
  }
 
  doc.setFont(font,"normal");doc.setFontSize(8);doc.setTextColor(90);
- const disclaimer="This is an estimated fare based on the KM/hours entered above and rates in effect today"+(q.validUntil?", valid until "+q.validUntil:"")+". The final bill is calculated only after the trip, based on actual KM/hours travelled"+(q.validUntil?", and rates may change after the validity date above":"")+".";
+ const disclaimer="This is an estimated fare based on the KM/hours entered above and rates in effect today"+(q.validUntil?", valid until "+tcFormatDate(q.validUntil):"")+". The final bill is calculated only after the trip, based on actual KM/hours travelled"+(q.validUntil?", and rates may change after the validity date above":"")+".";
  const wrapped=doc.splitTextToSize(disclaimer,180);
  doc.text(wrapped,15,y);y+=wrapped.length*4+3;
  doc.setTextColor(0);doc.setFontSize(10);
@@ -812,9 +812,9 @@ function quoteForm(){
  <label>Overnight rest hours (excluded from billing - customer arranged own room)<input id="qRestHours" type="number" value="0"></label>
  <label>Override Extra KM Rate (optional - for high-range/heavy-traffic/bad-road trips)<input id="qOverrideAddKm" type="number" placeholder="Leave blank to use selected rate's own value"></label>
  <label>Override Extra Hour Rate (optional)<input id="qOverrideAddHour" type="number" placeholder="Leave blank to use selected rate's own value"></label>
- <label>Entry date (leave blank for today)<input id="qEntryDate" type="date"></label>
- <label>Start date<input id="qStart" type="date"></label>
- <label>Start time<input id="qStartTime" type="time"></label><label>Closing date<input id="qClose" type="date"></label>
+ <label>Entry date (leave blank for today)${tcDateInputHtml("qEntryDate","")}</label>
+ <label>Start date${tcDateInputHtml("qStart","")}</label>
+ <label>Start time<input id="qStartTime" type="time"></label><label>Closing date${tcDateInputHtml("qClose","")}</label>
  <label>Closing time<input id="qCloseTime" type="time"></label>
  <button type="button" onclick="calcHoursFromTimes()" style="align-self:flex-end">Calculate hours from Start/Closing time</button>
  <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
@@ -842,7 +842,7 @@ function quoteForm(){
    <option value="manual">Manual amount</option>
  </select></label>
  <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
- <label>Quotation valid until (optional)<input id="qValidUntil" type="date"></label>
+ <label>Quotation valid until (optional)${tcDateInputHtml("qValidUntil","")}</label>
  </div>
  ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
@@ -1079,10 +1079,10 @@ function findDriverForVehicleNo(vehicleNo){
 function editTrip(id){
  const t=db.trips.find(x=>x.id===id);const q=db.quotes.find(x=>x.id===t.quoteId);
  modal(`<h2>Actual Trip Details</h2><div class="grid">
- <label>Bill entry date (leave blank for today)<input id="aEntryDate" type="date" value="${t.entryDate||""}"></label>
- <label>Actual start date<input id="aStart" type="date" value="${t.startDate||q.startDate||""}"></label>
+ <label>Bill entry date (leave blank for today)${tcDateInputHtml("aEntryDate",t.entryDate)}</label>
+ <label>Actual start date${tcDateInputHtml("aStart",t.startDate||q.startDate)}</label>
  <label>Actual start time<input id="aTime" type="time" value="${t.startTime||q.startTime||""}"></label>
- <label>Actual closing date<input id="aClose" type="date" value="${t.closeDate||q.closeDate||""}"></label>
+ <label>Actual closing date${tcDateInputHtml("aClose",t.closeDate||q.closeDate)}</label>
  <label>Actual closing time<input id="aCloseTime" type="time"></label>
  <label>Actual start point<input id="aPickup" value="${esc(t.pickup||q.pickup)}"></label>
  <label>Actual destinations<input id="aDest" value="${esc(t.dest||(q.destinations||[]).join(', ')||q.destination)}"></label>
@@ -1208,7 +1208,7 @@ function billing(){
  </div>
  <hr>
  <label>Trip<select id="billTrip">${db.trips.map(t=>`<option value="${t.id}">${esc(t.customer)} - ${esc(t.id.slice(0,8))}</option>`).join("")}</select></label>
- <label>Bill print date (optional, defaults to today)<input id="billDateInput" type="date"></label>
+ <label>Bill print date (optional, defaults to today)${tcDateInputHtml("billDateInput","")}</label>
  <div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
 }
 function openQuickBillForm(){
@@ -1239,7 +1239,7 @@ function openQuickBillForm(){
   <label>Rate<select id="qbRate">${rateOptions()}</select></label>
   <label>Override Extra KM Rate (optional)<input id="qbOverrideAddKm" type="number"></label>
   <label>Override Extra Hour Rate (optional)<input id="qbOverrideAddHour" type="number"></label>
-  <label>Trip date<input id="qbDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+  <label>Trip date${tcDateInputHtml("qbDate",new Date().toISOString().slice(0,10))}</label>
  </div>
  ${extraChargeFieldsHtml("qbExtra")}
  <div class="actions"><button class="primary" onclick="calcQuickBillPreview()">Preview Fare</button></div>
@@ -1454,10 +1454,10 @@ function enquiries(){
  <label>Customer name<input id="enqName"></label><label>Mobile<input id="enqMobile"></label>
  <label>Pickup<input id="enqPickup"></label><label>Destination<input id="enqDest"></label>
  <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
- <label>Required date<input id="enqDate" type="date"></label>
- <label>Entry date (leave blank for today)<input id="enqEntryDate" type="date"></label></div>
+ <label>Required date${tcDateInputHtml("enqDate","")}</label>
+ <label>Entry date (leave blank for today)${tcDateInputHtml("enqEntryDate","")}</label></div>
  <div class="actions"><button class="primary" onclick="saveEnquiry()">Save Enquiry</button></div>
- <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> &bull; ${esc(e.mobile)}<br>${esc(e.pickup)} &rarr; ${esc(e.dest)}<br><span class="muted">${esc(e.type)} &bull; Required: ${esc(e.date)} &bull; Entered: ${esc(tcFormatDate(e.entryDate||e.created))} &bull; ${esc(e.status)}</span>
+ <div id="enqList">${db.enquiries.map(e=>`<div class="listitem"><b>${esc(e.name)}</b> &bull; ${esc(e.mobile)}<br>${esc(e.pickup)} &rarr; ${esc(e.dest)}<br><span class="muted">${esc(e.type)} &bull; Required: ${esc(tcFormatDate(e.date))} &bull; Entered: ${esc(tcFormatDate(e.entryDate||e.created))} &bull; ${esc(e.status)}</span>
  <div class="actions"><button class="primary" onclick="enquiryToQuote('${e.id}')">Create Quotation</button></div></div>`).join("")||"<p class='muted'>No enquiries.</p>"}</div>`);
 }
 function addQuickStopField(value=""){
@@ -1620,7 +1620,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">My Business &amp; Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button>${tcMessagesButtonHtml()}</div>
  <hr>
  <div class="grid">
  <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
@@ -1860,9 +1860,9 @@ function accounts(){
  app().innerHTML=card("Accounts",`
  <div class="grid"><div class="metric">Total Income<b>${money(totalIncome)}</b></div><div class="metric">Total Expenses<b>${money(totalExpense)}</b></div><div class="metric">Net<b>${money(totalIncome-totalExpense)}</b></div></div>
  <hr><h3>Add Expense</h3>
- <div class="grid"><label>Description<input id="expDesc"></label><label>Amount<input id="expAmt" type="number"></label><label>Date<input id="expDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label></div>
+ <div class="grid"><label>Description<input id="expDesc"></label><label>Amount<input id="expAmt" type="number"></label><label>Date${tcDateInputHtml("expDate",new Date().toISOString().slice(0,10))}</label></div>
  <div class="actions"><button class="primary" onclick="addExpense()">Add Expense</button></div>
- <h3>Expenses</h3>${(db.expenses||[]).map((e,i)=>`<div class="listitem">${esc(e.desc)} - ${money(e.amount)} <span class="muted">(${esc(e.date)})</span> <button class="danger" onclick="deleteExpense(${i})">Delete</button></div>`).join("")||"<p class='muted'>No expenses recorded.</p>"}`);
+ <h3>Expenses</h3>${(db.expenses||[]).map((e,i)=>`<div class="listitem">${esc(e.desc)} - ${money(e.amount)} <span class="muted">(${esc(tcFormatDate(e.date))})</span> <button class="danger" onclick="deleteExpense(${i})">Delete</button></div>`).join("")||"<p class='muted'>No expenses recorded.</p>"}`);
 }
 function addExpense(){
  if(!expDesc.value||!(+expAmt.value>0)){toast("Enter a description and amount");return}
