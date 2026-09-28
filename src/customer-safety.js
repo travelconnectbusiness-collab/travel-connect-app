@@ -41,6 +41,7 @@ function customerHome(){
   </div>
   <div class="actions">
    <button style="flex:1" onclick="view('activeboard')">&#128663; Available Vehicles Right Now</button>
+   ${tcMessagesButtonHtml()}
   </div>
 
   <h2 style="margin-top:18px">Fare Estimate</h2>
@@ -158,7 +159,7 @@ async function tcRenderMyCalls(){
   box.innerHTML=data.calls.map(c=>{
    const when=tcFormatDateTime(c.created_at);
    return `<div class="listitem"><b>${esc(c.target_label||c.callee_mobile)}</b><br>
-   <span class="muted">You called ${esc(c.callee_mobile)} &bull; ${esc(when)}</span>
+   <span class="muted">${(c.target_type||"").indexOf("whatsapp")===0?"You messaged":"You called"} ${esc(c.callee_mobile)} &bull; ${esc(when)}</span>
    <div class="actions" style="margin-top:4px"><a href="tel:${esc(c.callee_mobile)}"><button>&#128222; Call again</button></a></div>
    </div>`;
   }).join("");
