@@ -392,7 +392,7 @@ function renderPartnerDashboard(p){
   <div id="tcRecentContacts">Loading...</div>
  </div>
  <hr>
- <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button>${tcMessagesButtonHtml()}</div>`;
  renderBillingIdentitySection(p);
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
@@ -434,22 +434,22 @@ function openAddVehicle(partnerId){
   <label>Driver mobile 1<input id="vDriverMobile1"></label>
   <label>Driver mobile 2<input id="vDriverMobile2"></label>
   <label>Driving License number<input id="vLicNo"></label>
-  <label>License expiry<input id="vLicExp" type="date"></label>
+  <label>License expiry${tcDateInputHtml("vLicExp","")}</label>
   <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
  <h4>Vehicle documents${isTaxiVehicle?" - Front/Insurance/Permit photos are required; RC/Fitness/PUC just need their expiry date":" - the expiry date is enough; a photo is optional"}</h4>
  <div class="grid">
   <label>Front photo${reqPhoto} (vehicle number must be clearly visible - shown to customers when they search)<input id="vFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo${optPhoto}<input id="vRcPhoto" type="file" accept="image/*"></label>
-  <label>RC expiry<input id="vRcExp" type="date"></label>
+  <label>RC expiry${tcDateInputHtml("vRcExp","")}</label>
   <label>Insurance photo${reqPhoto}<input id="vInsPhoto" type="file" accept="image/*"></label>
-  <label>Insurance expiry<input id="vInsExp" type="date"></label>
+  <label>Insurance expiry${tcDateInputHtml("vInsExp","")}</label>
   <label>Permit photo${reqPhoto}<input id="vPermitPhoto" type="file" accept="image/*"></label>
-  <label>Permit expiry<input id="vPermitExp" type="date"></label>
+  <label>Permit expiry${tcDateInputHtml("vPermitExp","")}</label>
   <label>Fitness photo${optPhoto}<input id="vFitnessPhoto" type="file" accept="image/*"></label>
-  <label>Fitness expiry<input id="vFitnessExp" type="date"></label>
+  <label>Fitness expiry${tcDateInputHtml("vFitnessExp","")}</label>
   <label>PUC photo${optPhoto}<input id="vPucPhoto" type="file" accept="image/*"></label>
-  <label>PUC expiry<input id="vPucExp" type="date"></label>
+  <label>PUC expiry${tcDateInputHtml("vPucExp","")}</label>
  </div>
  <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
  <div id="vAddErr" class="danger"></div>`);
@@ -458,6 +458,12 @@ async function submitAddVehicle(partnerId){
  const no=document.querySelector("#vNoNew").value.trim();
  const errBox=document.querySelector("#vAddErr");
  if(!no){errBox.textContent="Enter the vehicle number.";return}
+ const dateVals={};
+ for(const id of ["vLicExp","vRcExp","vInsExp","vPermitExp","vFitnessExp","vPucExp"]){
+  const r=tcReadDateInput(id);
+  if(r===null){errBox.textContent="Enter dates as DD-MM-YYYY (for example 25-12-2026).";return}
+  dateVals[id]=r;
+ }
  /* Photo uploads are only required for Taxi/Travel Agency vehicles - for
     Auto Rickshaw/Pickup-Goods, entering just the document EXPIRY DATES is
     enough (front photo is still welcome if they want to add it, just not
@@ -488,12 +494,12 @@ async function submitAddVehicle(partnerId){
  fd.append("driver_mobile1",document.querySelector("#vDriverMobile1").value);
  fd.append("driver_mobile2",document.querySelector("#vDriverMobile2").value);
  fd.append("driver_license_number",document.querySelector("#vLicNo").value);
- fd.append("driver_license_expiry",document.querySelector("#vLicExp").value);
- fd.append("rc_expiry",document.querySelector("#vRcExp").value);
- fd.append("insurance_expiry",document.querySelector("#vInsExp").value);
- fd.append("permit_expiry",document.querySelector("#vPermitExp").value);
- fd.append("fitness_expiry",document.querySelector("#vFitnessExp").value);
- fd.append("puc_expiry",document.querySelector("#vPucExp").value);
+ fd.append("driver_license_expiry",dateVals.vLicExp);
+ fd.append("rc_expiry",dateVals.vRcExp);
+ fd.append("insurance_expiry",dateVals.vInsExp);
+ fd.append("permit_expiry",dateVals.vPermitExp);
+ fd.append("fitness_expiry",dateVals.vFitnessExp);
+ fd.append("puc_expiry",dateVals.vPucExp);
  const fileMap={vLicPhoto:"driver_license_photo",vFrontPhoto:"front_photo",vRcPhoto:"rc_photo",vInsPhoto:"insurance_photo",vPermitPhoto:"permit_photo",vFitnessPhoto:"fitness_photo",vPucPhoto:"puc_photo"};
  Object.entries(fileMap).forEach(([elId,field])=>{
   const el=document.querySelector("#"+elId);
@@ -566,7 +572,7 @@ function tcOpenEditVehicle(vehicleId){
   <label>Driver mobile 1<input id="evDriverMobile1" value="${esc(v.driver_mobile1||"")}"></label>
   <label>Driver mobile 2<input id="evDriverMobile2" value="${esc(v.driver_mobile2||"")}"></label>
   <label>Driving License number<input id="evLicNo" value="${esc(v.driver_license_number||"")}"></label>
-  <label>License expiry<input id="evLicExp" type="date" value="${esc(v.driver_license_expiry||"")}"></label>
+  <label>License expiry${tcDateInputHtml("evLicExp",v.driver_license_expiry)}</label>
   <label>License photo (leave blank to keep current)<input id="evLicPhoto" type="file" accept="image/*"></label>
  </div>
  <h4>Vehicle documents</h4>
@@ -574,15 +580,15 @@ function tcOpenEditVehicle(vehicleId){
  <div class="grid">
   <label>Front photo${v.front_photo_key?" (already on file)":""}<input id="evFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo${v.rc_photo_key?" (already on file)":""}<input id="evRcPhoto" type="file" accept="image/*"></label>
-  <label>RC expiry<input id="evRcExp" type="date" value="${esc(v.rc_expiry||"")}"></label>
+  <label>RC expiry${tcDateInputHtml("evRcExp",v.rc_expiry)}</label>
   <label>Insurance photo${v.insurance_photo_key?" (already on file)":""}<input id="evInsPhoto" type="file" accept="image/*"></label>
-  <label>Insurance expiry<input id="evInsExp" type="date" value="${esc(v.insurance_expiry||"")}"></label>
+  <label>Insurance expiry${tcDateInputHtml("evInsExp",v.insurance_expiry)}</label>
   <label>Permit photo${v.permit_photo_key?" (already on file)":""}<input id="evPermitPhoto" type="file" accept="image/*"></label>
-  <label>Permit expiry<input id="evPermitExp" type="date" value="${esc(v.permit_expiry||"")}"></label>
+  <label>Permit expiry${tcDateInputHtml("evPermitExp",v.permit_expiry)}</label>
   <label>Fitness photo${v.fitness_photo_key?" (already on file)":""}<input id="evFitnessPhoto" type="file" accept="image/*"></label>
-  <label>Fitness expiry<input id="evFitnessExp" type="date" value="${esc(v.fitness_expiry||"")}"></label>
+  <label>Fitness expiry${tcDateInputHtml("evFitnessExp",v.fitness_expiry)}</label>
   <label>PUC photo${v.puc_photo_key?" (already on file)":""}<input id="evPucPhoto" type="file" accept="image/*"></label>
-  <label>PUC expiry<input id="evPucExp" type="date" value="${esc(v.puc_expiry||"")}"></label>
+  <label>PUC expiry${tcDateInputHtml("evPucExp",v.puc_expiry)}</label>
  </div>
  <button class="primary" id="evSaveBtn" onclick="tcSubmitEditVehicle(${vehicleId})">Save Changes</button>
  <div id="evErr" class="danger"></div>`);
@@ -590,6 +596,12 @@ function tcOpenEditVehicle(vehicleId){
 async function tcSubmitEditVehicle(vehicleId){
  const user=getCurrentUser();
  const errBox=document.querySelector("#evErr");
+ const dateVals={};
+ for(const id of ["evLicExp","evRcExp","evInsExp","evPermitExp","evFitnessExp","evPucExp"]){
+  const r=tcReadDateInput(id);
+  if(r===null){errBox.textContent="Enter dates as DD-MM-YYYY (for example 25-12-2026).";return}
+  dateVals[id]=r;
+ }
  const saveBtn=document.querySelector("#evSaveBtn");
  if(saveBtn.disabled) return;
  saveBtn.disabled=true; saveBtn.textContent="Saving...";
@@ -601,12 +613,12 @@ async function tcSubmitEditVehicle(vehicleId){
  fd.append("driver_mobile1",document.querySelector("#evDriverMobile1").value);
  fd.append("driver_mobile2",document.querySelector("#evDriverMobile2").value);
  fd.append("driver_license_number",document.querySelector("#evLicNo").value);
- fd.append("driver_license_expiry",document.querySelector("#evLicExp").value);
- fd.append("rc_expiry",document.querySelector("#evRcExp").value);
- fd.append("insurance_expiry",document.querySelector("#evInsExp").value);
- fd.append("permit_expiry",document.querySelector("#evPermitExp").value);
- fd.append("fitness_expiry",document.querySelector("#evFitnessExp").value);
- fd.append("puc_expiry",document.querySelector("#evPucExp").value);
+ fd.append("driver_license_expiry",dateVals.evLicExp);
+ fd.append("rc_expiry",dateVals.evRcExp);
+ fd.append("insurance_expiry",dateVals.evInsExp);
+ fd.append("permit_expiry",dateVals.evPermitExp);
+ fd.append("fitness_expiry",dateVals.evFitnessExp);
+ fd.append("puc_expiry",dateVals.evPucExp);
  const fileMap={evLicPhoto:"driver_license_photo",evFrontPhoto:"front_photo",evRcPhoto:"rc_photo",evInsPhoto:"insurance_photo",evPermitPhoto:"permit_photo",evFitnessPhoto:"fitness_photo",evPucPhoto:"puc_photo"};
  Object.entries(fileMap).forEach(([elId,field])=>{
   const el=document.querySelector("#"+elId);
@@ -686,6 +698,8 @@ function tcRenderDirectoryList(entries){
   <div class="actions">
    ${tcCallButtonHtml(p.mobile1,"partner",p.id,p.business_name,true)}
    ${p.mobile2?tcCallButtonHtml(p.mobile2,"partner",p.id,p.business_name,false):""}
+   ${tcWhatsAppButtonHtml(p.mobile1,"partner",p.id,p.business_name)}
+   ${tcMessageButtonHtml(p.id,p.business_name,p.mobile1,p.mobile2)}
    ${(p.location||hasPin)?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
   </div>
  </div>`;
@@ -778,6 +792,8 @@ function tcRenderActiveBoardList(vehicles,append){
   <div class="actions">
    ${tcCallButtonHtml(v.mobile1,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),true)}
    ${v.mobile2?tcCallButtonHtml(v.mobile2,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""),false):""}
+   ${tcWhatsAppButtonHtml(v.mobile1,targetType,v.id,(v.business_name||"")+(v.vehicle_number?" - "+v.vehicle_number:""))}
+   ${tcMessageButtonHtml(v.partner_id,v.business_name,v.mobile1,v.mobile2)}
    ${shownLocation?`<a href="${mapsUrl}" target="_blank"><button>&#128205; Directions</button></a>`:""}
   </div>
  </div>`;
@@ -1069,6 +1085,217 @@ function tcCallButtonHtml(mobile,targetType,targetId,targetLabel,primary){
  return `<button ${primary?'class="primary"':""} onclick="tcCallWithLog('${esc(mobile)}','${targetType}',${targetId||"null"},'${esc((targetLabel||"").replace(/'/g,"\\'"))}')">&#128222; Call ${esc(mobile)}</button>`;
 }
 
+/* ---------- IN-APP MESSAGES ----------
+   Short text messages between a customer and a business, inside the app.
+   A customer taps "Message" on a business in the Local Directory / Active
+   Vehicles Board; the business sees it under Messages (with a count on
+   the button) and can reply. Only works while the app is open - the
+   count refreshes every 30 seconds, and a new message shows a short
+   notice. Backend: functions/api/messages.js. */
+let _tcMsgUnread=0, _tcMsgPollTimer=null, _tcMsgFirstPoll=true, _tcMsgUser="";
+window._tcMsgItems=[];
+function tcMessagesButtonHtml(){
+ return `<button onclick="tcOpenMessages()">&#9993; Messages<span class="tcMsgBadge">${_tcMsgUnread>0?" ("+_tcMsgUnread+" new)":""}</span></button>`;
+}
+function tcPaintMsgBadge(){
+ document.querySelectorAll(".tcMsgBadge").forEach(el=>{ el.textContent=_tcMsgUnread>0?" ("+_tcMsgUnread+" new)":""; });
+}
+async function tcFetchMsgUnread(){
+ const user=getCurrentUser();
+ if(!user) return;
+ if(_tcMsgUser!==user.mobile){ _tcMsgUser=user.mobile; _tcMsgUnread=0; _tcMsgFirstPoll=true; }
+ try{
+  const res=await fetch("/api/messages?action=unread&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok) return;
+  const total=(data.partner_unread||0)+(data.customer_unread||0);
+  if(!_tcMsgFirstPoll&&total>_tcMsgUnread) toast("New message received");
+  _tcMsgFirstPoll=false;
+  _tcMsgUnread=total;
+  tcPaintMsgBadge();
+ }catch(e){}
+}
+async function tcRefreshMsgUnread(){
+ await tcFetchMsgUnread();
+ const modalHidden=document.querySelector("#modal")?.classList.contains("hidden");
+ if(!modalHidden&&window._tcOpenThread&&document.querySelector("#msgThread")) tcLoadThread(true);
+ else if(modalHidden&&document.querySelector("#tcMsgInbox")) tcLoadInbox();
+}
+function tcStartMsgPolling(){
+ if(_tcMsgPollTimer) return;
+ tcFetchMsgUnread();
+ _tcMsgPollTimer=setInterval(tcRefreshMsgUnread,30000);
+}
+/* "Message" button on a business in the directory / active board. Hidden
+   for the person's own business (you cannot message yourself). */
+function tcMessageButtonHtml(partnerId,name,mobile1,mobile2){
+ const user=getCurrentUser();
+ if(!partnerId||!user) return "";
+ if(user.mobile&&(user.mobile===mobile1||user.mobile===mobile2)) return "";
+ return `<button data-name="${esc(name||"")}" onclick="tcOpenMessageToPartner(${partnerId},this.dataset.name)">&#9993; Message</button>`;
+}
+function tcOpenMessageToPartner(partnerId,name){
+ const user=getCurrentUser();
+ if(!user) return;
+ tcOpenThread(partnerId,user.mobile,"customer",name||"Business","");
+}
+function tcOpenThread(partnerId,customerMobile,viewer,title,callMobile){
+ window._tcOpenThread={partnerId,customerMobile,viewer,title};
+ modal(`<h2>${esc(title)}</h2>
+  ${callMobile?`<div style="margin-bottom:6px"><a href="tel:${esc(callMobile)}">&#128222; Call ${esc(callMobile)}</a></div>`:""}
+  <div id="msgThread" style="max-height:45vh;overflow:auto;background:#f5f8fa;border-radius:10px;padding:8px;margin-bottom:8px"><p class="muted">Loading...</p></div>
+  <textarea id="msgText" rows="2" maxlength="500" placeholder="Type a short message..." style="width:100%;box-sizing:border-box"></textarea>
+  ${viewer==="customer"?`<label style="flex-direction:row;align-items:center;gap:6px;font-weight:600;margin-top:6px"><input type="checkbox" id="msgShareLoc"> Share my current location with this message</label>`:""}
+  <div class="actions"><button class="primary" id="msgSendBtn" onclick="tcSendMessage()">Send</button></div>
+  <div id="msgErr" class="danger"></div>`);
+ tcLoadThread(false);
+}
+async function tcLoadThread(silent){
+ const t=window._tcOpenThread;
+ const user=getCurrentUser();
+ if(!t||!user) return;
+ try{
+  const res=await fetch("/api/messages?action=thread&partner_id="+t.partnerId+"&customer_mobile="+encodeURIComponent(t.customerMobile)+"&mobile="+encodeURIComponent(user.mobile)+"&viewer="+t.viewer);
+  const data=await res.json();
+  const box=document.querySelector("#msgThread");
+  if(!box) return;
+  if(!data.ok){ if(!silent) box.innerHTML="<p class='danger'>Could not load messages.</p>"; return; }
+  if(!data.messages.length){ box.innerHTML="<p class='muted'>No messages yet. Write the first one below.</p>"; return; }
+  const nearBottom=(box.scrollHeight-box.scrollTop-box.clientHeight)<40;
+  box.innerHTML=data.messages.map(m=>{
+   const mine=(t.viewer==="customer")?m.from_customer===1:m.from_customer===0;
+   const map=(m.lat!=null&&m.lon!=null)?`<div><a href="https://maps.google.com/?q=${m.lat},${m.lon}" target="_blank">&#128205; View location</a></div>`:"";
+   return `<div style="display:flex;justify-content:${mine?"flex-end":"flex-start"};margin:4px 0"><div style="max-width:82%;background:${mine?"#d9f2e6":"#fff"};border:1px solid #dce4ea;border-radius:12px;padding:8px 10px"><div style="white-space:pre-wrap;word-break:break-word">${esc(m.body)}</div>${map}<div class="muted" style="font-size:11px;text-align:right">${esc(tcFormatDateTime(m.created_at))}</div></div></div>`;
+  }).join("");
+  if(!silent||nearBottom) box.scrollTop=box.scrollHeight;
+  tcFetchMsgUnread();
+ }catch(e){}
+}
+async function tcSendMessage(){
+ const t=window._tcOpenThread;
+ const user=getCurrentUser();
+ if(!t||!user) return;
+ const input=document.querySelector("#msgText"), errBox=document.querySelector("#msgErr"), btn=document.querySelector("#msgSendBtn");
+ const body=input.value.trim();
+ if(!body){ errBox.textContent="Type a message first."; return; }
+ btn.disabled=true; btn.textContent="Sending...";
+ errBox.textContent="";
+ let lat=null,lon=null,locNote="";
+ if(t.viewer==="customer"&&document.querySelector("#msgShareLoc")?.checked){
+  try{
+   const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{timeout:6000,enableHighAccuracy:true}));
+   lat=pos.coords.latitude; lon=pos.coords.longitude;
+  }catch(e){ locNote="Could not get your location - message sent without it."; }
+ }
+ try{
+  const res=await fetch("/api/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+   action:"send",partner_id:t.partnerId,customer_mobile:t.customerMobile,
+   customer_name:t.viewer==="customer"?user.name:"",from_customer:t.viewer==="customer"?1:0,
+   sender_mobile:user.mobile,body,lat,lon})});
+  const data=await res.json();
+  if(!data.ok){
+   const msgs={unauthorized:"You cannot send this message.",cannot_message_self:"You cannot message your own business.",too_many:"Too many messages - please wait a little.",no_conversation:"You can reply only after the customer has written first.",not_available:"This business is not available for messages right now.",too_long:"Message is too long (500 characters at most)."};
+   errBox.textContent=msgs[data.error]||"Could not send. Please try again.";
+  }else{
+   input.value="";
+   const cb=document.querySelector("#msgShareLoc"); if(cb) cb.checked=false;
+   errBox.textContent=locNote;
+   await tcLoadThread(false);
+  }
+ }catch(e){ errBox.textContent="Network error - check your connection and try again."; }
+ btn.disabled=false; btn.textContent="Send";
+}
+/* Messages page: conversations where customers wrote to MY business
+   (I can reply) and conversations I started with other businesses. */
+function tcOpenMessages(){
+ if(!history.state||!history.state.tcPage){
+  history.pushState({tcPage:true,fromMenu:false},"",location.pathname+location.search+"#messages");
+ }else{
+  history.replaceState({tcPage:true,fromMenu:false},"",location.pathname+location.search+"#messages");
+ }
+ tcCurrentIsFromMenu=false;
+ tcMenuNavPending=false;
+ tcRenderMessages();
+}
+function tcRenderMessages(){
+ if(!getCurrentUser()){renderLogin();return;}
+ app().innerHTML=card("&#9993; Messages",`<p class="muted">Short messages between customers and businesses. Use the Message button on any business in the Local Directory or Active Vehicles Board to write to them.</p><div id="tcMsgInbox">Loading...</div>`);
+ tcLoadInbox();
+}
+async function tcLoadInbox(){
+ const user=getCurrentUser();
+ const box=document.querySelector("#tcMsgInbox");
+ if(!user||!box) return;
+ try{
+  const res=await fetch("/api/messages?action=inbox&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  const target=document.querySelector("#tcMsgInbox");
+  if(!target) return;
+  if(!data.ok){ target.innerHTML="<p class='danger'>Could not load messages.</p>"; return; }
+  window._tcMsgItems=[];
+  const row=(g,viewer)=>{
+   const idx=window._tcMsgItems.length;
+   const title=viewer==="partner"?((g.customer_name||"Customer")+" - "+g.customer_mobile):g.business_name;
+   window._tcMsgItems.push({partnerId:g.partner_id,customerMobile:viewer==="partner"?g.customer_mobile:user.mobile,viewer,title,callMobile:viewer==="partner"?g.customer_mobile:""});
+   const mine=(viewer==="partner")?g.last_from_customer===0:g.last_from_customer===1;
+   const preview=(g.last_body||"").length>70?g.last_body.slice(0,70)+"...":(g.last_body||"");
+   return `<div class="listitem" style="cursor:pointer" onclick="tcOpenThreadByIndex(${idx})">
+    <b>${esc(title)}</b> ${g.unread>0?`<span class="chip" style="background:#c0392b;color:#fff">${g.unread} new</span>`:""}
+    ${viewer==="partner"?`<div class="muted" style="font-size:11px">For your business: ${esc(g.business_name)}</div>`:""}
+    <div class="muted">${mine?"You: ":""}${esc(preview)}</div>
+    <div class="muted" style="font-size:11px">${esc(tcFormatDateTime(g.last_at))}</div>
+   </div>`;
+  };
+  const ap=data.as_partner||[], ac=data.as_customer||[];
+  let html="";
+  if(ap.length) html+=`<h3>Customers who wrote to my business</h3>${ap.map(g=>row(g,"partner")).join("")}`;
+  if(ac.length) html+=`<h3>My conversations with businesses</h3>${ac.map(g=>row(g,"customer")).join("")}`;
+  target.innerHTML=html||"<p class='muted'>No messages yet.</p>";
+ }catch(e){ const b=document.querySelector("#tcMsgInbox"); if(b) b.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+function tcOpenThreadByIndex(i){
+ const t=window._tcMsgItems[i];
+ if(!t) return;
+ tcOpenThread(t.partnerId,t.customerMobile,t.viewer,t.title,t.callMobile);
+}
+
+/* WhatsApp contact - opens a chat with the partner with a ready-written
+   message ("need a vehicle urgently") that already includes the person's
+   own name, mobile and, if they allow location, a Google Maps link to
+   exactly where they are - so the partner can act without asking. Logged
+   the same way as a call (as "whatsapp_<type>") so it also appears in the
+   partner's Recent Contacts and the customer's own history. The person can
+   still edit the text in WhatsApp before sending. */
+function tcWaNumber(mobile){
+ let d=String(mobile||"").replace(/\D/g,"");
+ if(d.length===10) d="91"+d;
+ else if(d.length===11&&d[0]==="0") d="91"+d.slice(1);
+ return d;
+}
+async function tcWhatsAppWithLog(mobile,targetType,targetId,targetLabel){
+ const user=getCurrentUser();
+ let lat=null,lon=null;
+ if(navigator.geolocation){
+  try{
+   const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{timeout:4000,enableHighAccuracy:true}));
+   lat=pos.coords.latitude; lon=pos.coords.longitude;
+  }catch(e){}
+ }
+ try{
+  await fetch("/api/calls",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+   caller_name:user?.name||"",caller_mobile:user?.mobile||"",callee_mobile:mobile,
+   target_type:"whatsapp_"+targetType,target_id:targetId,target_label:targetLabel,lat,lon
+  })});
+ }catch(e){}
+ const locLine=(lat!=null&&lon!=null)?"\nMy location: https://maps.google.com/?q="+lat+","+lon:"";
+ const text="Hello, I found you on Travel Connect. I need a vehicle urgently."+locLine+"\nName: "+(user?.name||"")+"\nMobile: "+(user?.mobile||"");
+ location.href="https://wa.me/"+tcWaNumber(mobile)+"?text="+encodeURIComponent(text);
+}
+function tcWhatsAppButtonHtml(mobile,targetType,targetId,targetLabel){
+ if(!mobile) return "";
+ return `<button style="background:#25a244;color:#fff" onclick="tcWhatsAppWithLog('${esc(mobile)}','${targetType}',${targetId||"null"},'${esc((targetLabel||"").replace(/'/g,"\\'"))}')">WhatsApp: need a vehicle now</button>`;
+}
+
 /* ---------- PARTNER: RECENT CONTACTS (who called me, from where) ---------- */
 async function tcRenderRecentContacts(partnerId){
  const box=document.querySelector("#tcRecentContacts");
@@ -1081,7 +1308,7 @@ async function tcRenderRecentContacts(partnerId){
    const when=tcFormatDateTime(c.created_at);
    const mapLink=(c.lat!=null&&c.lon!=null)?`<a href="https://maps.google.com/?q=${c.lat},${c.lon}" target="_blank">&#128205; View their location (accurate to their phone's GPS)</a>`:"";
    return `<div class="listitem"><b>${esc(c.caller_name||"A customer")}</b> - <a href="tel:${esc(c.caller_mobile)}">${esc(c.caller_mobile)}</a><br>
-   <span class="muted">Called via Travel Connect &bull; ${esc(when)}</span>
+   <span class="muted">${(c.target_type||"").indexOf("whatsapp")===0?"WhatsApp message":"Called"} via Travel Connect &bull; ${esc(when)}</span>
    ${mapLink?`<div style="margin-top:4px">${mapLink}</div>`:`<div class="muted" style="margin-top:2px">Location not shared for this call.</div>`}
    </div>`;
   }).join("");
