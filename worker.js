@@ -10,6 +10,7 @@ import { onRequestGet as partnerPlanGet, onRequestPost as partnerPlanPost } from
 import { onRequestGet as emergencyGet, onRequestPost as emergencyPost } from "./functions/api/emergency.js";
 import { onRequestGet as placesGet, onRequestPost as placesPost } from "./functions/api/places.js";
 import { onRequestGet as callsGet, onRequestPost as callsPost } from "./functions/api/calls.js";
+import { onRequestGet as messagesGet, onRequestPost as messagesPost } from "./functions/api/messages.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -74,6 +75,11 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/calls") {
     if (request.method === "GET") return callsGet({ request, env });
     if (request.method === "POST") return callsPost({ request, env });
+  }
+
+  if (url.pathname === "/api/messages") {
+    if (request.method === "GET") return messagesGet({ request, env });
+    if (request.method === "POST") return messagesPost({ request, env });
   }
 
   return null;
