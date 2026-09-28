@@ -1066,12 +1066,8 @@ function tcPreviewCustomerPage(){ tcOpenMenuPage("previewcustomer",customerHome)
 async function tcCallWithLog(mobile,targetType,targetId,targetLabel){
  const user=getCurrentUser();
  let lat=null,lon=null;
- if(navigator.geolocation){
-  try{
-   const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{timeout:4000,enableHighAccuracy:true}));
-   lat=pos.coords.latitude; lon=pos.coords.longitude;
-  }catch(e){}
- }
+ const loc=await tcGetLocation(true);
+ if(loc.lat!==undefined){ lat=loc.lat; lon=loc.lon; }
  try{
   await fetch("/api/calls",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
    caller_name:user?.name||"",caller_mobile:user?.mobile||"",callee_mobile:mobile,
@@ -1141,11 +1137,12 @@ function tcOpenMessageToPartner(partnerId,name){
 }
 function tcOpenThread(partnerId,customerMobile,viewer,title,callMobile){
  window._tcOpenThread={partnerId,customerMobile,viewer,title};
+ window._tcMsgLoc=null;
  modal(`<h2>${esc(title)}</h2>
   ${callMobile?`<div style="margin-bottom:6px"><a href="tel:${esc(callMobile)}">&#128222; Call ${esc(callMobile)}</a></div>`:""}
   <div id="msgThread" style="max-height:45vh;overflow:auto;background:#f5f8fa;border-radius:10px;padding:8px;margin-bottom:8px"><p class="muted">Loading...</p></div>
   <textarea id="msgText" rows="2" maxlength="500" placeholder="Type a short message..." style="width:100%;box-sizing:border-box"></textarea>
-  ${viewer==="customer"?`<label style="flex-direction:row;align-items:center;gap:6px;font-weight:600;margin-top:6px"><input type="checkbox" id="msgShareLoc"> Share my current location with this message</label>`:""}
+  ${viewer==="customer"?`<label style="flex-direction:row;align-items:center;gap:6px;font-weight:600;margin-top:6px"><input type="checkbox" id="msgShareLoc" onchange="tcPrepareMsgLocation(this)"> Share my current location with this message</label><div id="msgLocStatus" style="font-size:12px;margin-top:2px"></div>`:""}
   <div class="actions"><button class="primary" id="msgSendBtn" onclick="tcSendMessage()">Send</button></div>
   <div id="msgErr" class="danger"></div>`);
  tcLoadThread(false);
@@ -1171,6 +1168,24 @@ async function tcLoadThread(silent){
   tcFetchMsgUnread();
  }catch(e){}
 }
+/* Ticking "Share my current location" fetches it straight away (so the
+   phone's permission prompt appears right then) and says clearly whether
+   it worked - instead of only finding out after Send. */
+async function tcPrepareMsgLocation(cb){
+ const status=document.querySelector("#msgLocStatus");
+ window._tcMsgLoc=null;
+ if(!cb.checked){ if(status) status.textContent=""; return; }
+ if(status){ status.style.color=""; status.textContent="Getting your location..."; }
+ const loc=await tcGetLocation(false);
+ if(!cb.checked) return;
+ if(loc.lat!==undefined){
+  window._tcMsgLoc=loc;
+  if(status){ status.style.color="#177044"; status.textContent="Location ready - it will be sent with your message."; }
+ }else if(status){
+  status.style.color="#a12d2d";
+  status.textContent=tcLocationErrorText(loc.error);
+ }
+}
 async function tcSendMessage(){
  const t=window._tcOpenThread;
  const user=getCurrentUser();
@@ -1182,10 +1197,10 @@ async function tcSendMessage(){
  errBox.textContent="";
  let lat=null,lon=null,locNote="";
  if(t.viewer==="customer"&&document.querySelector("#msgShareLoc")?.checked){
-  try{
-   const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{timeout:6000,enableHighAccuracy:true}));
-   lat=pos.coords.latitude; lon=pos.coords.longitude;
-  }catch(e){ locNote="Could not get your location - message sent without it."; }
+  let loc=window._tcMsgLoc;
+  if(!loc) loc=await tcGetLocation(false);
+  if(loc&&loc.lat!==undefined){ lat=loc.lat; lon=loc.lon; }
+  else locNote="Message sent without your location. "+tcLocationErrorText(loc&&loc.error);
  }
  try{
   const res=await fetch("/api/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
@@ -1199,6 +1214,7 @@ async function tcSendMessage(){
   }else{
    input.value="";
    const cb=document.querySelector("#msgShareLoc"); if(cb) cb.checked=false;
+   window._tcMsgLoc=null; const ls=document.querySelector("#msgLocStatus"); if(ls) ls.textContent="";
    errBox.textContent=locNote;
    await tcLoadThread(false);
   }
@@ -1275,12 +1291,8 @@ function tcWaNumber(mobile){
 async function tcWhatsAppWithLog(mobile,targetType,targetId,targetLabel){
  const user=getCurrentUser();
  let lat=null,lon=null;
- if(navigator.geolocation){
-  try{
-   const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{timeout:4000,enableHighAccuracy:true}));
-   lat=pos.coords.latitude; lon=pos.coords.longitude;
-  }catch(e){}
- }
+ const loc=await tcGetLocation(true);
+ if(loc.lat!==undefined){ lat=loc.lat; lon=loc.lon; }
  try{
   await fetch("/api/calls",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
    caller_name:user?.name||"",caller_mobile:user?.mobile||"",callee_mobile:mobile,
