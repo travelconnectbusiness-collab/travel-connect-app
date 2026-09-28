@@ -182,6 +182,87 @@ function tcFormatDateTime(dateStr){
  h=h%12; if(h===0) h=12;
  return tcFormatDate(d)+", "+h+":"+m+" "+ampm;
 }
+/* ---------- DD-MM-YYYY DATE ENTRY ----------
+   The native <input type="date"> always shows dates in the phone's own
+   language/region order (often month-day-year), which code cannot change.
+   These date boxes are plain text boxes that always show DD-MM-YYYY
+   (dashes are added automatically while typing), with a calendar button
+   beside them that opens the phone's normal date picker and writes the
+   chosen date back in DD-MM-YYYY. Everywhere else in the app the box still
+   behaves like a date input: reading its .value gives the ISO date
+   (YYYY-MM-DD) or "" and setting .value with an ISO date shows it as
+   DD-MM-YYYY - done by wrapping the input "value" property only for
+   elements marked data-tcdate, so no other input is affected and no
+   existing code reading/writing these fields had to change. */
+const _tcValueDesc=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
+function tcRawValue(el){ return _tcValueDesc.get.call(el); }
+function tcSetRaw(el,v){ _tcValueDesc.set.call(el,v); }
+function tcParseDmy(str){
+ const m=String(str||"").trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+ if(!m) return null;
+ const iso=m[3]+"-"+m[2]+"-"+m[1];
+ const d=new Date(iso+"T00:00:00");
+ if(isNaN(d)||d.getDate()!==+m[1]||d.getMonth()+1!==+m[2]) return null;
+ return iso;
+}
+Object.defineProperty(HTMLInputElement.prototype,"value",{
+ configurable:true,
+ get(){
+  const raw=_tcValueDesc.get.call(this);
+  if(this.hasAttribute("data-tcdate")) return tcParseDmy(raw)||"";
+  return raw;
+ },
+ set(v){
+  if(this.hasAttribute("data-tcdate")){ _tcValueDesc.set.call(this,v?tcFormatDate(v):""); return; }
+  _tcValueDesc.set.call(this,v);
+ }
+});
+function tcDateInputHtml(id,isoValue){
+ return `<span style="position:relative;display:flex;gap:6px;align-items:stretch">
+  <input id="${id}" data-tcdate inputmode="numeric" maxlength="10" placeholder="DD-MM-YYYY" value="${esc(tcFormatDate(isoValue))}" oninput="tcAutoDashDate(this)" onblur="tcCheckDateInput(this)" style="flex:1;min-width:0">
+  <button type="button" onclick="tcPickDate('${id}')" title="Pick from calendar" style="padding:0 12px">&#128197;</button>
+  <input type="date" id="${id}__picker" tabindex="-1" aria-hidden="true" onchange="tcPickerChanged('${id}')" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0">
+ </span>`;
+}
+function tcAutoDashDate(el){
+ const d=tcRawValue(el).replace(/\D/g,"").slice(0,8);
+ let out=d;
+ if(d.length>4) out=d.slice(0,2)+"-"+d.slice(2,4)+"-"+d.slice(4);
+ else if(d.length>2) out=d.slice(0,2)+"-"+d.slice(2);
+ tcSetRaw(el,out);
+ el.style.border="";
+}
+function tcCheckDateInput(el){
+ const raw=tcRawValue(el).trim();
+ if(raw&&tcParseDmy(raw)===null){
+  el.style.border="2px solid #c0392b";
+  toast("Enter the date as DD-MM-YYYY, for example 25-12-2026");
+ }else{
+  el.style.border="";
+ }
+}
+function tcPickDate(id){
+ const txt=document.getElementById(id), p=document.getElementById(id+"__picker");
+ if(!txt||!p) return;
+ p.value=tcParseDmy(tcRawValue(txt))||"";
+ try{ if(p.showPicker) p.showPicker(); else p.click(); }catch(e){ p.click(); }
+}
+function tcPickerChanged(id){
+ const txt=document.getElementById(id), p=document.getElementById(id+"__picker");
+ if(!txt||!p||!p.value) return;
+ tcSetRaw(txt,tcFormatDate(p.value));
+ txt.style.border="";
+ txt.dispatchEvent(new Event("change",{bubbles:true}));
+}
+/* Returns "" if left blank, an ISO "YYYY-MM-DD" string if valid, or null if
+   something was typed that is not a real date. */
+function tcReadDateInput(id){
+ const el=document.querySelector("#"+id);
+ if(!el) return "";
+ const raw=tcRawValue(el).trim();
+ if(!raw) return "";
+ return tcParseDmy(raw);
+}
 /* For a bare "HH:MM" (24-hour) value from an <input type="time">, with no
    date attached - e.g. Pickup Time / Closing Time on a quotation/bill. */
 function tcFormatTime(timeStr){
@@ -662,11 +743,13 @@ function render(){
  const user=getCurrentUser();
  const tabsEl=document.querySelector(".tabs");
  tcBuildPremiumHeader();
+ if(typeof tcStartMsgPolling==="function") tcStartMsgPolling();
  if(user.role==="customer"){
   if(tabsEl) tabsEl.style.display="none";
   const v=location.hash.slice(1)||"";
   if(v==="activeboard") activeBoard();
   else if(v==="directory") tcRenderDirectory();
+  else if(v==="messages") tcRenderMessages();
   else customerHome();
   return;
  }
@@ -685,6 +768,7 @@ function render(){
  else if(v==="partner") partnerView();
  else if(v==="activeboard") activeBoard();
  else if(v==="directory") tcRenderDirectory();
+ else if(v==="messages") tcRenderMessages();
  else network();
 }
 window.addEventListener("hashchange",render);
