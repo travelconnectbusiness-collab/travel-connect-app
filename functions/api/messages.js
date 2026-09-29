@@ -73,8 +73,34 @@ async function pushToMobiles(env, mobiles, buildPayload) {
 }
 
 let ready = false;
+
+/* Both messages and SOS alerts are kept for 90 days then permanently
+   deleted - long enough to settle a dispute ("did this customer actually
+   contact me?"), short enough not to grow forever. There is no separate
+   scheduled job for this (Cloudflare Cron Triggers need dashboard/
+   wrangler.toml setup outside what can be pushed as a plain file commit) -
+   instead, cleanup runs opportunistically on a small fraction of requests
+   here, which keeps both tables trimmed without adding cost to every
+   single call. Safe to run concurrently / repeatedly - it is just a
+   DELETE ... WHERE, a no-op once nothing is old enough. */
+const RETENTION_DAYS = 90;
+async function cleanupOld(env) {
+  if (Math.random() >= 0.02) return; // runs on ~1 in 50 requests
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000).toISOString();
+  try {
+    await env.DB.prepare("DELETE FROM messages WHERE created_at < ?").bind(cutoff).run();
+    await env.DB.prepare("DELETE FROM sos_alerts WHERE created_at < ?").bind(cutoff).run();
+  } catch (e) {
+    /* sos_alerts may not exist yet on a brand new DB - never let cleanup
+       break an actual request. */
+  }
+}
+
 async function ensure(env) {
-  if (ready) return;
+  if (ready) {
+    await cleanupOld(env);
+    return;
+  }
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +118,24 @@ async function ensure(env) {
   await env.DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages (partner_id, customer_mobile)"
   ).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_created ON messages (created_at)").run();
+  /* "Delete chat" (see tcHideConversation below) only hides a conversation
+     from ONE side's own inbox list - the other party's copy, and the
+     actual message rows, are untouched. hidden_before_id is the newest
+     message id that existed at the moment they hid it; the inbox query
+     un-hides the conversation again as soon as a message newer than that
+     arrives, so deleting a chat can never make a later reply disappear. */
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS message_hidden (
+      partner_id INTEGER NOT NULL,
+      customer_mobile TEXT NOT NULL,
+      viewer TEXT NOT NULL,
+      hidden_before_id INTEGER NOT NULL,
+      PRIMARY KEY (partner_id, customer_mobile, viewer)
+    )`
+  ).run();
   ready = true;
+  await cleanupOld(env);
 }
 
 const MAX_LEN = 500;
@@ -111,6 +154,32 @@ export async function onRequestPost({ request, env, ctx }) {
   } catch (e) {
     return Response.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
+  if (b.action === "hide") {
+    const partnerId = Number(b.partner_id);
+    const customerMobile = (b.customer_mobile || "").toString().trim();
+    const viewer = b.viewer === "partner" ? "partner" : b.viewer === "customer" ? "customer" : null;
+    const mobile = (b.mobile || "").toString().trim();
+    if (!partnerId || !customerMobile || !viewer || !mobile) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const partner = await env.DB.prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
+    if (!partner) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (viewer === "partner" && !isPartnerNumber(partner, mobile)) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    if (viewer === "customer" && mobile !== customerMobile) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    const last = await env.DB
+      .prepare("SELECT MAX(id) AS id FROM messages WHERE partner_id=? AND customer_mobile=?")
+      .bind(partnerId, customerMobile)
+      .first();
+    await env.DB
+      .prepare(
+        `INSERT INTO message_hidden (partner_id, customer_mobile, viewer, hidden_before_id) VALUES (?,?,?,?)
+         ON CONFLICT(partner_id, customer_mobile, viewer) DO UPDATE SET hidden_before_id=excluded.hidden_before_id`
+      )
+      .bind(partnerId, customerMobile, viewer, (last && last.id) || 0)
+      .run();
+    return Response.json({ ok: true });
+  }
+
   if (b.action !== "send") return Response.json({ ok: false, error: "unknown_action" });
 
   const partnerId = Number(b.partner_id);
@@ -222,7 +291,22 @@ export async function onRequestGet({ request, env }) {
   }
 
   if (action === "inbox") {
-    const partnerGroups = (
+    /* A conversation this viewer hid ("Delete chat") is left out UNLESS a
+       message newer than the one they hid it at has since arrived - a
+       later reply always brings it back, so "delete chat" can never make
+       a message someone is actively waiting to be seen just vanish. */
+    const hiddenRows = (
+      await env.DB.prepare("SELECT partner_id, customer_mobile, hidden_before_id FROM message_hidden WHERE viewer=?").bind("partner").all()
+    ).results;
+    const hiddenPartner = {};
+    hiddenRows.forEach((r) => (hiddenPartner[r.partner_id + "|" + r.customer_mobile] = r.hidden_before_id));
+    const hiddenCustRows = (
+      await env.DB.prepare("SELECT partner_id, hidden_before_id FROM message_hidden WHERE viewer='customer' AND customer_mobile=?").bind(mobile).all()
+    ).results;
+    const hiddenCustomer = {};
+    hiddenCustRows.forEach((r) => (hiddenCustomer[r.partner_id] = r.hidden_before_id));
+
+    let partnerGroups = (
       await env.DB
         .prepare(
           `SELECT m.partner_id, p.business_name, m.customer_mobile, MAX(m.id) AS last_id,
@@ -235,7 +319,11 @@ export async function onRequestGet({ request, env }) {
         .bind(mobile, mobile)
         .all()
     ).results;
-    const customerGroups = (
+    partnerGroups = partnerGroups.filter((g) => {
+      const h = hiddenPartner[g.partner_id + "|" + g.customer_mobile];
+      return h == null || g.last_id > h;
+    });
+    let customerGroups = (
       await env.DB
         .prepare(
           `SELECT m.partner_id, p.business_name, MAX(m.id) AS last_id,
@@ -248,6 +336,10 @@ export async function onRequestGet({ request, env }) {
         .bind(mobile)
         .all()
     ).results;
+    customerGroups = customerGroups.filter((g) => {
+      const h = hiddenCustomer[g.partner_id];
+      return h == null || g.last_id > h;
+    });
 
     const ids = [...partnerGroups, ...customerGroups].map((g) => g.last_id);
     const lastById = {};
