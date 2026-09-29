@@ -339,6 +339,10 @@ function printQuoteObj(q,asImage){
   <div style="font-size:14px;color:#1c6b2c">QUOTED AMOUNT (ESTIMATE)</div>
   <div style="font-size:30px;font-weight:bold;color:#1c6b2c">${money(q.quotedAmount)}</div>
  </div>
+ ${q.fareNote?`<div style="page-break-inside:avoid;break-inside:avoid;background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin-top:10px">
+  <div style="font-weight:bold;font-size:13.5px;color:#7a5a1e;margin-bottom:4px">&#128203; FARE DETAILS</div>
+  <div style="white-space:pre-wrap;font-size:13px;line-height:1.5">${esc(q.fareNote)}</div>
+ </div>`:""}
  ${advanceHtml}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11.5px;color:#555">
   &#8505;&#65039; This is an estimated fare based on the KM/hours entered above and rates in effect today${q.validUntil?`, valid until <b>${esc(tcFormatDate(q.validUntil))}</b>`:""}. The <b>final bill</b> is calculated only after the trip, based on actual KM/hours travelled${q.validUntil?", and rates may change after the validity date above":""}.
@@ -617,6 +621,19 @@ function downloadQuotePDFObj(q){
  doc.setTextColor(0);doc.setFont(font,"normal");doc.setFontSize(10);
  y+=26;
 
+ if(q.fareNote){
+  const noteWrapped=doc.splitTextToSize(q.fareNote,178);
+  const noteH=noteWrapped.length*4.3+12;
+  if(y+noteH>282){doc.addPage();y=18;}
+  doc.setFillColor(255,248,232);doc.rect(15,y,180,noteH,"F");
+  doc.setDrawColor(210,180,120);doc.rect(15,y,180,noteH);doc.setDrawColor(210);
+  doc.setFont(font,"bold");doc.setFontSize(9.5);doc.setTextColor(122,90,30);
+  doc.text("FARE DETAILS",20,y+7);
+  doc.setFont(font,"normal");doc.setFontSize(9);doc.setTextColor(0);
+  doc.text(noteWrapped,20,y+13);
+  y+=noteH+6;
+ }
+
  if(q.advanceAmount>0){
   const boxH=q.advanceReceived?18:40;
   doc.setFillColor(255,248,232);doc.rect(15,y,180,boxH,"F");
@@ -870,6 +887,9 @@ function quoteForm(){
  <label>Advance amount<input id="qAdvanceAmount" type="number" value="0"></label>
  <label>Quotation valid until (optional)${tcDateInputHtml("qValidUntil","")}</label>
  </div>
+ <div style="margin-top:10px">
+  <label style="display:block">Fare Details - what's included &amp; excluded (optional, shown to customer)<textarea id="qFareNote" rows="3" placeholder="e.g. 700 km included at Rs.3500/day. Extra KM Rs.23/km. Toll, permit, parking actual. Driver food/stay included. Kolukkumalai jeep, boating, entry tickets customer direct."></textarea></label>
+ </div>
  ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
   <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
@@ -1028,7 +1048,8 @@ function buildQuoteObjFromForm(r){
   gstOn:r.gstOn||false,gstPct:r.gstPct||0,gstAmount:r.gstAmount||0,
   overrideAddKm:document.querySelector("#qOverrideAddKm").value||"",
   overrideAddHour:document.querySelector("#qOverrideAddHour").value||"",
-  itinerary:collectItinerary()
+  itinerary:collectItinerary(),
+  fareNote:document.querySelector("#qFareNote").value.trim()
  };
 }
 function saveQuote(){
@@ -1093,6 +1114,7 @@ function openQuote(id){
   dests.slice(1).forEach(d=>addStopField(d));
   document.querySelector("#qItineraryContainer").innerHTML="";
   (q.itinerary||[]).forEach(d=>addItineraryDay(d));
+  qFareNote.value=q.fareNote||"";
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qRestHours.value=q.restHours||0;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
@@ -1585,7 +1607,7 @@ function saveQuickAsEnquiry(){
  if(!name||!mobile){toast("Enter the customer's name and mobile number first");return}
  if(!pickup&&!stops.length){toast("Enter at least a pickup or destination first");return}
  if(document.querySelector("#qqCat").value===""){toast("Select a Vehicle Category first");return}
- const entryDate=new Date().toISOString().slice(0,10);
+  const entryDate=new Date().toISOString().slice(0,10);
  db.enquiries.unshift({
   id:crypto.randomUUID(),name,mobile,pickup,dest:stops.join(" &rarr; "),destinations:stops,
   vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,
@@ -1608,7 +1630,7 @@ function enquiryToQuote(id){
   if(e.vehicleStart) qVehicleStart.value=e.vehicleStart;
   if(e.returnPoint) qReturn.value=e.returnPoint;
   const dests=(e.destinations&&e.destinations.length)?e.destinations:(e.dest?[e.dest]:[]);
-    qDest.value=dests[0]||"";
+  qDest.value=dests[0]||"";
   document.querySelector("#qStopsContainer").innerHTML="";
   dests.slice(1).forEach(d=>addStopField(d));
   if(["local","one_day","round","outstation","drop"].includes(e.type)) qType.value=e.type;
