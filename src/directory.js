@@ -1216,7 +1216,10 @@ function tcOpenMessageToPartner(partnerId,name){
 function tcOpenThread(partnerId,customerMobile,viewer,title,callMobile){
  window._tcOpenThread={partnerId,customerMobile,viewer,title};
  window._tcMsgLoc=null;
- modal(`<h2>${esc(title)}</h2>
+ modal(`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+   <h2 style="margin:0">${esc(title)}</h2>
+   <button onclick="tcConfirmHideChat()" title="Removes this chat from your phone only - the other person keeps theirs" style="background:none;color:#6a7a87;box-shadow:none;padding:4px 6px;font-size:11.5px;line-height:1.3;text-align:right">&#128465; Delete<br>for me only</button>
+  </div>
   ${callMobile?`<div style="margin-bottom:6px"><a href="tel:${esc(callMobile)}">&#128222; Call ${esc(callMobile)}</a></div>`:""}
   <div id="msgThread" style="max-height:45vh;overflow:auto;background:#f5f8fa;border-radius:10px;padding:8px;margin-bottom:8px"><p class="muted">Loading...</p></div>
   <textarea id="msgText" rows="2" maxlength="500" placeholder="Type a short message..." style="width:100%;box-sizing:border-box"></textarea>
@@ -1276,6 +1279,30 @@ async function tcPrepareMsgLocation(cb){
   status.style.color="#a12d2d";
   status.textContent=tcLocationErrorText(loc.error);
  }
+}
+/* "Delete chat" only removes it from THIS person's own list - see
+   messages.js's action=hide for why (a call/message can matter as proof
+   later, e.g. "I never contacted this driver"), and it comes straight
+   back if the other side writes again. */
+function tcConfirmHideChat(){
+ modal(`<h2>Delete for me only?</h2><p style="font-weight:700;color:#a12d2d">This removes the chat from YOUR phone only.</p><p class="muted">The other person's copy is not affected - they will still see everything you sent, and it stays in Travel Connect's records too. If they write again, this chat comes back here.</p><div class="actions"><button onclick="tcReopenThread()">Cancel</button><button class="danger" onclick="tcHideChat()">Yes, delete for me only</button></div>`);
+}
+function tcReopenThread(){
+ const t=window._tcOpenThread;
+ if(!t) return;
+ tcOpenThread(t.partnerId,t.customerMobile,t.viewer,t.title,"");
+}
+async function tcHideChat(){
+ const t=window._tcOpenThread;
+ const user=getCurrentUser();
+ if(!t||!user) return;
+ try{
+  await fetch("/api/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"hide",partner_id:t.partnerId,customer_mobile:t.customerMobile,viewer:t.viewer,mobile:user.mobile})});
+ }catch(e){}
+ closeModal();
+ toast("Chat deleted");
+ if(document.querySelector("#tcMsgInbox")) tcLoadInbox();
+ tcFetchMsgUnread();
 }
 async function tcSendMessage(){
  const t=window._tcOpenThread;
