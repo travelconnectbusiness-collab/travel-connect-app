@@ -28,6 +28,39 @@ body{ overscroll-behavior-y:contain; }
 input[type="checkbox"],input[type="radio"]{
  width:auto !important; height:auto !important; padding:0 !important; border:none !important; background:none !important;
 }
+
+/* ---- Premium look for every button ----
+   Softer corners, a light shadow, a gentle press effect; primary buttons
+   get a teal gradient and delete/danger buttons a solid red one (app.css
+   only coloured the text of "danger"). Inline styles on individual
+   buttons (SOS, Messages, Emergency) still win over these. */
+button{
+ border-radius:12px;
+ box-shadow:0 1px 3px rgba(8,43,73,.16);
+ transition:transform .08s ease,box-shadow .15s ease,filter .15s ease;
+ -webkit-tap-highlight-color:transparent;
+}
+button:active{ transform:scale(.96); filter:brightness(.95); }
+button.primary{
+ background:linear-gradient(135deg,#0b6b78 0%,#12898f 100%);
+ box-shadow:0 3px 9px rgba(11,107,120,.38);
+}
+button.danger{
+ background:linear-gradient(135deg,#b03a2e,#e74c3c);
+ color:#fff;
+ box-shadow:0 3px 9px rgba(176,58,46,.38);
+}
+.tabs button,.backbtn,.close{ box-shadow:none; }
+.tabs button:active{ transform:none; }
+
+/* Pulsing glow on the SOS buttons, and a heartbeat on the unread-count pill */
+@keyframes tcSosPulse{
+ 0%{ box-shadow:0 0 0 0 rgba(231,76,60,.65); }
+ 70%{ box-shadow:0 0 0 12px rgba(231,76,60,0); }
+ 100%{ box-shadow:0 0 0 0 rgba(231,76,60,0); }
+}
+@keyframes tcPill{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.18); } }
+.tcMsgPill{ animation:tcPill 1.6s ease-in-out infinite; }
 </style>
 </head>
 <body>
