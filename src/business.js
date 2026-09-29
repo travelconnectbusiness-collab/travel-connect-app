@@ -328,6 +328,7 @@ function printQuoteObj(q,asImage){
  <table>
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   <tr><td style="padding:3px 0">Base Rate</td><td style="text-align:right;padding:3px 0">${money(standardRaw.base)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.base)}</td></tr>
+  ${(standardRaw.incKm!=null||offerRaw.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?`Std included: ${standardRaw.incKm}${q.days>1?"/day":""} KM, ${standardRaw.incHours}${q.days>1?"/day":""} hrs${q.days>1?" &times; "+q.days+" days":""}`:""}${(standardRaw.incKm!=null&&offerRaw.incKm!=null)?" &bull; ":""}${offerRaw.incKm!=null?`Offer included: ${offerRaw.incKm}${q.days>1?"/day":""} KM, ${offerRaw.incHours}${q.days>1?"/day":""} hrs${q.days>1?" &times; "+q.days+" days":""}`:""}</td></tr>`:""}
   <tr><td style="padding:3px 0">Additional Charge</td><td style="text-align:right;padding:3px 0">${money(standardRaw.extra||0)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.extra||0)}</td></tr>
   <tr style="border-top:2px solid #ccc"><td style="padding:4px 0;font-weight:bold">Fare</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(stdFareTotal)}</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
  </table>
@@ -405,9 +406,11 @@ function printBill(tripId,asImage){
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
  const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
  const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:3px 0;font-weight:${bold?"bold":"normal"};font-size:14px">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(sv)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(ov)}</td></tr>`;
+ const includedRowHtml=(standardRaw.incKm!=null||r.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?`Std included: ${standardRaw.incKm}${r.days>1?"/day":""} KM, ${standardRaw.incHours}${r.days>1?"/day":""} hrs${r.days>1?" &times; "+r.days+" days":""}`:""}${(standardRaw.incKm!=null&&r.incKm!=null)?" &bull; ":""}${r.incKm!=null?`Offer included: ${r.incKm}${r.days>1?"/day":""} KM, ${r.incHours}${r.days>1?"/day":""} hrs${r.days>1?" &times; "+r.days+" days":""}`:""}</td></tr>`:"";
  const compareTable=`<table>
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   ${cmpRow("Base Rate",stdBase,offBase)}
+  ${includedRowHtml}
   ${cmpRow("Additional Charge",stdExtra,offExtra)}
   <tr style="border-top:2px solid #ccc">${cmpRow("Total",stdTotal,offTotal,true).replace(/<tr>|<\/tr>/g,"")}</tr>
  </table>`;
@@ -594,6 +597,14 @@ function downloadQuotePDFObj(q){
   doc.setFont(font,"bold");doc.setFontSize(11);doc.text("Standard vs Offer Rate",15,y);y+=6;doc.setFont(font,"normal");doc.setFontSize(9);
   doc.setTextColor(120);doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});doc.setTextColor(0);y+=5;
   doc.text("Base Rate",15,y);doc.text(pdfMoney(standardRaw.base),140,y,{align:"right"});doc.text(pdfMoney(offerRaw.base),195,y,{align:"right"});y+=5;
+  if(standardRaw.incKm!=null||offerRaw.incKm!=null){
+   doc.setFontSize(7.5);doc.setTextColor(130);
+   let incLine="";
+   if(standardRaw.incKm!=null) incLine+="Std incl: "+standardRaw.incKm+(q.days>1?"/day":"")+" KM, "+standardRaw.incHours+(q.days>1?"/day":"")+" hrs"+(q.days>1?" x "+q.days+" days":"");
+   if(offerRaw.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer incl: "+offerRaw.incKm+(q.days>1?"/day":"")+" KM, "+offerRaw.incHours+(q.days>1?"/day":"")+" hrs"+(q.days>1?" x "+q.days+" days":""); }
+   doc.text(incLine,15,y);
+   doc.setTextColor(0);doc.setFontSize(9);y+=5;
+  }
   doc.text("Additional Charge",15,y);doc.text(pdfMoney(standardRaw.extra||0),140,y,{align:"right"});doc.text(pdfMoney(offerRaw.extra||0),195,y,{align:"right"});y+=5;
   doc.setDrawColor(200);doc.line(15,y,195,y);doc.setDrawColor(210);y+=4;
   doc.setFont(font,"bold");doc.text("Fare",15,y);doc.text(pdfMoney(stdFareTotal),140,y,{align:"right"});doc.text(pdfMoney(offerFareTotal),195,y,{align:"right"});doc.setFont(font,"normal");y+=8;
@@ -739,9 +750,17 @@ function downloadBillPDF(tripId){
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
  const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
  doc.setFont(font,"normal");
- [["Base Rate",stdBase,offBase],["Additional Charge",stdExtra,offExtra]].forEach(([label,sv,ov])=>{
-  doc.text(label,15,y);doc.text(pdfMoney(sv),140,y,{align:"right"});doc.text(pdfMoney(ov),195,y,{align:"right"});y+=5;
- });
+ doc.text("Base Rate",15,y);doc.text(pdfMoney(stdBase),140,y,{align:"right"});doc.text(pdfMoney(offBase),195,y,{align:"right"});y+=5;
+ if(standardRaw.incKm!=null||r.incKm!=null){
+  doc.setFontSize(7.5);doc.setTextColor(130);
+  let incLine="";
+  if(standardRaw.incKm!=null) incLine+="Std incl: "+standardRaw.incKm+(r.days>1?"/day":"")+" KM, "+standardRaw.incHours+(r.days>1?"/day":"")+" hrs"+(r.days>1?" x "+r.days+" days":"");
+  if(r.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer incl: "+r.incKm+(r.days>1?"/day":"")+" KM, "+r.incHours+(r.days>1?"/day":"")+" hrs"+(r.days>1?" x "+r.days+" days":""); }
+  const incWrapped=doc.splitTextToSize(incLine,178);
+  doc.text(incWrapped,15,y);y+=incWrapped.length*3.6+2;
+  doc.setFontSize(9);doc.setTextColor(0);
+ }
+ doc.text("Additional Charge",15,y);doc.text(pdfMoney(stdExtra),140,y,{align:"right"});doc.text(pdfMoney(offExtra),195,y,{align:"right"});y+=5;
  doc.setFont(font,"bold");
  doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
  doc.setFont(font,"normal");
@@ -1597,7 +1616,7 @@ function calcQuickFare(){
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   <tr><td>Fare</td><td style="text-align:right">${money(stdTotal)}</td><td style="text-align:right;font-weight:bold">${money(r.total)}</td></tr>
  </table>
-  ${savings>0?`<div class="ok" style="margin-top:6px">&#127881; Customer saves: ${money(savings)}</div>`:""}
+ ${savings>0?`<div class="ok" style="margin-top:6px">&#127881; Customer saves: ${money(savings)}</div>`:""}
  ${extraTotal>0?`<div style="margin-top:6px">Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
  <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total+extraTotal)}</div>
  ${extraChargesHtml(extraCharges)}`;
