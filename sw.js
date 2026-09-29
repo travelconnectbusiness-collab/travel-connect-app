@@ -52,15 +52,16 @@ self.addEventListener("push",(event)=>{
    try{
     if(self.navigator&&navigator.setAppBadge&&data.count!=null) await navigator.setAppBadge(data.count);
    }catch(e){}
-   /* If the app is open and on screen right now, it already shows the
-      message itself (with its own sound) - just tell it to refresh
-      instead of also popping a system notification on top. */
+   /* A backgrounded tab can keep reporting visibilityState "visible" for a
+      while after the person has actually left the app (this is exactly
+      what made message notifications only ever show while the app was
+      still open, never after leaving it) - so a system notification is
+      ALWAYS shown now, the same as SOS already does. Any open tab is still
+      told to refresh in the background so its own badge/list is current
+      the moment the person looks at it, but that is in addition to the
+      notification below, never instead of it. */
    const wins=await clients.matchAll({type:"window",includeUncontrolled:true});
-   const visible=wins.filter(c=>c.visibilityState==="visible");
-   if(visible.length){
-    visible.forEach(c=>c.postMessage({tcMsgPush:true}));
-    return;
-   }
+   wins.forEach(c=>c.postMessage({tcMsgPush:true}));
    await self.registration.showNotification(data.title||"\u2709 New message",{
     body:data.body||"",
     tag:data.tag||"tc-msg",
@@ -90,26 +91,44 @@ self.addEventListener("notificationclick",(event)=>{
  event.notification.close();
  const d=event.notification.data||{};
 
+ /* Whichever kind of alert this is, tapping it must land the person
+    somewhere that actually SHOWS the thing that happened - not just bring
+    an existing tab to the front wherever it was last left (that was the
+    other half of "I can only tell an SOS happened by going and checking
+    manually" - the notification tap wasn't taking anyone there). Reusing
+    an existing window still calls .navigate() on it (same-origin, so the
+    service worker can do this directly) before focusing it; only a
+    brand-new window falls back to opening the URL directly. */
  if(d.type==="message"){
+  const dest=d.url||"/#messages";
   event.waitUntil(
-   clients.matchAll({type:"window",includeUncontrolled:true}).then((list)=>{
+   clients.matchAll({type:"window",includeUncontrolled:true}).then(async(list)=>{
     for(const c of list){
      if("focus" in c){
       c.postMessage({tcOpen:"messages"});
+      try{ if("navigate" in c) await c.navigate(dest); }catch(e){}
       return c.focus();
      }
     }
-    if(clients.openWindow) return clients.openWindow(d.url||"/#messages");
+    if(clients.openWindow) return clients.openWindow(dest);
    })
   );
   return;
  }
 
- const url=(d.lat!=null&&d.lon!=null)?`https://maps.google.com/?q=${d.lat},${d.lon}`:"/#network";
+ const dest=(d.lat!=null&&d.lon!=null)?`https://maps.google.com/?q=${d.lat},${d.lon}`:"/#network";
  event.waitUntil(
-  clients.matchAll({type:"window",includeUncontrolled:true}).then((list)=>{
-   for(const c of list){ if("focus" in c) return c.focus(); }
-   if(clients.openWindow) return clients.openWindow(url);
+  clients.matchAll({type:"window",includeUncontrolled:true}).then(async(list)=>{
+   for(const c of list){
+    if("focus" in c){
+     c.postMessage({tcOpen:"network"});
+     if(d.lat==null){ try{ if("navigate" in c) await c.navigate(dest); }catch(e){} }
+     const focused=await c.focus();
+     if(d.lat!=null&&d.lon!=null){ try{ await clients.openWindow(dest); }catch(e){} }
+     return focused;
+    }
+   }
+   if(clients.openWindow) return clients.openWindow(d.lat!=null&&d.lon!=null?dest:"/#network");
   })
  );
 });
