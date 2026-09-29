@@ -327,7 +327,9 @@ function printQuoteObj(q,asImage){
  <h3 style="margin:12px 0 4px;font-size:15px;color:#143c5a">Standard vs Offer Rate</h3>
  <table>
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
-  <tr><td style="padding:3px 0">Fare</td><td style="text-align:right;padding:3px 0">${money(stdFareTotal)}</td><td style="text-align:right;padding:3px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
+  <tr><td style="padding:3px 0">Base Rate</td><td style="text-align:right;padding:3px 0">${money(standardRaw.base)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.base)}</td></tr>
+  <tr><td style="padding:3px 0">Additional Charge</td><td style="text-align:right;padding:3px 0">${money(standardRaw.extra||0)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.extra||0)}</td></tr>
+  <tr style="border-top:2px solid #ccc"><td style="padding:4px 0;font-weight:bold">Fare</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(stdFareTotal)}</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
  </table>
  ${totalSavings>0?`<div style="page-break-inside:avoid;background:#e6f7e9;border:2px solid #2e9e44;border-radius:8px;padding:10px;margin:8px 0;color:#1c6b2c">
   <div style="font-weight:bold;font-size:15px">&#127881; You save: ${money(totalSavings)}</div>
@@ -591,7 +593,10 @@ function downloadQuotePDFObj(q){
  if(!standardRaw.invalid&&!offerRaw.invalid&&q.ratePlan!=="standard"){
   doc.setFont(font,"bold");doc.setFontSize(11);doc.text("Standard vs Offer Rate",15,y);y+=6;doc.setFont(font,"normal");doc.setFontSize(9);
   doc.setTextColor(120);doc.text("Standard",140,y,{align:"right"});doc.text("Offer",195,y,{align:"right"});doc.setTextColor(0);y+=5;
-  doc.text("Fare",15,y);doc.text(pdfMoney(stdFareTotal),140,y,{align:"right"});doc.setFont(font,"bold");doc.text(pdfMoney(offerFareTotal),195,y,{align:"right"});doc.setFont(font,"normal");y+=8;
+  doc.text("Base Rate",15,y);doc.text(pdfMoney(standardRaw.base),140,y,{align:"right"});doc.text(pdfMoney(offerRaw.base),195,y,{align:"right"});y+=5;
+  doc.text("Additional Charge",15,y);doc.text(pdfMoney(standardRaw.extra||0),140,y,{align:"right"});doc.text(pdfMoney(offerRaw.extra||0),195,y,{align:"right"});y+=5;
+  doc.setDrawColor(200);doc.line(15,y,195,y);doc.setDrawColor(210);y+=4;
+  doc.setFont(font,"bold");doc.text("Fare",15,y);doc.text(pdfMoney(stdFareTotal),140,y,{align:"right"});doc.text(pdfMoney(offerFareTotal),195,y,{align:"right"});doc.setFont(font,"normal");y+=8;
   if(totalSavings>0){
    doc.setFillColor(230,247,233);doc.rect(15,y,180,12,"F");
    doc.setTextColor(28,107,44);doc.setFont(font,"bold");doc.setFontSize(10);
@@ -1592,7 +1597,7 @@ function calcQuickFare(){
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   <tr><td>Fare</td><td style="text-align:right">${money(stdTotal)}</td><td style="text-align:right;font-weight:bold">${money(r.total)}</td></tr>
  </table>
- ${savings>0?`<div class="ok" style="margin-top:6px">&#127881; Customer saves: ${money(savings)}</div>`:""}
+  ${savings>0?`<div class="ok" style="margin-top:6px">&#127881; Customer saves: ${money(savings)}</div>`:""}
  ${extraTotal>0?`<div style="margin-top:6px">Other Charges${extraChargesShortLabel(extraCharges)}: +${money(extraTotal)}</div>`:""}
  <div class="total" style="margin-top:6px">Offer Fare: ${money(r.total+extraTotal)}</div>
  ${extraChargesHtml(extraCharges)}`;
@@ -1948,4 +1953,3 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
-
