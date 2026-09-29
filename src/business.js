@@ -308,7 +308,7 @@ function printQuoteObj(q,asImage){
  </div>
  ${tcBrandingBox(partnerPhones)}
  <h2 style="text-align:center;color:#143c5a;margin:10px 0;font-size:20px">QUOTATION ${esc(q.no)}</h2>
- <table>${row("Date",tcFormatDate(q.entryDate||q.created))}${row("Customer",q.customer)}${row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
+ <table>${row("Date",tcFormatDate(q.entryDate||q.created))}${row("Customer",q.customer)}${q.hideMobile?"":row("Mobile",q.mobile)}${row("Vehicle Category",q.category+" "+(q.vehicle||"")+" "+(q.vehicleNo||""))}</table>
  <div style="background:#fdf6e3;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:12px 0">
   <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
   <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
@@ -568,7 +568,7 @@ function downloadQuotePDFObj(q){
 
  y=pdfRow(doc,y,"Date",tcFormatDate(q.entryDate||q.created));
  y=pdfRow(doc,y,"Customer",q.customer);
- y=pdfRow(doc,y,"Mobile",q.mobile);
+ if(!q.hideMobile) y=pdfRow(doc,y,"Mobile",q.mobile);
  y=pdfDivider(doc,y);
  y=pdfRow(doc,y,"Vehicle Category",q.category);
  y=pdfRow(doc,y,"Vehicle",(q.vehicle||"-")+" "+(q.vehicleNo||""));
@@ -889,6 +889,7 @@ function quoteForm(){
  </div>
  <div style="margin-top:10px">
   <label style="display:block">Fare Details - what's included &amp; excluded (optional, shown to customer)<textarea id="qFareNote" rows="3" placeholder="e.g. 700 km included at Rs.3500/day. Extra KM Rs.23/km. Toll, permit, parking actual. Driver food/stay included. Kolukkumalai jeep, boating, entry tickets customer direct."></textarea></label>
+  <label style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="qHideMobile"> Hide customer mobile number on Print/PDF/Image <span class="muted" style="font-weight:normal">(for sharing with another driver before the trip is confirmed - the number stays visible to you inside the app)</span></label>
  </div>
  ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
@@ -1049,7 +1050,8 @@ function buildQuoteObjFromForm(r){
   overrideAddKm:document.querySelector("#qOverrideAddKm").value||"",
   overrideAddHour:document.querySelector("#qOverrideAddHour").value||"",
   itinerary:collectItinerary(),
-  fareNote:document.querySelector("#qFareNote").value.trim()
+  fareNote:document.querySelector("#qFareNote").value.trim(),
+  hideMobile:document.querySelector("#qHideMobile").checked
  };
 }
 function saveQuote(){
@@ -1115,6 +1117,7 @@ function openQuote(id){
   document.querySelector("#qItineraryContainer").innerHTML="";
   (q.itinerary||[]).forEach(d=>addItineraryDay(d));
   qFareNote.value=q.fareNote||"";
+  qHideMobile.checked=!!q.hideMobile;
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qRestHours.value=q.restHours||0;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
@@ -1607,7 +1610,7 @@ function saveQuickAsEnquiry(){
  if(!name||!mobile){toast("Enter the customer's name and mobile number first");return}
  if(!pickup&&!stops.length){toast("Enter at least a pickup or destination first");return}
  if(document.querySelector("#qqCat").value===""){toast("Select a Vehicle Category first");return}
-  const entryDate=new Date().toISOString().slice(0,10);
+ const entryDate=new Date().toISOString().slice(0,10);
  db.enquiries.unshift({
   id:crypto.randomUUID(),name,mobile,pickup,dest:stops.join(" &rarr; "),destinations:stops,
   vehicleStart:document.querySelector("#qqVehicleStart").value,returnPoint:document.querySelector("#qqReturn").value,
@@ -1945,3 +1948,4 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
+
