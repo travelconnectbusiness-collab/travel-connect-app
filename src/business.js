@@ -313,6 +313,10 @@ function printQuoteObj(q,asImage){
   <div style="font-weight:bold;font-size:15px;color:#7a5a1e;margin-bottom:6px">&#128663; ROUTE</div>
   <div style="font-size:15px;font-weight:600">${[q.vehicleStart,q.pickup,...dests,q.returnPoint].filter(Boolean).map(esc).join(" &rarr; ")}</div>
  </div>
+ ${(q.itinerary&&q.itinerary.length)?`<div style="page-break-inside:avoid;break-inside:avoid;background:#eef6fb;border:2px solid #7fa8c9;border-radius:8px;padding:12px;margin:12px 0">
+  <div style="font-weight:bold;font-size:15px;color:#1f4e6b;margin-bottom:8px">&#128197; DAY-WISE ITINERARY</div>
+  ${q.itinerary.map((d,i)=>`<div style="margin-bottom:8px"><b style="color:#1f4e6b">Day ${i+1}</b><div style="white-space:pre-wrap;font-size:13.5px;margin-top:2px">${esc(d)}</div></div>`).join("")}
+ </div>`:""}
  <table>
   ${row("Trip Type",q.type,true)}
   ${q.days>1?row("Number of days",q.days+" days",true):""}
@@ -677,6 +681,23 @@ function downloadBillPDF(tripId){
  const routeWrapped=doc.splitTextToSize(routeLine,180);
  doc.text(routeWrapped,15,y);y+=routeWrapped.length*4.5+3;
 
+ if(q.itinerary&&q.itinerary.length){
+  y+=2;
+  doc.setFont(font,"bold");doc.setFontSize(10);doc.text("Day-wise Itinerary",15,y);y+=6;
+  doc.setFont(font,"normal");doc.setFontSize(9);
+  q.itinerary.forEach((d,i)=>{
+   const label="Day "+(i+1)+": ";
+   const wrapped=doc.splitTextToSize(label+d,178);
+   if(y+wrapped.length*4.5>282){doc.addPage();y=18;}
+   doc.setFont(font,"bold");doc.text("Day "+(i+1),15,y);doc.setFont(font,"normal");
+   const bodyWrapped=doc.splitTextToSize(d,165);
+   doc.text(bodyWrapped,32,y);
+   y+=Math.max(5,bodyWrapped.length*4.5)+2;
+  });
+  doc.setFontSize(10);
+  y+=1;
+ }
+
  y=pdfDivider(doc,y);
  doc.setFont(font,"bold");doc.text("1. Usage Details",15,y);y+=6;doc.setFont(font,"normal");
  y=pdfRow(doc,y,"Total KM / Total Hours",km+" KM / "+h+" hrs");
@@ -803,6 +824,11 @@ function quoteForm(){
   <button type="button" onclick="addStopField()">+ Add another destination</button>
   <button type="button" onclick="openRoute()">Open route in Google Maps</button>
  </div>
+ <div style="margin-top:10px">
+  <div style="font-weight:650;font-size:13px;margin-bottom:4px">Day-wise Itinerary (optional - for multi-day outstation trips)</div>
+  <div id="qItineraryContainer"></div>
+  <div class="actions"><button type="button" onclick="addItineraryDay()">+ Add a day</button></div>
+ </div>
  <div class="grid">
  <label><b>Vehicle closing point (where the trip ends)</b><input id="qReturn" value="${esc(db.business.officeLocation)}"></label>
  <label>Estimated KM<input id="qKm" type="number" placeholder="e.g. 40" oninput="handleLocalCheck()"></label>
@@ -863,6 +889,27 @@ function collectDestinations(){
  const first=document.querySelector("#qDest")?.value||"";
  const rest=Array.from(document.querySelectorAll(".q-stop-input")).map(i=>i.value);
  return [first,...rest].map(v=>v.trim()).filter(Boolean);
+}
+/* One free-text box per day (heading auto-numbered "Day N", the person
+   types whatever plan/places they'd normally list under that day - exactly
+   how it's already written out over WhatsApp/phone for a multi-day
+   outstation trip) rather than a rigid structured form for each stop,
+   since a real itinerary's shape varies too much trip to trip. */
+function addItineraryDay(text=""){
+ const c=document.querySelector("#qItineraryContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.className="q-itin-row";
+ row.style.cssText="margin-top:6px;display:flex;gap:8px;align-items:flex-start";
+ row.innerHTML=`<b class="q-itin-daynum" style="padding-top:10px;white-space:nowrap">Day ?</b><textarea class="q-itin-text" rows="2" placeholder="e.g. Kochi -> Munnar. Cheeyappara Waterfalls, Valara Waterfalls, Munnar Tea Garden. Night - Munnar" style="flex:1">${esc(text)}</textarea><button type="button" onclick="this.parentElement.remove();renumberItineraryDays()" style="align-self:flex-start">Remove</button>`;
+ c.appendChild(row);
+ renumberItineraryDays();
+}
+function renumberItineraryDays(){
+ document.querySelectorAll("#qItineraryContainer .q-itin-daynum").forEach((el,i)=>{ el.textContent="Day "+(i+1); });
+}
+function collectItinerary(){
+ return Array.from(document.querySelectorAll("#qItineraryContainer .q-itin-text")).map(t=>t.value.trim()).filter(Boolean);
 }
 function openRoute(){
  const start=document.querySelector("#qVehicleStart").value, pickup=document.querySelector("#qPickup").value;
@@ -980,7 +1027,8 @@ function buildQuoteObjFromForm(r){
   extraCharges:r.extraCharges||readExtraChargeFields("qExtra"),
   gstOn:r.gstOn||false,gstPct:r.gstPct||0,gstAmount:r.gstAmount||0,
   overrideAddKm:document.querySelector("#qOverrideAddKm").value||"",
-  overrideAddHour:document.querySelector("#qOverrideAddHour").value||""
+  overrideAddHour:document.querySelector("#qOverrideAddHour").value||"",
+  itinerary:collectItinerary()
  };
 }
 function saveQuote(){
@@ -1043,6 +1091,8 @@ function openQuote(id){
   qDest.value=dests[0]||"";
   document.querySelector("#qStopsContainer").innerHTML="";
   dests.slice(1).forEach(d=>addStopField(d));
+  document.querySelector("#qItineraryContainer").innerHTML="";
+  (q.itinerary||[]).forEach(d=>addItineraryDay(d));
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qRestHours.value=q.restHours||0;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
@@ -1558,7 +1608,7 @@ function enquiryToQuote(id){
   if(e.vehicleStart) qVehicleStart.value=e.vehicleStart;
   if(e.returnPoint) qReturn.value=e.returnPoint;
   const dests=(e.destinations&&e.destinations.length)?e.destinations:(e.dest?[e.dest]:[]);
-  qDest.value=dests[0]||"";
+    qDest.value=dests[0]||"";
   document.querySelector("#qStopsContainer").innerHTML="";
   dests.slice(1).forEach(d=>addStopField(d));
   if(["local","one_day","round","outstation","drop"].includes(e.type)) qType.value=e.type;
@@ -1608,7 +1658,7 @@ function dashboard(){
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-    <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
