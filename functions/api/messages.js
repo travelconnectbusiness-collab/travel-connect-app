@@ -12,6 +12,66 @@
    can only reply to someone who wrote first, and each side is limited
    to a number of messages per hour. */
 
+import { sendWebPush } from "./_webpush.js";
+
+/* Sends a push notification (works with the app closed / phone locked) to
+   every device registered under the given mobile numbers. Uses the same
+   subscription table and VAPID keys as the SOS alerts. count = how many
+   unread messages that person now has in total, so the phone can show it
+   on the app icon. Never throws - a failed push must not fail the message
+   itself. */
+async function unreadTotal(env, mobile) {
+  const pu = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS c FROM messages m JOIN travel_partners p ON m.partner_id=p.id
+       WHERE m.from_customer=1 AND m.read_at IS NULL AND (p.mobile1=? OR p.mobile2=?)`
+    )
+    .bind(mobile, mobile)
+    .first();
+  const cu = await env.DB
+    .prepare("SELECT COUNT(*) AS c FROM messages WHERE from_customer=0 AND read_at IS NULL AND customer_mobile=?")
+    .bind(mobile)
+    .first();
+  return (pu ? pu.c : 0) + (cu ? cu.c : 0);
+}
+
+async function pushToMobiles(env, mobiles, buildPayload) {
+  if (!env.VAPID_PRIVATE_JWK) return;
+  try {
+    const uniq = [...new Set(mobiles.filter(Boolean))];
+    for (const mobile of uniq) {
+      const { results: subs } = await env.DB
+        .prepare("SELECT * FROM push_subscriptions WHERE mobile=?")
+        .bind(mobile)
+        .all();
+      if (!subs.length) continue;
+      const payload = buildPayload(await unreadTotal(env, mobile));
+      await Promise.all(
+        subs.map(async (sub) => {
+          let result;
+          try {
+            const r = await sendWebPush(env, sub, payload);
+            result = { ok: r.ok ? 1 : 0, status_code: r.statusCode, error: null };
+            if (r.stale) {
+              await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
+            }
+          } catch (e) {
+            result = { ok: 0, status_code: null, error: String(e && e.stack ? e.stack : e).slice(0, 500) };
+          }
+          try {
+            await env.DB
+              .prepare("INSERT INTO push_debug_log (endpoint, ok, status_code, error, created_at) VALUES (?,?,?,?,?)")
+              .bind(sub.endpoint.slice(0, 100), result.ok, result.status_code, result.error, new Date().toISOString())
+              .run();
+          } catch (e) { /* debug log is best-effort */ }
+        })
+      );
+    }
+  } catch (e) {
+    console.error("message push failed", String(e && e.stack ? e.stack : e));
+  }
+}
+
 let ready = false;
 async function ensure(env) {
   if (ready) return;
@@ -43,7 +103,7 @@ function isPartnerNumber(partner, mobile) {
   return !!mobile && (partner.mobile1 === mobile || partner.mobile2 === mobile);
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, ctx }) {
   await ensure(env);
   let b;
   try {
@@ -63,7 +123,7 @@ export async function onRequestPost({ request, env }) {
   if (body.length > MAX_LEN) return Response.json({ ok: false, error: "too_long" }, { status: 400 });
 
   const partner = await env.DB
-    .prepare("SELECT id, mobile1, mobile2, verified FROM travel_partners WHERE id=?")
+    .prepare("SELECT id, business_name, mobile1, mobile2, verified FROM travel_partners WHERE id=?")
     .bind(partnerId)
     .first();
   if (!partner) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -103,7 +163,38 @@ export async function onRequestPost({ request, env }) {
     )
     .bind(partnerId, customerMobile, (b.customer_name || "").toString().slice(0, 80), fromCustomer, body, lat, lon, new Date().toISOString())
     .run();
-  return Response.json({ ok: true, id: result.meta.last_row_id });
+  const newId = result.meta.last_row_id;
+
+  /* Tell the other side right away, even if their app is closed. A customer's
+     message goes to the business owner's registered numbers; a business's
+     reply goes to that customer. Runs in the background (waitUntil) so
+     Send returns instantly; where no context is available it is awaited. */
+  const preview = body.length > 120 ? body.slice(0, 120) + "..." : body;
+  const senderName = (b.customer_name || "").toString().trim() || customerMobile;
+  const notify = async () => {
+    if (fromCustomer) {
+      await pushToMobiles(env, [partner.mobile1, partner.mobile2], (count) => ({
+        type: "message",
+        title: "\u2709 New message from " + senderName,
+        body: preview + (lat != null ? "  \ud83d\udccd location shared" : ""),
+        tag: "tc-msg-" + newId,
+        url: "/#messages",
+        count
+      }));
+    } else {
+      await pushToMobiles(env, [customerMobile], (count) => ({
+        type: "message",
+        title: "\u2709 Reply from " + (partner.business_name || "the business"),
+        body: preview,
+        tag: "tc-msg-" + newId,
+        url: "/#messages",
+        count
+      }));
+    }
+  };
+  if (ctx && ctx.waitUntil) ctx.waitUntil(notify());
+  else await notify();
+  return Response.json({ ok: true, id: newId });
 }
 
 export async function onRequestGet({ request, env }) {
