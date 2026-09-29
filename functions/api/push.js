@@ -12,7 +12,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await request.json(); } catch (e) { return Response.json({ ok: false, error: "bad_json" }, { status: 400 }); }
   const action = body.action;
 
-  /* A device registers itself here once notification permission is granted —
+  /* A device registers itself here once notification permission is granted -
      stores just enough (endpoint + the two public keys the browser gave us) to
      be able to send it a push later. Re-subscribing with the same endpoint just
      overwrites the row (a subscription's keys don't change, only appearing again
@@ -23,14 +23,19 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "invalid_subscription" }, { status: 400 });
     }
     try {
+      /* One row per device: remove any existing row for this endpoint first, so
+         the same phone can never end up with duplicate rows (which would send
+         it every notification twice), and so it is always attached to whoever
+         is logged in on it right now. */
+      await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
       await env.DB
-        .prepare("INSERT OR REPLACE INTO push_subscriptions (mobile, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)")
+        .prepare("INSERT INTO push_subscriptions (mobile, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)")
         .bind(body.mobile || "", sub.endpoint, sub.keys.p256dh, sub.keys.auth, new Date().toISOString())
         .run();
       return Response.json({ ok: true });
     } catch (e) {
       /* Surface the real D1 error instead of letting an unhandled exception turn
-         into a bare 500 with no explanation — this is exactly the kind of failure
+         into a bare 500 with no explanation - this is exactly the kind of failure
          that otherwise looks identical to success in a rushed glance at the UI. */
       return Response.json({ ok: false, error: "db_error", detail: String(e && e.message ? e.message : e) }, { status: 500 });
     }
