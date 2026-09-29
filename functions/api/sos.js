@@ -80,7 +80,14 @@ export async function onRequestPost({ request, env }) {
 
   if (env.VAPID_PRIVATE_JWK) {
     try {
-      const { results: subs } = await env.DB.prepare("SELECT * FROM push_subscriptions").all();
+      /* Customers can now also turn on push notifications (for chat messages),
+         but SOS is only part of the business-owner network - so skip any
+         subscription whose mobile belongs to a customer account. */
+      const { results: subs } = await env.DB
+        .prepare(
+          "SELECT s.* FROM push_subscriptions s LEFT JOIN app_users u ON u.mobile = s.mobile WHERE (u.role IS NULL OR u.role <> 'customer')"
+        )
+        .all();
       const payload = {
         title: "🚨 SOS: " + (body.sender_name || "Someone") + " needs help!",
         body: body.message || "Needs urgent assistance.",
