@@ -12,6 +12,21 @@
    actual content (fare estimate, directory) down the page - tapping the
    header expands/collapses in place. */
 function tcCollapsibleBox(id,title,bodyHtml,startOpen){
+ /* The Emergency Contacts box is deliberately loud - solid red header, siren
+    icon, an instruction line - so it reads as "emergency" at a glance. */
+ if(id==="custEmergency"){
+  return `<div class="card" id="${id}" style="padding:0;overflow:hidden;border:2px solid #c0392b;box-shadow:0 8px 18px rgba(192,57,43,.30)">
+   <div style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#922b21,#e74c3c);color:#fff" onclick="tcToggleCollapsible('${id}')">
+    <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:23px;flex-shrink:0">&#128680;</div>
+    <div style="flex:1;min-width:0">
+     <div style="font-weight:900;font-size:16px;letter-spacing:.8px">EMERGENCY CONTACTS</div>
+     <div style="font-size:12px;opacity:.95">Police, ambulance, fire and more. Tap here, then tap a number to call.</div>
+    </div>
+    <span id="${id}_arrow" style="font-size:20px">${startOpen?"\u25be":"\u25b8"}</span>
+   </div>
+   <div id="${id}_body" style="${startOpen?"":"display:none;"}padding:10px 14px;background:#fff5f4">${bodyHtml}</div>
+  </div>`;
+ }
  return `<div class="card" id="${id}">
   <div style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="tcToggleCollapsible('${id}')">
    <h3 style="margin:0">${title}</h3>
@@ -36,12 +51,12 @@ function customerHome(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  const user=getCurrentUser();
  app().innerHTML=`<section class="container"><div class="card">
+  ${tcMessagesCardHtml()}
   <div class="actions" style="margin-bottom:4px">
    <button class="primary" style="flex:1;font-size:15px;padding:14px" onclick="tcOpenDirectory()">&#128269; Local Directory - find a business</button>
   </div>
   <div class="actions">
    <button style="flex:1" onclick="view('activeboard')">&#128663; Available Vehicles Right Now</button>
-   ${tcMessagesButtonHtml()}
   </div>
 
   <h2 style="margin-top:18px">Fare Estimate</h2>
@@ -174,9 +189,9 @@ async function tcRenderCustEmergencyContacts(){
   const res=await fetch("/api/emergency?action=list");
   const data=await res.json();
   if(!data.ok||!data.contacts||!data.contacts.length){ box.innerHTML="<p class='muted'>No emergency contacts added yet.</p>"; return; }
-  box.innerHTML=data.contacts.map(c=>`<div class="listitem">
-   <b>${esc(c.name)}</b><br>
-   <a href="tel:${esc(c.number)}"><button class="primary">&#128222; ${esc(c.number)}</button></a>
+  box.innerHTML=data.contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #f1d3cf">
+   <div style="font-weight:700;color:#7b241c;font-size:15px">${esc(c.name)}</div>
+   <a href="tel:${esc(c.number)}" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;border:none;border-radius:24px;padding:11px 18px;font-weight:900;font-size:15px;box-shadow:0 3px 8px rgba(176,58,46,.35)">&#128222; ${esc(c.number)}</button></a>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Could not load emergency contacts.</p>"; }
 }
@@ -355,11 +370,54 @@ async function tcDeletePlace(id){
 let _sosHistoryTimer=null;
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
- app().innerHTML=card("Travel Connect Network / Emergency SOS",`<div id="locPermNote"></div><p class="muted">Network foundation: driver request, message, location and SOS.</p><div id="pushPermNote"></div><label>Message<textarea id="nMsg" rows="4" placeholder="Need a vehicle / driver / food / help..."></textarea></label><div class="actions"><button class="primary" onclick="getLocation()">Share current location</button><button onclick="sendNetwork()">Send request</button><button class="danger" onclick="sos()">&#128680; SOS</button></div><p class="muted">If location isn't available, SOS still sends your name, mobile number and message.</p><div id="nStatus"></div><hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
+ app().innerHTML=card("Emergency SOS",`<div id="locPermNote"></div>
+  <div style="background:linear-gradient(135deg,#7b241c,#c0392b 55%,#e74c3c);color:#fff;border-radius:18px;padding:20px 16px;text-align:center;box-shadow:0 10px 22px rgba(192,57,43,.38)">
+   <div style="font-size:16px;font-weight:800;margin-bottom:6px">In an emergency, press the button</div>
+   <div style="font-size:12.5px;opacity:.95;margin-bottom:16px;line-height:1.55">This sends an alert with your <b>name, phone number and current location</b> to every Travel Connect partner, so they can call you and reach you.</div>
+   <button id="sosBigBtn" onclick="tcConfirmSos()" style="width:100%;background:#fff;color:#c0392b;font-size:21px;font-weight:900;letter-spacing:1px;padding:20px 10px;border-radius:16px;border:none;box-shadow:0 5px 0 rgba(0,0,0,.2);animation:tcSosPulse 2.2s infinite">&#128680; SEND SOS ALERT</button>
+   <div id="nStatus" style="margin-top:12px;font-size:12.5px;min-height:18px"></div>
+  </div>
+  <div id="sosResult"></div>
+  <label style="margin-top:14px">Add a short message (optional)<textarea id="nMsg" rows="2" placeholder="e.g. Vehicle broke down near Vadakara, need help"></textarea></label>
+  <div id="pushPermNote" style="margin-top:12px"></div>
+  <div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#f5f8fa;font-size:12.5px;line-height:1.6;color:#33475b">
+   <b>What happens when you press it</b><br>
+   1. You confirm once, so it is never sent by accident.<br>
+   2. Every partner's phone shows an alarm with your name and a Call button.<br>
+   3. Your location opens in Google Maps for them.<br>
+   4. When you are safe, tap <b>Mark Resolved</b> in the history below.
+  </div>
+  <hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
  loadSosHistory();
  startSosHistoryAutoRefresh();
  checkLocationPermissionUI();
  updatePushNoteUI();
+ tcPrepareSosLocation();
+}
+/* Gets the location as soon as the SOS page opens, so it is already ready
+   (and any permission question already answered) at the moment it matters. */
+async function tcPrepareSosLocation(){
+ const st=document.querySelector("#nStatus");
+ if(st) st.innerHTML="Getting your location...";
+ const loc=await tcGetLocation(false);
+ const box=document.querySelector("#nStatus");
+ if(!box) return;
+ if(loc.lat!==undefined){
+  window.tcLoc={lat:loc.lat,lon:loc.lon};
+  box.innerHTML="&#128205; Your location is ready and will be sent with the alert.";
+ }else{
+  box.innerHTML="Location is not available - the alert will still send your name and number.<br><span style=\"opacity:.9\">"+esc(tcLocationErrorText(loc.error))+"</span>";
+ }
+}
+/* One confirmation before an SOS goes to everyone - too easy to press by
+   accident otherwise. */
+function tcConfirmSos(){
+ modal(`<div style="text-align:center">
+  <div style="font-size:46px">&#128680;</div>
+  <h2 style="color:#c0392b;margin:6px 0">Send SOS alert?</h2>
+  <p class="muted">Every Travel Connect partner will get your name, phone number and location right now. Use this only in a real emergency.</p>
+  <div class="actions"><button onclick="closeModal()" style="padding:14px">Cancel</button><button onclick="closeModal();sos()" style="padding:14px;background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">YES, SEND SOS</button></div>
+ </div>`);
 }
 function getLocation(){
  const status=document.querySelector("#nStatus");
@@ -425,18 +483,46 @@ function getLocationForSos(timeoutMs){
  });
 }
 async function sos(){
- toast("Getting your location...");
- await getLocationForSos(5000);
+ const st=document.querySelector("#nStatus");
+ if(st) st.innerHTML="Sending SOS...";
+ /* Normally the location was already fetched when the page opened; if not,
+    one quick attempt (a recent cached position is fine) so the alert is
+    never held up. */
+ if(!window.tcLoc){
+  const loc=await tcGetLocation(true);
+  if(loc.lat!==undefined) window.tcLoc={lat:loc.lat,lon:loc.lon};
+ }
  const user=getCurrentUser()||{};
  const typedMsg=(document.querySelector("#nMsg")?.value||"").trim();
  const msg=typedMsg?`SOS from ${user.name||"a user"}: ${typedMsg}`:`SOS from ${user.name||"a user"}. Needs urgent assistance.`;
+ const result=document.querySelector("#sosResult");
  try{
-  await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
-  toast(window.tcLoc?"SOS sent with your location - every logged-in user will be alerted":"SOS sent (no location) - every logged-in user will be alerted");
+  const res=await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})});
+  const data=await res.json();
+  if(!data.ok) throw new Error("not ok");
+  if(st) st.innerHTML="";
+  if(result) result.innerHTML=`<div style="margin-top:14px;padding:16px;border-radius:16px;background:#e9f7ee;border:2px solid #2e9e44;color:#1c6b2c">
+   <div style="font-weight:900;font-size:17px">&#9989; SOS SENT</div>
+   <div style="margin-top:6px;font-size:13.5px;line-height:1.55">Every partner has been alerted${window.tcLoc?" with your location":" (your location could not be read)"}. Stay where you are. Partners will call you on <b>${esc(user.mobile||"your number")}</b>.</div>
+   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; Call 112 (emergency)</button></a><button onclick="tcShareSos()">Share on WhatsApp / other apps</button></div>
+  </div>`;
+  toast("SOS sent");
   loadSosHistory();
- }catch(e){ toast("Could not send SOS - check your connection"); }
+ }catch(e){
+  if(st) st.innerHTML="";
+  if(result) result.innerHTML=`<div style="margin-top:14px;padding:16px;border-radius:16px;background:#fdeceb;border:2px solid #c0392b;color:#7b241c">
+   <div style="font-weight:900;font-size:16px">&#9888; SOS could not be sent</div>
+   <div style="margin-top:6px;font-size:13.5px">Please check your internet connection and press the button again. If it is urgent, call 112 now.</div>
+   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; Call 112</button></a></div>
+  </div>`;
+ }
+}
+/* Optional extra step after an SOS, kept as an explicit button so the phone's
+   share sheet never pops up unasked in the middle of an emergency. */
+function tcShareSos(){
  const shareMsg=`TRAVEL CONNECT SOS. I need urgent assistance. Location: ${window.tcLoc?`https://maps.google.com/?q=${window.tcLoc.lat},${window.tcLoc.lon}`:"Please check my live location."}`;
- navigator.share?.({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+ if(navigator.share) navigator.share({title:"Travel Connect SOS",text:shareMsg}).catch(()=>{});
+ else toast("Sharing is not supported on this phone");
 }
 function startSosPolling(){
  if(window._sosPollTimer) return;
@@ -493,20 +579,42 @@ function urlBase64ToUint8Array(base64String){
  for(let i=0;i<rawData.length;i++) out[i]=rawData.charCodeAt(i);
  return out;
 }
+function tcPushWhat(){
+ const u=getCurrentUser();
+ return (u&&u.role==="customer")?"new messages":"new messages and SOS alerts";
+}
 function updatePushNoteUI(){
  const box=document.querySelector("#pushPermNote");
  if(!box) return;
- if(!("serviceWorker" in navigator)||!("PushManager" in window)){ box.innerHTML=`<div class="muted">Push notifications aren't supported in this browser.</div>`; return; }
- if(Notification.permission==="denied"){ box.innerHTML=`<div class="danger">&#9888; Push notifications are blocked for this site.</div>`; return; }
+ if(!("serviceWorker" in navigator)||!("PushManager" in window)){ box.innerHTML=`<div class="muted">Notifications aren't supported in this browser.</div>`; return; }
+ if(Notification.permission==="denied"){ box.innerHTML=`<div class="danger">&#9888; Notifications are blocked for this site. Allow them in your phone or browser settings to get ${tcPushWhat()} when the app is closed.</div>`; return; }
  if(Notification.permission==="granted"&&localStorage.getItem("tc_push_confirmed")==="1"){
-  box.innerHTML=`<div class="ok">&#9989; Push notifications are on - you'll get an SOS alert even if the app is closed.</div><div class="actions"><button onclick="enablePushNotifications()">Re-check / Re-subscribe</button></div>`;
+  box.innerHTML=`<div class="ok">&#9989; Notifications are on - you'll get ${tcPushWhat()} even if the app is closed.</div><div class="actions"><button onclick="enablePushNotifications()">Re-check / Re-subscribe</button></div>`;
   return;
  }
  if(Notification.permission==="granted"){
-  box.innerHTML=`<div class="danger">&#9888; Notification permission granted, but not confirmed saved yet.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Finish Push Setup</button></div>`;
+  box.innerHTML=`<div class="danger">&#9888; Notification permission granted, but not confirmed saved yet.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Finish Notification Setup</button></div>`;
   return;
  }
- box.innerHTML=`<div class="muted">&#128276; Turn on push notifications to get an SOS alert even when the app is closed.</div><div class="actions"><button class="primary" onclick="enablePushNotifications()">Enable Push Notifications</button></div>`;
+ box.innerHTML=`<div style="padding:12px 14px;border-radius:14px;background:#fff8e8;border:1px solid #e2c27a;color:#7a5a1e;font-size:13px">&#128276; <b>Turn on notifications</b> to get ${tcPushWhat()} even when the app is closed.<div class="actions" style="margin-top:8px"><button class="primary" onclick="enablePushNotifications()">Turn on notifications</button></div></div>`;
+}
+/* A device's push subscription is stored against the mobile number that was
+   logged in when it was created. When someone else logs in on the same phone
+   (or a phone that subscribed before this was tracked), re-save it under the
+   current number so notifications reach the right person. */
+async function tcSyncPushSubscription(){
+ try{
+  const user=getCurrentUser();
+  if(!user||!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)) return;
+  if(Notification.permission!=="granted") return;
+  if(localStorage.getItem("tc_push_mobile")===user.mobile) return;
+  const reg=await navigator.serviceWorker.ready;
+  const sub=await reg.pushManager.getSubscription();
+  if(!sub) return;
+  const res=await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"subscribe",mobile:user.mobile||"",subscription:sub.toJSON()})});
+  const data=await res.json().catch(()=>({}));
+  if(data.ok){ localStorage.setItem("tc_push_mobile",user.mobile); localStorage.setItem("tc_push_confirmed","1"); }
+ }catch(e){}
 }
 async function enablePushNotifications(){
  const box=document.querySelector("#pushPermNote");
@@ -533,8 +641,9 @@ async function enablePushNotifications(){
   const postData=await postRes.json().catch(()=>({}));
   if(postData.ok){
    localStorage.setItem("tc_push_confirmed","1");
-   toast("Push notifications enabled");
-   setTimeout(updatePushNoteUI,1200);
+   localStorage.setItem("tc_push_mobile",user.mobile||"");
+   toast("Notifications enabled");
+   setTimeout(()=>{ updatePushNoteUI(); if(typeof tcPaintMsgPushHint==="function") tcPaintMsgPushHint(); },1200);
   }else{
    log("Failed: "+JSON.stringify(postData));
    localStorage.removeItem("tc_push_confirmed");
