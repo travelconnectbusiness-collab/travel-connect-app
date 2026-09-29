@@ -460,15 +460,31 @@ async function loadSosHistory(){
   const res=await fetch("/api/sos?action=history");
   const data=await res.json();
   if(!data.ok||!data.alerts||!data.alerts.length){ box.innerHTML="<p class='muted'>No SOS alerts in the last 48 hours.</p>"; return; }
+  const myMobile=(getCurrentUser()||{}).mobile;
   box.innerHTML=data.alerts.map(a=>{
    const when=tcFormatDateTime(a.created_at);
    const mapLink=(a.lat!=null&&a.lon!=null)?`<a href="https://maps.google.com/?q=${a.lat},${a.lon}" target="_blank">View location</a>`:"";
    const callLink=a.sender_mobile?`<a href="tel:${esc(a.sender_mobile)}">${esc(a.sender_mobile)}</a>`:"-";
+   const isMine=myMobile&&a.sender_mobile&&myMobile===a.sender_mobile;
    return `<div class="listitem"><b>&#128680; ${esc(a.sender_name||"A user")}</b> - ${esc(when)}<br>
    Mobile: ${callLink} ${mapLink?" &nbsp;|&nbsp; "+mapLink:""}
-   ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}</div>`;
+   ${a.message?`<div class="muted">"${esc(a.message)}"</div>`:""}
+   ${isMine?`<div class="actions"><button class="primary" onclick="tcResolveSos(${a.id})">&#9989; Mark Resolved (I got help)</button></div>`:""}</div>`;
   }).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Could not load SOS history.</p>"; }
+}
+/* Lets the person who SENT an SOS clear it from everyone's history once
+   they are safe - only them, so nobody else can silently dismiss someone
+   else's still-active emergency. */
+async function tcResolveSos(id){
+ try{
+  const mobile=(getCurrentUser()||{}).mobile;
+  const res=await fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"resolve",id,mobile})});
+  const data=await res.json().catch(()=>({}));
+  if(!data.ok){ toast("Could not mark resolved"); return; }
+  toast("Marked resolved");
+  loadSosHistory();
+ }catch(e){ toast("Network error - try again"); }
 }
 function getLocationForSos(timeoutMs){
  return new Promise(resolve=>{
