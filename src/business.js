@@ -66,6 +66,36 @@ function readExtraChargeFields(prefix){
 }
 
 /* ---------- FARE CALCULATION ---------- */
+/* Plain, unambiguous text for what a rate plan's minimum charge already
+   covers - used in every "Standard vs Offer" comparison (quotation +
+   bill, print + PDF). calcFare() already returns incKm/incHours as the
+   TOTAL for the whole trip (per-day figure already multiplied by days
+   internally) - so this divides back down to show the per-day rate
+   alongside the total, exactly like "80 KM/Day x 7 Days = 560 KM" rather
+   than re-multiplying an already-total figure a second time (which is
+   what produced the earlier "56 hrs/day" nonsense - that 56 was already
+   the 7-day total, mistakenly labelled and multiplied again as if it
+   were still a per-day number). */
+function tcIncludedText(raw,showHours){
+ if(!raw||raw.incKm==null) return "";
+ const days=raw.days||1;
+ if(days>1){
+  const perKm=Math.round((raw.incKm/days)*100)/100;
+  let text=perKm+" KM/day x "+days+" days = "+raw.incKm+" KM included";
+  if(showHours!==false){
+   const perHr=Math.round((raw.incHours/days)*100)/100;
+   /* "per day" here means the vehicle's own working hours that day - from
+      start until it stops for the night; once it halts for a night stay,
+      that overnight time is not counted, so this is never a running total
+      across all days of the trip (an outstation quotation with 7 days at
+      8 hrs/day is NOT "56 hours before extra charges apply" - it's 8
+      working hours each individual day). */
+   text+=", "+perHr+" hrs/day included (working hours until the vehicle halts for the night)";
+  }
+  return text;
+ }
+ return showHours!==false?(raw.incKm+" KM, "+raw.incHours+" hrs included"):(raw.incKm+" KM included");
+}
 function calcFare(c,plan,km,h,days,restHours,overrides){
  days=days||1; restHours=restHours||0; overrides=overrides||{};
  const effectiveHours=Math.max(0,h-restHours);
@@ -328,7 +358,7 @@ function printQuoteObj(q,asImage){
  <table>
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   <tr><td style="padding:3px 0">Base Rate</td><td style="text-align:right;padding:3px 0">${money(standardRaw.base)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.base)}</td></tr>
-  ${(standardRaw.incKm!=null||offerRaw.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?`Std included: ${standardRaw.incKm}${q.days>1?"/day":""} KM, ${standardRaw.incHours}${q.days>1?"/day":""} hrs${q.days>1?" &times; "+q.days+" days":""}`:""}${(standardRaw.incKm!=null&&offerRaw.incKm!=null)?" &bull; ":""}${offerRaw.incKm!=null?`Offer included: ${offerRaw.incKm}${q.days>1?"/day":""} KM, ${offerRaw.incHours}${q.days>1?"/day":""} hrs${q.days>1?" &times; "+q.days+" days":""}`:""}</td></tr>`:""}
+  ${(standardRaw.incKm!=null||offerRaw.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?"Std: "+esc(tcIncludedText(standardRaw,q.showHours)):""}${(standardRaw.incKm!=null&&offerRaw.incKm!=null)?" &bull; ":""}${offerRaw.incKm!=null?"Offer: "+esc(tcIncludedText(offerRaw,q.showHours)):""}</td></tr>`:""}
   <tr><td style="padding:3px 0">Additional Charge</td><td style="text-align:right;padding:3px 0">${money(standardRaw.extra||0)}</td><td style="text-align:right;padding:3px 0">${money(offerRaw.extra||0)}</td></tr>
   <tr style="border-top:2px solid #ccc"><td style="padding:4px 0;font-weight:bold">Fare</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(stdFareTotal)}</td><td style="text-align:right;padding:4px 0;font-weight:bold">${money(offerFareTotal)}</td></tr>
  </table>
@@ -406,7 +436,7 @@ function printBill(tripId,asImage){
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
  const offBase=r.base, offExtra=r.extra||0, offTotal=r.base+(r.extra||0);
  const cmpRow=(label,sv,ov,bold)=>`<tr><td style="padding:3px 0;font-weight:${bold?"bold":"normal"};font-size:14px">${esc(label)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(sv)}</td><td style="padding:3px 0;text-align:right;font-weight:${bold?"bold":"normal"};font-size:14px">${money(ov)}</td></tr>`;
- const includedRowHtml=(standardRaw.incKm!=null||r.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?`Std included: ${standardRaw.incKm}${r.days>1?"/day":""} KM, ${standardRaw.incHours}${r.days>1?"/day":""} hrs${r.days>1?" &times; "+r.days+" days":""}`:""}${(standardRaw.incKm!=null&&r.incKm!=null)?" &bull; ":""}${r.incKm!=null?`Offer included: ${r.incKm}${r.days>1?"/day":""} KM, ${r.incHours}${r.days>1?"/day":""} hrs${r.days>1?" &times; "+r.days+" days":""}`:""}</td></tr>`:"";
+ const includedRowHtml=(standardRaw.incKm!=null||r.incKm!=null)?`<tr><td colspan="3" style="padding:0 0 3px;color:#888;font-size:11.5px">${standardRaw.incKm!=null?"Std: "+esc(tcIncludedText(standardRaw,q.showHours)):""}${(standardRaw.incKm!=null&&r.incKm!=null)?" &bull; ":""}${r.incKm!=null?"Offer: "+esc(tcIncludedText(r,q.showHours)):""}</td></tr>`:"";
  const compareTable=`<table>
   <tr style="color:#888;font-size:12px"><td></td><td style="text-align:right">Standard</td><td style="text-align:right">Offer</td></tr>
   ${cmpRow("Base Rate",stdBase,offBase)}
@@ -600,8 +630,8 @@ function downloadQuotePDFObj(q){
   if(standardRaw.incKm!=null||offerRaw.incKm!=null){
    doc.setFontSize(7.5);doc.setTextColor(130);
    let incLine="";
-   if(standardRaw.incKm!=null) incLine+="Std incl: "+standardRaw.incKm+(q.days>1?"/day":"")+" KM, "+standardRaw.incHours+(q.days>1?"/day":"")+" hrs"+(q.days>1?" x "+q.days+" days":"");
-   if(offerRaw.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer incl: "+offerRaw.incKm+(q.days>1?"/day":"")+" KM, "+offerRaw.incHours+(q.days>1?"/day":"")+" hrs"+(q.days>1?" x "+q.days+" days":""); }
+   if(standardRaw.incKm!=null) incLine+="Std: "+tcIncludedText(standardRaw,q.showHours);
+   if(offerRaw.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer: "+tcIncludedText(offerRaw,q.showHours); }
    doc.text(incLine,15,y);
    doc.setTextColor(0);doc.setFontSize(9);y+=5;
   }
@@ -754,8 +784,8 @@ function downloadBillPDF(tripId){
  if(standardRaw.incKm!=null||r.incKm!=null){
   doc.setFontSize(7.5);doc.setTextColor(130);
   let incLine="";
-  if(standardRaw.incKm!=null) incLine+="Std incl: "+standardRaw.incKm+(r.days>1?"/day":"")+" KM, "+standardRaw.incHours+(r.days>1?"/day":"")+" hrs"+(r.days>1?" x "+r.days+" days":"");
-  if(r.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer incl: "+r.incKm+(r.days>1?"/day":"")+" KM, "+r.incHours+(r.days>1?"/day":"")+" hrs"+(r.days>1?" x "+r.days+" days":""); }
+  if(standardRaw.incKm!=null) incLine+="Std: "+tcIncludedText(standardRaw,q.showHours);
+  if(r.incKm!=null){ if(incLine) incLine+="  |  "; incLine+="Offer: "+tcIncludedText(r,q.showHours); }
   const incWrapped=doc.splitTextToSize(incLine,178);
   doc.text(incWrapped,15,y);y+=incWrapped.length*3.6+2;
   doc.setFontSize(9);doc.setTextColor(0);
@@ -914,6 +944,7 @@ function quoteForm(){
  <div style="margin-top:10px">
   <label style="display:block">Fare Details - what's included &amp; excluded (optional, shown to customer)<textarea id="qFareNote" rows="3" placeholder="e.g. 700 km included at Rs.3500/day. Extra KM Rs.23/km. Toll, permit, parking actual. Driver food/stay included. Kolukkumalai jeep, boating, entry tickets customer direct."></textarea></label>
   <label style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="qHideMobile"> Hide customer mobile number on Print/PDF/Image <span class="muted" style="font-weight:normal">(for sharing with another driver before the trip is confirmed - the number stays visible to you inside the app)</span></label>
+  <label style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="qShowHours" checked onchange="this.dataset.userSet='1'"> Show included hours in the fare comparison <span class="muted" style="font-weight:normal">(usually only needed for Local/One Day trips - for Outstation, Additional KM is normally what applies, so hours are hidden by default to avoid confusing the customer)</span></label>
  </div>
  ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
@@ -983,6 +1014,18 @@ function handleTripTypeChange(){
  if(!rateSel) return;
  if(type==="local") rateSel.value="local";
  else if(type==="drop"&&[...rateSel.options].some(o=>o.value==="drop")) rateSel.value="drop";
+ /* Hours matter for Local/One Day trips, but for Outstation/Round/Drop the
+    Additional KM is normally what actually applies, and showing an hours
+    total (even correctly labelled per-day) risks the customer thinking
+    there's some separate hourly cutoff on top of the KM-based fare. Shown
+    by default only for the trip types where it's the relevant number,
+    unless the person has explicitly ticked/unticked it themselves for
+    this quotation (tracked via data-userSet, set by the checkbox's own
+    onchange) - their explicit choice is never overridden by this. */
+ const hoursCb=document.querySelector("#qShowHours");
+ if(hoursCb&&hoursCb.dataset.userSet!=="1"){
+  hoursCb.checked=(type==="local"||type==="one_day");
+ }
  handleLocalCheck();
 }
 function handleLocalCheck(){
@@ -1075,7 +1118,8 @@ function buildQuoteObjFromForm(r){
   overrideAddHour:document.querySelector("#qOverrideAddHour").value||"",
   itinerary:collectItinerary(),
   fareNote:document.querySelector("#qFareNote").value.trim(),
-  hideMobile:document.querySelector("#qHideMobile").checked
+  hideMobile:document.querySelector("#qHideMobile").checked,
+  showHours:document.querySelector("#qShowHours").checked
  };
 }
 function saveQuote(){
@@ -1142,6 +1186,7 @@ function openQuote(id){
   (q.itinerary||[]).forEach(d=>addItineraryDay(d));
   qFareNote.value=q.fareNote||"";
   qHideMobile.checked=!!q.hideMobile;
+  qShowHours.checked=q.showHours!==false; qShowHours.dataset.userSet="1";
   qService.value=q.service||"";qReturn.value=q.returnPoint;qKm.value=q.estimatedKm;qHours.value=q.estimatedHours;qDays.value=q.days||1;qRestHours.value=q.restHours||0;qStart.value=q.startDate;qStartTime.value=q.startTime;qClose.value=q.closeDate;qCloseTime.value=q.closeTime;
   qRate.value=q.ratePlan;qCustom.value=q.quotedAmount;qDiscType.value=q.discountType||"none";qDiscValue.value=q.discountValue||0;qRound.value=q.roundOff||0;
   qBataOn.checked=!!(q.driverBata); qBata.value=q.driverBata||0; qBata.disabled=!qBataOn.checked;
