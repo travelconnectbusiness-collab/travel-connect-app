@@ -321,6 +321,7 @@ function tcOpenOneBusiness(partner){
  save();
  if(confirmedType==="taxi_travel"&&wasUnknown&&(window._myBusinesses||[]).length<=1){
   dashboard();
+  tcInjectDashboardMsgCard();
   return;
  }
  renderPartnerDashboard(partner);
@@ -345,6 +346,7 @@ function renderPartnerDashboard(p){
  let hours={};
  try{ hours=JSON.parse(p.business_hours||"{}"); }catch(e){}
  document.querySelector("#partnerBox").innerHTML=`
+ ${tcMessagesCardHtml()}
  ${hasMultiple?`<div class="actions"><button onclick="tcSwitchBusiness()">&#8646; Switch to another of my businesses</button></div>`:""}
  <div class="card">
   <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; Verified</span>':'<span class="muted">(Pending admin verification)</span>'}</h3>
@@ -392,7 +394,7 @@ function renderPartnerDashboard(p){
   <div id="tcRecentContacts">Loading...</div>
  </div>
  <hr>
- <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button>${tcMessagesButtonHtml()}</div>`;
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; Search the Local Directory</button></div>`;
  renderBillingIdentitySection(p);
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
@@ -1090,11 +1092,66 @@ function tcCallButtonHtml(mobile,targetType,targetId,targetLabel,primary){
    notice. Backend: functions/api/messages.js. */
 let _tcMsgUnread=0, _tcMsgPollTimer=null, _tcMsgFirstPoll=true, _tcMsgUser="";
 window._tcMsgItems=[];
-function tcMessagesButtonHtml(){
- return `<button onclick="tcOpenMessages()">&#9993; Messages<span class="tcMsgBadge">${_tcMsgUnread>0?" ("+_tcMsgUnread+" new)":""}</span></button>`;
+/* The old small Messages button is gone - Messages is now a large card at
+   the very top of the Dashboard, the customer home and the partner page
+   (tcMessagesCardHtml below). This stub stays only so any page still
+   calling it simply shows nothing there. */
+function tcMessagesButtonHtml(){ return ""; }
+function tcMessagesCardHtml(){
+ const n=_tcMsgUnread;
+ const user=getCurrentUser();
+ const sub=(user&&user.role==="customer")?"Write to a business and see their replies":"Customers' messages and your replies";
+ return `<div id="tcMsgCard" onclick="tcOpenMessages()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0a5f6c 0%,#0f8a8f 55%,#1fb0a6 100%);box-shadow:0 8px 18px rgba(11,107,120,.38)">
+  <div style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">&#9993;</div>
+  <div style="flex:1;min-width:0">
+   <div style="font-weight:800;font-size:18px;letter-spacing:.3px">Messages</div>
+   <div class="tcMsgSub" style="font-size:12.5px;opacity:.95">${n>0?"You have "+n+" new message"+(n>1?"s":""):esc(sub)}</div>
+  </div>
+  <span class="tcMsgPill" style="${n>0?"":"display:none;"}min-width:28px;height:28px;padding:0 8px;box-sizing:border-box;border-radius:14px;background:#e74c3c;color:#fff;font-weight:900;font-size:14px;display:${n>0?"inline-flex":"none"};align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.55)">${n>0?n:""}</span>
+  <div style="font-size:26px;opacity:.9;line-height:1">&rsaquo;</div>
+ </div>`;
+}
+/* Puts the Messages card at the top of the taxi owner's Dashboard (its page
+   is drawn by business.js; this adds the card right under the title once
+   that page is on screen). */
+function tcInjectDashboardMsgCard(){
+ if(document.querySelector("#tcMsgCard")) return;
+ const h2=document.querySelector("#app h2");
+ if(!h2||h2.textContent.trim()!=="Travel Connect Dashboard") return;
+ h2.insertAdjacentHTML("afterend",tcMessagesCardHtml());
 }
 function tcPaintMsgBadge(){
- document.querySelectorAll(".tcMsgBadge").forEach(el=>{ el.textContent=_tcMsgUnread>0?" ("+_tcMsgUnread+" new)":""; });
+ const n=_tcMsgUnread;
+ document.querySelectorAll(".tcMsgPill").forEach(el=>{ el.textContent=n>0?String(n):""; el.style.display=n>0?"inline-flex":"none"; });
+ document.querySelectorAll(".tcMsgSub").forEach(el=>{
+  const user=getCurrentUser();
+  const sub=(user&&user.role==="customer")?"Write to a business and see their replies":"Customers' messages and your replies";
+  el.textContent=n>0?"You have "+n+" new message"+(n>1?"s":""):sub;
+ });
+ /* The number on the app icon, on phones/launchers that support it. */
+ try{
+  if(navigator.setAppBadge){ if(n>0) navigator.setAppBadge(n); else navigator.clearAppBadge&&navigator.clearAppBadge(); }
+ }catch(e){}
+}
+/* A short two-note chime + vibration when a new message arrives while the
+   app is open (a phone only lets a web page play sound after the person has
+   touched the screen once, which they always have by then). When the app is
+   closed the phone's own notification sound is used instead. */
+function tcPlayMsgTone(){
+ try{
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const note=(freq,start,dur)=>{
+   const osc=ctx.createOscillator(), gain=ctx.createGain();
+   osc.type="sine"; osc.frequency.value=freq;
+   gain.gain.setValueAtTime(0.0001,ctx.currentTime+start);
+   gain.gain.exponentialRampToValueAtTime(0.35,ctx.currentTime+start+0.02);
+   gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+start+dur);
+   osc.connect(gain); gain.connect(ctx.destination);
+   osc.start(ctx.currentTime+start); osc.stop(ctx.currentTime+start+dur+0.05);
+  };
+  note(880,0,0.28); note(1174.7,0.18,0.45);
+ }catch(e){}
+ try{ if(navigator.vibrate) navigator.vibrate([120,70,160]); }catch(e){}
 }
 async function tcFetchMsgUnread(){
  const user=getCurrentUser();
@@ -1105,7 +1162,7 @@ async function tcFetchMsgUnread(){
   const data=await res.json();
   if(!data.ok) return;
   const total=(data.partner_unread||0)+(data.customer_unread||0);
-  if(!_tcMsgFirstPoll&&total>_tcMsgUnread) toast("New message received");
+  if(!_tcMsgFirstPoll&&total>_tcMsgUnread){ toast("New message received"); tcPlayMsgTone(); }
   _tcMsgFirstPoll=false;
   _tcMsgUnread=total;
   tcPaintMsgBadge();
@@ -1121,6 +1178,27 @@ function tcStartMsgPolling(){
  if(_tcMsgPollTimer) return;
  tcFetchMsgUnread();
  _tcMsgPollTimer=setInterval(tcRefreshMsgUnread,30000);
+ /* A push reaching the phone while the app is on screen, or a tap on a
+    message notification, is passed to the page by the service worker. */
+ try{
+  navigator.serviceWorker&&navigator.serviceWorker.addEventListener("message",e=>{
+   const m=e.data||{};
+   if(m.tcMsgPush) tcRefreshMsgUnread();
+   if(m.tcOpen==="messages") tcOpenMessages();
+  });
+ }catch(e){}
+ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") tcRefreshMsgUnread(); });
+ if(typeof tcSyncPushSubscription==="function") tcSyncPushSubscription();
+}
+/* Removes message notifications from the phone's notification shade once
+   the person has opened Messages - they have now seen them. */
+function tcCloseMsgNotifications(){
+ try{
+  navigator.serviceWorker&&navigator.serviceWorker.getRegistration().then(reg=>{
+   if(!reg||!reg.getNotifications) return;
+   reg.getNotifications().then(list=>list.forEach(n=>{ if((n.tag||"").indexOf("tc-msg")===0) n.close(); }));
+  });
+ }catch(e){}
 }
 /* "Message" button on a business in the directory / active board. Hidden
    for the person's own business (you cannot message yourself). */
@@ -1144,7 +1222,10 @@ function tcOpenThread(partnerId,customerMobile,viewer,title,callMobile){
   <textarea id="msgText" rows="2" maxlength="500" placeholder="Type a short message..." style="width:100%;box-sizing:border-box"></textarea>
   ${viewer==="customer"?`<label style="flex-direction:row;align-items:center;gap:6px;font-weight:600;margin-top:6px"><input type="checkbox" id="msgShareLoc" onchange="tcPrepareMsgLocation(this)"> Share my current location with this message</label><div id="msgLocStatus" style="font-size:12px;margin-top:2px"></div>`:""}
   <div class="actions"><button class="primary" id="msgSendBtn" onclick="tcSendMessage()">Send</button></div>
-  <div id="msgErr" class="danger"></div>`);
+  <div id="msgErr" class="danger"></div>
+  <div id="msgPushHint"></div>`);
+ tcCloseMsgNotifications();
+ tcPaintMsgPushHint();
  tcLoadThread(false);
 }
 async function tcLoadThread(silent){
@@ -1167,6 +1248,16 @@ async function tcLoadThread(silent){
   if(!silent||nearBottom) box.scrollTop=box.scrollHeight;
   tcFetchMsgUnread();
  }catch(e){}
+}
+/* Reminder inside the chat: without notifications turned on, a reply (or a
+   new customer message) is only noticed when the app happens to be open. */
+function tcPaintMsgPushHint(){
+ const box=document.querySelector("#msgPushHint");
+ if(!box) return;
+ const supported=("serviceWorker" in navigator)&&("PushManager" in window)&&("Notification" in window);
+ const on=supported&&Notification.permission==="granted"&&localStorage.getItem("tc_push_confirmed")==="1";
+ if(!supported||on||Notification.permission==="denied"){ box.innerHTML=""; return; }
+ box.innerHTML=`<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:#fff8e8;border:1px solid #e2c27a;font-size:12.5px;color:#7a5a1e">&#128276; <b>Turn on notifications</b> so you know the moment a reply arrives - even when the app is closed.<div class="actions" style="margin-top:6px"><button class="primary" onclick="enablePushNotifications()">Turn on notifications</button></div></div>`;
 }
 /* Ticking "Share my current location" fetches it straight away (so the
    phone's permission prompt appears right then) and says clearly whether
@@ -1235,7 +1326,9 @@ function tcOpenMessages(){
 }
 function tcRenderMessages(){
  if(!getCurrentUser()){renderLogin();return;}
- app().innerHTML=card("&#9993; Messages",`<p class="muted">Short messages between customers and businesses. Use the Message button on any business in the Local Directory or Active Vehicles Board to write to them.</p><div id="tcMsgInbox">Loading...</div>`);
+ app().innerHTML=card("&#9993; Messages",`<div id="pushPermNote"></div><p class="muted">Short messages between customers and businesses. Use the Message button on any business in the Local Directory or Active Vehicles Board to write to them.</p><div id="tcMsgInbox">Loading...</div>`);
+ tcCloseMsgNotifications();
+ if(typeof updatePushNoteUI==="function") updatePushNoteUI();
  tcLoadInbox();
 }
 async function tcLoadInbox(){
@@ -1255,11 +1348,15 @@ async function tcLoadInbox(){
    window._tcMsgItems.push({partnerId:g.partner_id,customerMobile:viewer==="partner"?g.customer_mobile:user.mobile,viewer,title,callMobile:viewer==="partner"?g.customer_mobile:""});
    const mine=(viewer==="partner")?g.last_from_customer===0:g.last_from_customer===1;
    const preview=(g.last_body||"").length>70?g.last_body.slice(0,70)+"...":(g.last_body||"");
-   return `<div class="listitem" style="cursor:pointer" onclick="tcOpenThreadByIndex(${idx})">
-    <b>${esc(title)}</b> ${g.unread>0?`<span class="chip" style="background:#c0392b;color:#fff">${g.unread} new</span>`:""}
-    ${viewer==="partner"?`<div class="muted" style="font-size:11px">For your business: ${esc(g.business_name)}</div>`:""}
-    <div class="muted">${mine?"You: ":""}${esc(preview)}</div>
-    <div class="muted" style="font-size:11px">${esc(tcFormatDateTime(g.last_at))}</div>
+   const initial=(String(title).trim()[0]||"?").toUpperCase();
+   return `<div onclick="tcOpenThreadByIndex(${idx})" style="cursor:pointer;display:flex;gap:12px;align-items:center;padding:12px;margin:8px 0;border:1px solid #dce4ea;border-radius:14px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.06)">
+    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0b6b78,#1fb0a6);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0">${esc(initial)}</div>
+    <div style="flex:1;min-width:0">
+     <div style="display:flex;justify-content:space-between;gap:8px"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</b><span class="muted" style="font-size:11px;flex-shrink:0">${esc(tcFormatDateTime(g.last_at))}</span></div>
+     ${viewer==="partner"?`<div class="muted" style="font-size:11px">For your business: ${esc(g.business_name)}</div>`:""}
+     <div class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mine?"You: ":""}${esc(preview)}</div>
+    </div>
+    ${g.unread>0?`<span style="min-width:24px;height:24px;padding:0 7px;box-sizing:border-box;border-radius:12px;background:#e74c3c;color:#fff;font-weight:900;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${g.unread}</span>`:""}
    </div>`;
   };
   const ap=data.as_partner||[], ac=data.as_customer||[];
