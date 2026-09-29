@@ -16,7 +16,7 @@ import { onRequestGet as messagesGet, onRequestPost as messagesPost } from "./fu
    so the CORS wrapper in fetch() can capture whatever Response this
    produces and attach the Access-Control-Allow-Origin header to it in one
    place, rather than repeating that on every individual route. */
-async function handleApi(request, env, url) {
+async function handleApi(request, env, url, ctx) {
   if (url.pathname === "/api/config") {
     if (request.method === "GET") return configGet({ request, env });
     if (request.method === "POST") return configPost({ request, env });
@@ -79,7 +79,7 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/messages") {
     if (request.method === "GET") return messagesGet({ request, env });
-    if (request.method === "POST") return messagesPost({ request, env });
+    if (request.method === "POST") return messagesPost({ request, env, ctx });
   }
 
   return null;
@@ -113,7 +113,7 @@ export default {
           },
         });
       }
-      const apiRes = await handleApi(request, env, url);
+      const apiRes = await handleApi(request, env, url, ctx);
       if (apiRes) {
         const withCors = new Response(apiRes.body, apiRes);
         withCors.headers.set("Access-Control-Allow-Origin", "*");
