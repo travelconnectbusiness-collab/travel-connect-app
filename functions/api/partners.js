@@ -12,6 +12,7 @@ async function ensureNewColumns(env) {
   for (const stmt of [
     "ALTER TABLE travel_partners ADD COLUMN description TEXT",
     "ALTER TABLE travel_partners ADD COLUMN business_hours TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN business_subtype TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -79,7 +80,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        "SELECT id, business_name, business_type, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours FROM travel_partners WHERE verified=1 ORDER BY business_name"
+        "SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours FROM travel_partners WHERE verified=1 ORDER BY business_name"
       )
       .all();
     return Response.json({ ok: true, partners: results });
@@ -185,8 +186,8 @@ export async function onRequestPost({ request, env }) {
     const result = await env.DB
       .prepare(
         `INSERT INTO travel_partners
-          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, lat, lon, description, business_hours, verified, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?)`
+          (business_name, owner_name, mobile1, mobile2, email, location, pincode, business_type, business_subtype, lat, lon, description, business_hours, verified, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`
       )
       .bind(
         business_name,
@@ -197,6 +198,7 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         business_type,
+        body.business_subtype || null,
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
         body.lon != null && body.lon !== "" ? Number(body.lon) : null,
         body.description || null,
@@ -227,7 +229,7 @@ export async function onRequestPost({ request, env }) {
     const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
          WHERE id=?`
       )
       .bind(
@@ -238,6 +240,7 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         body.business_type || "taxi_travel",
+        body.business_subtype || null,
         body.description || null,
         body.business_hours || null,
         body.lat != null && body.lat !== "" ? Number(body.lat) : null,
@@ -304,7 +307,7 @@ export async function onRequestPost({ request, env }) {
     }
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=?, mobile2=?, email=?, location=?, pincode=?, business_type=?
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?
          WHERE id=?`
       )
       .bind(
@@ -316,6 +319,7 @@ export async function onRequestPost({ request, env }) {
         body.location || null,
         body.pincode || null,
         body.business_type || "taxi_travel",
+        body.business_subtype || null,
         body.partner_id
       )
       .run();
