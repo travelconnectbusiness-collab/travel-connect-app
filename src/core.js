@@ -354,16 +354,22 @@ function tcBusinessTypeOptions(selected){
 function tcBizLabel(businessType){
  return TC_BUSINESS_TYPES[businessType]||businessType||"Taxi / Travel Agency";
 }
-function tcBizTypeFieldHtml(selectId,otherId,selected){
+function tcBizTypeFieldHtml(selectId,otherId,selected,skillId,selectedSkill){
  const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
  const otherValue=isKnown?"":selected;
- return `<select id="${selectId}" onchange="tcToggleOtherBizType('${selectId}','${otherId}')">${tcBusinessTypeOptions(selected)}</select>
-  <input id="${otherId}" placeholder="Enter your business category" value="${esc(otherValue)}" style="${isKnown?"display:none;":""}margin-top:6px;width:100%;box-sizing:border-box">`;
+ const skillPart=skillId?`
+  <input id="${skillId}" placeholder="What kind of work? (e.g. Plumber, Electrician, Tree climbing/spraying, Carpenter)" value="${esc(selectedSkill||"")}" style="${selected==="skilled_work"?"":"display:none;"}margin-top:6px;width:100%;box-sizing:border-box">`:"";
+ return `<select id="${selectId}" onchange="tcToggleOtherBizType('${selectId}','${otherId}'${skillId?",'"+skillId+"'":""})">${tcBusinessTypeOptions(selected)}</select>
+  <input id="${otherId}" placeholder="Enter your business category" value="${esc(otherValue)}" style="${isKnown?"display:none;":""}margin-top:6px;width:100%;box-sizing:border-box">${skillPart}`;
 }
-function tcToggleOtherBizType(selectId,otherId){
+function tcToggleOtherBizType(selectId,otherId,skillId){
  const sel=document.querySelector("#"+selectId), other=document.querySelector("#"+otherId);
  if(!sel||!other) return;
  other.style.display=sel.value==="other"?"":"none";
+ if(skillId){
+  const skill=document.querySelector("#"+skillId);
+  if(skill) skill.style.display=sel.value==="skilled_work"?"":"none";
+ }
 }
 function tcResolveBizType(selectId,otherId){
  const sel=document.querySelector("#"+selectId)?.value||"taxi_travel";
