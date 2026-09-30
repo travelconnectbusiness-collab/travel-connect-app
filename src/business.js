@@ -1767,8 +1767,8 @@ function dashboard(){
  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button>${tcMessagesButtonHtml()}</div>
  <hr>
  <div class="grid">
- <div class="metric">Customers<b>${db.customers.length}</b></div><div class="metric">Drivers<b>${db.drivers.length}</b></div>
- <div class="metric">Vehicles<b>${db.vehicles.length}</b></div><div class="metric">Saved Quotations<b>${db.quotes.length}</b></div>
+ <div class="metric" onclick="view('master')" style="cursor:pointer">Drivers<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">Vehicles<b>${db.vehicles.length}</b></div>
+ <div class="metric" onclick="view('quotations')" style="cursor:pointer">Saved Quotations<b>${db.quotes.length}</b></div><div class="metric" onclick="view('trips')" style="cursor:pointer">Trips<b>${db.trips.length}</b></div>
  </div><div class="card"><h3>Business workflow</h3><p>Enquiry -&gt; Quotation -&gt; Confirmation -&gt; Trip -&gt; Final Bill -&gt; Payment -&gt; Accounts</p>
  <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
  ${tcCollapsibleBox("custUsefulPlaces","&#128205; Useful Places",`<div id="custPlacesList">Loading...</div>`,false)}
