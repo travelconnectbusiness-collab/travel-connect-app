@@ -741,6 +741,10 @@ function tcOpenMenu(){
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">${tcT("menu_title")}</div>
    <div style="color:#6a7a87;font-size:11.5px">${tcT("menu_sub")}</div>
+   <div style="display:flex;justify-content:center;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
+    <button onclick="closeModal();tcSetLang('en')" style="padding:6px 14px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${tcLang()==='en'?'#0b6b78':'#fff'};color:${tcLang()==='en'?'#fff':'#333'}">English</button>
+    <button onclick="closeModal();tcSetLang('ml')" style="padding:6px 14px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${tcLang()==='ml'?'#0b6b78':'#fff'};color:${tcLang()==='ml'?'#fff':'#333'}">മലയാളം</button>
+   </div>
   </div>
   <div style="margin-top:8px">
   ${tcMenuItem('<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',tcT("menu_rate_master"),"closeModal();tcMenuNavPending=true;view('master')")}
@@ -1031,12 +1035,12 @@ function tcBuildPremiumHeader(){
  const user=getCurrentUser();
  const showSos=user&&user.role==="owner";
  topEl.innerHTML=`
-  <div style="display:flex;align-items:center;gap:10px">
+  <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
    ${logo?`<img src="${logo}" style="width:36px;height:36px;border-radius:8px;background:#fff;padding:3px;flex-shrink:0">`:""}
-   <div><b>TRAVEL CONNECT</b><small>${tcT("login_platform_tagline")}</small></div>
+   <div style="min-width:0"><b style="white-space:nowrap">TRAVEL CONNECT</b><small style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tcT("login_platform_tagline")}</small></div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-   ${tcLangToggleHtml(true)}
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+   ${showSos?"":tcLangToggleHtml(true)}
    ${showSos?`<button id="networkBtn" aria-label="Emergency SOS" style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;border-radius:22px;padding:9px 16px;font-weight:900;font-size:14px;letter-spacing:1px;border:none;display:flex;align-items:center;gap:6px;animation:tcSosPulse 2.2s infinite"><span style="font-size:15px">&#128680;</span>SOS</button>`:""}
    ${showSos?`<button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">&#9776;</button>`:""}
   </div>`;
