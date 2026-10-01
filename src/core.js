@@ -352,6 +352,7 @@ function tcBusinessTypeOptions(selected){
  return html;
 }
 function tcBizLabel(businessType){
+ if(tcLang()==="ml"&&TC_BUSINESS_TYPES_ML[businessType]) return TC_BUSINESS_TYPES_ML[businessType];
  return TC_BUSINESS_TYPES[businessType]||businessType||"Taxi / Travel Agency";
 }
 function tcBizTypeFieldHtml(selectId,otherId,selected,skillId,selectedSkill){
@@ -397,11 +398,7 @@ function tcUpdateLoginIntro(){
  const el=document.querySelector("#loginIntro");
  if(!el) return;
  const role=document.querySelector('input[name="loginRole"]:checked')?.value;
- el.textContent = role==="customer"
-  ? "Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination."
-  : role==="owner"
-  ? "Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business."
-  : "Enter your name and mobile number to continue. Manage a business, or book a vehicle and check fare estimates for your own trips.";
+ el.textContent = role==="customer"?tcT("login_intro_customer"):role==="owner"?tcT("login_intro_owner"):tcT("login_intro_default");
 }
 function tcToggleLoginBizType(){
  const role=document.querySelector('input[name="loginRole"]:checked')?.value;
@@ -417,38 +414,38 @@ function renderLogin(){
   <div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:30px 26px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.12)">
    ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
    <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:17px">TRAVEL CONNECT</div>
-   <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>
-   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">Enter your name and mobile number to continue. Manage a business, or book a vehicle and check fare estimates for your own trips.</p>
+   <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">${tcT("login_platform_tagline")}</div>
+   <p id="loginIntro" style="color:#6a7a87;font-size:13px;margin:0 0 18px;text-align:left">${tcT("login_intro_default")}</p>
    <div style="text-align:left;margin-bottom:6px">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">I am a...</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#172536">${tcT("login_role_label")}</label>
     <div style="display:flex;gap:8px">
-     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> Business Owner</label>
-     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer" onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> Customer</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="owner" onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> ${tcT("login_role_owner")}</label>
+     <label style="flex:1;display:flex;align-items:center;gap:6px;border:1px solid #c9d4dc;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="loginRole" value="customer" onchange="tcUpdateLoginIntro();tcToggleLoginBizType()"> ${tcT("login_role_customer")}</label>
     </div>
    </div>
    <div id="loginRoleWarn" style="color:#a12d2d;font-size:12px;min-height:16px;margin:4px 0 10px;text-align:left"></div>
    <div id="loginBizTypeWrap" style="display:none;text-align:left;margin-bottom:14px">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">What kind of business?</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_biztype_label")}</label>
     ${tcBizTypeFieldHtml("loginBizType","loginBizTypeOther")}
    </div>
    <div style="text-align:left">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Your name</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_name_label")}</label>
     <input id="loginName" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Mobile number</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_mobile_label")}</label>
     <input id="loginMobile" type="tel" onblur="tcLookupReturningUser()" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Email (optional)</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_email_label")}</label>
     <input id="loginEmail" type="email" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:12px;font-size:15px;box-sizing:border-box">
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Location / town (optional)</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_location_label")}</label>
     <div style="display:flex;gap:6px;margin-bottom:12px">
      <input id="loginLocation" style="flex:1;padding:11px;border-radius:9px;border:1px solid #c9d4dc;font-size:15px;box-sizing:border-box">
      <button type="button" onclick="tcUseMyLocation()" title="Use my current location" style="padding:0 12px;border-radius:9px;border:1px solid #c9d4dc;background:#f5f8fa;font-size:16px">&#128205;</button>
     </div>
     <div id="loginLocStatus" style="font-size:11.5px;color:#6a7a87;margin:-8px 0 10px"></div>
-    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Pincode (optional)</label>
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_pincode_label")}</label>
     <input id="loginPincode" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
    </div>
    <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
-   <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">Continue</button>
+   <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">${tcT("login_continue")}</button>
   </div>
  </div>`;
 }
@@ -641,7 +638,7 @@ function tcShowPinOverlay(mode){
  const cardOpen=`<div style="background:#fff;border-radius:18px;max-width:340px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 12px 32px rgba(0,0,0,.35)">
   ${logo?`<img src="${logo}" style="width:56px;height:56px;border-radius:12px;margin-bottom:10px">`:""}
   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:16px">TRAVEL CONNECT</div>
-  <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">Professional Travel Business Platform</div>`;
+  <div style="color:#6a7a87;font-size:12px;margin-bottom:16px">${tcT("login_platform_tagline")}</div>`;
  const cardClose=`</div>`;
  if(mode==="setup"){
   el.innerHTML=cardOpen+`
@@ -717,31 +714,282 @@ function tcMenuItem(iconPaths,label,onclick,danger){
 }
 function tcOpenMenu(){
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
- const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',"Log out of this device","closeModal();logout()",true);
+ const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',tcT("menu_logout"),"closeModal();logout()",true);
  modal(`
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
-   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">MENU</div>
-   <div style="color:#6a7a87;font-size:11.5px">Owner / admin settings \u2014 password protected</div>
+   <div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">${tcT("menu_title")}</div>
+   <div style="color:#6a7a87;font-size:11.5px">${tcT("menu_sub")}</div>
   </div>
   <div style="margin-top:8px">
-  ${tcMenuItem('<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',"Rate Master","closeModal();tcMenuNavPending=true;view('master')")}
-  ${tcMenuItem('<rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path><circle cx="17" cy="14.5" r="1.3" fill="#0b6b78" stroke="none"></circle>',"Accounts","closeModal();tcMenuNavPending=true;view('accounts')")}
-  ${tcMenuItem('<line x1="4" y1="6" x2="20" y2="6"></line><circle cx="8" cy="6" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2" fill="#0b6b78" stroke="none"></circle>',"Admin","closeModal();tcMenuNavPending=true;view('admin')")}
-  ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',"Authorized Users (Login Allowlist)","closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
-  ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',"Feedback / Suggestions","closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
-  ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"></path><path d="M17 11l2 2 4-4"></path>',"Partner Plans (Free / Paid / Premium)","closeModal();tcMenuNavPending=true;tcOpenPartnerPlans()")}
-  ${tcMenuItem('<rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M9 9h6v6H9z"></path>',"All Travel Partners","closeModal();tcMenuNavPending=true;tcOpenAllPartnersAdmin()")}
-  ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path><path d="M1 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>',"All Users (business owners &amp; customers)","closeModal();tcMenuNavPending=true;tcOpenAllUsersAdmin()")}
-  ${tcMenuItem('<rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 3H8v4h8V3z"></path>',"All Vehicles (documents, any status)","closeModal();tcMenuNavPending=true;tcOpenAllVehiclesAdmin()")}
-  ${tcMenuItem('<path d="M9 12l2 2 4-4"></path><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2 0 3.85.66 5.34 1.77"></path>',"Pending Approvals (Partners &amp; Vehicles)","closeModal();tcMenuNavPending=true;tcOpenPendingApprovals()")}
-  ${tcMenuItem('<path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>',"Emergency Contacts","closeModal();tcMenuNavPending=true;tcOpenEmergencyAdmin()")}
-  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',"Useful Places","closeModal();tcMenuNavPending=true;tcOpenPlacesAdmin()")}
-  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',"Preview: Partner Page","closeModal();tcMenuNavPending=true;tcPreviewPartnerPage()")}
-  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',"Preview: Customer Page","closeModal();tcMenuNavPending=true;tcPreviewCustomerPage()")}
+  ${tcMenuItem('<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',tcT("menu_rate_master"),"closeModal();tcMenuNavPending=true;view('master')")}
+  ${tcMenuItem('<rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path><circle cx="17" cy="14.5" r="1.3" fill="#0b6b78" stroke="none"></circle>',tcT("menu_accounts"),"closeModal();tcMenuNavPending=true;view('accounts')")}
+  ${tcMenuItem('<line x1="4" y1="6" x2="20" y2="6"></line><circle cx="8" cy="6" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="16" cy="12" r="2" fill="#0b6b78" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2" fill="#0b6b78" stroke="none"></circle>',tcT("menu_admin"),"closeModal();tcMenuNavPending=true;view('admin')")}
+  ${tcMenuItem('<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>',tcT("menu_authorized_users"),"closeModal();tcMenuNavPending=true;tcAuthorizedUsersPage()")}
+  ${tcMenuItem('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',tcT("menu_feedback"),"closeModal();tcMenuNavPending=true;tcOpenFeedbackAdmin()")}
+  ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"></path><path d="M17 11l2 2 4-4"></path>',tcT("menu_partner_plans"),"closeModal();tcMenuNavPending=true;tcOpenPartnerPlans()")}
+  ${tcMenuItem('<rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M9 9h6v6H9z"></path>',tcT("menu_all_partners"),"closeModal();tcMenuNavPending=true;tcOpenAllPartnersAdmin()")}
+  ${tcMenuItem('<circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path><path d="M1 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>',tcT("menu_all_users"),"closeModal();tcMenuNavPending=true;tcOpenAllUsersAdmin()")}
+  ${tcMenuItem('<rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 3H8v4h8V3z"></path>',tcT("menu_all_vehicles"),"closeModal();tcMenuNavPending=true;tcOpenAllVehiclesAdmin()")}
+  ${tcMenuItem('<path d="M9 12l2 2 4-4"></path><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2 0 3.85.66 5.34 1.77"></path>',tcT("menu_pending_approvals"),"closeModal();tcMenuNavPending=true;tcOpenPendingApprovals()")}
+  ${tcMenuItem('<path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>',tcT("menu_emergency_contacts"),"closeModal();tcMenuNavPending=true;tcOpenEmergencyAdmin()")}
+  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_useful_places"),"closeModal();tcMenuNavPending=true;tcOpenPlacesAdmin()")}
+  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_partner"),"closeModal();tcMenuNavPending=true;tcPreviewPartnerPage()")}
+  ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_customer"),"closeModal();tcMenuNavPending=true;tcPreviewCustomerPage()")}
   ${logoutItem}
   </div>`);
 }
+/* ---------- MALAYALAM / ENGLISH TRANSLATION ----------
+   One flat dictionary, used anywhere in the app via tcT("key") - returns
+   the Malayalam text when the person has switched to Malayalam, English
+   otherwise (and English itself if a key is somehow missing, so a typo
+   here never shows a blank or a raw key name on screen). The choice is
+   saved in localStorage (not sessionStorage) so it carries over the next
+   time the app is opened, for both business owners and customers - the
+   toggle itself lives in the header, reachable from every page.
+   Deliberately scoped to navigation, buttons, and the pages/labels a
+   Taxi/Travel Agency owner rarely needs to touch line-by-line - the
+   Quotation/Billing/Rate Master FORMS themselves (rate figures, KM/hour
+   fields, discount types etc.) stay in English by design: that owner
+   already works in English there, and mistranslating a financial term
+   risks real billing confusion. Non-taxi partners (Auto Rickshaw, Skilled
+   Work, etc.) and customers get full coverage of their own pages instead,
+   since they are the audience most likely to need it. */
+const TC_STRINGS={
+ tab_dashboard:{en:"Dashboard",ml:"ഡാഷ്ബോർഡ്"},
+ tab_enquiries:{en:"Enquiries",ml:"അന്വേഷണങ്ങൾ"},
+ tab_quotations:{en:"Quotations",ml:"ക്വട്ടേഷനുകൾ"},
+ tab_trips:{en:"Trips",ml:"ട്രിപ്പുകൾ"},
+ tab_billing:{en:"Billing",ml:"ബില്ലിംഗ്"},
+ menu_rate_master:{en:"Rate Master",ml:"റേറ്റ് മാസ്റ്റർ"},
+ menu_accounts:{en:"Accounts",ml:"അക്കൗണ്ട്സ്"},
+ menu_admin:{en:"Admin",ml:"അഡ്മിൻ"},
+ menu_authorized_users:{en:"Authorized Users (Login Allowlist)",ml:"അനുവദിച്ച നമ്പറുകൾ (ലോഗിൻ)"},
+ menu_messages:{en:"Messages",ml:"സന്ദേശങ്ങൾ"},
+ menu_feedback:{en:"Feedback / Suggestions",ml:"അഭിപ്രായം / നിർദ്ദേശം"},
+ menu_partner_plans:{en:"Partner Plans (Free / Paid)",ml:"പാർട്ണർ പ്ലാനുകൾ"},
+ menu_preview_partner:{en:"Preview: Partner Page",ml:"പ്രിവ്യൂ: പാർട്ണർ പേജ്"},
+ menu_preview_customer:{en:"Preview: Customer Page",ml:"പ്രിവ്യൂ: കസ്റ്റമർ പേജ്"},
+ menu_logout:{en:"Log out of this device",ml:"ഈ ഫോണിൽ നിന്ന് ലോഗ് ഔട്ട്"},
+ menu_title:{en:"MENU",ml:"മെനു"},
+ menu_sub:{en:"Owner / admin settings - password protected",ml:"ഉടമ / അഡ്മിൻ സെറ്റിംഗ്സ് - പാസ്‌വേഡ് സംരക്ഷിതം"},
+ new_enquiry:{en:"New Enquiry",ml:"പുതിയ അന്വേഷണം"},
+ new_quotation:{en:"New Quotation",ml:"പുതിയ ക്വട്ടേഷൻ"},
+ quick_bill:{en:"Quick Bill",ml:"ക്വിക്ക് ബിൽ"},
+ my_business_vehicles:{en:"My Business & Vehicles",ml:"എന്റെ ബിസിനസ് & വാഹനങ്ങൾ"},
+ active_vehicles_board:{en:"Active Vehicles Board",ml:"ആക്ടീവ് വെഹിക്കിൾ ബോർഡ്"},
+ local_directory:{en:"Local Directory (autos, restaurants, workshops...)",ml:"ലോക്കൽ ഡയറക്ടറി (ഓട്ടോ, ഹോട്ടൽ, വർക്ക്ഷോപ്പ്...)"},
+ edit_business_details:{en:"Edit Business Details",ml:"ബിസിനസ് വിവരങ്ങൾ എഡിറ്റ് ചെയ്യുക"},
+ drivers_metric:{en:"Drivers",ml:"ഡ്രൈവർമാർ"},
+ vehicles_metric:{en:"Vehicles",ml:"വാഹനങ്ങൾ"},
+ saved_quotations_metric:{en:"Saved Quotations",ml:"സൂക്ഷിച്ച ക്വട്ടേഷനുകൾ"},
+ trips_metric:{en:"Trips",ml:"ട്രിപ്പുകൾ"},
+ business_workflow_title:{en:"Business workflow",ml:"ബിസിനസ് നടപടിക്രമം"},
+ business_workflow_text:{en:"Enquiry -> Quotation -> Confirmation -> Trip -> Final Bill -> Payment -> Accounts",ml:"അന്വേഷണം -> ക്വട്ടേഷൻ -> സ്ഥിരീകരണം -> ട്രിപ്പ് -> ഫൈനൽ ബിൽ -> പേയ്മെന്റ് -> അക്കൗണ്ട്സ്"},
+ premium_notice:{en:"Premium - your own business name/contact shown on every bill & quotation",ml:"പ്രീമിയം - നിങ്ങളുടെ സ്വന്തം ബിസിനസ് പേരും നമ്പറും എല്ലാ ബില്ലിലും ക്വട്ടേഷനിലും കാണിക്കും"},
+ free_notice:{en:"Free plan - bills currently show Travel Connect's contact details. Upgrade to Premium to show YOUR business name & contact prominently. Contact Travel Connect to upgrade.",ml:"ഫ്രീ പ്ലാൻ - ബില്ലുകളിൽ ഇപ്പോൾ Travel Connect-ന്റെ നമ്പർ ആണ് കാണിക്കുന്നത്. നിങ്ങളുടെ സ്വന്തം പേരും നമ്പറും കാണിക്കാൻ പ്രീമിയം ആക്കുക. Travel Connect-മായി ബന്ധപ്പെടുക."},
+ search_local_directory:{en:"Search the Local Directory",ml:"ലോക്കൽ ഡയറക്ടറി സെർച്ച് ചെയ്യുക"},
+ owner_label:{en:"Owner",ml:"ഉടമ"},
+ edit_details:{en:"Edit Details",ml:"വിവരങ്ങൾ എഡിറ്റ് ചെയ്യുക"},
+ available_now:{en:"Active now",ml:"ഇപ്പോൾ ആക്ടീവ്"},
+ mark_as_active:{en:"Mark as Active",ml:"ആക്ടീവ് ആക്കുക"},
+ available_sub_on:{en:"Customers searching nearby will see you as Active",ml:"അടുത്തുള്ള കസ്റ്റമേഴ്സ് നിങ്ങളെ ആക്ടീവ് ആയി കാണും"},
+ available_sub_off:{en:"Turn on so customers can find you right now",ml:"കസ്റ്റമേഴ്സിന് ഇപ്പോൾ തന്നെ നിങ്ങളെ കണ്ടെത്താൻ ഓൺ ചെയ്യുക"},
+ billing_details_title:{en:"Billing Details",ml:"ബില്ലിംഗ് വിവരങ്ങൾ"},
+ billing_details_sub:{en:"the name/phone/UPI shown on YOUR bills",ml:"നിങ്ങളുടെ ബില്ലുകളിൽ കാണിക്കുന്ന പേര്/ഫോൺ/UPI"},
+ add_vehicle:{en:"+ Add Vehicle",ml:"+ വാഹനം ചേർക്കുക"},
+ my_vehicles:{en:"My Vehicles",ml:"എന്റെ വാഹനങ്ങൾ"},
+ edit_vehicle_documents:{en:"Edit Vehicle / Documents",ml:"വാഹനം / രേഖകൾ എഡിറ്റ് ചെയ്യുക"},
+ current_location_placeholder:{en:"Current location, if different from your registered garage (optional)",ml:"ഇപ്പോഴത്തെ സ്ഥലം, ഗാരേജിൽ നിന്ന് വ്യത്യസ്തമാണെങ്കിൽ (ഓപ്ഷണൽ)"},
+ set_active_hours:{en:"Set this vehicle's own active hours (optional)",ml:"ഈ വാഹനത്തിന്റെ സ്വന്തം സമയം സെറ്റ് ചെയ്യുക (ഓപ്ഷണൽ)"},
+ switch_business:{en:"Switch to another of my businesses",ml:"എന്റെ മറ്റൊരു ബിസിനസിലേക്ക് മാറുക"},
+ pending_verification:{en:"(Pending admin verification)",ml:"(അഡ്മിൻ അംഗീകാരം കാത്തിരിക്കുന്നു)"},
+ verified_badge:{en:"Verified",ml:"അംഗീകരിച്ചു"},
+ messages_title:{en:"Messages",ml:"സന്ദേശങ്ങൾ"},
+ messages_sub_owner:{en:"Customers' messages and your replies",ml:"കസ്റ്റമേഴ്സിന്റെ സന്ദേശങ്ങളും നിങ്ങളുടെ മറുപടിയും"},
+ logout_confirm:{en:"Log out of Travel Connect on this device?",ml:"ഈ ഫോണിൽ നിന്ന് Travel Connect ലോഗ് ഔട്ട് ചെയ്യണോ?"},
+ login_title:{en:"Welcome to Travel Connect",ml:"Travel Connect-ലേക്ക് സ്വാഗതം"},
+ login_role_label:{en:"I am a...",ml:"ഞാൻ..."},
+ login_role_owner:{en:"Business Owner",ml:"ബിസിനസ് ഉടമ"},
+ login_role_customer:{en:"Customer",ml:"കസ്റ്റമർ"},
+ login_biztype_label:{en:"What kind of business?",ml:"എന്ത് തരം ബിസിനസ്?"},
+ login_name_label:{en:"Your name",ml:"നിങ്ങളുടെ പേര്"},
+ login_mobile_label:{en:"Mobile number",ml:"മൊബൈൽ നമ്പർ"},
+ login_continue:{en:"Continue",ml:"തുടരുക"},
+ menu_all_partners:{en:"All Travel Partners",ml:"എല്ലാ ട്രാവൽ പാർട്ണർമാരും"},
+ menu_all_users:{en:"All Users (business owners & customers)",ml:"എല്ലാ യൂസർമാരും (ബിസിനസ് ഉടമകളും കസ്റ്റമേഴ്സും)"},
+ menu_all_vehicles:{en:"All Vehicles (documents, any status)",ml:"എല്ലാ വാഹനങ്ങളും (രേഖകൾ)"},
+ menu_pending_approvals:{en:"Pending Approvals (Partners & Vehicles)",ml:"അംഗീകാരം കാത്തിരിക്കുന്നവ"},
+ menu_emergency_contacts:{en:"Emergency Contacts",ml:"എമർജൻസി കോൺടാക്ടുകൾ"},
+ menu_useful_places:{en:"Useful Places",ml:"ഉപകാരപ്രദമായ സ്ഥലങ്ങൾ"},
+ login_platform_tagline:{en:"Professional Travel Business Platform",ml:"പ്രൊഫഷണൽ ട്രാവൽ ബിസിനസ് പ്ലാറ്റ്ഫോം"},
+ login_intro_default:{en:"Enter your name and mobile number to continue. Manage a business, or book a vehicle and check fare estimates for your own trips.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. ഒരു ബിസിനസ് നടത്താം, അല്ലെങ്കിൽ വാഹനം ബുക്ക് ചെയ്യാനും ചാർജ് അറിയാനും സാധിക്കും."},
+ login_intro_customer:{en:"Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ യാത്രയ്ക്ക് വാഹനം ബുക്ക് ചെയ്യാം, അല്ലെങ്കിൽ ചാർജ് എത്രയാണെന്ന് അറിയാം."},
+ login_intro_owner:{en:"Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ ബിസിനസിന്റെ അന്വേഷണങ്ങൾ, ക്വട്ടേഷൻ, ട്രിപ്പ്, ബില്ലിംഗ് എല്ലാം നിയന്ത്രിക്കാം."},
+ login_email_label:{en:"Email (optional)",ml:"ഇമെയിൽ (ഓപ്ഷണൽ)"},
+ login_location_label:{en:"Location / town (optional)",ml:"സ്ഥലം / പട്ടണം (ഓപ്ഷണൽ)"},
+ login_pincode_label:{en:"Pincode (optional)",ml:"പിൻകോഡ് (ഓപ്ഷണൽ)"},
+ dashboard_title:{en:"Travel Connect Dashboard",ml:"ഡാഷ്ബോർഡ്"},
+ your_business_name:{en:"Your Business Name",ml:"നിങ്ങളുടെ ബിസിനസ് പേര്"},
+ useful_places_title:{en:"Useful Places",ml:"ഉപകാരപ്രദമായ സ്ഥലങ്ങൾ"},
+ emergency_contacts_title:{en:"Emergency Contacts",ml:"എമർജൻസി കോൺടാക്ടുകൾ"},
+ collect_payment_title:{en:"Collect Payment",ml:"പേയ്മെന്റ് സ്വീകരിക്കുക"},
+ collect_payment_hint:{en:"Type the amount and show the QR on this screen for your customer to scan.",ml:"തുക ടൈപ്പ് ചെയ്ത് QR കോഡ് കസ്റ്റമറെ കാണിക്കുക, അവർ സ്കാൻ ചെയ്യട്ടെ."},
+ collect_payment_amount_label:{en:"Amount",ml:"തുക"},
+ generate_qr:{en:"Generate QR",ml:"QR ഉണ്ടാക്കുക"},
+ set_upi_first:{en:"Set your UPI ID in Billing Details above first, then come back here to collect payments by QR.",ml:"ആദ്യം മുകളിലെ Billing Details-ൽ UPI ID ചേർക്കുക, എന്നിട്ട് ഇവിടെ തിരികെ വന്ന് QR വഴി പേയ്മെന്റ് സ്വീകരിക്കാം."},
+ recent_contacts_title:{en:"Recent Contacts",ml:"അടുത്തിടെ വിളിച്ചവർ"},
+ recent_contacts_sub:{en:"customers who called you through the app",ml:"ആപ്പ് വഴി നിങ്ങളെ വിളിച്ച കസ്റ്റമേഴ്സ്"},
+ billing_sub_nontaxi:{en:"your UPI ID, used below to collect payments",ml:"നിങ്ങളുടെ UPI ID, താഴെ പേയ്മെന്റ് സ്വീകരിക്കാൻ ഉപയോഗിക്കും"},
+ loading:{en:"Loading...",ml:"ലോഡ് ആകുന്നു..."},
+ mark_as_active:{en:"Mark as Active",ml:"ആക്ടീവ് ആക്കുക"},
+ mark_vehicle_active:{en:"Mark this vehicle Active",ml:"ഈ വാഹനം ആക്ടീവ് ആക്കുക"},
+ local_directory_find:{en:"Local Directory - find a business",ml:"ലോക്കൽ ഡയറക്ടറി - ബിസിനസ് കണ്ടെത്തുക"},
+ available_vehicles_now:{en:"Available Vehicles Right Now",ml:"ഇപ്പോൾ ലഭ്യമായ വാഹനങ്ങൾ"},
+ fare_estimate_title:{en:"Fare Estimate",ml:"ചാർജ് എസ്റ്റിമേറ്റ്"},
+ vehicle_category_label:{en:"Vehicle category",ml:"വാഹന വിഭാഗം"},
+ trip_type_label:{en:"Trip type",ml:"യാത്രാ തരം"},
+ select_placeholder:{en:"-- Select --",ml:"-- തിരഞ്ഞെടുക്കുക --"},
+ trip_local:{en:"Local Trip",ml:"ലോക്കൽ ട്രിപ്പ്"},
+ trip_oneday:{en:"One Day",ml:"ഒരു ദിവസം"},
+ trip_round:{en:"Round Trip",ml:"റൗണ്ട് ട്രിപ്പ്"},
+ trip_outstation:{en:"Outstation",ml:"ഔട്ട്സ്റ്റേഷൻ"},
+ trip_drop:{en:"Drop",ml:"ഡ്രോപ്പ്"},
+ pickup_point_label:{en:"Pickup point",ml:"പിക്കപ്പ് സ്ഥലം"},
+ destination_label:{en:"Destination",ml:"ലക്ഷ്യസ്ഥാനം"},
+ add_destination:{en:"+ Add another destination",ml:"+ വേറെ ലക്ഷ്യസ്ഥാനം ചേർക്കുക"},
+ estimated_km_label:{en:"Estimated KM",ml:"ഏകദേശ കിലോമീറ്റർ"},
+ estimated_hours_label:{en:"Estimated hours",ml:"ഏകദേശ മണിക്കൂർ"},
+ open_route_maps:{en:"Open route in Google Maps (to check KM)",ml:"Google Maps-ൽ റൂട്ട് കാണുക (KM അറിയാൻ)"},
+ more_options:{en:"More options (vehicle start/close point, days, rest hours)",ml:"കൂടുതൽ ഓപ്ഷനുകൾ (വാഹനം തുടങ്ങുന്ന/അവസാനിക്കുന്ന സ്ഥലം, ദിവസങ്ങൾ, രാത്രി വിശ്രമം)"},
+ vehicle_start_label:{en:"Vehicle start point (garage)",ml:"വാഹനം തുടങ്ങുന്ന സ്ഥലം (ഗാരേജ്)"},
+ vehicle_close_label:{en:"Vehicle closing point (usually same as start)",ml:"വാഹനം അവസാനിക്കുന്ന സ്ഥലം (സാധാരണ തുടങ്ങിയ സ്ഥലം തന്നെ)"},
+ days_label:{en:"Number of days (outstation)",ml:"ദിവസങ്ങളുടെ എണ്ണം (ഔട്ട്സ്റ്റേഷൻ)"},
+ rest_hours_label:{en:"Overnight rest hours",ml:"രാത്രി വിശ്രമ മണിക്കൂർ"},
+ get_fare_estimate:{en:"Get Fare Estimate",ml:"ചാർജ് കാണുക"},
+ calls_made_title:{en:"Calls I've Made",ml:"ഞാൻ വിളിച്ച കോളുകൾ"},
+ feedback_title:{en:"Feedback / Suggestions",ml:"അഭിപ്രായം / നിർദ്ദേശം"},
+ feedback_placeholder:{en:"Tell us what could be better...",ml:"എന്തെങ്കിലും മെച്ചപ്പെടുത്താൻ ഉണ്ടെങ്കിൽ പറയുക..."},
+ send_feedback:{en:"Send Feedback",ml:"അഭിപ്രായം അയക്കുക"},
+ about_travel_connect:{en:"About Travel Connect",ml:"Travel Connect-നെ കുറിച്ച്"},
+ about_text:{en:"Travel Connect only connects customers with independent local partners - we don't own vehicles, fix final prices, or handle payments. Please confirm final fare and details directly with the partner.",ml:"Travel Connect കസ്റ്റമേഴ്സിനെ സ്വതന്ത്ര ലോക്കൽ പാർട്ണർമാരുമായി ബന്ധിപ്പിക്കുക മാത്രമാണ് ചെയ്യുന്നത് - വാഹനങ്ങൾ ഞങ്ങളുടേതല്ല, ചാർജ് ഞങ്ങൾ തീരുമാനിക്കുന്നില്ല, പേയ്മെന്റും ഞങ്ങൾ കൈകാര്യം ചെയ്യുന്നില്ല. അവസാന ചാർജും വിവരങ്ങളും പാർട്ണറുമായി നേരിട്ട് ഉറപ്പിക്കുക."},
+ logout_device:{en:"Log out of this device",ml:"ഈ ഫോണിൽ നിന്ന് ലോഗ് ഔട്ട്"},
+ local_directory_title:{en:"Local Directory",ml:"ലോക്കൽ ഡയറക്ടറി"},
+ directory_search_hint:{en:"Search verified local businesses - taxis, autos, restaurants, workshops, skilled work and more.",ml:"അംഗീകരിച്ച ലോക്കൽ ബിസിനസുകൾ സെർച്ച് ചെയ്യുക - ടാക്സി, ഓട്ടോ, ഹോട്ടൽ, വർക്ക്ഷോപ്പ്, സ്കിൽഡ് വർക്ക് തുടങ്ങിയവ."},
+ category_label:{en:"Category",ml:"വിഭാഗം"},
+ all_types:{en:"All types",ml:"എല്ലാ വിഭാഗവും"},
+ other_type:{en:"Other",ml:"മറ്റുള്ളവ"},
+ business_search_label:{en:"Business name, town or pincode",ml:"ബിസിനസ് പേര്, സ്ഥലം അല്ലെങ്കിൽ പിൻകോഡ്"},
+ no_matching_businesses:{en:"No matching businesses found.",ml:"പൊരുത്തപ്പെടുന്ന ബിസിനസ് ഒന്നും കണ്ടെത്തിയില്ല."},
+ active_board_title:{en:"Active Vehicles Board",ml:"ആക്ടീവ് വെഹിക്കിൾ ബോർഡ്"},
+ active_board_hint:{en:"Taxi vehicles currently marked ready for a trip.",ml:"ഇപ്പോൾ ട്രിപ്പിന് തയ്യാറായ ടാക്സി വാഹനങ്ങൾ."},
+ active_board_search_label:{en:"Search by location, business name or category",ml:"സ്ഥലം, ബിസിനസ് പേര് അല്ലെങ്കിൽ വിഭാഗം വെച്ച് സെർച്ച് ചെയ്യുക"},
+ no_matching_vehicles:{en:"No matching vehicles found.",ml:"പൊരുത്തപ്പെടുന്ന വാഹനം ഒന്നും കണ്ടെത്തിയില്ല."},
+ network_error:{en:"Network error.",ml:"നെറ്റ്‌വർക്ക് പിശക്."},
+ directions:{en:"Directions",ml:"വഴി"},
+ emergency_sos_title:{en:"Emergency SOS",ml:"എമർജൻസി SOS"},
+ sos_press_title:{en:"In an emergency, press the button",ml:"അടിയന്തര ഘട്ടത്തിൽ ഈ ബട്ടൺ അമർത്തുക"},
+ sos_press_sub:{en:"This sends an alert with your name, phone number and current location to every Travel Connect partner, so they can call you and reach you.",ml:"ഇത് നിങ്ങളുടെ പേര്, ഫോൺ നമ്പർ, ഇപ്പോഴത്തെ സ്ഥലം എന്നിവ എല്ലാ Travel Connect പാർട്ണർമാർക്കും അയക്കും, അവർക്ക് നിങ്ങളെ വിളിച്ച് സഹായിക്കാൻ."},
+ sos_send_button:{en:"SEND SOS ALERT",ml:"SOS അയക്കുക"},
+ sos_message_label:{en:"Add a short message (optional)",ml:"ഒരു ചെറിയ സന്ദേശം ചേർക്കുക (ഓപ്ഷണൽ)"},
+ sos_message_placeholder:{en:"e.g. Vehicle broke down near Vadakara, need help",ml:"ഉദാ: വാഹനം വടകരയ്ക്ക് അടുത്ത് കേടായി, സഹായം വേണം"},
+ sos_what_happens_title:{en:"What happens when you press it",ml:"ഇത് അമർത്തിയാൽ എന്ത് സംഭവിക്കും"},
+ sos_what_happens_1:{en:"You confirm once, so it is never sent by accident.",ml:"ഒരു തവണ confirm ചെയ്യണം, അബദ്ധത്തിൽ അയക്കപ്പെടില്ല."},
+ sos_what_happens_2:{en:"Every partner's phone shows an alarm with your name and a Call button.",ml:"എല്ലാ പാർട്ണർമാരുടെയും ഫോണിൽ നിങ്ങളുടെ പേരും Call ബട്ടണും കാണിക്കും."},
+ sos_what_happens_3:{en:"Your location opens in Google Maps for them.",ml:"നിങ്ങളുടെ സ്ഥലം Google Maps-ൽ അവർക്ക് കാണാം."},
+ sos_what_happens_4:{en:"When you are safe, tap Mark Resolved in the history below.",ml:"സുരക്ഷിതരായാൽ, താഴെയുള്ള history-ൽ Mark Resolved അമർത്തുക."},
+ sos_history_title:{en:"SOS History (last 48 hours)",ml:"SOS ചരിത്രം (കഴിഞ്ഞ 48 മണിക്കൂർ)"},
+ sos_confirm_title:{en:"Send SOS alert?",ml:"SOS അയക്കണോ?"},
+ sos_confirm_sub:{en:"Every Travel Connect partner will get your name, phone number and location right now. Use this only in a real emergency.",ml:"എല്ലാ Travel Connect പാർട്ണർമാർക്കും ഇപ്പോൾ തന്നെ നിങ്ങളുടെ പേരും നമ്പറും സ്ഥലവും കിട്ടും. യഥാർത്ഥ അടിയന്തര ഘട്ടത്തിൽ മാത്രം ഇത് ഉപയോഗിക്കുക."},
+ sos_confirm_cancel:{en:"Cancel",ml:"വേണ്ട"},
+ sos_confirm_yes:{en:"YES, SEND SOS",ml:"അതെ, SOS അയക്കുക"},
+ sos_sending:{en:"Sending SOS...",ml:"SOS അയക്കുന്നു..."},
+ sos_sent_title:{en:"SOS SENT",ml:"SOS അയച്ചു"},
+ sos_sent_sub:{en:"Stay where you are. Partners will call you on",ml:"നിങ്ങൾ ഇപ്പോൾ ഉള്ള സ്ഥലത്ത് തന്നെ നിൽക്കുക. പാർട്ണർമാർ ഈ നമ്പറിൽ വിളിക്കും:"},
+ sos_alerted_with_loc:{en:"Every partner has been alerted with your location.",ml:"എല്ലാ പാർട്ണർമാർക്കും നിങ്ങളുടെ സ്ഥലം സഹിതം അറിയിപ്പ് കിട്ടി."},
+ sos_alerted_no_loc:{en:"Every partner has been alerted (your location could not be read).",ml:"എല്ലാ പാർട്ണർമാർക്കും അറിയിപ്പ് കിട്ടി (നിങ്ങളുടെ സ്ഥലം കിട്ടിയില്ല)."},
+ call_112:{en:"Call 112 (emergency)",ml:"112-ൽ വിളിക്കുക (എമർജൻസി)"},
+ share_whatsapp:{en:"Share on WhatsApp / other apps",ml:"WhatsApp / മറ്റ് ആപ്പുകളിൽ ഷെയർ ചെയ്യുക"},
+ sos_failed_title:{en:"SOS could not be sent",ml:"SOS അയക്കാൻ കഴിഞ്ഞില്ല"},
+ sos_failed_sub:{en:"Please check your internet connection and press the button again. If it is urgent, call 112 now.",ml:"ദയവായി ഇന്റർനെറ്റ് കണക്ഷൻ നോക്കി വീണ്ടും ബട്ടൺ അമർത്തുക. അടിയന്തരമാണെങ്കിൽ ഇപ്പോൾ തന്നെ 112-ൽ വിളിക്കുക."},
+ toast_sos_sent:{en:"SOS sent",ml:"SOS അയച്ചു"},
+ msg_card_title:{en:"Messages",ml:"സന്ദേശങ്ങൾ"},
+ msg_card_sub_customer:{en:"Write to a business and see their replies",ml:"ഒരു ബിസിനസിന് എഴുതുക, അവരുടെ മറുപടി കാണുക"},
+ msg_card_sub_owner:{en:"Customers' messages and your replies",ml:"കസ്റ്റമേഴ്സിന്റെ സന്ദേശങ്ങളും നിങ്ങളുടെ മറുപടിയും"},
+ msg_new_count:{en:"You have {n} new message{s}",ml:"നിങ്ങൾക്ക് {n} പുതിയ സന്ദേശം ഉണ്ട്"},
+ delete_for_me:{en:"Delete for me only",ml:"എനിക്ക് മാത്രം ഡിലീറ്റ് ചെയ്യുക"},
+ call_label:{en:"Call",ml:"വിളിക്കുക"},
+ msg_type_placeholder:{en:"Type a short message...",ml:"ഒരു ചെറിയ സന്ദേശം ടൈപ്പ് ചെയ്യുക..."},
+ msg_share_location:{en:"Share my current location with this message",ml:"ഇപ്പോഴത്തെ സ്ഥലം ഈ സന്ദേശത്തോടൊപ്പം പങ്കുവെക്കുക"},
+ send_label:{en:"Send",ml:"അയക്കുക"},
+ msg_page_hint:{en:"Short messages between customers and businesses. Use the Message button on any business in the Local Directory or Active Vehicles Board to write to them.",ml:"കസ്റ്റമേഴ്സും ബിസിനസുകളും തമ്മിലുള്ള ചെറിയ സന്ദേശങ്ങൾ. Local Directory-യിലോ Active Vehicles Board-ലോ ഉള്ള ഏതെങ്കിലും ബിസിനസിന്റെ 'Message' ബട്ടൺ ഉപയോഗിച്ച് എഴുതാം."},
+};
+function tcMsgCountText(n){
+ return tcLang()==="ml"?(`നിങ്ങൾക്ക് ${n} പുതിയ സന്ദേശം ഉണ്ട്`):(`You have ${n} new message${n>1?"s":""}`);
+}
+/* "Business hours: 09:00 - 18:00 (...)" - built the same way as the Local
+   Trip notice, for the same reason (the times are the owner's own data,
+   not fixed dictionary text). */
+function tcBusinessHoursNoteText(open,close){
+ return tcLang()==="ml"
+  ?`&#128337; ബിസിനസ് സമയം: ${esc(open)} - ${esc(close)} (ആക്ടീവ് സ്റ്റാറ്റസ് ഇതിനനുസരിച്ച് തന്നെ മാറും)`
+  :`&#128337; Business hours: ${esc(open)} - ${esc(close)} (Active status follows these automatically)`;
+}
+/* Builds the "Local Trip: maximum X KM AND Y hours..." notice with the
+   numbers inserted into whichever language's sentence - a plain
+   dictionary lookup can't hold a number that changes per owner's own
+   settings. */
+function tcLocalTripNotice(km,hours){
+ return tcLang()==="ml"
+  ?`<b>ലോക്കൽ ട്രിപ്പ്:</b> പരമാവധി ${km} KM, ${hours} മണിക്കൂർ. ഇതിൽ ഏതെങ്കിലും കൂടിയാൽ ഓട്ടോമാറ്റിക് ആയി വൺ ഡേ താരിഫ് ആയി മാറും.`
+  :`<b>Local Trip:</b> maximum ${km} KM AND ${hours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.`;
+}
+function tcLang(){ return localStorage.getItem("tc_app_lang")||"en"; }
+function tcSetLang(lang){ localStorage.setItem("tc_app_lang",lang); render(); }
+function tcT(key){
+ const row=TC_STRINGS[key];
+ if(!row) return key;
+ return row[tcLang()]||row.en||key;
+}
+function tcLangToggleHtml(compact){
+ const lang=tcLang();
+ if(compact){
+  return `<button onclick="tcSetLang('${lang==='en'?'ml':'en'}')" style="background:rgba(255,255,255,.14);color:#fff;border-radius:16px;padding:6px 12px;font-size:12px;font-weight:700;border:none">${lang==='en'?'മലയാളം':'English'}</button>`;
+ }
+ return `<div style="display:flex;gap:6px">
+  <button onclick="tcSetLang('en')" style="padding:5px 12px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==='en'?'#0b6b78':'#fff'};color:${lang==='en'?'#fff':'#333'}">English</button>
+  <button onclick="tcSetLang('ml')" style="padding:5px 12px;font-size:12px;border-radius:14px;border:1px solid #c9d4dc;background:${lang==='ml'?'#0b6b78':'#fff'};color:${lang==='ml'?'#fff':'#333'}">മലയാളം</button>
+ </div>`;
+}
+/* Malayalam labels for the business-type dropdown/labels used throughout
+   (registration, directory, dashboards) - kept alongside TC_BUSINESS_TYPES
+   (defined earlier) rather than inside it, so the English-only places that
+   already read TC_BUSINESS_TYPES directly (e.g. building <option> values)
+   are completely unaffected; only tcBizLabel() below is language-aware. */
+const TC_BUSINESS_TYPES_ML={
+ taxi_travel:"ടാക്സി / ട്രാവൽ ഏജൻസി",
+ auto_rickshaw:"ഓട്ടോ റിക്ഷ",
+ pickup_goods:"പിക്കപ്പ് / ഗുഡ്സ് ക്യാരിയർ",
+ restaurant:"ഹോട്ടൽ / ടീ ഷോപ്പ്",
+ petrol_pump:"പെട്രോൾ പമ്പ്",
+ workshop:"വർക്ക്ഷോപ്പ്",
+ hospital:"ഹോസ്പിറ്റൽ",
+ homestay:"ഹോംസ്റ്റേ / റിസോർട്ട് / ഹോട്ടൽ",
+ skilled_work:"സ്കിൽഡ് വർക്ക് (പ്ലംബർ, ഇലക്ട്രീഷ്യൻ, കാർപെന്റർ etc.)"
+};
+/* Relabels the bottom tab bar and the Hamburger Menu card to the current
+   language - the tabs are static HTML in index.html (so their text can't
+   just be written once in whichever language), and the Menu is rebuilt
+   fresh from tcOpenMenu() every time it's opened, so both need their own
+   explicit re-apply call rather than relying on a one-time render. */
+function tcApplyTabLabels(){
+ const map={dashboard:"tab_dashboard",enquiries:"tab_enquiries",quotations:"tab_quotations",trips:"tab_trips",billing:"tab_billing"};
+ document.querySelectorAll(".tabs button").forEach(b=>{
+  const key=map[b.dataset.view];
+  if(key) b.textContent=tcT(key);
+ });
+}
+
 function tcBuildPremiumHeader(){
  const topEl=document.querySelector(".top");
  if(!topEl) return;
@@ -751,9 +999,10 @@ function tcBuildPremiumHeader(){
  topEl.innerHTML=`
   <div style="display:flex;align-items:center;gap:10px">
    ${logo?`<img src="${logo}" style="width:36px;height:36px;border-radius:8px;background:#fff;padding:3px;flex-shrink:0">`:""}
-   <div><b>TRAVEL CONNECT</b><small>Professional Travel Business Platform</small></div>
+   <div><b>TRAVEL CONNECT</b><small>${tcT("login_platform_tagline")}</small></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
+   ${tcLangToggleHtml(true)}
    ${showSos?`<button id="networkBtn" aria-label="Emergency SOS" style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;border-radius:22px;padding:9px 16px;font-weight:900;font-size:14px;letter-spacing:1px;border:none;display:flex;align-items:center;gap:6px;animation:tcSosPulse 2.2s infinite"><span style="font-size:15px">&#128680;</span>SOS</button>`:""}
    ${showSos?`<button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">&#9776;</button>`:""}
   </div>`;
@@ -778,6 +1027,7 @@ function render(){
  const user=getCurrentUser();
  const tabsEl=document.querySelector(".tabs");
  tcBuildPremiumHeader();
+ tcApplyTabLabels();
  if(typeof tcStartMsgPolling==="function") tcStartMsgPolling();
  if(user.role==="customer"){
   if(tabsEl) tabsEl.style.display="none";
