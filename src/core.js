@@ -355,6 +355,27 @@ function tcBizLabel(businessType){
  if(tcLang()==="ml"&&TC_BUSINESS_TYPES_ML[businessType]) return TC_BUSINESS_TYPES_ML[businessType];
  return TC_BUSINESS_TYPES[businessType]||businessType||"Taxi / Travel Agency";
 }
+/* Only "Skilled Work" carries a parenthesised "(Plumber, Electrician,
+   Carpenter etc.)" hint - genuinely useful in the registration dropdown
+   (where someone is choosing a CATEGORY and needs examples of what
+   belongs in it), but actively misleading once a specific person's own
+   stated trade (business_subtype, e.g. "Tree cutting") is shown right
+   next to it: "Skilled Work (Plumber, Electrician, Carpenter etc.) - Tree
+   cutting" reads as if the examples are describing THIS person, when
+   "Tree cutting" isn't even one of them. tcBizDisplayLabel is what every
+   listing (directory, active board, admin lists) should use instead of
+   tcBizLabel+subtype directly - it drops the parenthesised examples
+   whenever a specific subtype is actually known, and falls back to the
+   normal full label otherwise (and for every other category, which never
+   had this problem to begin with). */
+function tcBizLabelShort(businessType){
+ if(businessType==="skilled_work") return tcLang()==="ml"?"സ്കിൽഡ് വർക്ക്":"Skilled Work";
+ return tcBizLabel(businessType);
+}
+function tcBizDisplayLabel(businessType,subtype){
+ if(subtype) return tcBizLabelShort(businessType)+" - "+subtype;
+ return tcBizLabel(businessType);
+}
 function tcBizTypeFieldHtml(selectId,otherId,selected,skillId,selectedSkill){
  const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
  const otherValue=isKnown?"":selected;
