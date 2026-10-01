@@ -945,7 +945,20 @@ function tcLocalTripNotice(km,hours){
   :`<b>Local Trip:</b> maximum ${km} KM AND ${hours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.`;
 }
 function tcLang(){ return localStorage.getItem("tc_app_lang")||"en"; }
-function tcSetLang(lang){ localStorage.setItem("tc_app_lang",lang); render(); }
+function tcSetLang(lang){
+ localStorage.setItem("tc_app_lang",lang);
+ /* Re-draws whatever is actually on screen right now - normally that's
+    just render() (which re-reads the URL hash and routes correctly), but
+    an admin-only "Preview: Customer/Partner Page" (tcOpenMenuPage below)
+    calls its target function DIRECTLY, bypassing render()'s own routing,
+    and sets a hash render() has no case for ("#previewcustomer" etc). Had
+    this always called render(), re-rendering FROM a preview page would
+    fall through render()'s owner branch to its final else (the SOS page)
+    instead of staying on the preview - window._tcLastRenderFn (updated by
+    tcOpenMenuPage) is exactly "whichever function actually owns the
+    current screen", so this always refreshes the right one. */
+ (window._tcLastRenderFn||render)();
+}
 function tcT(key){
  const row=TC_STRINGS[key];
  if(!row) return key;
@@ -1014,6 +1027,11 @@ function tcBuildPremiumHeader(){
 
 /* ---------- NAVIGATION / RENDER ---------- */
 function render(){
+ /* Normal navigation always resets this back to render() itself - only a
+    preview page (tcOpenMenuPage) overrides it, and only until the person
+    leaves that preview via ordinary navigation (a tab, the Menu, Back),
+    all of which call render() and land here. */
+ window._tcLastRenderFn=render;
  if(!getCurrentUser()){
   const tabsEl=document.querySelector(".tabs");
   if(tabsEl) tabsEl.style.display="none";
@@ -1123,6 +1141,7 @@ function tcOpenMenuPage(hashName,renderFn){
  tcMenuNavPending=false;
  const tabsEl=document.querySelector(".tabs");
  if(tabsEl) tabsEl.style.display="none";
+ window._tcLastRenderFn=renderFn;
  renderFn();
 }
 
