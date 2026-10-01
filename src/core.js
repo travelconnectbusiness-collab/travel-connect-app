@@ -847,10 +847,10 @@ const TC_STRINGS={
  menu_pending_approvals:{en:"Pending Approvals (Partners & Vehicles)",ml:"അംഗീകാരം കാത്തിരിക്കുന്നവ"},
  menu_emergency_contacts:{en:"Emergency Contacts",ml:"എമർജൻസി കോൺടാക്ടുകൾ"},
  menu_useful_places:{en:"Useful Places",ml:"ഉപകാരപ്രദമായ സ്ഥലങ്ങൾ"},
- login_platform_tagline:{en:"Professional Travel Business Platform",ml:"പ്രൊഫഷണൽ ട്രാവൽ ബിസിനസ് പ്ലാറ്റ്ഫോം"},
- login_intro_default:{en:"Enter your name and mobile number to continue. Manage a business, or book a vehicle and check fare estimates for your own trips.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. ഒരു ബിസിനസ് നടത്താം, അല്ലെങ്കിൽ വാഹനം ബുക്ക് ചെയ്യാനും ചാർജ് അറിയാനും സാധിക്കും."},
- login_intro_customer:{en:"Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ യാത്രയ്ക്ക് വാഹനം ബുക്ക് ചെയ്യാം, അല്ലെങ്കിൽ ചാർജ് എത്രയാണെന്ന് അറിയാം."},
- login_intro_owner:{en:"Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business.",ml:"തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ ബിസിനസിന്റെ അന്വേഷണങ്ങൾ, ക്വട്ടേഷൻ, ട്രിപ്പ്, ബില്ലിംഗ് എല്ലാം നിയന്ത്രിക്കാം."},
+ login_platform_tagline:{en:"Connecting Everything",ml:"എല്ലാം ബന്ധിപ്പിക്കുന്നു"},
+ login_intro_default:{en:"Your all-in-one local platform for travel, business and emergency help. Enter your name and mobile number to continue. Manage a business, or book a vehicle and check fare estimates for your own trips.",ml:"യാത്ര, ബിസിനസ്, എമർജൻസി സഹായം - എല്ലാം ഒരിടത്ത്. തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. ഒരു ബിസിനസ് നടത്താം, അല്ലെങ്കിൽ വാഹനം ബുക്ക് ചെയ്യാനും ചാർജ് അറിയാനും സാധിക്കും."},
+ login_intro_customer:{en:"Your all-in-one local platform for travel, business and emergency help. Enter your name and mobile number to continue. Book a vehicle for your trip, or check estimated fares to your destination.",ml:"യാത്ര, ബിസിനസ്, എമർജൻസി സഹായം - എല്ലാം ഒരിടത്ത്. തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ യാത്രയ്ക്ക് വാഹനം ബുക്ക് ചെയ്യാം, അല്ലെങ്കിൽ ചാർജ് എത്രയാണെന്ന് അറിയാം."},
+ login_intro_owner:{en:"Your all-in-one local platform for travel, business and emergency help. Enter your name and mobile number to continue. Manage enquiries, quotations, trips and billing for your travel business.",ml:"യാത്ര, ബിസിനസ്, എമർജൻസി സഹായം - എല്ലാം ഒരിടത്ത്. തുടരാൻ നിങ്ങളുടെ പേരും മൊബൈൽ നമ്പറും നൽകുക. നിങ്ങളുടെ ബിസിനസിന്റെ അന്വേഷണങ്ങൾ, ക്വട്ടേഷൻ, ട്രിപ്പ്, ബില്ലിംഗ് എല്ലാം നിയന്ത്രിക്കാം."},
  login_email_label:{en:"Email (optional)",ml:"ഇമെയിൽ (ഓപ്ഷണൽ)"},
  login_location_label:{en:"Location / town (optional)",ml:"സ്ഥലം / പട്ടണം (ഓപ്ഷണൽ)"},
  login_pincode_label:{en:"Pincode (optional)",ml:"പിൻകോഡ് (ഓപ്ഷണൽ)"},
@@ -1037,11 +1037,11 @@ function tcBuildPremiumHeader(){
  topEl.innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
    ${logo?`<img src="${logo}" style="width:36px;height:36px;border-radius:8px;background:#fff;padding:3px;flex-shrink:0">`:""}
-   <div style="min-width:0"><b style="white-space:nowrap">TRAVEL CONNECT</b><small style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tcT("login_platform_tagline")}</small></div>
+   <div style="min-width:0"><b style="white-space:nowrap">TRAVEL CONNECT</b><small style="display:block;line-height:1.3">${tcT("login_platform_tagline")}</small></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
    ${showSos?"":tcLangToggleHtml(true)}
-   ${showSos?`<button id="networkBtn" aria-label="Emergency SOS" style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;border-radius:22px;padding:9px 16px;font-weight:900;font-size:14px;letter-spacing:1px;border:none;display:flex;align-items:center;gap:6px;animation:tcSosPulse 2.2s infinite"><span style="font-size:15px">&#128680;</span>SOS</button>`:""}
+   ${showSos?`<button id="networkBtn" aria-label="Emergency SOS" style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;border-radius:20px;padding:7px 12px;font-weight:900;font-size:12.5px;letter-spacing:.5px;border:none;display:flex;align-items:center;gap:4px;flex-shrink:0;animation:tcSosPulse 2.2s infinite"><span style="font-size:13px">&#128680;</span>SOS</button>`:""}
    ${showSos?`<button id="tcMenuBtn" aria-label="Menu" style="background:rgba(255,255,255,.14);color:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;border:none;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">&#9776;</button>`:""}
   </div>`;
  if(showSos){
