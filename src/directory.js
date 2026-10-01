@@ -280,7 +280,7 @@ function tcRenderBusinessPicker(list){
  document.querySelector("#partnerBox").innerHTML=`
   <p class="muted">You have more than one business registered on this number. Choose one to open.</p>
   ${list.map(p=>`<div class="listitem">
-   <b>${esc(p.business_name)}</b> <span class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}</span> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">(Pending)</span>'}
+   <b>${esc(p.business_name)}</b> <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</span> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">(Pending)</span>'}
    <div class="actions" style="margin-top:6px"><button class="primary" onclick='tcSelectBusiness(${p.id})'>Open</button></div>
   </div>`).join("")}
   <div class="actions" style="margin-top:10px"><button onclick="renderPartnerRegisterForm()">+ Register Another Business</button></div>`;
@@ -360,7 +360,7 @@ function renderPartnerDashboard(p){
  ${hasMultiple?`<div class="actions"><button onclick="tcSwitchBusiness()">&#8646; ${tcT("switch_business")}</button></div>`:""}
  <div class="card">
   <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</h3>
-  <div class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}</div>
+  <div class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</div>
   <div class="muted">${tcT("owner_label")}: ${esc(p.owner_name)} - ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
   ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
   ${p.location?`<div class="muted">${esc(p.location)} ${esc(p.pincode||"")}</div>`:""}
@@ -695,7 +695,7 @@ function tcRenderDirectoryList(entries){
    :"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([p.business_name,p.location,p.pincode].filter(Boolean).join(", "));
   return `<div class="listitem">
   <b>${esc(p.business_name)}</b> ${effectivelyActive?'<span class="ok">&#9679; Active now</span>':''}<br>
-  <span class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}${p.location?" &bull; "+esc(p.location)+" "+esc(p.pincode||""):""}</span>${tcBusinessHoursNote(hours)}
+  <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}${p.location?" &bull; "+esc(p.location)+" "+esc(p.pincode||""):""}</span>${tcBusinessHoursNote(hours)}
   ${p.description?`<div style="font-size:12.5px;margin-top:4px;color:#333">${esc(p.description)}</div>`:""}
   <div class="actions">
    ${tcCallButtonHtml(p.mobile1,"partner",p.id,p.business_name,true)}
@@ -739,7 +739,7 @@ function tcFilterDirectory(){
  if(q){
   const terms=tcExpandSearchTerms(q);
   filtered=filtered.filter(p=>{
-   const haystack=[(p.location||""),(p.pincode||""),(p.business_name||""),tcBizLabel(p.business_type),(p.business_subtype||""),(p.description||"")].join(" ").toLowerCase();
+   const haystack=[(p.location||""),(p.pincode||""),(p.business_name||""),tcBizDisplayLabel(p.business_type,p.business_subtype),(p.description||"")].join(" ").toLowerCase();
    return terms.some(t=>haystack.includes(t));
   });
  }
@@ -845,7 +845,7 @@ async function tcLoadPendingPartners(){
   if(!data.ok){ box.innerHTML="<p class='danger'>Could not load.</p>"; return; }
   if(!data.partners.length){ box.innerHTML="<p class='muted'>No pending partner registrations.</p>"; return; }
   box.innerHTML=data.partners.map(p=>`<div class="listitem">
-   <b>${esc(p.business_name)}</b> <span class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}</span><br>
+   <b>${esc(p.business_name)}</b> <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</span><br>
    <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
    ${p.description?`<div style="font-size:12px;margin-top:2px">${esc(p.description)}</div>`:""}
    <div class="actions" style="margin-top:6px"><button class="primary" onclick="tcApprovePartner(${p.id})">Approve</button><button class="danger" onclick="tcDeletePartner(${p.id})">Delete</button></div>
@@ -963,7 +963,7 @@ function tcRenderAllPartnersList(list){
  const box=document.querySelector("#tcAllPartList");
  if(!box) return;
  box.innerHTML=list.map(p=>`<div class="listitem">
-  <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}</span><br>
+  <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</span><br>
   <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
   <div class="actions" style="margin-top:6px"><button onclick="tcOpenAdminEditPartner(${p.id})">Edit</button><button class="danger" onclick="tcDeletePartner(${p.id})">Delete</button></div>
  </div>`).join("")||"<p class='muted'>No partners found.</p>";
@@ -1022,7 +1022,7 @@ async function tcLoadPartnerPlans(){
   if(!data.ok){ box.innerHTML="<p class='danger'>Could not load partners.</p>"; return; }
   if(!data.partners.length){ box.innerHTML="<p class='muted'>No partners registered yet.</p>"; return; }
   box.innerHTML=data.partners.map(p=>`<div class="listitem">
-   <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizLabel(p.business_type))}${p.business_subtype?" - "+esc(p.business_subtype):""}</span><br>
+   <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</span><br>
    <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
    <div class="actions" style="margin-top:6px">
     <select id="plan_${p.id}">
