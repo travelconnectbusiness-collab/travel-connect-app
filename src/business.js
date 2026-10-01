@@ -1597,7 +1597,7 @@ function enquiries(){
  <div class="grid">
  <label>Customer name<input id="enqName"></label><label>Mobile<input id="enqMobile"></label>
  <label>Pickup<input id="enqPickup"></label><label>Destination<input id="enqDest"></label>
- <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
+  <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
  <label>Required date${tcDateInputHtml("enqDate","")}</label>
  <label>Entry date (leave blank for today)${tcDateInputHtml("enqEntryDate","")}</label></div>
  <div class="actions"><button class="primary" onclick="saveEnquiry()">Save Enquiry</button></div>
@@ -1745,34 +1745,34 @@ function dashboard(){
   return;
  }
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
- app().innerHTML=card("Travel Connect Dashboard",`
+ app().innerHTML=card(tcT("dashboard_title"),`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
-  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||"Your Business Name")}</div>
+  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||tcT("your_business_name"))}</div>
   ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">Edit Business Details</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; Switch Business</button>`:""}</div>
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; ${tcT("switch_business")}</button>`:""}</div>
   ${tcIsPremiumPlan()?
-   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">Premium - your own business name/contact shown on every bill &amp; quotation</div>`:
-   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">Free plan - bills currently show Travel Connect's contact details, with your name shown small. Upgrade to Paid or Premium to show YOUR business name &amp; contact prominently on every bill/quotation, and unlock your own UPI payment QR. Contact Travel Connect to upgrade.</div>`}
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>`:
+   `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">${tcT("free_notice")}</div>`}
  </div>
  <div class="actions">
-  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">New Enquiry</button>
-  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">New Quotation</button>
-  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">Quick Bill</button>
-  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">Trips</button>
+  <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">${tcT("new_enquiry")}</button>
+  <button style="background:#148c76;color:#fff;border-color:#148c76" onclick="view('quotations')">${tcT("new_quotation")}</button>
+  <button style="background:#c9820d;color:#fff;border-color:#c9820d" onclick="goQuickBill()">${tcT("quick_bill")}</button>
+  <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">${tcT("tab_trips")}</button>
  </div>
- <div class="actions" style="margin-top:8px"><button onclick="view('partner')">My Business &amp; Vehicles</button><button onclick="view('activeboard')">Active Vehicles Board</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; Local Directory (autos, restaurants, workshops...)</button>${tcMessagesButtonHtml()}</div>
+ <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("my_business_vehicles")}</button><button onclick="view('activeboard')">${tcT("active_vehicles_board")}</button></div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${tcMessagesButtonHtml()}</div>
  <hr>
  <div class="grid">
- <div class="metric" onclick="view('master')" style="cursor:pointer">Drivers<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">Vehicles<b>${db.vehicles.length}</b></div>
- <div class="metric" onclick="view('quotations')" style="cursor:pointer">Saved Quotations<b>${db.quotes.length}</b></div><div class="metric" onclick="view('trips')" style="cursor:pointer">Trips<b>${db.trips.length}</b></div>
- </div><div class="card"><h3>Business workflow</h3><p>Enquiry -&gt; Quotation -&gt; Confirmation -&gt; Trip -&gt; Final Bill -&gt; Payment -&gt; Accounts</p>
- <div class="notice"><b>Local Trip:</b> maximum ${db.settings.localMaxKm} KM AND ${db.settings.localMaxHours} hours. If either limit is exceeded, it automatically switches to a One Day tariff.</div></div>
- ${tcCollapsibleBox("custUsefulPlaces","&#128205; Useful Places",`<div id="custPlacesList">Loading...</div>`,false)}
- ${tcCollapsibleBox("custEmergency","&#9888; Emergency Contacts",`<div id="custEmergencyList">Loading...</div>`,false)}
+ <div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("drivers_metric")}<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("vehicles_metric")}<b>${db.vehicles.length}</b></div>
+ <div class="metric" onclick="view('quotations')" style="cursor:pointer">${tcT("saved_quotations_metric")}<b>${db.quotes.length}</b></div><div class="metric" onclick="view('trips')" style="cursor:pointer">${tcT("trips_metric")}<b>${db.trips.length}</b></div>
+ </div><div class="card"><h3>${tcT("business_workflow_title")}</h3><p>${tcT("business_workflow_text")}</p>
+ <div class="notice">${tcLocalTripNotice(db.settings.localMaxKm,db.settings.localMaxHours)}</div></div>
+ ${tcCollapsibleBox("custUsefulPlaces","&#128205; "+tcT("useful_places_title"),`<div id="custPlacesList">Loading...</div>`,false)}
+ ${tcCollapsibleBox("custEmergency","&#9888; "+tcT("emergency_contacts_title"),`<div id="custEmergencyList">Loading...</div>`,false)}
  `);
  tcRenderCustEmergencyContacts();
  tcRenderCustUsefulPlaces();
