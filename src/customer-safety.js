@@ -53,61 +53,61 @@ function customerHome(){
  app().innerHTML=`<section class="container"><div class="card">
   ${tcMessagesCardHtml()}
   <div class="actions" style="margin-bottom:4px">
-   <button class="primary" style="flex:1;font-size:15px;padding:14px" onclick="tcOpenDirectory()">&#128269; Local Directory - find a business</button>
+   <button class="primary" style="flex:1;font-size:15px;padding:14px" onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory_find")}</button>
   </div>
   <div class="actions">
-   <button style="flex:1" onclick="view('activeboard')">&#128663; Available Vehicles Right Now</button>
+   <button style="flex:1" onclick="view('activeboard')">&#128663; ${tcT("available_vehicles_now")}</button>
   </div>
 
-  <h2 style="margin-top:18px">Fare Estimate</h2>
+  <h2 style="margin-top:18px">${tcT("fare_estimate_title")}</h2>
   <div class="grid">
-   <label>Vehicle category<select id="cCat"><option value="">-- Select --</option>${cat}</select></label>
-   <label>Trip type<select id="cType">
-     <option value="">-- Select --</option>
-     <option value="local">Local Trip</option><option value="one_day">One Day</option>
-     <option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option>
+   <label>${tcT("vehicle_category_label")}<select id="cCat"><option value="">${tcT("select_placeholder")}</option>${cat}</select></label>
+   <label>${tcT("trip_type_label")}<select id="cType">
+     <option value="">${tcT("select_placeholder")}</option>
+     <option value="local">${tcT("trip_local")}</option><option value="one_day">${tcT("trip_oneday")}</option>
+     <option value="round">${tcT("trip_round")}</option><option value="outstation">${tcT("trip_outstation")}</option><option value="drop">${tcT("trip_drop")}</option>
    </select></label>
   </div>
   <div id="cTypeWarn" class="danger" style="min-height:16px"></div>
   <div class="grid">
-   <label>Pickup point<input id="cPickup"></label>
-   <label>Destination 1<input id="cDest"></label>
+   <label>${tcT("pickup_point_label")}<input id="cPickup"></label>
+   <label>${tcT("destination_label")} 1<input id="cDest"></label>
   </div>
   <div id="custStopsContainer"></div>
-  <div class="actions"><button type="button" onclick="tcAddCustDestField()">+ Add another destination</button></div>
+  <div class="actions"><button type="button" onclick="tcAddCustDestField()">${tcT("add_destination")}</button></div>
   <div class="grid" style="margin-top:6px">
-   <label>Estimated KM<input id="cKm" type="number" placeholder="e.g. 40"></label>
-   <label>Estimated hours<input id="cHours" type="number" placeholder="e.g. 4"></label>
+   <label>${tcT("estimated_km_label")}<input id="cKm" type="number" placeholder="e.g. 40"></label>
+   <label>${tcT("estimated_hours_label")}<input id="cHours" type="number" placeholder="e.g. 4"></label>
   </div>
-  <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; Open route in Google Maps (to check KM)</button></div>
+  <div class="actions"><button type="button" onclick="tcOpenCustomerRoute()">&#128663; ${tcT("open_route_maps")}</button></div>
   <details style="margin:6px 0">
-   <summary style="cursor:pointer;font-size:12.5px;color:#0b6b78">More options (vehicle start/close point, days, rest hours)</summary>
+   <summary style="cursor:pointer;font-size:12.5px;color:#0b6b78">${tcT("more_options")}</summary>
    <div class="grid" style="margin-top:6px">
-    <label>Vehicle start point (garage)<input id="cVehicleStart" placeholder="e.g. Nadapuram"></label>
-    <label>Vehicle closing point (usually same as start)<input id="cVehicleClose" placeholder="e.g. Nadapuram"></label>
-    <label>Number of days (outstation)<input id="cDays" type="number" value="1" min="1"></label>
-    <label>Overnight rest hours<input id="cRestHours" type="number" value="0"></label>
+    <label>${tcT("vehicle_start_label")}<input id="cVehicleStart" placeholder="e.g. Nadapuram"></label>
+    <label>${tcT("vehicle_close_label")}<input id="cVehicleClose" placeholder="e.g. Nadapuram"></label>
+    <label>${tcT("days_label")}<input id="cDays" type="number" value="1" min="1"></label>
+    <label>${tcT("rest_hours_label")}<input id="cRestHours" type="number" value="0"></label>
    </div>
   </details>
-  <div class="actions"><button class="primary" onclick="calcCustomerFare()">Get Fare Estimate</button></div>
+  <div class="actions"><button class="primary" onclick="calcCustomerFare()">${tcT("get_fare_estimate")}</button></div>
   <div id="cResult" class="ratebox"></div>
 
-  ${tcCollapsibleBox("custUsefulPlaces","&#128205; Useful Places",`<div id="custPlacesList">Loading...</div>`,false)}
-  ${tcCollapsibleBox("custEmergency","&#9888; Emergency Contacts",`<div id="custEmergencyList">Loading...</div>`,false)}
-  ${tcCollapsibleBox("custMyCalls","&#128222; Calls I've Made",`<div id="custCallsList">Loading...</div>`,false)}
+  ${tcCollapsibleBox("custUsefulPlaces","&#128205; "+tcT("useful_places_title"),`<div id="custPlacesList">${tcT("loading")}</div>`,false)}
+  ${tcCollapsibleBox("custEmergency","&#9888; "+tcT("emergency_contacts_title"),`<div id="custEmergencyList">${tcT("loading")}</div>`,false)}
+  ${tcCollapsibleBox("custMyCalls","&#128222; "+tcT("calls_made_title"),`<div id="custCallsList">${tcT("loading")}</div>`,false)}
 
   <div class="card">
-   <h3>Feedback / Suggestions</h3>
-   <textarea id="custFeedback" rows="3" placeholder="Tell us what could be better..."></textarea>
-   <div class="actions"><button class="primary" onclick="tcSubmitFeedback()">Send Feedback</button></div>
+   <h3>${tcT("feedback_title")}</h3>
+   <textarea id="custFeedback" rows="3" placeholder="${tcT("feedback_placeholder")}"></textarea>
+   <div class="actions"><button class="primary" onclick="tcSubmitFeedback()">${tcT("send_feedback")}</button></div>
   </div>
 
   <div class="card">
-   <details><summary style="cursor:pointer;font-size:12.5px;color:#6a7a87">About Travel Connect</summary>
-   <p class="muted" style="font-size:12px;margin-top:6px">Travel Connect only connects customers with independent local partners - we don't own vehicles, fix final prices, or handle payments. Please confirm final fare and details directly with the partner.</p>
+   <details><summary style="cursor:pointer;font-size:12.5px;color:#6a7a87">${tcT("about_travel_connect")}</summary>
+   <p class="muted" style="font-size:12px;margin-top:6px">${tcT("about_text")}</p>
    </details>
   </div>
-  <div class="actions" style="margin-top:10px"><button onclick="logout()">Log out of this device</button></div>
+  <div class="actions" style="margin-top:10px"><button onclick="logout()">${tcT("logout_device")}</button></div>
  </div></section>`;
  tcRenderCustEmergencyContacts();
  tcRenderCustUsefulPlaces();
@@ -370,24 +370,24 @@ async function tcDeletePlace(id){
 let _sosHistoryTimer=null;
 function network(){
  if(!getCurrentUser()){renderLogin();return;}
- app().innerHTML=card("Emergency SOS",`<div id="locPermNote"></div>
+ app().innerHTML=card(tcT("emergency_sos_title"),`<div id="locPermNote"></div>
   <div style="background:linear-gradient(135deg,#7b241c,#c0392b 55%,#e74c3c);color:#fff;border-radius:18px;padding:20px 16px;text-align:center;box-shadow:0 10px 22px rgba(192,57,43,.38)">
-   <div style="font-size:16px;font-weight:800;margin-bottom:6px">In an emergency, press the button</div>
-   <div style="font-size:12.5px;opacity:.95;margin-bottom:16px;line-height:1.55">This sends an alert with your <b>name, phone number and current location</b> to every Travel Connect partner, so they can call you and reach you.</div>
-   <button id="sosBigBtn" onclick="tcConfirmSos()" style="width:100%;background:#fff;color:#c0392b;font-size:21px;font-weight:900;letter-spacing:1px;padding:20px 10px;border-radius:16px;border:none;box-shadow:0 5px 0 rgba(0,0,0,.2);animation:tcSosPulse 2.2s infinite">&#128680; SEND SOS ALERT</button>
+   <div style="font-size:16px;font-weight:800;margin-bottom:6px">${tcT("sos_press_title")}</div>
+   <div style="font-size:12.5px;opacity:.95;margin-bottom:16px;line-height:1.55">${tcT("sos_press_sub")}</div>
+   <button id="sosBigBtn" onclick="tcConfirmSos()" style="width:100%;background:#fff;color:#c0392b;font-size:21px;font-weight:900;letter-spacing:1px;padding:20px 10px;border-radius:16px;border:none;box-shadow:0 5px 0 rgba(0,0,0,.2);animation:tcSosPulse 2.2s infinite">&#128680; ${tcT("sos_send_button")}</button>
    <div id="nStatus" style="margin-top:12px;font-size:12.5px;min-height:18px"></div>
   </div>
   <div id="sosResult"></div>
-  <label style="margin-top:14px">Add a short message (optional)<textarea id="nMsg" rows="2" placeholder="e.g. Vehicle broke down near Vadakara, need help"></textarea></label>
+  <label style="margin-top:14px">${tcT("sos_message_label")}<textarea id="nMsg" rows="2" placeholder="${tcT("sos_message_placeholder")}"></textarea></label>
   <div id="pushPermNote" style="margin-top:12px"></div>
   <div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#f5f8fa;font-size:12.5px;line-height:1.6;color:#33475b">
-   <b>What happens when you press it</b><br>
-   1. You confirm once, so it is never sent by accident.<br>
-   2. Every partner's phone shows an alarm with your name and a Call button.<br>
-   3. Your location opens in Google Maps for them.<br>
-   4. When you are safe, tap <b>Mark Resolved</b> in the history below.
+   <b>${tcT("sos_what_happens_title")}</b><br>
+   1. ${tcT("sos_what_happens_1")}<br>
+   2. ${tcT("sos_what_happens_2")}<br>
+   3. ${tcT("sos_what_happens_3")}<br>
+   4. ${tcT("sos_what_happens_4")}
   </div>
-  <hr><h3>&#128680; SOS History (last 48 hours)</h3><div id="sosHistoryBox">Loading...</div>`);
+  <hr><h3>&#128680; ${tcT("sos_history_title")}</h3><div id="sosHistoryBox">${tcT("loading")}</div>`);
  loadSosHistory();
  startSosHistoryAutoRefresh();
  checkLocationPermissionUI();
@@ -414,9 +414,9 @@ async function tcPrepareSosLocation(){
 function tcConfirmSos(){
  modal(`<div style="text-align:center">
   <div style="font-size:46px">&#128680;</div>
-  <h2 style="color:#c0392b;margin:6px 0">Send SOS alert?</h2>
-  <p class="muted">Every Travel Connect partner will get your name, phone number and location right now. Use this only in a real emergency.</p>
-  <div class="actions"><button onclick="closeModal()" style="padding:14px">Cancel</button><button onclick="closeModal();sos()" style="padding:14px;background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">YES, SEND SOS</button></div>
+  <h2 style="color:#c0392b;margin:6px 0">${tcT("sos_confirm_title")}</h2>
+  <p class="muted">${tcT("sos_confirm_sub")}</p>
+  <div class="actions"><button onclick="closeModal()" style="padding:14px">${tcT("sos_confirm_cancel")}</button><button onclick="closeModal();sos()" style="padding:14px;background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">${tcT("sos_confirm_yes")}</button></div>
  </div>`);
 }
 function getLocation(){
@@ -500,7 +500,7 @@ function getLocationForSos(timeoutMs){
 }
 async function sos(){
  const st=document.querySelector("#nStatus");
- if(st) st.innerHTML="Sending SOS...";
+ if(st) st.innerHTML=tcT("sos_sending");
  /* Normally the location was already fetched when the page opened; if not,
     one quick attempt (a recent cached position is fine) so the alert is
     never held up. */
@@ -518,18 +518,18 @@ async function sos(){
   if(!data.ok) throw new Error("not ok");
   if(st) st.innerHTML="";
   if(result) result.innerHTML=`<div style="margin-top:14px;padding:16px;border-radius:16px;background:#e9f7ee;border:2px solid #2e9e44;color:#1c6b2c">
-   <div style="font-weight:900;font-size:17px">&#9989; SOS SENT</div>
-   <div style="margin-top:6px;font-size:13.5px;line-height:1.55">Every partner has been alerted${window.tcLoc?" with your location":" (your location could not be read)"}. Stay where you are. Partners will call you on <b>${esc(user.mobile||"your number")}</b>.</div>
-   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; Call 112 (emergency)</button></a><button onclick="tcShareSos()">Share on WhatsApp / other apps</button></div>
+   <div style="font-weight:900;font-size:17px">&#9989; ${tcT("sos_sent_title")}</div>
+   <div style="margin-top:6px;font-size:13.5px;line-height:1.55">${window.tcLoc?tcT("sos_alerted_with_loc"):tcT("sos_alerted_no_loc")} ${tcT("sos_sent_sub")} <b>${esc(user.mobile||"your number")}</b>.</div>
+   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; ${tcT("call_112")}</button></a><button onclick="tcShareSos()">${tcT("share_whatsapp")}</button></div>
   </div>`;
-  toast("SOS sent");
+  toast(tcT("toast_sos_sent"));
   loadSosHistory();
  }catch(e){
   if(st) st.innerHTML="";
   if(result) result.innerHTML=`<div style="margin-top:14px;padding:16px;border-radius:16px;background:#fdeceb;border:2px solid #c0392b;color:#7b241c">
-   <div style="font-weight:900;font-size:16px">&#9888; SOS could not be sent</div>
-   <div style="margin-top:6px;font-size:13.5px">Please check your internet connection and press the button again. If it is urgent, call 112 now.</div>
-   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; Call 112</button></a></div>
+   <div style="font-weight:900;font-size:16px">&#9888; ${tcT("sos_failed_title")}</div>
+   <div style="margin-top:6px;font-size:13.5px">${tcT("sos_failed_sub")}</div>
+   <div class="actions" style="margin-top:10px"><a href="tel:112" style="text-decoration:none"><button style="background:linear-gradient(135deg,#b03a2e,#e74c3c);color:#fff;font-weight:900">&#128222; ${tcT("call_112")}</button></a></div>
   </div>`;
  }
 }
