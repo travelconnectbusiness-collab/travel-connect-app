@@ -369,6 +369,7 @@ function renderPartnerDashboard(p){
   ${hours.enabled?`<div class="muted" style="margin-top:4px">${tcBusinessHoursNoteText(hours.open,hours.close)}</div>`:""}
   ${p.verified?tcActiveToggleHtml("partnerAvailToggle",!!p.available,`tcTogglePartnerAvailable(${p.id},checked)`):""}
   <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">${tcT("edit_details")}</button></div>
+  ${typeof tcPlanValidUntilHtml==="function"?tcPlanValidUntilHtml():""}
   ${typeof tcPlanExpiryWarningHtml==="function"?tcPlanExpiryWarningHtml():""}
  </div>
  ${hasVehicles?`
