@@ -296,6 +296,7 @@ function tcSwitchBusiness(){
 function tcOpenOneBusiness(partner){
  window._myPartner=partner; window._myPartnerHasPassword=!!partner.portal_password_hash;
  db.settings.myPlan=partner.plan||"free";
+ db.settings.myPlanExpiresAt=partner.plan_expires_at||null;
  db.settings.myPartnerId=partner.id;
  db.settings.myLogoKey=partner.logo_key||null;
  if(partner.brand_settings){
@@ -368,6 +369,7 @@ function renderPartnerDashboard(p){
   ${hours.enabled?`<div class="muted" style="margin-top:4px">${tcBusinessHoursNoteText(hours.open,hours.close)}</div>`:""}
   ${p.verified?tcActiveToggleHtml("partnerAvailToggle",!!p.available,`tcTogglePartnerAvailable(${p.id},checked)`):""}
   <div class="actions" style="margin-top:8px"><button onclick="tcOpenEditPartnerDetails(${p.id})">${tcT("edit_details")}</button></div>
+  ${typeof tcPlanExpiryWarningHtml==="function"?tcPlanExpiryWarningHtml():""}
  </div>
  ${hasVehicles?`
  <div class="card" id="billingIdentityCard">
@@ -1010,8 +1012,20 @@ function tcOpenPartnerPlans(){
  requireAdmin(()=>{ tcOpenMenuPage("plans",tcRenderPartnerPlans); });
 }
 async function tcRenderPartnerPlans(){
- app().innerHTML=card("Partner Plans",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations, no own UPI QR. Paid/Premium = their own business branding + own UPI payment QR (Premium also unlocks logo/colour/font customization). Owner Free = your own account/staff - always free, full features.</p><div id="tcPlansList">Loading...</div>`);
+ app().innerHTML=card("Partner Plans",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations, no own UPI QR. Paid/Premium = their own business branding + own UPI payment QR (Premium also unlocks logo/colour/font customization) for however many months they've paid for - after that it automatically drops back to Free on its own. Owner Free = your own account/staff - always free, full features, never expires.</p><div id="tcPlansList">Loading...</div>`);
  tcLoadPartnerPlans();
+}
+/* Formats a plan's remaining time plainly - expired/active/never - so the
+   admin can tell at a glance who needs a renewal reminder without doing
+   date math themselves. */
+function tcPlanExpiryNote(p){
+ if(p.plan!=="paid"&&p.plan!=="premium") return "";
+ if(!p.plan_expires_at) return `<span class="muted">(no expiry set)</span>`;
+ const days=Math.ceil((new Date(p.plan_expires_at).getTime()-Date.now())/86400000);
+ const when=tcFormatDate(p.plan_expires_at.slice(0,10));
+ if(days<0) return `<span class="danger">Expired ${esc(when)} (${-days} day${-days===1?"":"s"} ago) - now showing as Free</span>`;
+ if(days<=7) return `<span class="danger">Expires ${esc(when)} - ${days} day${days===1?"":"s"} left</span>`;
+ return `<span class="muted">Valid until ${esc(when)} (${days} days left)</span>`;
 }
 async function tcLoadPartnerPlans(){
  const box=document.querySelector("#tcPlansList");
@@ -1024,24 +1038,40 @@ async function tcLoadPartnerPlans(){
   box.innerHTML=data.partners.map(p=>`<div class="listitem">
    <b>${esc(p.business_name)}</b> ${p.verified?'<span class="ok">Verified</span>':'<span class="muted">Not verified</span>'} <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</span><br>
    <span class="muted">${esc(p.owner_name)} - ${esc(p.mobile1)}${p.location?" - "+esc(p.location):""}</span>
-   <div class="actions" style="margin-top:6px">
-    <select id="plan_${p.id}">
+   <div style="margin-top:4px;font-size:12.5px">${tcPlanExpiryNote(p)}</div>
+   <div class="actions" style="margin-top:6px;flex-wrap:wrap">
+    <select id="plan_${p.id}" onchange="tcToggleMonthsField(${p.id})">
      <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
      <option value="paid" ${p.plan==="paid"?"selected":""}>Paid</option>
      <option value="premium" ${p.plan==="premium"?"selected":""}>Premium</option>
      <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Free</option>
     </select>
+    <input id="months_${p.id}" type="number" min="1" placeholder="Months paid" style="width:110px;display:${(p.plan==="paid"||p.plan==="premium")?"":"none"}">
     <button class="primary" onclick="tcSetPartnerPlan(${p.id})">Save</button>
    </div>
   </div>`).join("");
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
+/* Shows the "how many months did they pay for" box only for Paid/Premium -
+   Free and Owner Free never expire, so a months figure would be
+   meaningless for them. */
+function tcToggleMonthsField(id){
+ const plan=document.querySelector("#plan_"+id).value;
+ const monthsEl=document.querySelector("#months_"+id);
+ if(monthsEl) monthsEl.style.display=(plan==="paid"||plan==="premium")?"":"none";
+}
 async function tcSetPartnerPlan(id){
  const plan=document.querySelector("#plan_"+id).value;
+ const monthsEl=document.querySelector("#months_"+id);
+ const months=monthsEl?+monthsEl.value||0:0;
+ if((plan==="paid"||plan==="premium")&&months<=0){
+  toast("Enter how many months they've paid for");
+  return;
+ }
  try{
-  const res=await fetch("/api/partner_plan",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_plan",partner_id:id,plan,token:adminToken()})});
+  const res=await fetch("/api/partner_plan",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_plan",partner_id:id,plan,months:months||undefined,token:adminToken()})});
   const data=await res.json();
-  if(!data.ok){ toast("Could not save - try again."); return; }
+  if(!data.ok){ toast(data.error==="missing_months"?"Enter how many months they've paid for":"Could not save - try again."); return; }
   toast("Plan updated"); tcLoadPartnerPlans();
  }catch(e){ toast("Network error"); }
 }
