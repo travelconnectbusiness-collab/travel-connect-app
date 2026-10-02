@@ -169,6 +169,37 @@ const TC_DETAIL_SIZES={small:10,medium:12,large:14};
    own UPI QR, logo/colour customization) turns off together the instant
    the plan lapses, without needing the owner to reopen the app for a
    fresh server fetch first. owner_free never expires by definition. */
+/* The Dashboard otherwise only ever shows db.settings.myPlan - whatever
+   was cached on this device the last time it was fetched fresh (at
+   login, or on "My Business & Vehicles") - so an admin changing a
+   partner's plan never reaches their Dashboard until they happen to visit
+   that other page. This runs every time the Dashboard opens, quietly
+   re-fetches the partner's own record, and - only if something about the
+   plan actually changed, and the person is still looking at the
+   Dashboard when the answer comes back - redraws it so the new plan/
+   expiry shows without them having to do anything. Never blocks the
+   initial paint (it's called right before app().innerHTML is set, and
+   runs the fetch in the background), and silently does nothing on a
+   network error - this is a convenience refresh, not something the
+   Dashboard depends on to function. */
+async function tcRefreshMyPlan(){
+ const user=getCurrentUser();
+ if(!user||!db.settings.myPartnerId) return;
+ try{
+  const res=await fetch("/api/partners?action=mine_list&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok||!data.partners) return;
+  const mine=data.partners.find(p=>p.id===db.settings.myPartnerId);
+  if(!mine) return;
+  const changed=(mine.plan||"free")!==db.settings.myPlan||(mine.plan_expires_at||null)!==(db.settings.myPlanExpiresAt||null);
+  if(!changed) return;
+  db.settings.myPlan=mine.plan||"free";
+  db.settings.myPlanExpiresAt=mine.plan_expires_at||null;
+  save();
+  const onDashboard=!location.hash||location.hash==="#dashboard";
+  if(onDashboard&&!tcCurrentIsFromMenu) dashboard();
+ }catch(e){}
+}
 function tcIsPremiumPlan(){
  if(db.settings.myPlan==="owner_free") return true;
  if(db.settings.myPlan!=="paid"&&db.settings.myPlan!=="premium") return false;
@@ -1562,7 +1593,7 @@ function loadBill(){
   </div>
   <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
   <div id="billQR" style="margin-top:10px"></div>
-  `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
+   `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
   <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button><button onclick="imageBill('${t.id}')">Image</button></div>
  </div>`;
  if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
@@ -1785,6 +1816,7 @@ function dashboard(){
   partnerView();
   return;
  }
+ tcRefreshMyPlan();
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card(tcT("dashboard_title"),`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
@@ -2059,3 +2091,4 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
+ 
