@@ -671,7 +671,7 @@ async function tcRenderDirectory(){
   <p class="muted">${tcT("directory_search_hint")}</p>
   <div class="grid">
    <label>${tcT("category_label")}<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
-   <label>${tcT("business_search_label")}<input id="tcDirSearch" placeholder="e.g. Hotel Anugraha, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+   <label>${tcT("business_search_label")}<input id="tcDirSearch" placeholder="e.g. Krishna Tours and Travels, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
   </div>
   <div id="tcDirList">${tcT("loading")}</div>`);
  try{
