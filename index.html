@@ -90,8 +90,62 @@ window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(
 
 <script>
 if('serviceWorker' in navigator){
- addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
- navigator.serviceWorker.addEventListener('controllerchange',()=>{ location.reload(); });
+ let tcSwReg=null, tcSwReloading=false;
+ /* An SPA like this one almost never does a real browser page navigation
+    (every screen change is just view() swapping innerHTML) - and a
+    browser only checks the SERVER for a newer sw.js on an actual
+    navigation/reload. So without this, a new deployment could sit on the
+    server indefinitely while an already-open tab keeps running the old
+    code, which is exactly why closing and reopening the app was the only
+    way updates ever showed up. This explicitly asks the browser to check
+    for a newer sw.js: right away, then every time the app is reopened
+    from the background (the moment someone is most likely to actually
+    look at the screen), and every 10 minutes while it stays open and
+    visible. */
+ function tcCheckForUpdate(){ if(tcSwReg) tcSwReg.update().catch(()=>{}); }
+ addEventListener('load',()=>{
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+   tcSwReg=reg;
+   reg.addEventListener('updatefound',()=>{
+    const installing=reg.installing;
+    if(!installing) return;
+    installing.addEventListener('statechange',()=>{
+     /* "installed" with an existing controller means a new version is
+        ready and waiting - not that this is the very first install. */
+     if(installing.state==='installed'&&navigator.serviceWorker.controller){
+      if(typeof tcShowUpdateBanner==='function') tcShowUpdateBanner();
+     }
+    });
+   });
+  }).catch(()=>{});
+ });
+ /* Going to the background is exactly the safe moment to apply an update
+    on its own, with no tap needed: nobody is looking at the screen or
+    mid-way through typing into it right then, so activating the new
+    worker (and the reload that follows once it takes over) happens
+    unseen - by the time the person reopens the app, the new version is
+    already there waiting for them. Coming back to the FOREGROUND instead
+    checks the server for anything newer, in case a deployment happened
+    while this device had the app in the background. */
+ document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'){ tcCheckForUpdate(); return; }
+  if(!tcSwReg) return;
+  if(tcSwReg.waiting){ tcSwReg.waiting.postMessage({type:'SKIP_WAITING'}); return; }
+  try{ await tcSwReg.update(); if(tcSwReg.waiting) tcSwReg.waiting.postMessage({type:'SKIP_WAITING'}); }catch(e){}
+ });
+ setInterval(tcCheckForUpdate,600000);
+ /* Never reloads on its own - a silent reload could wipe out a form
+    someone is halfway through filling in. This only ever fires after the
+    person themselves taps "Reload Now" on the banner (tcApplyUpdate,
+    core.js) or the Menu's "Reload App" button, both of which call
+    skipWaiting() on the waiting worker first; THAT is what causes this
+    controllerchange event, so by the time it fires the new code is
+    already active and reloading is safe and expected. */
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{
+  if(tcSwReloading) return;
+  tcSwReloading=true;
+  location.reload();
+ });
 }
 </script>
 
