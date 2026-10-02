@@ -736,6 +736,7 @@ function tcMenuItem(iconPaths,label,onclick,danger){
 function tcOpenMenu(){
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
  const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',tcT("menu_logout"),"closeModal();logout()",true);
+ const reloadItem=tcMenuItem('<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',tcT("menu_reload_app"),"closeModal();tcApplyUpdate()");
  modal(`
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
@@ -761,6 +762,7 @@ function tcOpenMenu(){
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_useful_places"),"closeModal();tcMenuNavPending=true;tcOpenPlacesAdmin()")}
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_partner"),"closeModal();tcMenuNavPending=true;tcPreviewPartnerPage()")}
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_customer"),"closeModal();tcMenuNavPending=true;tcPreviewCustomerPage()")}
+  ${reloadItem}
   ${logoutItem}
   </div>`);
 }
@@ -796,6 +798,7 @@ const TC_STRINGS={
  menu_preview_partner:{en:"Preview: Partner Page",ml:"പ്രിവ്യൂ: പാർട്ണർ പേജ്"},
  menu_preview_customer:{en:"Preview: Customer Page",ml:"പ്രിവ്യൂ: കസ്റ്റമർ പേജ്"},
  menu_logout:{en:"Log out of this device",ml:"ഈ ഫോണിൽ നിന്ന് ലോഗ് ഔട്ട്"},
+ menu_reload_app:{en:"Reload App (get the latest updates)",ml:"ആപ്പ് റീലോഡ് ചെയ്യുക (പുതിയ അപ്ഡേറ്റുകൾ)"},
  menu_title:{en:"MENU",ml:"മെനു"},
  menu_sub:{en:"Owner / admin settings - password protected",ml:"ഉടമ / അഡ്മിൻ സെറ്റിംഗ്സ് - പാസ്‌വേഡ് സംരക്ഷിതം"},
  new_enquiry:{en:"New Enquiry",ml:"പുതിയ അന്വേഷണം"},
@@ -1020,6 +1023,37 @@ const TC_BUSINESS_TYPES_ML={
    just be written once in whichever language), and the Menu is rebuilt
    fresh from tcOpenMenu() every time it's opened, so both need their own
    explicit re-apply call rather than relying on a one-time render. */
+/* ---------- APP UPDATES (no more close-and-reopen) ----------
+   An SPA like this one almost never does a real browser navigation (every
+   screen change is just view() swapping innerHTML), and a browser only
+   checks the server for a newer sw.js on an actual navigation/reload - so
+   without index.html's periodic reg.update() calls, a new deployment
+   could sit on the server indefinitely while an already-open tab keeps
+   running the old code. Once a newer version IS found, it sits "waiting"
+   (see sw.js) until the person themselves taps Reload - tcApplyUpdate,
+   used by both the banner below and the Menu's own "Reload App" button -
+   never silently. */
+function tcShowUpdateBanner(){
+ if(document.querySelector("#tcUpdateBanner")) return;
+ const b=document.createElement("div");
+ b.id="tcUpdateBanner";
+ b.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:9999;background:linear-gradient(135deg,#0b6b78,#12898f);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 -4px 14px rgba(0,0,0,.25)";
+ b.innerHTML=`<span style="flex:1;font-size:13px;font-weight:600">&#8635; A new version of the app is ready.</span>
+  <button onclick="tcApplyUpdate()" style="background:#fff;color:#0b6b78;font-weight:800;padding:8px 14px;border-radius:10px">Reload Now</button>
+  <button onclick="document.querySelector('#tcUpdateBanner').remove()" style="background:none;color:#fff;box-shadow:none;padding:6px;font-size:18px;line-height:1">&times;</button>`;
+ document.body.appendChild(b);
+}
+async function tcApplyUpdate(){
+ try{
+  const reg=await navigator.serviceWorker.getRegistration();
+  if(reg&&reg.waiting){ reg.waiting.postMessage({type:"SKIP_WAITING"}); return; }
+  /* No update actually waiting (e.g. the Menu button pressed with nothing
+     new available yet) - still worth an explicit check-then-reload so the
+     action always does SOMETHING sensible rather than silently nothing. */
+  if(reg) await reg.update();
+  location.reload();
+ }catch(e){ location.reload(); }
+}
 function tcApplyTabLabels(){
  const map={dashboard:"tab_dashboard",enquiries:"tab_enquiries",quotations:"tab_quotations",trips:"tab_trips",billing:"tab_billing"};
  document.querySelectorAll(".tabs button").forEach(b=>{
