@@ -7,10 +7,21 @@ const CACHE="tcp-v4-network-first";
 const ASSETS=["/","/index.html","/app.css","/manifest.webmanifest"];
 
 self.addEventListener("install",e=>{
- self.skipWaiting();
+ /* No automatic self.skipWaiting() here on purpose. A newly-installed
+    worker used to activate itself immediately, which (once the page side
+    was also checking for updates mid-session, not just on a fresh open)
+    could force a reload on someone's phone at literally any moment,
+    possibly wiping out a form they were halfway through filling in. Now
+    it sits "waiting" until the person themselves taps "Reload Now" on the
+    update banner or the Menu's "Reload App" - see the "message" handler
+    below - skipWaiting only ever runs in response to that explicit tap. */
  e.waitUntil(
   caches.open(CACHE).then(c=>Promise.all(ASSETS.map(a=>c.add(a).catch(()=>{}))))
  );
+});
+
+self.addEventListener("message",(event)=>{
+ if(event.data&&event.data.type==="SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate",e=>{
