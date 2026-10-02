@@ -80,7 +80,9 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        "SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours FROM travel_partners WHERE verified=1 ORDER BY business_name"
+        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan
+         FROM travel_partners WHERE verified=1
+         ORDER BY CASE WHEN plan IN ('premium','owner_free') THEN 1 WHEN plan='paid' THEN 2 ELSE 3 END, business_name`
       )
       .all();
     return Response.json({ ok: true, partners: results });
