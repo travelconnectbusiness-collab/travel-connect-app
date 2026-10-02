@@ -162,8 +162,37 @@ const TC_FONT_FAMILIES={
 };
 const TC_LOGO_SIZES={small:120,medium:220,large:320};
 const TC_DETAIL_SIZES={small:10,medium:12,large:14};
+/* A Paid/Premium plan stops counting as such the moment its paid period
+   (myPlanExpiresAt, set by the admin when they record a payment) has
+   passed - this is the single place that decision is made on the
+   frontend, so every feature gated on "is this a paid plan" (branding,
+   own UPI QR, logo/colour customization) turns off together the instant
+   the plan lapses, without needing the owner to reopen the app for a
+   fresh server fetch first. owner_free never expires by definition. */
 function tcIsPremiumPlan(){
- return db.settings.myPlan==="paid"||db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
+ if(db.settings.myPlan==="owner_free") return true;
+ if(db.settings.myPlan!=="paid"&&db.settings.myPlan!=="premium") return false;
+ if(!db.settings.myPlanExpiresAt) return true;
+ return new Date(db.settings.myPlanExpiresAt).getTime()>Date.now();
+}
+/* Days remaining on a Paid/Premium plan, or null if not applicable /
+   doesn't expire - used to show a renewal warning as the date approaches. */
+function tcPlanDaysLeft(){
+ if((db.settings.myPlan!=="paid"&&db.settings.myPlan!=="premium")||!db.settings.myPlanExpiresAt) return null;
+ const ms=new Date(db.settings.myPlanExpiresAt).getTime()-Date.now();
+ return Math.ceil(ms/86400000);
+}
+/* Shown on the owner's own dashboard once their Paid/Premium plan is
+   within a week of running out, or right after it has - so they see it
+   themselves instead of only finding out when their branding/UPI QR
+   quietly disappears from a bill. Shared by both the Taxi dashboard and
+   the non-taxi partner page. Returns "" the rest of the time. */
+function tcPlanExpiryWarningHtml(){
+ const days=tcPlanDaysLeft();
+ if(days===null||days>7) return "";
+ const planLabel=db.settings.myPlan==="premium"?"Premium":"Paid";
+ if(days<0) return `<div style="margin-top:8px;background:#fdeceb;border:2px solid #c0392b;border-radius:8px;padding:10px;font-size:12.5px;color:#7b241c;font-weight:600">&#9888; Your ${planLabel} plan expired ${-days} day${-days===1?"":"s"} ago - bills are now showing Travel Connect's branding again. Contact Travel Connect to renew.</div>`;
+ return `<div style="margin-top:8px;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:10px;font-size:12.5px;color:#7a5a1e;font-weight:600">&#9203; Your ${planLabel} plan expires in ${days} day${days===1?"":"s"} - contact Travel Connect to renew and keep your own branding on bills.</div>`;
 }
 function tcShowUpgradePrompt(feature){
  modal(`<h2>Premium Feature</h2>
@@ -1566,7 +1595,7 @@ function enquiries(){
   <h3 style="margin-top:0">&#9889; Quick Fare (during a call - no save needed)</h3>
   <p class="muted">Type the route/KM and read out the fare instantly. Nothing here is saved unless you tap "Save as Enquiry" below.</p>
   <div class="grid">
-   <label>Customer name<input id="qqName"></label>
+      <label>Customer name<input id="qqName"></label>
    <label>Customer mobile<input id="qqMobile"></label>
   </div>
   <div class="grid">
@@ -1597,7 +1626,7 @@ function enquiries(){
  <div class="grid">
  <label>Customer name<input id="enqName"></label><label>Mobile<input id="enqMobile"></label>
  <label>Pickup<input id="enqPickup"></label><label>Destination<input id="enqDest"></label>
-  <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
+ <label>Trip type<select id="enqType"><option value="local">Local Trip</option><option value="one_day">One Day</option><option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option></select></label>
  <label>Required date${tcDateInputHtml("enqDate","")}</label>
  <label>Entry date (leave blank for today)${tcDateInputHtml("enqEntryDate","")}</label></div>
  <div class="actions"><button class="primary" onclick="saveEnquiry()">Save Enquiry</button></div>
@@ -1756,6 +1785,7 @@ function dashboard(){
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">${tcT("free_notice")}</div>`}
+  ${tcPlanExpiryWarningHtml()}
  </div>
  <div class="actions">
   <button class="primary" style="background:#3b7bbf;border-color:#3b7bbf" onclick="view('enquiries')">${tcT("new_enquiry")}</button>
@@ -2017,3 +2047,4 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
+
