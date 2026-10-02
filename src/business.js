@@ -182,6 +182,18 @@ function tcPlanDaysLeft(){
  const ms=new Date(db.settings.myPlanExpiresAt).getTime()-Date.now();
  return Math.ceil(ms/86400000);
 }
+/* The plan's "Valid until" date, shown alongside the Premium/Paid notice
+   at ALL times (not just as a last-week warning, which only appears once
+   things are close/overdue) - so the owner always knows exactly when to
+   expect a renewal to be due, not only once it's urgent. Owner Free has
+   no expiry and a legacy Paid/Premium plan with no expiry recorded simply
+   omits this line (nothing to show). */
+function tcPlanValidUntilHtml(){
+ if(db.settings.myPlan!=="paid"&&db.settings.myPlan!=="premium") return "";
+ if(!db.settings.myPlanExpiresAt) return "";
+ const when=tcFormatDate(db.settings.myPlanExpiresAt.slice(0,10));
+ return `<div style="font-size:11px;color:#0f5a55;opacity:.85">Valid until ${esc(when)}</div>`;
+}
 /* Shown on the owner's own dashboard once their Paid/Premium plan is
    within a week of running out, or right after it has - so they see it
    themselves instead of only finding out when their branding/UPI QR
@@ -1595,7 +1607,7 @@ function enquiries(){
   <h3 style="margin-top:0">&#9889; Quick Fare (during a call - no save needed)</h3>
   <p class="muted">Type the route/KM and read out the fare instantly. Nothing here is saved unless you tap "Save as Enquiry" below.</p>
   <div class="grid">
-      <label>Customer name<input id="qqName"></label>
+   <label>Customer name<input id="qqName"></label>
    <label>Customer mobile<input id="qqMobile"></label>
   </div>
   <div class="grid">
@@ -1783,7 +1795,7 @@ function dashboard(){
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; ${tcT("switch_business")}</button>`:""}</div>
   ${tcIsPremiumPlan()?
-   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>`:
+   `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>${tcPlanValidUntilHtml()}`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">${tcT("free_notice")}</div>`}
   ${tcPlanExpiryWarningHtml()}
  </div>
@@ -2047,4 +2059,3 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
-
