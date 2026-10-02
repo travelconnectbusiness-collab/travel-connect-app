@@ -28,6 +28,15 @@ async function ensureNewColumns(env) {
   try {
     await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN business_hours TEXT").run();
   } catch (e) { /* already exists */ }
+  /* The "active" query below joins travel_partners and sorts by its
+     plan_expires_at (so an expired Paid/Premium plan correctly drops to
+     the Free tier's position) - that column is normally added by
+     partners.js's own migration, but this Worker instance may serve an
+     Active Vehicles Board request before partners.js has ever run, so the
+     same safe, idempotent ALTER is repeated here too. */
+  try {
+    await env.DB.prepare("ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT").run();
+  } catch (e) { /* already exists */ }
 }
 
 /* GET ?action=list&partner_id=...     - a partner's own vehicles
@@ -58,7 +67,12 @@ export async function onRequestGet({ request, env }) {
                 p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
          WHERE v.active=1 AND v.verified=1 AND p.verified=1
-         ORDER BY CASE WHEN p.plan IN ('premium','owner_free') THEN 1 WHEN p.plan='paid' THEN 2 ELSE 3 END, v.id DESC`
+         ORDER BY CASE
+           WHEN p.plan='owner_free' THEN 1
+           WHEN p.plan='premium' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 1
+           WHEN p.plan='paid' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 2
+           ELSE 3
+         END, v.id DESC`
       )
       .all();
     return Response.json({ ok: true, vehicles: results });
