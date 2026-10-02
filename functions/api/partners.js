@@ -13,6 +13,7 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN description TEXT",
     "ALTER TABLE travel_partners ADD COLUMN business_hours TEXT",
     "ALTER TABLE travel_partners ADD COLUMN business_subtype TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -82,7 +83,12 @@ export async function onRequestGet({ request, env }) {
       .prepare(
         `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan
          FROM travel_partners WHERE verified=1
-         ORDER BY CASE WHEN plan IN ('premium','owner_free') THEN 1 WHEN plan='paid' THEN 2 ELSE 3 END, business_name`
+         ORDER BY CASE
+           WHEN plan='owner_free' THEN 1
+           WHEN plan='premium' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 1
+           WHEN plan='paid' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 2
+           ELSE 3
+         END, business_name`
       )
       .all();
     return Response.json({ ok: true, partners: results });
