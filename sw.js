@@ -86,6 +86,36 @@ self.addEventListener("push",(event)=>{
   return;
  }
 
+ if(data.type==="trip_alert"){
+  /* Sent to every nearby Active partner of the matching category at once
+     - first to tap Accept gets the trip, so this needs to be hard to
+       miss (vibrate pattern, stays up until acted on) the same way SOS
+       does, rather than something that quietly sits in the shade. */
+  event.waitUntil(
+   self.registration.showNotification(data.title||"\ud83d\ude95 New trip request nearby",{
+    body:data.body||"",
+    tag:data.tag||"tc-trip",
+    renotify:true,
+    requireInteraction:true,
+    vibrate:[150,80,150,80,150],
+    data:{type:"trip_alert",alert_id:data.alert_id,url:"/#trip_alert_"+data.alert_id}
+   })
+  );
+  return;
+ }
+
+ if(data.type==="trip_alert_accepted"){
+  event.waitUntil(
+   self.registration.showNotification(data.title||"\u2705 A driver accepted your trip",{
+    body:data.body||"",
+    tag:data.tag||"tc-trip",
+    vibrate:[150,80,150],
+    data:{type:"trip_alert_accepted",alert_id:data.alert_id,url:"/#trip_alert_"+data.alert_id}
+   })
+  );
+  return;
+ }
+
  const title=data.title||"\ud83d\udea8 Travel Connect SOS";
  const options={
   body:data.body||"Needs urgent assistance.",
@@ -117,6 +147,23 @@ self.addEventListener("notificationclick",(event)=>{
     for(const c of list){
      if("focus" in c){
       c.postMessage({tcOpen:"messages"});
+      try{ if("navigate" in c) await c.navigate(dest); }catch(e){}
+      return c.focus();
+     }
+    }
+    if(clients.openWindow) return clients.openWindow(dest);
+   })
+  );
+  return;
+ }
+
+ if(d.type==="trip_alert"||d.type==="trip_alert_accepted"){
+  const dest=d.url||"/";
+  event.waitUntil(
+   clients.matchAll({type:"window",includeUncontrolled:true}).then(async(list)=>{
+    for(const c of list){
+     if("focus" in c){
+      c.postMessage({tcOpenTripAlert:d.alert_id});
       try{ if("navigate" in c) await c.navigate(dest); }catch(e){}
       return c.focus();
      }
