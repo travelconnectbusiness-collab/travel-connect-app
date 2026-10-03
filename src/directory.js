@@ -336,6 +336,7 @@ function tcOpenOneBusiness(partner){
    Details (shared with business.js's renderBillingIdentitySection), and
    (once a UPI ID is set) a simple type-an-amount payment-QR collector. */
 function renderPartnerDashboard(p){
+ if(typeof tcCheckPendingTripAlerts==="function") tcCheckPendingTripAlerts();
  const isTaxi=tcIsTaxiType(p.business_type);
  /* Auto Rickshaw and Pickup/Goods Carrier are vehicle-based businesses too
     (unlike a restaurant or workshop) - without their own "Add Vehicle",
@@ -357,6 +358,7 @@ function renderPartnerDashboard(p){
   <div id="ncQrBox" style="text-align:center;margin-top:10px"></div>`:
   `<p class="muted">${tcT("set_upi_first")}</p>`}`;
  document.querySelector("#partnerBox").innerHTML=`
+ ${typeof tcTripAlertBannerHtml==="function"?tcTripAlertBannerHtml():""}
  ${tcMessagesCardHtml()}
  ${hasMultiple?`<div class="actions"><button onclick="tcSwitchBusiness()">&#8646; ${tcT("switch_business")}</button></div>`:""}
  <div class="card">
@@ -1128,6 +1130,96 @@ window._tcMsgItems=[];
    the very top of the Dashboard, the customer home and the partner page
    (tcMessagesCardHtml below). This stub stays only so any page still
    calling it simply shows nothing there. */
+/* ---------- TRIP ALERTS (partner side) ----------
+   Checked once when the Taxi/Auto/Pickup-Goods owner's own Dashboard
+   loads, so a push notification missed entirely (poor signal, battery
+   saver, phone was off) still surfaces here the next time they open the
+   app - and again when a push IS received while the app is open (see the
+   tcOpenTripAlert branch in the service-worker message listener above). */
+const TC_TRIP_ALERT_TYPES=["taxi_travel","auto_rickshaw","pickup_goods"];
+async function tcCheckPendingTripAlerts(){
+ const partnerId=db.settings.myPartnerId;
+ const user=getCurrentUser();
+ if(!partnerId||!user||!TC_TRIP_ALERT_TYPES.includes(db.settings.myBusinessType)) return;
+ try{
+  const res=await fetch("/api/trip_alerts?action=pending_for_partner&partner_id="+partnerId+"&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok) return;
+  window._tcPendingTripAlerts=data.alerts||[];
+  tcPaintTripAlertBanner();
+ }catch(e){}
+}
+function tcTripAlertBannerHtml(){
+ const n=(window._tcPendingTripAlerts||[]).length;
+ if(!n) return "";
+ return `<div id="tcTripAlertBanner" onclick="tcOpenTripAlertModal()" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px;margin:2px 0 14px;border-radius:16px;color:#fff;background:linear-gradient(135deg,#b8860b,#e0a526 60%,#f0b94a);box-shadow:0 8px 18px rgba(184,134,11,.35);animation:tcSosPulse 2.2s infinite">
+  <div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0">&#128663;</div>
+  <div style="flex:1"><div style="font-weight:800;font-size:15.5px">${n} nearby trip request${n>1?"s":""} waiting</div><div style="font-size:12px;opacity:.95">Tap to view and accept</div></div>
+  <div style="font-size:22px;opacity:.9">&rsaquo;</div>
+ </div>`;
+}
+function tcPaintTripAlertBanner(){
+ const existing=document.querySelector("#tcTripAlertBanner");
+ const html=tcTripAlertBannerHtml();
+ if(existing){ if(!html) existing.remove(); return; }
+ if(!html) return;
+ const anchor=document.querySelector("#tcMsgCard");
+ if(anchor) anchor.insertAdjacentHTML("beforebegin",html);
+}
+/* With a specific alertId (from a notification tap), shows that one
+   request front and centre if it's still open; otherwise - or with no id
+   at all (tapped the Dashboard banner instead) - shows the full list of
+   whatever's currently pending. Either way, a request someone else
+   already grabbed is simply left off the list rather than shown as an
+   error - the race is expected, not exceptional. */
+async function tcOpenTripAlertModal(alertId){
+ await tcCheckPendingTripAlerts();
+ const list=window._tcPendingTripAlerts||[];
+ if(!list.length){
+  modal(`<h2>No trip requests right now</h2><p class="muted">You'll be notified the moment a nearby customer requests a ${esc(tcBizLabel(db.settings.myBusinessType))}.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
+  return;
+ }
+ const single=alertId?list.find(a=>a.id===Number(alertId)):(list.length===1?list[0]:null);
+ if(single){
+  modal(`<div style="text-align:center">
+   <div style="font-size:40px">&#128663;</div>
+   <h2 style="margin:6px 0">New Trip Request</h2>
+   <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}${single.distance_km!=null?" &bull; "+single.distance_km.toFixed(1)+" km away":""}</p>
+   ${single.pickup_text?`<p class="muted">&#128205; ${esc(single.pickup_text)}</p>`:""}
+   ${single.message?`<p class="muted">"${esc(single.message)}"</p>`:""}
+   ${(single.pickup_lat!=null&&single.pickup_lon!=null)?`<p><a href="https://maps.google.com/?q=${single.pickup_lat},${single.pickup_lon}" target="_blank">View pickup location on map</a></p>`:""}
+   <div class="actions"><button class="primary" style="padding:14px" onclick="tcAcceptTripAlert(${single.id})">&#9989; Accept Trip</button></div>
+   <div class="actions"><button onclick="closeModal()">Not now</button></div>
+  </div>`);
+  return;
+ }
+ modal(`<h2>&#128663; Nearby Trip Requests</h2>
+  ${list.map(a=>`<div class="listitem">
+   <b>${esc(a.customer_name)}</b>${a.distance_km!=null?` <span class="muted">${a.distance_km.toFixed(1)} km away</span>`:""}
+   ${a.pickup_text?`<div class="muted">&#128205; ${esc(a.pickup_text)}</div>`:""}
+   <div class="actions"><button class="primary" onclick="tcAcceptTripAlert(${a.id})">Accept</button></div>
+  </div>`).join("")}
+  <div class="actions"><button onclick="closeModal()">Close</button></div>`);
+}
+async function tcAcceptTripAlert(alertId){
+ const user=getCurrentUser();
+ const partnerId=db.settings.myPartnerId;
+ if(!user||!partnerId) return;
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  const res=await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"accept",alert_id:alertId,partner_id:partnerId,mobile:user.mobile})});
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not accept</h2><p class="muted">Please try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  if(!data.accepted){
+   modal(`<h2>Too late</h2><p class="muted">Another driver already accepted this one.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
+   tcCheckPendingTripAlerts();
+   return;
+  }
+  toast("Trip accepted");
+  modal(`<div style="text-align:center"><div style="font-size:40px">&#9989;</div><h2 style="color:#1c6b2c">Trip accepted!</h2><p class="muted">Call the customer to confirm pickup details.</p><div class="actions"><button onclick="closeModal()">Close</button></div></div>`);
+  tcCheckPendingTripAlerts();
+ }catch(e){ modal(`<h2>Network error</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
+}
 function tcMessagesButtonHtml(){ return ""; }
 function tcMessagesCardHtml(){
  const n=_tcMsgUnread;
@@ -1217,6 +1309,7 @@ function tcStartMsgPolling(){
    const m=e.data||{};
    if(m.tcMsgPush) tcRefreshMsgUnread();
    if(m.tcOpen==="messages") tcOpenMessages();
+   if(m.tcOpenTripAlert) tcOpenTripAlertModal(m.tcOpenTripAlert);
   });
  }catch(e){}
  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") tcRefreshMsgUnread(); });
