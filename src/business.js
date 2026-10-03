@@ -529,6 +529,7 @@ function printBill(tripId,asImage){
  if(manualDiscount) summaryRows+=row("Manual Discount","- "+money(manualDiscount)+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""));
  if(manualAddition) summaryRows+=row("Manual Addition","+ "+money(manualAddition)+(r.manualAdjustmentNote?" ("+r.manualAdjustmentNote+")":""));
  if(r.roundAdjustment) summaryRows+=row("Round off",(r.roundAdjustment>=0?"+":"")+money(r.roundAdjustment));
+ if(r.billRoundAdjustment) summaryRows+=row("Round off (final bill)",(r.billRoundAdjustment>=0?"+":"")+money(r.billRoundAdjustment));
  if(r.extraTotal>0) summaryRows+=row("Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+money(r.extraTotal));
  if(r.gstAmount>0) summaryRows+=row("GST @ "+r.gstPct+"%","+"+money(r.gstAmount));
 
@@ -891,6 +892,7 @@ function downloadBillPDF(tripId){
  if(manualDiscount) y=pdfRow(doc,y,"Manual Discount","- "+pdfMoney(manualDiscount));
  if(manualAddition) y=pdfRow(doc,y,"Manual Addition","+ "+pdfMoney(manualAddition));
  if(r.roundAdjustment) y=pdfRow(doc,y,"Round off",(r.roundAdjustment>=0?"+":"")+pdfMoney(r.roundAdjustment));
+ if(r.billRoundAdjustment) y=pdfRow(doc,y,"Round off (final bill)",(r.billRoundAdjustment>=0?"+":"")+pdfMoney(r.billRoundAdjustment));
  if(r.extraTotal>0) y=pdfRow(doc,y,"Other Charges"+extraChargesShortLabel(r.extraCharges),"+"+pdfMoney(r.extraTotal));
  if(r.gstAmount>0) y=pdfRow(doc,y,"GST @ "+r.gstPct+"%","+"+pdfMoney(r.gstAmount));
  y=pdfDivider(doc,y);
@@ -1341,8 +1343,20 @@ function billFinalAmount(t,q,c){
  const preGst=dr.final+adjAmount+extraTotal;
  const gstOn=q.gstOn||false, gstPct=gstOn?(q.gstPct||0):0;
  const gstAmount=gstOn?Math.round(preGst*gstPct/100):0;
- const finalAdjusted=Math.max(0,preGst+gstAmount);
- return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal,gstOn,gstPct,gstAmount};
+ let finalAdjusted=Math.max(0,preGst+gstAmount);
+ /* The bill's OWN round-off (set on the Final Bill itself, independent of
+    whatever the Quotation had - a Quick Bill never had a Quotation to
+    set one on in the first place) is applied last, after GST, so the
+    actual amount printed/collected always lands on a round figure when
+    the owner has asked for one. */
+ const billRoundStep=Number(t.billRoundOff)||0;
+ let billRoundAdjustment=0;
+ if(billRoundStep>0){
+  const rounded=Math.round(finalAdjusted/billRoundStep)*billRoundStep;
+  billRoundAdjustment=rounded-finalAdjusted;
+  finalAdjusted=rounded;
+ }
+ return {...r,subtotal,driverBata:bata,...dr,final:finalAdjusted,manualAdjustment:adjAmount,manualAdjustmentNote:(t.adjustment&&t.adjustment.note)||"",extraCharges,extraTotal,gstOn,gstPct,gstAmount,billRoundAdjustment};
 }
 function billBreakdown(t,q,c){
  const km=t.actualKm||q.estimatedKm, h=t.actualHours||q.estimatedHours;
@@ -1577,6 +1591,7 @@ function loadBill(){
   ${manualDiscount?`<div>Manual Discount: -${money(manualDiscount)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${manualAddition?`<div>Manual Addition: +${money(manualAddition)}${r.manualAdjustmentNote?` <span class="muted">(${esc(r.manualAdjustmentNote)})</span>`:""}</div>`:""}
   ${r.roundAdjustment?`<div>Round off: ${r.roundAdjustment>=0?"+":""}${money(r.roundAdjustment)}</div>`:""}
+  ${r.billRoundAdjustment?`<div>Round off (final bill): ${r.billRoundAdjustment>=0?"+":""}${money(r.billRoundAdjustment)}</div>`:""}
   ${r.extraTotal>0?`<div>Other Charges${extraChargesShortLabel(r.extraCharges)}: +${money(r.extraTotal)}</div>`:""}
   ${r.gstAmount>0?`<div>GST @ ${r.gstPct}%: +${money(r.gstAmount)}</div>`:""}
   <div class="total">FINAL BILL AMOUNT: ${money(final)}</div>
@@ -1612,21 +1627,49 @@ function undoLastPayment(tripId){
  if(!confirm("Remove the last recorded payment?")) return;
  t.payments.pop(); save();toast("Last payment removed");loadBill();
 }
+/* Discount and Addition are two separate, always-positive fields rather
+   than one signed "amount" - typing a plain positive number for a
+   discount used to silently ADD it to the bill instead of subtracting
+   (only a NEGATIVE number actually reduced the total), which read as "I
+   gave a discount and it made the bill bigger". Picking "Discount" here
+   can never do that - the sign is decided by the choice, not by
+   remembering to type a minus. Round off is also back on the bill itself
+   (not just inherited from the Quotation, which a Quick Bill never had
+   one for to begin with). */
 function openAdjustBill(tripId){
  const t=db.trips.find(x=>x.id===tripId);
+ const adj=t.adjustment||{};
+ /* Reads an existing OLD-style signed amount (from before this change)
+    as a Discount if negative, an Addition if positive, so a trip
+    adjusted before this update still shows correctly here. */
+ const existingType=adj.type||((Number(adj.amount)||0)<0?"discount":"addition");
+ const existingAmt=Math.abs(Number(adj.amount)||0);
  modal(`<h2>Adjust Final Bill Amount</h2>
   <p class="muted">Add or subtract a manual amount from the final bill, with a reason (shown on the printed bill).</p>
   <div class="grid">
-   <label>Amount (negative to subtract, e.g. -200)<input id="adjAmt" type="number" value="${t.adjustment?t.adjustment.amount:0}"></label>
-   <label>Reason<input id="adjNote" value="${esc(t.adjustment?t.adjustment.note:"")}" placeholder="e.g. Goodwill discount"></label>
+   <label>Type<select id="adjType">
+     <option value="discount" ${existingType==="discount"?"selected":""}>Discount (reduces the bill)</option>
+     <option value="addition" ${existingType==="addition"?"selected":""}>Addition (increases the bill)</option>
+   </select></label>
+   <label>Amount<input id="adjAmt" type="number" min="0" value="${existingAmt||0}"></label>
+   <label>Reason<input id="adjNote" value="${esc(adj.note||"")}" placeholder="e.g. Goodwill discount"></label>
+   <label>Round off final bill to<select id="adjRound">
+     <option value="0" ${!t.billRoundOff?"selected":""}>No rounding</option>
+     <option value="10" ${t.billRoundOff==10?"selected":""}>Nearest Rs.10</option>
+     <option value="50" ${t.billRoundOff==50?"selected":""}>Nearest Rs.50</option>
+     <option value="100" ${t.billRoundOff==100?"selected":""}>Nearest Rs.100</option>
+   </select></label>
   </div>
   <div class="actions"><button class="primary" onclick="saveAdjustment('${tripId}')">Save</button></div>`);
 }
 function saveAdjustment(tripId){
  const t=db.trips.find(x=>x.id===tripId);
- const amt=+document.querySelector("#adjAmt").value||0, note=document.querySelector("#adjNote").value.trim();
+ const type=document.querySelector("#adjType").value;
+ const amt=Math.abs(+document.querySelector("#adjAmt").value||0);
+ const note=document.querySelector("#adjNote").value.trim();
+ t.billRoundOff=+document.querySelector("#adjRound").value||0;
  if(amt===0) t.adjustment=null;
- else t.adjustment={amount:amt,note};
+ else t.adjustment={type,amount:type==="discount"?-amt:amt,note};
  save();closeModal();toast("Bill amount adjusted");loadBill();
 }
 
@@ -2091,4 +2134,4 @@ function addExpense(){
 }
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
-} 
+}
