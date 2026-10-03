@@ -399,7 +399,7 @@ function renderPartnerDashboard(p){
   <div id="tcRecentContacts">${tcT("loading")}</div>
  </div>
  <hr>
- <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button></div>`;
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()">&#128663; Request Nearby Vehicle</button>`:""}</div>`;
  renderBillingIdentitySection(p);
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
@@ -1181,13 +1181,14 @@ async function tcOpenTripAlertModal(alertId){
  }
  const single=alertId?list.find(a=>a.id===Number(alertId)):(list.length===1?list[0]:null);
  if(single){
+  const hasLoc=single.pickup_lat!=null&&single.pickup_lon!=null;
   modal(`<div style="text-align:center">
    <div style="font-size:40px">&#128663;</div>
    <h2 style="margin:6px 0">New Trip Request</h2>
    <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}${single.distance_km!=null?" &bull; "+single.distance_km.toFixed(1)+" km away":""}</p>
    ${single.pickup_text?`<p class="muted">&#128205; ${esc(single.pickup_text)}</p>`:""}
    ${single.message?`<p class="muted">"${esc(single.message)}"</p>`:""}
-   ${(single.pickup_lat!=null&&single.pickup_lon!=null)?`<p><a href="https://maps.google.com/?q=${single.pickup_lat},${single.pickup_lon}" target="_blank">View pickup location on map</a></p>`:""}
+   ${hasLoc?`<a href="https://maps.google.com/?q=${single.pickup_lat},${single.pickup_lon}" target="_blank" style="text-decoration:none;display:block;margin-top:8px"><button style="width:100%;padding:13px;background:#1a73e8;color:#fff;font-weight:800;font-size:14.5px">&#128506; View Customer Location on Map</button></a>`:`<p class="muted" style="font-size:12px">Exact location not shared - use the landmark above, or call after accepting.</p>`}
    <div class="actions"><button class="primary" style="padding:14px" onclick="tcAcceptTripAlert(${single.id})">&#9989; Accept Trip</button></div>
    <div class="actions"><button onclick="closeModal()">Not now</button></div>
   </div>`);
@@ -1197,7 +1198,7 @@ async function tcOpenTripAlertModal(alertId){
   ${list.map(a=>`<div class="listitem">
    <b>${esc(a.customer_name)}</b>${a.distance_km!=null?` <span class="muted">${a.distance_km.toFixed(1)} km away</span>`:""}
    ${a.pickup_text?`<div class="muted">&#128205; ${esc(a.pickup_text)}</div>`:""}
-   <div class="actions"><button class="primary" onclick="tcAcceptTripAlert(${a.id})">Accept</button></div>
+   <div class="actions">${(a.pickup_lat!=null&&a.pickup_lon!=null)?`<a href="https://maps.google.com/?q=${a.pickup_lat},${a.pickup_lon}" target="_blank" style="text-decoration:none;flex:1"><button style="width:100%;background:#1a73e8;color:#fff">&#128506; Map</button></a>`:""}<button class="primary" onclick="tcAcceptTripAlert(${a.id})">Accept</button></div>
   </div>`).join("")}
   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
 }
@@ -1216,7 +1217,22 @@ async function tcAcceptTripAlert(alertId){
    return;
   }
   toast("Trip accepted");
-  modal(`<div style="text-align:center"><div style="font-size:40px">&#9989;</div><h2 style="color:#1c6b2c">Trip accepted!</h2><p class="muted">Call the customer to confirm pickup details.</p><div class="actions"><button onclick="closeModal()">Close</button></div></div>`);
+  /* The lookup list was already fetched a moment ago to show this same
+     alert for Accept/Decline, so the customer's pickup location/landmark
+     is reused from there rather than asking the server for it again -
+     this is what makes the "Navigate" button possible right here on the
+     success screen, not just in the prompt that's now gone. */
+  const original=(window._tcPendingTripAlerts||[]).find(a=>a.id===alertId);
+  const hasLoc=original&&original.pickup_lat!=null&&original.pickup_lon!=null;
+  const callMobile=data.partner&&(data.partner.mobile1||data.partner.mobile2);
+  modal(`<div style="text-align:center">
+   <div style="font-size:40px">&#9989;</div>
+   <h2 style="color:#1c6b2c;margin:6px 0">Trip accepted!</h2>
+   ${original?`<p style="font-size:14.5px"><b>${esc(original.customer_name)}</b>${original.pickup_text?" &bull; "+esc(original.pickup_text):""}</p>`:""}
+   <p class="muted">Call the customer and use the map to reach their pickup point.</p>
+   ${hasLoc?`<a href="https://maps.google.com/?q=${original.pickup_lat},${original.pickup_lon}" target="_blank" style="text-decoration:none;display:block;margin-top:6px"><button style="width:100%;padding:13px;background:#1a73e8;color:#fff;font-weight:800;font-size:14.5px">&#128506; Navigate to Customer</button></a>`:""}
+   <div class="actions">${callMobile?`<a href="tel:${esc(callMobile)}" style="text-decoration:none;flex:1"><button class="primary">&#128222; Call ${esc(callMobile)}</button></a>`:""}<button onclick="closeModal()">Close</button></div>
+  </div>`);
   tcCheckPendingTripAlerts();
  }catch(e){ modal(`<h2>Network error</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
@@ -1277,6 +1293,29 @@ function tcPlayMsgTone(){
  }catch(e){}
  try{ if(navigator.vibrate) navigator.vibrate([120,70,160]); }catch(e){}
 }
+/* A louder, more urgent 3-note alert for a trip request - distinct from
+   the 2-note message chime, since this needs to actually get a driver's
+   attention to accept before someone else does. Needed because Android
+   generally does NOT play the system notification sound for a push that
+   arrives while the app itself is already open/in the foreground (the
+   exact case that showed no sound at all) - so this is triggered
+   explicitly in-app instead of relying on the OS notification sound. */
+function tcPlayTripAlertTone(){
+ try{
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const note=(freq,start,dur)=>{
+   const osc=ctx.createOscillator(), gain=ctx.createGain();
+   osc.type="sine"; osc.frequency.value=freq;
+   gain.gain.setValueAtTime(0.0001,ctx.currentTime+start);
+   gain.gain.exponentialRampToValueAtTime(0.4,ctx.currentTime+start+0.02);
+   gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+start+dur);
+   osc.connect(gain); gain.connect(ctx.destination);
+   osc.start(ctx.currentTime+start); osc.stop(ctx.currentTime+start+dur+0.05);
+  };
+  note(1046.5,0,0.22); note(1046.5,0.28,0.22); note(1318.5,0.56,0.5);
+ }catch(e){}
+ try{ if(navigator.vibrate) navigator.vibrate([150,80,150,80,150]); }catch(e){}
+}
 async function tcFetchMsgUnread(){
  const user=getCurrentUser();
  if(!user) return;
@@ -1309,7 +1348,7 @@ function tcStartMsgPolling(){
    const m=e.data||{};
    if(m.tcMsgPush) tcRefreshMsgUnread();
    if(m.tcOpen==="messages") tcOpenMessages();
-   if(m.tcOpenTripAlert) tcOpenTripAlertModal(m.tcOpenTripAlert);
+   if(m.tcOpenTripAlert){ tcPlayTripAlertTone(); tcOpenTripAlertModal(m.tcOpenTripAlert); }
   });
  }catch(e){}
  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") tcRefreshMsgUnread(); });
@@ -1598,7 +1637,7 @@ function tcRenderAllUsersList(list){
   <div class="actions" style="margin-top:6px">
    <button onclick="tcOpenAdminEditUser('${esc(u.mobile)}')">Edit Name</button>
    <button class="${u.blocked?"primary":"danger"}" onclick="tcToggleUserBlock('${esc(u.mobile)}',${!u.blocked})">${u.blocked?"Unblock":"Block"}</button>
-   <button class="danger" onclick="tcDeleteUserRecord('${esc(u.mobile)}')">Delete</button>
+      <button class="danger" onclick="tcDeleteUserRecord('${esc(u.mobile)}')">Delete</button>
   </div>
  </div>`).join("")||"<p class='muted'>No users found.</p>";
 }
