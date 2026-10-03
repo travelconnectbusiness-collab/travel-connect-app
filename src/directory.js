@@ -1172,6 +1172,14 @@ function tcPaintTripAlertBanner(){
    whatever's currently pending. Either way, a request someone else
    already grabbed is simply left off the list rather than shown as an
    error - the race is expected, not exceptional. */
+/* "X km away, ~Y mins" - the one place this combined phrase is built, so
+   the single-request prompt and the multi-request list always word it
+   identically. */
+function tcTripDistanceText(a){
+ if(a.distance_km==null) return "";
+ const eta=typeof tcFormatEta==="function"?tcFormatEta(a.duration_min):"";
+ return a.distance_km+" km away"+(eta?", ~"+eta:"");
+}
 async function tcOpenTripAlertModal(alertId){
  await tcCheckPendingTripAlerts();
  const list=window._tcPendingTripAlerts||[];
@@ -1182,11 +1190,13 @@ async function tcOpenTripAlertModal(alertId){
  const single=alertId?list.find(a=>a.id===Number(alertId)):(list.length===1?list[0]:null);
  if(single){
   const hasLoc=single.pickup_lat!=null&&single.pickup_lon!=null;
+  const destText=(single.destinations&&single.destinations.length)?single.destinations.join(" &rarr; "):"";
   modal(`<div style="text-align:center">
    <div style="font-size:40px">&#128663;</div>
    <h2 style="margin:6px 0">New Trip Request</h2>
-   <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}${single.distance_km!=null?" &bull; "+single.distance_km.toFixed(1)+" km away":""}</p>
-   ${single.pickup_text?`<p class="muted">&#128205; ${esc(single.pickup_text)}</p>`:""}
+   <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}${single.distance_km!=null?" &bull; "+esc(tcTripDistanceText(single)):""}</p>
+   ${single.pickup_text?`<p class="muted">&#128205; From: ${esc(single.pickup_text)}</p>`:""}
+   ${destText?`<p class="muted">&#127919; To: ${destText}</p>`:""}
    ${single.message?`<p class="muted">"${esc(single.message)}"</p>`:""}
    ${hasLoc?`<a href="https://maps.google.com/?q=${single.pickup_lat},${single.pickup_lon}" target="_blank" style="text-decoration:none;display:block;margin-top:8px"><button style="width:100%;padding:13px;background:#1a73e8;color:#fff;font-weight:800;font-size:14.5px">&#128506; View Customer Location on Map</button></a>`:`<p class="muted" style="font-size:12px">Exact location not shared - use the landmark above, or call after accepting.</p>`}
    <div class="actions"><button class="primary" style="padding:14px" onclick="tcAcceptTripAlert(${single.id})">&#9989; Accept Trip</button></div>
@@ -1196,8 +1206,9 @@ async function tcOpenTripAlertModal(alertId){
  }
  modal(`<h2>&#128663; Nearby Trip Requests</h2>
   ${list.map(a=>`<div class="listitem">
-   <b>${esc(a.customer_name)}</b>${a.distance_km!=null?` <span class="muted">${a.distance_km.toFixed(1)} km away</span>`:""}
+   <b>${esc(a.customer_name)}</b>${a.distance_km!=null?` <span class="muted">${esc(tcTripDistanceText(a))}</span>`:""}
    ${a.pickup_text?`<div class="muted">&#128205; ${esc(a.pickup_text)}</div>`:""}
+   ${(a.destinations&&a.destinations.length)?`<div class="muted">&#127919; ${esc(a.destinations.join(" \u2192 "))}</div>`:""}
    <div class="actions">${(a.pickup_lat!=null&&a.pickup_lon!=null)?`<a href="https://maps.google.com/?q=${a.pickup_lat},${a.pickup_lon}" target="_blank" style="text-decoration:none;flex:1"><button style="width:100%;background:#1a73e8;color:#fff">&#128506; Map</button></a>`:""}<button class="primary" onclick="tcAcceptTripAlert(${a.id})">Accept</button></div>
   </div>`).join("")}
   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
@@ -1637,7 +1648,7 @@ function tcRenderAllUsersList(list){
   <div class="actions" style="margin-top:6px">
    <button onclick="tcOpenAdminEditUser('${esc(u.mobile)}')">Edit Name</button>
    <button class="${u.blocked?"primary":"danger"}" onclick="tcToggleUserBlock('${esc(u.mobile)}',${!u.blocked})">${u.blocked?"Unblock":"Block"}</button>
-      <button class="danger" onclick="tcDeleteUserRecord('${esc(u.mobile)}')">Delete</button>
+   <button class="danger" onclick="tcDeleteUserRecord('${esc(u.mobile)}')">Delete</button>
   </div>
  </div>`).join("")||"<p class='muted'>No users found.</p>";
 }
