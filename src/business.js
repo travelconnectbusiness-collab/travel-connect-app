@@ -1591,7 +1591,7 @@ function loadBill(){
    <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
    <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
   </div>
-    <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
+  <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
   <div id="billQR" style="margin-top:10px"></div>
   `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
   <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button><button onclick="imageBill('${t.id}')">Image</button></div>
