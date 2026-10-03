@@ -47,11 +47,117 @@ function tcToggleCollapsible(id){
    Local Directory is the FIRST thing on the page, always visible without
    scrolling - the customer asked for this specifically, since it was
    previously buried further down the page requiring a scroll to reach. */
+/* ---------- NEARBY TRIP REQUEST (broadcast to all nearby Active drivers) ----------
+   One tap sends the same request to every currently-Active, verified
+   driver of the chosen category within range; whichever one accepts
+   first gets it. Backend: functions/api/trip_alerts.js. */
+let _tcTripPollTimer=null;
+function tcOpenTripRequest(){
+ modal(`<h2>&#128663; Request Nearby Vehicle</h2>
+  <p class="muted">Sends one request to every Active driver nearby. Whoever accepts first gets your trip - you'll see their name and number here.</p>
+  <div class="actions" style="flex-direction:column;gap:8px">
+   <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel')">&#128663; Taxi / Travel</button>
+   <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128664; Auto Rickshaw</button>
+   <button style="padding:14px" onclick="tcStartTripBroadcast('pickup_goods')">&#128666; Pickup / Goods Carrier</button>
+  </div>`);
+}
+async function tcStartTripBroadcast(businessType){
+ const user=getCurrentUser();
+ if(!user) return;
+ modal(`<div style="text-align:center;padding:10px 0">
+  <div style="font-size:15px;font-weight:700;margin-bottom:10px">Getting your location...</div>
+  <div class="spinner" style="margin:0 auto"></div>
+ </div>`);
+ const loc=await tcGetLocation(false);
+ if(loc.error!==undefined){
+  modal(`<h2>Location needed</h2><p class="muted">${esc(tcLocationErrorText(loc.error))}</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
+  return;
+ }
+ modal(`<h2>&#128663; Confirm Request</h2>
+  <p class="muted">Category: <b>${esc(tcBizLabel(businessType))}</b></p>
+  <label>Pickup landmark (optional, helps drivers find you)<input id="tripPickupText" placeholder="e.g. Near Nadapuram bus stand"></label>
+  <label>Short note (optional)<textarea id="tripNote" rows="2" placeholder="e.g. 3 people, one bag"></textarea></label>
+  <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon})">Send Request</button><button onclick="closeModal()">Cancel</button></div>`);
+}
+async function tcSendTripBroadcast(businessType,lat,lon){
+ const user=getCurrentUser();
+ if(!user) return;
+ const pickupText=document.querySelector("#tripPickupText")?.value.trim()||"";
+ const note=document.querySelector("#tripNote")?.value.trim()||"";
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  const res=await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+   action:"broadcast",business_type:businessType,customer_name:user.name,customer_mobile:user.mobile,lat,lon,pickup_text:pickupText,message:note})});
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not send</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  tcShowTripWaiting(data.alert_id,data.notified_count,businessType);
+ }catch(e){ modal(`<h2>Network error</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
+}
+function tcShowTripWaiting(alertId,notifiedCount,businessType){
+ window._tcActiveTripAlertId=alertId;
+ modal(`<div style="text-align:center;padding:6px 0">
+  <div class="spinner" style="margin:0 auto 10px"></div>
+  <h2 style="margin:4px 0">Waiting for a driver...</h2>
+  <p class="muted">${notifiedCount>0?notifiedCount+" nearby "+esc(tcBizLabel(businessType))+(notifiedCount>1?" drivers":" driver")+" notified.":"No drivers are currently Active nearby for this category."}</p>
+  <div id="tripWaitStatus" class="muted" style="font-size:12.5px;min-height:18px"></div>
+  <div class="actions" style="margin-top:10px"><button onclick="tcCancelTripRequest(${alertId})">Cancel Request</button></div>
+ </div>`);
+ if(_tcTripPollTimer) clearInterval(_tcTripPollTimer);
+ _tcTripPollTimer=setInterval(()=>tcPollTripStatus(alertId),4000);
+ tcPollTripStatus(alertId);
+}
+async function tcPollTripStatus(alertId){
+ const user=getCurrentUser();
+ if(!user||window._tcActiveTripAlertId!==alertId){ clearInterval(_tcTripPollTimer); return; }
+ try{
+  const res=await fetch("/api/trip_alerts?action=status&alert_id="+alertId+"&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok) return;
+  if(data.status==="accepted"){
+   clearInterval(_tcTripPollTimer);
+   tcShowTripAccepted(data.partner);
+  }else if(data.status==="expired"||data.status==="cancelled"){
+   clearInterval(_tcTripPollTimer);
+   if(document.querySelector("#tripWaitStatus")){
+    modal(`<div style="text-align:center;padding:6px 0"><h2>No driver available</h2><p class="muted">Nobody accepted in time. You can try again, or browse the Active Vehicles Board / Local Directory directly.</p><div class="actions"><button class="primary" onclick="closeModal();tcOpenTripRequest()">Try Again</button><button onclick="closeModal()">Close</button></div></div>`);
+   }
+  }
+ }catch(e){}
+}
+function tcShowTripAccepted(partner){
+ window._tcActiveTripAlertId=null;
+ modal(`<div style="text-align:center;padding:6px 0">
+  <div style="font-size:40px">&#9989;</div>
+  <h2 style="margin:6px 0;color:#1c6b2c">${esc(partner.business_name)} accepted!</h2>
+  <p class="muted">Call them now to confirm your pickup.</p>
+  <div class="actions" style="margin-top:10px"><a href="tel:${esc(partner.mobile1||partner.mobile2)}" style="text-decoration:none"><button class="primary" style="padding:14px;font-size:16px">&#128222; Call ${esc(partner.mobile1||partner.mobile2)}</button></a></div>
+  <div class="actions"><button onclick="closeModal()">Close</button></div>
+ </div>`);
+}
+async function tcCancelTripRequest(alertId){
+ const user=getCurrentUser();
+ if(!user) return;
+ clearInterval(_tcTripPollTimer);
+ window._tcActiveTripAlertId=null;
+ try{
+  await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"cancel",alert_id:alertId,mobile:user.mobile})});
+ }catch(e){}
+ closeModal();
+ toast("Request cancelled");
+}
 function customerHome(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
  const user=getCurrentUser();
  app().innerHTML=`<section class="container"><div class="card">
   ${tcMessagesCardHtml()}
+  <div onclick="tcOpenTripRequest()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#b8860b,#e0a526 60%,#f0b94a);box-shadow:0 8px 18px rgba(184,134,11,.35)">
+   <div style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">&#128663;</div>
+   <div style="flex:1;min-width:0">
+    <div style="font-weight:800;font-size:17px">Request Nearby Vehicle</div>
+    <div style="font-size:12.5px;opacity:.95">Taxi, Auto or Pickup - alerts all nearby drivers at once</div>
+   </div>
+   <div style="font-size:26px;opacity:.9;line-height:1">&rsaquo;</div>
+  </div>
   <div class="actions" style="margin-bottom:4px">
    <button class="primary" style="flex:1;font-size:15px;padding:14px" onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory_find")}</button>
   </div>
