@@ -76,18 +76,34 @@ async function tcStartTripBroadcast(businessType){
  modal(`<h2>&#128663; Confirm Request</h2>
   <p class="muted">Category: <b>${esc(tcBizLabel(businessType))}</b></p>
   <label>Pickup landmark (optional, helps drivers find you)<input id="tripPickupText" placeholder="e.g. Near Nadapuram bus stand"></label>
-  <label>Short note (optional)<textarea id="tripNote" rows="2" placeholder="e.g. 3 people, one bag"></textarea></label>
+  <div style="font-weight:650;font-size:13px;margin:8px 0 4px">Where are you going? (optional, helps a driver decide)</div>
+  <div id="tripDestContainer"></div>
+  <div class="actions"><button type="button" onclick="tcAddTripDestField()">+ Add a destination</button></div>
+  <label style="margin-top:8px">Short note (optional)<textarea id="tripNote" rows="2" placeholder="e.g. 3 people, one bag"></textarea></label>
+  <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#f5f8fa;font-size:11.5px;color:#55666b;line-height:1.5">&#8505;&#65039; The fare is normally charged from the vehicle's own starting point (garage) &mdash; not just your pickup point &mdash; and includes its return back there after the trip. The driver will confirm the exact fare with you.</div>
   <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon})">Send Request</button><button onclick="closeModal()">Cancel</button></div>`);
+}
+function tcAddTripDestField(value=""){
+ const c=document.querySelector("#tripDestContainer");
+ if(!c) return;
+ const row=document.createElement("div");
+ row.style.cssText="display:flex;gap:8px;margin-top:4px";
+ row.innerHTML=`<input class="trip-dest-input" value="${esc(value)}" placeholder="e.g. Railway Station" style="flex:1"><button type="button" onclick="this.parentElement.remove()">Remove</button>`;
+ c.appendChild(row);
+}
+function tcCollectTripDestinations(){
+ return Array.from(document.querySelectorAll(".trip-dest-input")).map(i=>i.value.trim()).filter(Boolean);
 }
 async function tcSendTripBroadcast(businessType,lat,lon){
  const user=getCurrentUser();
  if(!user) return;
  const pickupText=document.querySelector("#tripPickupText")?.value.trim()||"";
  const note=document.querySelector("#tripNote")?.value.trim()||"";
+ const destinations=tcCollectTripDestinations();
  modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
  try{
   const res=await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-   action:"broadcast",business_type:businessType,customer_name:user.name,customer_mobile:user.mobile,lat,lon,pickup_text:pickupText,message:note})});
+   action:"broadcast",business_type:businessType,customer_name:user.name,customer_mobile:user.mobile,lat,lon,pickup_text:pickupText,destinations,message:note})});
   const data=await res.json();
   if(!data.ok){ modal(`<h2>Could not send</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
   tcShowTripWaiting(data.alert_id,data.notified_count,businessType);
@@ -115,7 +131,7 @@ async function tcPollTripStatus(alertId){
   if(!data.ok) return;
   if(data.status==="accepted"){
    clearInterval(_tcTripPollTimer);
-   tcShowTripAccepted(data.partner);
+   tcShowTripAccepted(data.partner,data.distance_km,data.duration_min);
   }else if(data.status==="expired"||data.status==="cancelled"){
    clearInterval(_tcTripPollTimer);
    if(document.querySelector("#tripWaitStatus")){
@@ -124,11 +140,22 @@ async function tcPollTripStatus(alertId){
   }
  }catch(e){}
 }
-function tcShowTripAccepted(partner){
+/* "X mins" / "X min" / "<1 min" - matches exactly how the backend formats
+   the same number, so the driver and the customer never see two
+   differently-worded versions of the same ETA. */
+function tcFormatEta(durationMin){
+ if(durationMin==null) return "";
+ if(durationMin<1) return "<1 min";
+ const n=Math.round(durationMin);
+ return n+" min"+(n===1?"":"s");
+}
+function tcShowTripAccepted(partner,distanceKm,durationMin){
  window._tcActiveTripAlertId=null;
+ const hasEta=distanceKm!=null;
  modal(`<div style="text-align:center;padding:6px 0">
   <div style="font-size:40px">&#9989;</div>
   <h2 style="margin:6px 0;color:#1c6b2c">${esc(partner.business_name)} accepted!</h2>
+  ${hasEta?`<p style="font-size:15px;font-weight:700;color:#0b6b78">&#128663; ${distanceKm} km away &bull; ~${tcFormatEta(durationMin)} to reach you</p>`:""}
   <p class="muted">Call them now to confirm your pickup.</p>
   <div class="actions" style="margin-top:10px"><a href="tel:${esc(partner.mobile1||partner.mobile2)}" style="text-decoration:none"><button class="primary" style="padding:14px;font-size:16px">&#128222; Call ${esc(partner.mobile1||partner.mobile2)}</button></a></div>
   <div class="actions"><button onclick="closeModal()">Close</button></div>
