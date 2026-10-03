@@ -1588,10 +1588,10 @@ function loadBill(){
   ${balance>0?`
   <p class="danger" style="margin:6px 0"><b>&#9888; Enter only the amount actually received now - it does not fill in automatically.</b></p>
   <div class="grid" style="margin-top:8px">
-   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></l
-     <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
+   <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
   </div>
-  <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
+    <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
   <div id="billQR" style="margin-top:10px"></div>
   `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
   <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button><button onclick="imageBill('${t.id}')">Image</button></div>
@@ -1839,7 +1839,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">${tcT("tab_trips")}</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("my_business_vehicles")}</button><button onclick="view('activeboard')">${tcT("active_vehicles_board")}</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${tcMessagesButtonHtml()}</div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()">&#128663; Request Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
  <hr>
  <div class="grid">
  <div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("drivers_metric")}<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("vehicles_metric")}<b>${db.vehicles.length}</b></div>
@@ -2092,4 +2092,3 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
- 
