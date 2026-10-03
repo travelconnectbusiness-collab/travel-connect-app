@@ -90,17 +90,26 @@ self.addEventListener("push",(event)=>{
   /* Sent to every nearby Active partner of the matching category at once
      - first to tap Accept gets the trip, so this needs to be hard to
        miss (vibrate pattern, stays up until acted on) the same way SOS
-       does, rather than something that quietly sits in the shade. */
-  event.waitUntil(
-   self.registration.showNotification(data.title||"\ud83d\ude95 New trip request nearby",{
+       does, rather than something that quietly sits in the shade.
+     Android generally does not play the system notification sound for a
+     push that arrives while the app is already open/foreground - so an
+     open tab is also told directly (tcOpenTripAlert), which plays its own
+     louder in-app tone and opens the Accept/Decline prompt immediately,
+     the same way a new chat message already refreshes an open tab
+     instead of relying on the (often silent, in that case) system
+     notification alone. */
+  event.waitUntil((async()=>{
+   const wins=await clients.matchAll({type:"window",includeUncontrolled:true});
+   wins.forEach(c=>c.postMessage({tcOpenTripAlert:data.alert_id}));
+   await self.registration.showNotification(data.title||"\ud83d\ude95 New trip request nearby",{
     body:data.body||"",
     tag:data.tag||"tc-trip",
     renotify:true,
     requireInteraction:true,
     vibrate:[150,80,150,80,150],
     data:{type:"trip_alert",alert_id:data.alert_id,url:"/#trip_alert_"+data.alert_id}
-   })
-  );
+   });
+  })());
   return;
  }
 
