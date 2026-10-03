@@ -57,7 +57,7 @@ function tcOpenTripRequest(){
   <p class="muted">Sends one request to every Active driver nearby. Whoever accepts first gets your trip - you'll see their name and number here.</p>
   <div class="actions" style="flex-direction:column;gap:8px">
    <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel')">&#128663; Taxi / Travel</button>
-   <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128664; Auto Rickshaw</button>
+   <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128762; Auto Rickshaw</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('pickup_goods')">&#128666; Pickup / Goods Carrier</button>
   </div>`);
 }
