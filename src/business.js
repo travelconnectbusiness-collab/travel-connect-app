@@ -1588,12 +1588,12 @@ function loadBill(){
   ${balance>0?`
   <p class="danger" style="margin:6px 0"><b>&#9888; Enter only the amount actually received now - it does not fill in automatically.</b></p>
   <div class="grid" style="margin-top:8px">
-   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></label>
-   <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
+   <label>Payment amount (max ${money(balance)})<input id="payAmt" type="number" placeholder="e.g. 500"></l
+     <label>Method<select id="payMethod"><option value="Advance">Advance</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Other">Other</option></select></label>
   </div>
   <div class="actions"><button class="primary" onclick="recordPayment('${t.id}')">Record Payment</button></div>
   <div id="billQR" style="margin-top:10px"></div>
-   `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
+  `:`<div class="ok" style="margin-top:8px"><b>&#9989; Fully Settled - no balance due</b></div>`}
   <div class="actions"><button onclick="downloadBillPDF('${t.id}')">PDF</button><button onclick="printBill('${t.id}')">Print</button><button onclick="imageBill('${t.id}')">Image</button></div>
  </div>`;
  if(balance>0) renderBillQR(balance,q.no||t.id.slice(0,8));
@@ -1817,6 +1817,7 @@ function dashboard(){
   return;
  }
  tcRefreshMyPlan();
+ if(typeof tcCheckPendingTripAlerts==="function") tcCheckPendingTripAlerts();
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card(tcT("dashboard_title"),`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
