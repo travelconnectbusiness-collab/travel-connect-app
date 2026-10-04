@@ -19,6 +19,7 @@
    is always the real driving figure. */
 
 import { sendWebPush } from "./_webpush.js";
+import { verifyAdminToken } from "./_auth_helper.js";
 
 const RADIUS_KM = 15; // straight-line pre-filter only, not what's shown
 const ALERT_LIFETIME_MINUTES = 10;
@@ -386,6 +387,56 @@ export async function onRequestGet({ request, env }) {
       });
     }
     return Response.json({ ok: true, alerts: open });
+  }
+
+  /* Admin-only diagnostic: shows exactly which partners of a category
+     would be candidates for a broadcast right now, and - for every
+     OTHER partner of that same category who did NOT qualify - exactly
+     which condition excluded them (not verified, not Active, or outside
+     the radius). Nothing here sends a real alert or a push; it only
+     reports what a real broadcast from the given lat/lon would see,
+     so a specific "why isn't my test account receiving this" case can
+     be diagnosed from the data itself instead of guessing blind. */
+  if (action === "debug_candidates") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const businessType = (url.searchParams.get("business_type") || "").trim();
+    if (!businessType) return Response.json({ ok: false, error: "missing_business_type" }, { status: 400 });
+    const lat = url.searchParams.get("lat") != null && url.searchParams.get("lat") !== "" ? Number(url.searchParams.get("lat")) : null;
+    const lon = url.searchParams.get("lon") != null && url.searchParams.get("lon") !== "" ? Number(url.searchParams.get("lon")) : null;
+    const { results } = await env.DB
+      .prepare(
+        "SELECT id, business_name, mobile1, mobile2, verified, available, lat, lon, current_lat, current_lon, current_location_at FROM travel_partners WHERE business_type=?"
+      )
+      .bind(businessType)
+      .all();
+    const report = results.map((p) => {
+      const effLat = p.current_lat != null ? p.current_lat : p.lat;
+      const effLon = p.current_lon != null ? p.current_lon : p.lon;
+      const straightKm = lat != null && lon != null ? haversineKm(lat, lon, effLat, effLon) : null;
+      const reasons = [];
+      if (!p.verified) reasons.push("not verified");
+      if (!p.available) reasons.push("not marked Active");
+      if (lat != null && lon != null && straightKm != null && straightKm > RADIUS_KM) reasons.push("outside " + RADIUS_KM + " km radius (" + straightKm.toFixed(1) + " km away)");
+      if (lat != null && lon != null && effLat == null) reasons.push("no location pinned at all (treated as unknown distance, NOT excluded by radius)");
+      return {
+        id: p.id,
+        business_name: p.business_name,
+        mobile1: p.mobile1,
+        mobile2: p.mobile2,
+        verified: !!p.verified,
+        available: !!p.available,
+        using_live_location: p.current_lat != null,
+        lat: effLat,
+        lon: effLon,
+        location_updated_at: p.current_location_at,
+        straight_line_km: straightKm != null ? Math.round(straightKm * 10) / 10 : null,
+        would_be_notified: reasons.length === 0,
+        excluded_because: reasons,
+      };
+    });
+    return Response.json({ ok: true, business_type: businessType, query_lat: lat, query_lon: lon, radius_km: RADIUS_KM, partners: report });
   }
 
   return Response.json({ ok: false, error: "unknown_action" });
