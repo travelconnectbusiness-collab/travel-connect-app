@@ -177,7 +177,7 @@ function customerHome(){
  const user=getCurrentUser();
  app().innerHTML=`<section class="container"><div class="card">
   ${tcMessagesCardHtml()}
-  <div onclick="tcOpenTripRequest()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#b8860b,#e0a526 60%,#f0b94a);box-shadow:0 8px 18px rgba(184,134,11,.35)">
+  <div onclick="tcOpenTripRequest()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#b8860b,#e0a526 60%,#f0b94a);box-shadow:0 8px 18px rgba(184,134,11,.4);border:2px solid #fff0cc;animation:tcSosPulse 2.5s infinite">
    <div style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">&#128663;</div>
    <div style="flex:1;min-width:0">
     <div style="font-weight:800;font-size:17px">Request Nearby Vehicle</div>
