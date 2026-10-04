@@ -264,14 +264,27 @@ export async function onRequestPost({ request, env }) {
     const brandFontFamily = isPremium && body.brand_font_family ? String(body.brand_font_family).trim() : null;
     const brandDetailSize = isPremium && body.brand_detail_size ? String(body.brand_detail_size).trim() : null;
     const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
+    /* mobile1 is the account's actual login identity (what push
+       subscriptions, trip-alert matching, and login itself all key off
+       of) - editable only from the admin's own edit form (the owner's
+       self-service "Edit Business Details" never exposes it, to avoid
+       someone locking themselves out by mistyping it). Previously this
+       UPDATE never included mobile1 at all: the admin form collected a
+       corrected number, the request came back ok:true, but the digits
+       typed were silently discarded and the old value stayed in place
+       forever - exactly the "+91 prefix I already removed, but it's
+       still not working" case. COALESCE(NULLIF(?,''),mobile1) only
+       changes it when a genuinely non-empty value was sent, so a blank
+       field can never accidentally wipe out someone's login number. */
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=COALESCE(NULLIF(?,''),mobile1), mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
          WHERE id=?`
       )
       .bind(
         body.business_name,
         body.owner_name,
+        (body.mobile1 || "").trim(),
         body.mobile2 || null,
         body.email || null,
         body.location || null,
