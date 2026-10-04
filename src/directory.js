@@ -400,7 +400,7 @@ function renderPartnerDashboard(p){
   <div id="tcRecentContacts">${tcT("loading")}</div>
  </div>
  <hr>
- <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()">&#128663; Request Nearby Vehicle</button>`:""}</div>`;
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}</div>`;
  renderBillingIdentitySection(p);
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
@@ -1171,6 +1171,13 @@ window._tcMsgItems=[];
    app - and again when a push IS received while the app is open (see the
    tcOpenTripAlert branch in the service-worker message listener above). */
 const TC_TRIP_ALERT_TYPES=["taxi_travel","auto_rickshaw","pickup_goods"];
+/* IDs this device has already popped up once this session - so simply
+   re-rendering the Dashboard (navigating away and back, a routine
+   refresh) never interrupts someone with the SAME alert again. A full
+   close-and-reopen of the app starts this fresh, which is fine - if
+   something is still genuinely waiting, being shown it again on a fresh
+   open is exactly correct, not a nuisance. */
+window._tcPoppedAlertIds=window._tcPoppedAlertIds||new Set();
 async function tcCheckPendingTripAlerts(){
  const partnerId=db.settings.myPartnerId;
  const user=getCurrentUser();
@@ -1181,6 +1188,20 @@ async function tcCheckPendingTripAlerts(){
   if(!data.ok) return;
   window._tcPendingTripAlerts=data.alerts||[];
   tcPaintTripAlertBanner();
+  /* The banner alone (a quiet card above Messages) is too easy to miss -
+     a genuinely new request needs to interrupt, the same way it would if
+     a push notification had just arrived while the app was open. Skipped
+     only if a modal is ALREADY open right now (never yanks the screen
+     away from whatever the driver is actively doing, e.g. mid-Accept on
+     a different request, or filling in a form elsewhere). */
+  const modalEl=document.querySelector("#modal");
+  const modalOpen=modalEl&&!modalEl.classList.contains("hidden");
+  const freshOnes=(data.alerts||[]).filter(a=>!window._tcPoppedAlertIds.has(a.id));
+  if(freshOnes.length&&!modalOpen){
+   freshOnes.forEach(a=>window._tcPoppedAlertIds.add(a.id));
+   if(typeof tcPlayTripAlertTone==="function") tcPlayTripAlertTone();
+   tcOpenTripAlertModal(freshOnes.length===1?freshOnes[0].id:undefined);
+  }
  }catch(e){}
 }
 function tcTripAlertBannerHtml(){
@@ -1394,7 +1415,7 @@ function tcStartMsgPolling(){
    const m=e.data||{};
    if(m.tcMsgPush) tcRefreshMsgUnread();
    if(m.tcOpen==="messages") tcOpenMessages();
-   if(m.tcOpenTripAlert){ tcPlayTripAlertTone(); tcOpenTripAlertModal(m.tcOpenTripAlert); }
+   if(m.tcOpenTripAlert){ (window._tcPoppedAlertIds=window._tcPoppedAlertIds||new Set()).add(m.tcOpenTripAlert); tcPlayTripAlertTone(); tcOpenTripAlertModal(m.tcOpenTripAlert); }
   });
  }catch(e){}
  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") tcRefreshMsgUnread(); });
