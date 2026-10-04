@@ -138,11 +138,11 @@ function renderPartnerRegisterForm(){
   <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
   <label>Mobile 2 (optional)<input id="pMobile2"></label>
   <label>Email (optional)<input id="pEmail"></label>
-  <label>Location<div style="display:flex;gap:6px"><input id="pLocation" placeholder="Town / area" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('pLocation','pPin','pLocStatus')">&#128205;</button></div></label>
+  <label>Location<div style="display:flex;gap:6px"><input id="pLocation" placeholder="Town / area" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('pLocation','pPin','pLocStatus')" style="white-space:nowrap;padding:0 10px">&#128205; Pin location</button></div></label>
   <label>Pincode<input id="pPincode"></label>
  </div>
  <input type="hidden" id="pPin">
- <div id="pLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">Tap &#128205; to pin your exact location - makes Directions accurate for customers.</div>
+ <div id="pLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px"><b style="color:#a12d2d">Important:</b> Tap "Pin location" above to pin your exact location - without this, Directions won't be accurate, and Nearby Vehicle Requests won't be able to show your distance to the customer.</div>
  <label>About your business (optional)<textarea id="pDescription" rows="3" placeholder="What you offer, vehicles/services, specialities etc. - customers see this before calling."></textarea></label>
  ${tcBusinessHoursFieldsHtml("p",null)}
  <button class="primary" onclick="submitPartnerRegister()">Register</button>
@@ -195,11 +195,11 @@ function tcOpenEditPartnerDetails(partnerId){
    <label>Owner name<input id="peOwnerName" value="${esc(p.owner_name)}"></label>
    <label>Mobile 2<input id="peMobile2" value="${esc(p.mobile2||"")}"></label>
    <label>Email<input id="peEmail" value="${esc(p.email||"")}"></label>
-   <label>Location<div style="display:flex;gap:6px"><input id="peLocation" value="${esc(p.location||"")}" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('peLocation','pePin','peLocStatus')">&#128205;</button></div></label>
+   <label>Location<div style="display:flex;gap:6px"><input id="peLocation" value="${esc(p.location||"")}" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('peLocation','pePin','peLocStatus')" style="white-space:nowrap;padding:0 10px">&#128205; Pin location</button></div></label>
    <label>Pincode<input id="pePincode" value="${esc(p.pincode||"")}"></label>
   </div>
   <input type="hidden" id="pePin">
-  <div id="peLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">${p.lat!=null?"\u2705 Exact location already pinned. Tap \ud83d\udccd again only if this business has moved.":"Tap \ud83d\udccd to pin your exact location - makes Directions accurate for customers."}</div>
+  <div id="peLocStatus" class="muted" style="font-size:11.5px;margin:-6px 0 6px">${p.lat!=null?"\u2705 Exact location already pinned. Tap \u2018Pin location\u2019 again only if this business has moved.":"<b style=\"color:#a12d2d\">Important:</b> Tap \u2018Pin location\u2019 above - without this, Directions won\u2019t be accurate, and Nearby Vehicle Requests won\u2019t be able to show your distance to the customer."}</div>
   <label>About your business (optional)<textarea id="peDescription" rows="3" placeholder="What you offer, vehicles/services, specialities etc.">${esc(p.description||"")}</textarea></label>
   ${tcBusinessHoursFieldsHtml("pe",hours)}
   <button class="primary" onclick="tcSavePartnerDetails(${partnerId})">Save</button>`);
@@ -337,6 +337,7 @@ function tcOpenOneBusiness(partner){
    (once a UPI ID is set) a simple type-an-amount payment-QR collector. */
 function renderPartnerDashboard(p){
  if(typeof tcCheckPendingTripAlerts==="function") tcCheckPendingTripAlerts();
+ if(typeof tcRefreshMyLocationIfActive==="function") tcRefreshMyLocationIfActive();
  const isTaxi=tcIsTaxiType(p.business_type);
  /* Auto Rickshaw and Pickup/Goods Carrier are vehicle-based businesses too
     (unlike a restaurant or workshop) - without their own "Add Vehicle",
@@ -404,10 +405,43 @@ function renderPartnerDashboard(p){
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
 }
+/* While a partner is Active, this keeps their live position reasonably
+   current without true continuous background tracking (which a browser/
+   PWA can't reliably do once the app isn't open anyway) - called once
+   from both Dashboard pages every time they load, so a driver who's been
+   out running for a while and simply reopens the app (to check Messages,
+   a trip alert, anything) gets their position refreshed as a side
+   effect, with no extra action on their part. Entirely best-effort and
+   silent: never blocks the page, never shows an error if it fails. */
+async function tcRefreshMyLocationIfActive(){
+ const partnerId=db.settings.myPartnerId;
+ const user=getCurrentUser();
+ if(!partnerId||!user) return;
+ if(!(window._myPartner&&window._myPartner.available)) return;
+ if(typeof tcGetLocation!=="function") return;
+ try{
+  const loc=await tcGetLocation(true);
+  if(!loc||loc.lat===undefined) return;
+  await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_location",partner_id:partnerId,mobile:user.mobile,lat:loc.lat,lon:loc.lon})});
+ }catch(e){}
+}
 async function tcTogglePartnerAvailable(partnerId,available){
  const user=getCurrentUser();
+ /* Turning Active ON is exactly the moment a GPS fix is most worth
+    taking - this is most likely where the vehicle actually is right now
+    (out running, at a stand, wherever), not necessarily the registered
+    home/office/stand from the day they signed up. A quick (5s, cached-OK)
+    attempt so the toggle itself never feels delayed; if it fails
+    (permission denied, no signal) the toggle still goes through using
+    the registered location as before - this is a best-effort upgrade,
+    never a requirement to go Active. */
+ let lat=null,lon=null;
+ if(available&&typeof tcGetLocation==="function"){
+  const loc=await tcGetLocation(true);
+  if(loc&&loc.lat!==undefined){ lat=loc.lat; lon=loc.lon; }
+ }
  try{
-  const res=await fetch("/api/partners?action=set_available",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_available",partner_id:partnerId,mobile:user.mobile,available})});
+  const res=await fetch("/api/partners?action=set_available",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_available",partner_id:partnerId,mobile:user.mobile,available,lat,lon})});
   const data=await res.json();
   if(!data.ok){ toast("Could not update - try again."); return; }
   toast(available?"You're now shown as Active":"Marked inactive");
@@ -1194,7 +1228,8 @@ async function tcOpenTripAlertModal(alertId){
   modal(`<div style="text-align:center">
    <div style="font-size:40px">&#128663;</div>
    <h2 style="margin:6px 0">New Trip Request</h2>
-   <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}${single.distance_km!=null?" &bull; "+esc(tcTripDistanceText(single)):""}</p>
+   <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}</p>
+   <p style="font-size:13px;color:${single.distance_km!=null?"#0b6b78":"#a12d2d"};font-weight:600">${single.distance_km!=null?esc(tcTripDistanceText(single)):"Distance unavailable - pin your business location in Edit Details to see this"}</p>
    ${single.pickup_text?`<p class="muted">&#128205; From: ${esc(single.pickup_text)}</p>`:""}
    ${destText?`<p class="muted">&#127919; To: ${destText}</p>`:""}
    ${single.message?`<p class="muted">"${esc(single.message)}"</p>`:""}
