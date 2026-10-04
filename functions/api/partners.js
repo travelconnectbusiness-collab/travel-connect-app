@@ -1,5 +1,20 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 
+/* Must match the keys of TC_BUSINESS_TYPES in core.js exactly - used to
+   tell a known, fixed category apart from free-typed "Other" text (see
+   the registration authorization check below). */
+const FIXED_BUSINESS_TYPES = [
+  "taxi_travel",
+  "auto_rickshaw",
+  "pickup_goods",
+  "restaurant",
+  "petrol_pump",
+  "workshop",
+  "hospital",
+  "homestay",
+  "skilled_work",
+];
+
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -188,7 +203,18 @@ export async function onRequestPost({ request, env }) {
        existed, or one the owner simply hasn't categorised yet. */
     const catCountRow = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_categories WHERE mobile=?").bind(mobile1).first();
     if (catCountRow && catCountRow.c > 0) {
-      const catAllowed = await env.DB.prepare("SELECT 1 FROM authorized_categories WHERE mobile=? AND category=?").bind(mobile1, business_type).first();
+      /* A business_type that isn't one of the fixed, known categories is
+         whatever free text someone typed into "Other (please specify)" -
+         there is no way for the admin to have pre-authorized that EXACT
+         string in advance (the Grant Category dropdown only offers
+         "Other" itself as a single option, since it obviously can't list
+         every possible custom trade someone might type). So for a custom
+         "Other" value, granting "other" once covers any such text from
+         that number, rather than requiring an exact-string match that
+         could never realistically be set up ahead of time. */
+      const isKnownCategory = FIXED_BUSINESS_TYPES.includes(business_type);
+      const categoryToCheck = isKnownCategory ? business_type : "other";
+      const catAllowed = await env.DB.prepare("SELECT 1 FROM authorized_categories WHERE mobile=? AND category=?").bind(mobile1, categoryToCheck).first();
       if (!catAllowed) {
         return Response.json({ ok: false, error: "category_not_authorized" }, { status: 403 });
       }
