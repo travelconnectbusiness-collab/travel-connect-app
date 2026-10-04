@@ -1178,15 +1178,43 @@ const TC_TRIP_ALERT_TYPES=["taxi_travel","auto_rickshaw","pickup_goods"];
    something is still genuinely waiting, being shown it again on a fresh
    open is exactly correct, not a nuisance. */
 window._tcPoppedAlertIds=window._tcPoppedAlertIds||new Set();
+/* Checks EVERY one of this mobile's own trip-alert-eligible businesses -
+   not just whichever one happens to be "open" on screen right now. A
+   person running a Taxi from home and an Auto from a stand switches
+   between the two all day; a request for whichever one they are NOT
+   currently viewing must still surface here, exactly as reliably as the
+   one they are looking at. Self-fetches the business list fresh each
+   time (rather than trusting some other page's window._myBusinesses to
+   already be populated) so this works correctly regardless of which
+   page triggered it or in what order things loaded. */
 async function tcCheckPendingTripAlerts(){
- const partnerId=db.settings.myPartnerId;
  const user=getCurrentUser();
- if(!partnerId||!user||!TC_TRIP_ALERT_TYPES.includes(db.settings.myBusinessType)) return;
+ if(!user) return;
+ let businesses;
  try{
-  const res=await fetch("/api/trip_alerts?action=pending_for_partner&partner_id="+partnerId+"&mobile="+encodeURIComponent(user.mobile));
+  const res=await fetch("/api/partners?action=mine_list&mobile="+encodeURIComponent(user.mobile));
   const data=await res.json();
-  if(!data.ok) return;
-  window._tcPendingTripAlerts=data.alerts||[];
+  if(!data.ok||!data.partners) return;
+  businesses=data.partners;
+ }catch(e){ return; }
+ const eligible=businesses.filter(p=>TC_TRIP_ALERT_TYPES.includes(p.business_type));
+ if(!eligible.length) return;
+ try{
+  const results=await Promise.all(eligible.map(async(p)=>{
+   try{
+    const res=await fetch("/api/trip_alerts?action=pending_for_partner&partner_id="+p.id+"&mobile="+encodeURIComponent(user.mobile));
+    const data=await res.json();
+    if(!data.ok||!data.alerts) return [];
+    /* Each alert carries which of this person's OWN businesses it's
+       for, so Accept sends the correct partner_id even when it's not
+       the one currently open on screen, and the prompt can say which
+       business/vehicle a request is actually for when they have more
+       than one. */
+    return data.alerts.map(a=>({...a,_for_partner_id:p.id,_for_business_name:p.business_name,_for_business_type:p.business_type}));
+   }catch(e){ return []; }
+  }));
+  window._tcPendingTripAlerts=results.flat();
+  window._tcEligibleBusinessCount=eligible.length;
   tcPaintTripAlertBanner();
   /* The banner alone (a quiet card above Messages) is too easy to miss -
      a genuinely new request needs to interrupt, the same way it would if
@@ -1196,7 +1224,7 @@ async function tcCheckPendingTripAlerts(){
      a different request, or filling in a form elsewhere). */
   const modalEl=document.querySelector("#modal");
   const modalOpen=modalEl&&!modalEl.classList.contains("hidden");
-  const freshOnes=(data.alerts||[]).filter(a=>!window._tcPoppedAlertIds.has(a.id));
+  const freshOnes=window._tcPendingTripAlerts.filter(a=>!window._tcPoppedAlertIds.has(a.id));
   if(freshOnes.length&&!modalOpen){
    freshOnes.forEach(a=>window._tcPoppedAlertIds.add(a.id));
    if(typeof tcPlayTripAlertTone==="function") tcPlayTripAlertTone();
@@ -1238,8 +1266,9 @@ function tcTripDistanceText(a){
 async function tcOpenTripAlertModal(alertId){
  await tcCheckPendingTripAlerts();
  const list=window._tcPendingTripAlerts||[];
+ const multiBiz=(window._tcEligibleBusinessCount||1)>1;
  if(!list.length){
-  modal(`<h2>No trip requests right now</h2><p class="muted">You'll be notified the moment a nearby customer requests a ${esc(tcBizLabel(db.settings.myBusinessType))}.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
+  modal(`<h2>No trip requests right now</h2><p class="muted">You'll be notified the moment a nearby customer requests ${multiBiz?"one of your vehicles":"a "+esc(tcBizLabel(db.settings.myBusinessType))}.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
   return;
  }
  const single=alertId?list.find(a=>a.id===Number(alertId)):(list.length===1?list[0]:null);
@@ -1249,13 +1278,14 @@ async function tcOpenTripAlertModal(alertId){
   modal(`<div style="text-align:center">
    <div style="font-size:40px">&#128663;</div>
    <h2 style="margin:6px 0">New Trip Request</h2>
+   ${multiBiz?`<p style="font-size:12.5px;color:#9a6a0e;font-weight:700;background:#fdf3e2;display:inline-block;padding:3px 10px;border-radius:20px">For: ${esc(single._for_business_name)}</p>`:""}
    <p style="font-size:15px;font-weight:600">${esc(single.customer_name)}</p>
    <p style="font-size:13px;color:${single.distance_km!=null?"#0b6b78":"#a12d2d"};font-weight:600">${single.distance_km!=null?esc(tcTripDistanceText(single)):"Distance unavailable - pin your business location in Edit Details to see this"}</p>
    ${single.pickup_text?`<p class="muted">&#128205; From: ${esc(single.pickup_text)}</p>`:""}
    ${destText?`<p class="muted">&#127919; To: ${destText}</p>`:""}
    ${single.message?`<p class="muted">"${esc(single.message)}"</p>`:""}
    ${hasLoc?`<a href="https://maps.google.com/?q=${single.pickup_lat},${single.pickup_lon}" target="_blank" style="text-decoration:none;display:block;margin-top:8px"><button style="width:100%;padding:13px;background:#1a73e8;color:#fff;font-weight:800;font-size:14.5px">&#128506; View Customer Location on Map</button></a>`:`<p class="muted" style="font-size:12px">Exact location not shared - use the landmark above, or call after accepting.</p>`}
-   <div class="actions"><button class="primary" style="padding:14px" onclick="tcAcceptTripAlert(${single.id})">&#9989; Accept Trip</button></div>
+   <div class="actions"><button class="primary" style="padding:14px" onclick="tcAcceptTripAlert(${single.id},${single._for_partner_id})">&#9989; Accept Trip</button></div>
    <div class="actions"><button onclick="closeModal()">Not now</button></div>
   </div>`);
   return;
@@ -1263,15 +1293,24 @@ async function tcOpenTripAlertModal(alertId){
  modal(`<h2>&#128663; Nearby Trip Requests</h2>
   ${list.map(a=>`<div class="listitem">
    <b>${esc(a.customer_name)}</b>${a.distance_km!=null?` <span class="muted">${esc(tcTripDistanceText(a))}</span>`:""}
+   ${multiBiz?`<div style="font-size:11.5px;color:#9a6a0e;font-weight:700">For: ${esc(a._for_business_name)}</div>`:""}
    ${a.pickup_text?`<div class="muted">&#128205; ${esc(a.pickup_text)}</div>`:""}
    ${(a.destinations&&a.destinations.length)?`<div class="muted">&#127919; ${esc(a.destinations.join(" \u2192 "))}</div>`:""}
-   <div class="actions">${(a.pickup_lat!=null&&a.pickup_lon!=null)?`<a href="https://maps.google.com/?q=${a.pickup_lat},${a.pickup_lon}" target="_blank" style="text-decoration:none;flex:1"><button style="width:100%;background:#1a73e8;color:#fff">&#128506; Map</button></a>`:""}<button class="primary" onclick="tcAcceptTripAlert(${a.id})">Accept</button></div>
+   <div class="actions">${(a.pickup_lat!=null&&a.pickup_lon!=null)?`<a href="https://maps.google.com/?q=${a.pickup_lat},${a.pickup_lon}" target="_blank" style="text-decoration:none;flex:1"><button style="width:100%;background:#1a73e8;color:#fff">&#128506; Map</button></a>`:""}<button class="primary" onclick="tcAcceptTripAlert(${a.id},${a._for_partner_id})">Accept</button></div>
   </div>`).join("")}
   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
 }
-async function tcAcceptTripAlert(alertId){
+/* partnerId is passed explicitly (which of this person's OWN businesses
+   the alert being accepted is actually for) rather than assumed from
+   db.settings.myPartnerId - that global only reflects whichever business
+   happens to be open on screen right now, which is routinely the WRONG
+   one for a person juggling more than one (e.g. viewing the Taxi
+   dashboard while accepting an Auto Rickshaw request). Falls back to the
+   currently-open business only if no explicit id was given, for any
+   older caller that hasn't been updated. */
+async function tcAcceptTripAlert(alertId,partnerId){
  const user=getCurrentUser();
- const partnerId=db.settings.myPartnerId;
+ partnerId=partnerId||db.settings.myPartnerId;
  if(!user||!partnerId) return;
  modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
  try{
