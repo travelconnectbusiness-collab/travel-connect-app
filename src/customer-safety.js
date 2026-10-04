@@ -830,7 +830,49 @@ function admin(){
   <div class="grid"><label>New password<input id="admNewPass" type="password"></label></div>
   <div class="actions"><button class="primary" onclick="changeAdminPassword()">Update Password</button></div>
  </div>
+ <div class="card">
+  <h3>Trip Alerts Debug</h3>
+  <p class="muted">Shows every partner of a category and exactly why each one would or wouldn't be notified right now - for tracking down a "why didn't my test request arrive" case without guessing.</p>
+  <div class="grid">
+   <label>Category<select id="tadCategory">
+     <option value="taxi_travel">Taxi / Travel</option>
+     <option value="auto_rickshaw" selected>Auto Rickshaw</option>
+     <option value="pickup_goods">Pickup / Goods Carrier</option>
+   </select></label>
+   <label>Test from this location (optional - leave blank to skip the radius check)<div style="display:flex;gap:6px"><input id="tadLat" placeholder="Latitude" style="flex:1"><input id="tadLon" placeholder="Longitude" style="flex:1"><button type="button" onclick="tcDebugUseMyLocation()">&#128205;</button></div></label>
+  </div>
+  <div class="actions"><button class="primary" onclick="tcRunTripAlertsDebug()">Run Check</button></div>
+ </div>
  <div class="actions"><button onclick="adminLogout()">End Admin Session on This Device</button></div>`);
+}
+function tcDebugUseMyLocation(){
+ if(!navigator.geolocation){ toast("GPS not available on this device"); return; }
+ navigator.geolocation.getCurrentPosition(
+  (pos)=>{ document.querySelector("#tadLat").value=pos.coords.latitude; document.querySelector("#tadLon").value=pos.coords.longitude; },
+  ()=>{ toast("Could not get location"); }
+ );
+}
+async function tcRunTripAlertsDebug(){
+ const category=document.querySelector("#tadCategory").value;
+ const lat=document.querySelector("#tadLat").value.trim();
+ const lon=document.querySelector("#tadLon").value.trim();
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  let qs="action=debug_candidates&business_type="+encodeURIComponent(category)+"&token="+encodeURIComponent(adminToken());
+  if(lat&&lon) qs+="&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lon);
+  const res=await fetch("/api/trip_alerts?"+qs);
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not run check</h2><p class="muted">${esc(data.error||"Unknown error")}</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  if(!data.partners.length){ modal(`<h2>No partners found</h2><p class="muted">Nobody is registered under "${esc(category)}" at all.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  modal(`<h2>Trip Alerts Debug</h2><p class="muted">${esc(category)}${lat&&lon?" &bull; from "+esc(lat)+", "+esc(lon):" (no radius check - add a location to test that too)"}</p>
+   ${data.partners.map(p=>`<div class="listitem" style="border-left:4px solid ${p.would_be_notified?"#2e9e44":"#c0392b"}">
+    <b>${esc(p.business_name)}</b> <span class="muted">(id ${p.id}, ${esc(p.mobile1)})</span><br>
+    <span style="font-weight:700;color:${p.would_be_notified?"#1c6b2c":"#a12d2d"}">${p.would_be_notified?"\u2705 Would be notified":"\u274c Would NOT be notified"}</span>
+    ${p.excluded_because.length?`<div class="muted" style="font-size:12px;margin-top:3px">${p.excluded_because.map(esc).join("<br>")}</div>`:""}
+    <div class="muted" style="font-size:11px;margin-top:3px">Verified: ${p.verified?"yes":"no"} &bull; Active: ${p.available?"yes":"no"} &bull; Location: ${p.lat!=null?p.lat+", "+p.lon+(p.using_live_location?" (live)":" (registered)"):"not pinned"}${p.straight_line_km!=null?" &bull; "+p.straight_line_km+" km away":""}</div>
+   </div>`).join("")}
+   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
+ }catch(e){ modal(`<h2>Network error</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
 function saveAdminPlatform(){
  Object.assign(db.platform,{name:document.querySelector("#plName").value,tagline:document.querySelector("#plTagline").value,phone1:document.querySelector("#plPhone1").value,phone2:document.querySelector("#plPhone2").value,email:document.querySelector("#plEmail").value});
