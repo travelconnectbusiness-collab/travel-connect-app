@@ -67,6 +67,14 @@ async function ensure(env) {
     "ALTER TABLE trip_alerts ADD COLUMN destinations TEXT",
     "ALTER TABLE trip_alerts ADD COLUMN accepted_distance_km REAL",
     "ALTER TABLE trip_alerts ADD COLUMN accepted_duration_min REAL",
+    /* current_lat/current_lon/current_location_at on travel_partners are
+       normally added by partners.js's own migration, but this Worker
+       instance may serve a broadcast/accept before partners.js has ever
+       run, and both queries below read these columns - so the same safe,
+       idempotent ALTER is repeated here too. */
+    "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
+    "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
+    "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
   }
@@ -190,7 +198,7 @@ export async function onRequestPost({ request, env, ctx }) {
     const expiresAt = new Date(now.getTime() + ALERT_LIFETIME_MINUTES * 60000).toISOString();
 
     const partnersRes = await env.DB
-      .prepare("SELECT id, business_name, mobile1, mobile2, lat, lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
+      .prepare("SELECT id, business_name, mobile1, mobile2, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
       .bind(businessType)
       .all();
     let candidates = partnersRes.results || [];
@@ -354,7 +362,7 @@ export async function onRequestGet({ request, env }) {
     const partnerId = Number(url.searchParams.get("partner_id"));
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!partnerId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
-    const partner = await env.DB.prepare("SELECT id, business_type, mobile1, mobile2, lat, lon FROM travel_partners WHERE id=?").bind(partnerId).first();
+    const partner = await env.DB.prepare("SELECT id, business_type, mobile1, mobile2, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE id=?").bind(partnerId).first();
     if (!partner || (partner.mobile1 !== mobile && partner.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
