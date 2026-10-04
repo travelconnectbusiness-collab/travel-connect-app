@@ -14,6 +14,9 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN business_hours TEXT",
     "ALTER TABLE travel_partners ADD COLUMN business_subtype TEXT",
     "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
+    "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
+    "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -276,9 +279,51 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    /* Turning Active ON is also the moment most likely to mean "I am
+       wherever I actually am right now, not necessarily my registered
+       home/office/stand" - a lat/lon sent along with it (best-effort from
+       the phone's GPS, may be absent if permission was denied) updates
+       current_lat/current_lon, which trip-alert distance matching prefers
+       over the static registration location whenever it's present. */
+    const lat = body.lat != null && body.lat !== "" ? Number(body.lat) : null;
+    const lon = body.lon != null && body.lon !== "" ? Number(body.lon) : null;
+    if (body.available && lat != null && lon != null) {
+      await env.DB
+        .prepare("UPDATE travel_partners SET available=1, current_lat=?, current_lon=?, current_location_at=? WHERE id=?")
+        .bind(lat, lon, new Date().toISOString(), body.partner_id)
+        .run();
+    } else {
+      await env.DB
+        .prepare("UPDATE travel_partners SET available=? WHERE id=?")
+        .bind(body.available ? 1 : 0, body.partner_id)
+        .run();
+    }
+    return Response.json({ ok: true });
+  }
+
+  /* A lightweight, frequent-safe refresh of just the live position - used
+     while a partner is Active and the app happens to be open (e.g. every
+     time their Dashboard loads), so a driver who has been out running for
+     a while still shows a reasonably current position without needing
+     true continuous background GPS tracking (which a browser/PWA can't
+     reliably do once the app isn't actively open anyway). */
+  if (action === "update_location") {
+    const mobile = (body.mobile || "").trim();
+    const lat = body.lat != null && body.lat !== "" ? Number(body.lat) : null;
+    const lon = body.lon != null && body.lon !== "" ? Number(body.lon) : null;
+    if (!mobile || !body.partner_id || lat == null || lon == null) {
+      return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    }
+    const row = await env.DB
+      .prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?")
+      .bind(body.partner_id)
+      .first();
+    if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
     await env.DB
-      .prepare("UPDATE travel_partners SET available=? WHERE id=?")
-      .bind(body.available ? 1 : 0, body.partner_id)
+      .prepare("UPDATE travel_partners SET current_lat=?, current_lon=?, current_location_at=? WHERE id=?")
+      .bind(lat, lon, new Date().toISOString(), body.partner_id)
       .run();
     return Response.json({ ok: true });
   }
