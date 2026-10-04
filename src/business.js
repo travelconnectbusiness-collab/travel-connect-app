@@ -1861,6 +1861,7 @@ function dashboard(){
  }
  tcRefreshMyPlan();
  if(typeof tcCheckPendingTripAlerts==="function") tcCheckPendingTripAlerts();
+ if(typeof tcRefreshMyLocationIfActive==="function") tcRefreshMyLocationIfActive();
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card(tcT("dashboard_title"),`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
