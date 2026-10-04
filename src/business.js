@@ -1883,7 +1883,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">${tcT("tab_trips")}</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("my_business_vehicles")}</button><button onclick="view('activeboard')">${tcT("active_vehicles_board")}</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()">&#128663; Request Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
  <hr>
  <div class="grid">
  <div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("drivers_metric")}<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("vehicles_metric")}<b>${db.vehicles.length}</b></div>
