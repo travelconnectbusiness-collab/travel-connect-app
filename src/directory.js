@@ -263,12 +263,6 @@ async function partnerView(){
      only affects the login that actually made this choice, not every
      future one. */
   const justChosen=localStorage.getItem("tc_chosen_business_type");
-  /* TEMPORARY DEBUG - remove once the Cement Shop registration mystery is
-     solved. Shows exactly what this decision point sees: the just-chosen
-     value, and every existing business_type already on file for this
-     mobile, so a mismatch that SHOULD trigger the registration form but
-     doesn't can be seen directly instead of re-reasoned about. */
-  toast("DEBUG partnerView: justChosen=\""+justChosen+"\" existing=["+list.map(p=>p.business_type).join(",")+"]");
   if(justChosen&&!list.some(p=>(p.business_type||"taxi_travel")===justChosen)){
    localStorage.removeItem("tc_chosen_business_type");
    /* justChosen is captured into a local variable and passed straight
