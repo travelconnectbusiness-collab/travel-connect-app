@@ -177,8 +177,21 @@ export async function onRequestPost({ request, env }) {
     const business_name = (body.business_name || "").trim();
     const owner_name = (body.owner_name || "").trim();
     const mobile1 = (body.mobile1 || "").trim();
-    const business_type = body.business_type || "taxi_travel";
-    if (!business_name || !owner_name || !mobile1) {
+    /* No silent default here on purpose - a blank business_type reaching
+       the backend at all means something upstream (the category dropdown
+       sitting on its unselected "-- Select --" option, or a bug in
+       whatever pre-fills it) let a registration through without a real
+       category choice. Silently treating that as "taxi_travel" used to
+       create a business mislabelled as a Taxi/Travel Agency with
+       whatever name the person actually typed (e.g. a cement shop
+       registering as "Cement Shop" but filed under the Taxi category) -
+       confusing in every direction: wrong category for search/matching,
+       and no visible error telling the person anything had gone wrong.
+       Rejecting it here instead means a genuinely missing category is
+       caught at registration time, not discovered later as "my business
+       is in the wrong place and nobody can explain why". */
+    const business_type = (body.business_type || "").trim();
+    if (!business_name || !owner_name || !mobile1 || !business_type) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
     /* A mobile can register MULTIPLE businesses (each its own row/page), but
