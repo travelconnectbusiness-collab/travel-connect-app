@@ -397,6 +397,26 @@ export async function onRequestGet({ request, env }) {
      reports what a real broadcast from the given lat/lon would see,
      so a specific "why isn't my test account receiving this" case can
      be diagnosed from the data itself instead of guessing blind. */
+  /* Admin-only diagnostic: every travel_partners row tied to a mobile
+     number, regardless of category, verified status, or anything else -
+     a direct ground-truth answer to "how many businesses does this
+     number actually have, and what category is each one really filed
+     under", for exactly the situation a person scrolling an admin list
+     by eye can miss an entry whose category or name isn't what they
+     expect to see. */
+  if (action === "debug_mobile") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const mobile = (url.searchParams.get("mobile") || "").trim();
+    if (!mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const { results } = await env.DB
+      .prepare("SELECT id, business_name, business_type, business_subtype, mobile1, mobile2, verified, available, created_at FROM travel_partners WHERE mobile1=? OR mobile2=?")
+      .bind(mobile, mobile)
+      .all();
+    return Response.json({ ok: true, mobile, count: results.length, partners: results });
+  }
+
   if (action === "debug_candidates") {
     if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
