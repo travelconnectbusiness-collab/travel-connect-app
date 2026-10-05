@@ -161,6 +161,25 @@ function tcShowTripAccepted(partner,distanceKm,durationMin){
   <div class="actions"><button onclick="closeModal()">Close</button></div>
  </div>`);
 }
+/* Reached only from a cold-started trip_alert_accepted notification tap
+   (see render() in core.js) - the app had no in-memory alert state to
+   show (it just launched fresh), so this re-fetches the alert's current
+   status from scratch and shows the same "accepted" screen tapping it
+   would have shown if the app had already been open. If the alert
+   turns out not to be accepted after all (expired, cancelled, or this
+   device isn't the one that sent it), it fails silently - Home is
+   already on screen underneath, which is a perfectly good place to be. */
+async function tcShowTripAlertFromNotification(alertId){
+ const user=getCurrentUser();
+ if(!user||!alertId) return;
+ try{
+  const res=await fetch("/api/trip_alerts?action=status&alert_id="+encodeURIComponent(alertId)+"&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(data.ok&&data.status==="accepted"&&data.partner){
+   tcShowTripAccepted(data.partner,data.distance_km,data.duration_min);
+  }
+ }catch(e){}
+}
 async function tcCancelTripRequest(alertId){
  const user=getCurrentUser();
  if(!user) return;
