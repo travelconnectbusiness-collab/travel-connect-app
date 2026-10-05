@@ -59,7 +59,35 @@ function tcOpenTripRequest(){
    <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel')">&#128663; Taxi / Travel</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128762; Auto Rickshaw</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('pickup_goods')">&#128666; Pickup / Goods Carrier</button>
-  </div>`);
+  </div>
+  <div class="actions"><button onclick="tcShowMyRequestHistory()">&#128203; My Past Requests</button></div>`);
+}
+function tcTripOutcomeBadge(status,acceptedName){
+ if(status==="accepted") return `<span style="color:#1c6b2c;font-weight:700">&#9989; ${acceptedName?esc(acceptedName)+" accepted":"Accepted"}</span>`;
+ if(status==="expired") return `<span style="color:#a12d2d;font-weight:700">&#9203; Nobody accepted in time</span>`;
+ if(status==="cancelled") return `<span class="muted">Cancelled</span>`;
+ return `<span class="muted">Open</span>`;
+}
+async function tcShowMyRequestHistory(){
+ const user=getCurrentUser();
+ if(!user) return;
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  const res=await fetch("/api/trip_alerts?action=my_history&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not load history</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  if(!data.history.length){ modal(`<h2>My Past Requests</h2><p class="muted">You haven't sent any Nearby Vehicle requests yet.</p><div class="actions"><button onclick="closeModal()">Close</button></div>`); return; }
+  modal(`<h2>&#128203; My Past Requests</h2>
+   ${data.history.map(h=>`<div class="listitem">
+    <b>${esc(tcBizLabel(h.business_type))}</b> <span class="muted">${esc(tcFormatDateTime(h.created_at))}</span><br>
+    ${h.pickup_text?`<div class="muted">&#128205; ${esc(h.pickup_text)}</div>`:""}
+    ${h.destinations&&h.destinations.length?`<div class="muted">&#127919; ${esc(h.destinations.join(" \u2192 "))}</div>`:""}
+    <div style="margin-top:3px">${tcTripOutcomeBadge(h.status,h.accepted_business_name)}</div>
+    ${h.status==="accepted"&&h.accepted_mobile1?`<div class="muted" style="font-size:11.5px">${esc(h.accepted_mobile1)}${h.accepted_distance_km!=null?" \u2022 "+h.accepted_distance_km+" km":""}</div>`:""}
+    ${h.status!=="accepted"?`<div class="muted" style="font-size:11.5px">${h.notified_count} driver${h.notified_count===1?"":"s"} notified</div>`:""}
+   </div>`).join("")}
+   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
+ }catch(e){ modal(`<h2>Network error</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
 async function tcStartTripBroadcast(businessType){
  const user=getCurrentUser();
