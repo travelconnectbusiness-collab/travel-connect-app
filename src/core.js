@@ -501,6 +501,10 @@ async function submitLogin(inviteToken){
  const name=document.querySelector("#loginName").value.trim();
  const mobile=document.querySelector("#loginMobile").value.trim();
  const businessType=(role==="owner")?tcResolveBizType("loginBizType","loginBizTypeOther"):"";
+ /* TEMPORARY DEBUG - remove once the Cement Shop registration mystery is
+    solved. Shows exactly what got captured right here, before anything
+    further down the chain has a chance to go wrong with it. */
+ if(role==="owner") toast("DEBUG: businessType captured as \""+businessType+"\"");
  const email=document.querySelector("#loginEmail")?.value.trim()||"";
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
