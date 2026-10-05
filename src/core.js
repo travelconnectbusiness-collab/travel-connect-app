@@ -1120,7 +1120,20 @@ function render(){
      nothing done about the id in it - landing on Home with no sign the
      tap meant anything. Routing it here opens Home as the base page
      first, then surfaces that specific trip's outcome on top of it. */
-  else if(v.indexOf("trip_alert_")===0){ customerHome(); if(typeof tcShowTripAlertFromNotification==="function") tcShowTripAlertFromNotification(v.slice(11)); }
+  else if(v.indexOf("trip_alert_")===0){
+   /* This hash marks a one-time "open this specific alert" instruction
+      from a notification tap, not a real, revisitable page - left as-is
+      in the URL, the Back button (or anything else that re-triggers
+      render() without changing the hash, like a plain hashchange on an
+      identical value) would show the exact same "already
+      handled"/"not found" popup again and again, since render() would
+      keep re-reading the same trip_alert_<id> and re-running this same
+      branch. replaceState swaps it for a neutral hash on the SAME
+      history entry (no new entry added, so Back still goes where it
+      normally would) the moment it's been acted on once. */
+   try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+   customerHome(); if(typeof tcShowTripAlertFromNotification==="function") tcShowTripAlertFromNotification(v.slice(11));
+  }
   else customerHome();
   return;
  }
@@ -1148,7 +1161,15 @@ function render(){
     page, then the normal Accept/Decline prompt opens on top of it,
     exactly as it would if the push had arrived while the app was
     already open. */
- else if(v.indexOf("trip_alert_")===0){ dashboard(); if(typeof tcInjectDashboardMsgCard==="function") tcInjectDashboardMsgCard(); if(typeof tcOpenTripAlertModal==="function") tcOpenTripAlertModal(v.slice(11)); }
+ else if(v.indexOf("trip_alert_")===0){
+  /* Same one-time-marker problem as the customer branch above: left in
+     the URL, Back (or any re-render while the hash is unchanged) would
+     reopen the SAME Accept/Decline (or "no requests right now") popup
+     endlessly. Cleared the same way, on the same history entry, before
+     acting on it. */
+  try{ history.replaceState(null,"",location.pathname+location.search+"#dashboard"); }catch(e){}
+  dashboard(); if(typeof tcInjectDashboardMsgCard==="function") tcInjectDashboardMsgCard(); if(typeof tcOpenTripAlertModal==="function") tcOpenTripAlertModal(v.slice(11));
+ }
  else network();
 }
 window.addEventListener("hashchange",render);
