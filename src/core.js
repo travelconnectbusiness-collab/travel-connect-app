@@ -476,6 +476,14 @@ function renderLogin(){
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">${tcT("login_pincode_label")}</label>
     <input id="loginPincode" style="width:100%;padding:11px;border-radius:9px;border:1px solid #c9d4dc;margin-bottom:6px;font-size:15px;box-sizing:border-box">
    </div>
+   ${tcHasPinSet()?"":`<div style="text-align:left;border-top:1px solid #eee;margin-top:6px;padding-top:14px">
+    <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Create a PIN for this device</label>
+    <p style="color:#8a98a3;font-size:11.5px;margin:0 0 8px">Keeps your business data private on this phone - you'll enter this same PIN each time you reopen the app here.</p>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+     <input id="loginPinNew" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="flex:1;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
+     <input id="loginPinConfirm" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm" style="flex:1;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
+    </div>
+   </div>`}
    <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
    <button class="primary" onclick="submitLogin('${inviteToken}')" style="width:100%;padding:12px;border-radius:9px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:15px">${tcT("login_continue")}</button>
   </div>
@@ -501,10 +509,6 @@ async function submitLogin(inviteToken){
  const name=document.querySelector("#loginName").value.trim();
  const mobile=document.querySelector("#loginMobile").value.trim();
  const businessType=(role==="owner")?tcResolveBizType("loginBizType","loginBizTypeOther"):"";
- /* TEMPORARY DEBUG - remove once the Cement Shop registration mystery is
-    solved. Shows exactly what got captured right here, before anything
-    further down the chain has a chance to go wrong with it. */
- if(role==="owner") toast("DEBUG: businessType captured as \""+businessType+"\"");
  const email=document.querySelector("#loginEmail")?.value.trim()||"";
  const location_=document.querySelector("#loginLocation")?.value.trim()||"";
  const pincode=document.querySelector("#loginPincode")?.value.trim()||"";
@@ -512,6 +516,19 @@ async function submitLogin(inviteToken){
  const lon=window.tcLoginCoords?window.tcLoginCoords.lon:null;
  const errBox=document.querySelector("#loginError");
  if(!name||!mobile){ errBox.textContent="Enter your name and mobile number."; return; }
+ /* PIN creation now happens right here, as part of the same submission -
+    not as a separate prompt that used to surface out of nowhere the
+    NEXT time the app happened to be reopened, well after registration,
+    with no visible connection to anything the person had just done. A
+    returning user logging in on a device that hasn't set one yet goes
+    through this exactly the same way - the PIN is per-device, so that's
+    correct for them too, not just for a first-ever signup. */
+ const pinNew=document.querySelector("#loginPinNew")?.value.trim()||"";
+ const pinConfirm=document.querySelector("#loginPinConfirm")?.value.trim()||"";
+ if(!tcHasPinSet()){
+  if(!/^\d{4,6}$/.test(pinNew)){ errBox.textContent="Create a 4-6 digit PIN for this device."; return; }
+  if(pinNew!==pinConfirm){ errBox.textContent="PINs don't match."; return; }
+ }
  try{
   const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,role,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
   const data=await res.json();
@@ -522,6 +539,10 @@ async function submitLogin(inviteToken){
    return;
   }
   localStorage.setItem("tc_user",JSON.stringify({name,mobile,role,isAppOwner:!!data.isOwner}));
+  if(!tcHasPinSet()){
+   localStorage.setItem("tc_pin_hash",await tcPinHash(pinNew));
+  }
+  sessionStorage.setItem("tc_pin_unlocked","1");
   if(businessType) localStorage.setItem("tc_chosen_business_type",businessType);
   await syncConfigFromServer();
   location.hash="dashboard";
