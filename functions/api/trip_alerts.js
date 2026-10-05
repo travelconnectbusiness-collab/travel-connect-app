@@ -439,5 +439,70 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, business_type: businessType, query_lat: lat, query_lon: lon, radius_km: RADIUS_KM, partners: report });
   }
 
+  /* A customer's own past requests - every one they've ever sent, newest
+     first, with its outcome (who accepted, or why it never got picked
+     up). No authorization beyond matching mobile is needed since this
+     only ever reads what that mobile itself created. */
+  if (action === "my_history") {
+    const mobile = (url.searchParams.get("mobile") || "").trim();
+    if (!mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const { results } = await env.DB
+      .prepare(
+        `SELECT ta.id, ta.business_type, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
+                ta.accepted_partner_id, ta.accepted_distance_km, ta.accepted_duration_min, p.business_name AS accepted_business_name, p.mobile1 AS accepted_mobile1
+         FROM trip_alerts ta
+         LEFT JOIN travel_partners p ON p.id = ta.accepted_partner_id
+         WHERE ta.customer_mobile=?
+         ORDER BY ta.created_at DESC
+         LIMIT 50`
+      )
+      .bind(mobile)
+      .all();
+    const history = results.map((r) => ({
+      ...r,
+      destinations: r.destinations ? JSON.parse(r.destinations) : [],
+    }));
+    return Response.json({ ok: true, history });
+  }
+
+  /* A partner's own history - every alert they were ever a candidate
+     for, newest first, each tagged with what actually happened: they
+     themselves accepted it, someone else got there first (a genuinely
+     missed trip), or nobody claimed it before it expired. The summary
+     counts exist specifically so "how many trips am I missing" has a
+     direct answer instead of needing to count rows by eye. */
+  if (action === "partner_history") {
+    const partnerId = Number(url.searchParams.get("partner_id"));
+    const mobile = (url.searchParams.get("mobile") || "").trim();
+    if (!partnerId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const partner = await env.DB.prepare("SELECT id, mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
+    if (!partner || (partner.mobile1 !== mobile && partner.mobile2 !== mobile)) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const { results } = await env.DB
+      .prepare(
+        `SELECT ta.id, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.created_at, ta.accepted_partner_id,
+                tac.distance_km, tac.duration_min
+         FROM trip_alert_candidates tac
+         JOIN trip_alerts ta ON ta.id = tac.alert_id
+         WHERE tac.partner_id=?
+         ORDER BY ta.created_at DESC
+         LIMIT 50`
+      )
+      .bind(partnerId)
+      .all();
+    let acceptedByYou = 0, missed = 0, unclaimed = 0;
+    const history = results.map((r) => {
+      let outcome;
+      if (r.status === "accepted" && r.accepted_partner_id === partnerId) { outcome = "accepted_by_you"; acceptedByYou++; }
+      else if (r.status === "accepted") { outcome = "missed"; missed++; }
+      else if (r.status === "expired") { outcome = "unclaimed"; unclaimed++; }
+      else if (r.status === "cancelled") { outcome = "cancelled"; }
+      else { outcome = "open"; }
+      return { ...r, destinations: r.destinations ? JSON.parse(r.destinations) : [], outcome };
+    });
+    return Response.json({ ok: true, summary: { total: results.length, accepted_by_you: acceptedByYou, missed, unclaimed }, history });
+  }
+
   return Response.json({ ok: false, error: "unknown_action" });
 }
