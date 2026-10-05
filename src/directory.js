@@ -127,12 +127,20 @@ function tcReadPin(pinInputId){
 }
 
 /* ---------- PARTNER REGISTRATION ---------- */
-function renderPartnerRegisterForm(){
+function renderPartnerRegisterForm(prefilledType){
  const user=getCurrentUser();
+ /* prefilledType is what the caller just determined the person picked
+    (see the justChosen handling in partnerView()) - preferred whenever
+    given, since by the time THIS function runs the localStorage key it
+    would otherwise fall back to reading has normally already been
+    cleared. The fallback read still covers the one caller (a brand-new
+    mobile's very first registration) that reaches this function before
+    that key gets cleared at all. */
+ const chosenType=prefilledType!==undefined?prefilledType:localStorage.getItem("tc_chosen_business_type");
  document.querySelector("#partnerBox").innerHTML=`
  <p class="muted">Register your business to appear in the local directory and (for Taxi/Travel Agency) use the full quotation/billing tools. An admin will verify your details first.</p>
  <div class="grid">
-  <label>Business type<div>${tcBizTypeFieldHtml("pBizType","pBizTypeOther",localStorage.getItem("tc_chosen_business_type"),"pSkillType")}</div></label>
+  <label>Business type<div>${tcBizTypeFieldHtml("pBizType","pBizTypeOther",chosenType,"pSkillType")}</div></label>
   <label>Business name<input id="pBizName"></label>
   <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
   <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
@@ -154,9 +162,11 @@ async function submitPartnerRegister(){
  const mobile1=document.querySelector("#pMobile1").value.trim();
  const errBox=document.querySelector("#pRegErr");
  if(!business_name||!owner_name||!mobile1){errBox.textContent="Fill in business name, owner name and mobile number.";return}
+ const businessType=tcResolveBizType("pBizType","pBizTypeOther");
+ if(!businessType){errBox.textContent="Select a business type (or choose \"Other\" and type it in) before registering.";return}
  const pin=tcReadPin("pPin");
  const body={action:"register",business_name,owner_name,mobile1,
-  business_type:tcResolveBizType("pBizType","pBizTypeOther"),
+  business_type:businessType,
   business_subtype:document.querySelector("#pSkillType").value.trim(),
   mobile2:document.querySelector("#pMobile2").value.trim(),
   email:document.querySelector("#pEmail").value.trim(),
@@ -255,7 +265,17 @@ async function partnerView(){
   const justChosen=localStorage.getItem("tc_chosen_business_type");
   if(justChosen&&!list.some(p=>(p.business_type||"taxi_travel")===justChosen)){
    localStorage.removeItem("tc_chosen_business_type");
-   renderPartnerRegisterForm();
+   /* justChosen is captured into a local variable and passed straight
+      through, rather than left for renderPartnerRegisterForm() to
+      re-read from localStorage itself - the line above has already
+      cleared that key by this point (correctly - it must only affect
+      the ONE login that made this specific choice), so a second read
+      would always come back empty. That silently dropped the category a
+      person had just picked - typing a custom "Other" business like
+      "Cement Shop" at login, reaching what looked like its registration
+      form, but with the category itself back at "-- Select --" and no
+      visible sign anything was wrong. */
+   renderPartnerRegisterForm(justChosen);
    return;
   }
   localStorage.removeItem("tc_chosen_business_type");
