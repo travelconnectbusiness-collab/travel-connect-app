@@ -400,7 +400,8 @@ function renderPartnerDashboard(p){
   <div id="tcRecentContacts">${tcT("loading")}</div>
  </div>
  <hr>
- <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}</div>`;
+ <div class="actions"><button onclick="tcOpenDirectory()">&#128269; ${tcT("search_local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}</div>
+ ${TC_TRIP_ALERT_TYPES.includes(p.business_type)?`<div class="actions"><button onclick="tcShowPartnerTripHistory()">&#128202; Trip Alerts History</button></div>`:""}`;
  renderBillingIdentitySection(p);
  if(hasVehicles) loadMyVehicles(p.id);
  tcRenderRecentContacts(p.id);
@@ -1258,6 +1259,47 @@ function tcPaintTripAlertBanner(){
 /* "X km away, ~Y mins" - the one place this combined phrase is built, so
    the single-request prompt and the multi-request list always word it
    identically. */
+/* Trip-alert history for whichever business is currently open, with a
+   summary (accepted / missed / nobody-claimed-it) right at the top -
+   answering "how many trips am I actually missing" directly, rather
+   than needing to count rows by eye. Scoped to the current business
+   only (not all of a multi-business owner's businesses merged together)
+   so a "missed" count is never muddied across two different vehicles
+   with their own separate track records. */
+async function tcShowPartnerTripHistory(){
+ const partnerId=db.settings.myPartnerId;
+ const user=getCurrentUser();
+ if(!partnerId||!user) return;
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  const res=await fetch("/api/trip_alerts?action=partner_history&partner_id="+partnerId+"&mobile="+encodeURIComponent(user.mobile));
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not load history</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  const s=data.summary;
+  const summaryHtml=`<div class="grid" style="margin-bottom:10px">
+   <div class="metric">Accepted by you<b style="color:#1c6b2c">${s.accepted_by_you}</b></div>
+   <div class="metric">Missed (someone else)<b style="color:#a12d2d">${s.missed}</b></div>
+   <div class="metric">Nobody claimed<b>${s.unclaimed}</b></div>
+  </div>`;
+  if(!data.history.length){ modal(`<h2>Trip Alerts History</h2><p class="muted">No trip requests have come in for this business yet.</p><div class="actions"><button onclick="closeModal()">Close</button></div>`); return; }
+  const outcomeHtml=(o)=>{
+   if(o==="accepted_by_you") return `<span style="color:#1c6b2c;font-weight:700">&#9989; You accepted this</span>`;
+   if(o==="missed") return `<span style="color:#a12d2d;font-weight:700">&#10060; Someone else got it</span>`;
+   if(o==="unclaimed") return `<span class="muted">&#9203; Nobody accepted in time</span>`;
+   if(o==="cancelled") return `<span class="muted">Customer cancelled</span>`;
+   return `<span class="muted">Still open</span>`;
+  };
+  modal(`<h2>&#128202; Trip Alerts History</h2>
+   ${summaryHtml}
+   ${data.history.map(h=>`<div class="listitem">
+    <b>${esc(h.customer_name)}</b> <span class="muted">${esc(tcFormatDateTime(h.created_at))}</span><br>
+    ${h.pickup_text?`<div class="muted">&#128205; ${esc(h.pickup_text)}</div>`:""}
+    ${h.distance_km!=null?`<div class="muted" style="font-size:11.5px">${esc(tcTripDistanceText(h))}</div>`:""}
+    <div style="margin-top:3px">${outcomeHtml(h.outcome)}</div>
+   </div>`).join("")}
+   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
+ }catch(e){ modal(`<h2>Network error</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
+}
 function tcTripDistanceText(a){
  if(a.distance_km==null) return "";
  const eta=typeof tcFormatEta==="function"?tcFormatEta(a.duration_min):"";
