@@ -1112,6 +1112,15 @@ function render(){
   if(v==="activeboard") activeBoard();
   else if(v==="directory") tcRenderDirectory();
   else if(v==="messages") tcRenderMessages();
+  /* A trip_alert_accepted push opens /#trip_alert_<id> - when the app
+     was NOT already open, the service worker has no existing tab to
+     postMessage, so it opens this URL cold instead (see sw.js's
+     notificationclick handler). Before this, an unrecognised hash like
+     this one fell through to the final "else customerHome()" below with
+     nothing done about the id in it - landing on Home with no sign the
+     tap meant anything. Routing it here opens Home as the base page
+     first, then surfaces that specific trip's outcome on top of it. */
+  else if(v.indexOf("trip_alert_")===0){ customerHome(); if(typeof tcShowTripAlertFromNotification==="function") tcShowTripAlertFromNotification(v.slice(11)); }
   else customerHome();
   return;
  }
@@ -1131,6 +1140,15 @@ function render(){
  else if(v==="activeboard") activeBoard();
  else if(v==="directory") tcRenderDirectory();
  else if(v==="messages") tcRenderMessages();
+ /* Same cold-start case as the customer path above, but for a trip_alert
+    push to a driver: previously an unrecognised hash like this fell
+    through to the final "else network()" below - opening the SOS page
+    for a completely unrelated reason, with nothing about the actual
+    trip request anywhere on screen. Dashboard opens first as the base
+    page, then the normal Accept/Decline prompt opens on top of it,
+    exactly as it would if the push had arrived while the app was
+    already open. */
+ else if(v.indexOf("trip_alert_")===0){ dashboard(); if(typeof tcInjectDashboardMsgCard==="function") tcInjectDashboardMsgCard(); if(typeof tcOpenTripAlertModal==="function") tcOpenTripAlertModal(v.slice(11)); }
  else network();
 }
 window.addEventListener("hashchange",render);
