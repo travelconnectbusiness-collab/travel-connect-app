@@ -393,8 +393,19 @@ function tcToggleOtherBizType(selectId,otherId,skillId){
   if(skill) skill.style.display=sel.value==="skilled_work"?"":"none";
  }
 }
+/* Returns "" (never a silent "taxi_travel") when the category dropdown
+   is still on its unselected "-- Select --" placeholder - every caller
+   must treat an empty return as "nothing was actually chosen" and
+   refuse to proceed, the same way an unselected Vehicle Category
+   elsewhere in the app does. The old fallback here (defaulting a blank
+   selection straight to "taxi_travel") was happy to let an entirely
+   unselected category through, which is exactly what filed a new
+   business under Taxi/Travel Agency with no sign of a problem at all
+   when a pre-filled type went missing upstream - a cement shop that
+   looked, to the person registering it, like it had gone through
+   cleanly. */
 function tcResolveBizType(selectId,otherId){
- const sel=document.querySelector("#"+selectId)?.value||"taxi_travel";
+ const sel=document.querySelector("#"+selectId)?.value||"";
  if(sel==="other"){
   const custom=(document.querySelector("#"+otherId)?.value||"").trim();
   return custom||"other";
