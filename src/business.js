@@ -189,13 +189,27 @@ async function tcRefreshMyPlan(){
   const res=await fetch("/api/partners?action=mine_list&mobile="+encodeURIComponent(user.mobile));
   const data=await res.json();
   if(!data.ok||!data.partners) return;
+  /* window._myBusinesses only ever gets set inside partnerView() (see
+     directory.js) - the Taxi Dashboard renders directly without going
+     through that page, so without this it would keep showing whatever
+     business count happened to be cached from earlier (often just the
+     one business from before a second one was registered), and the
+     "Switch Business" button on a since-grown account would silently
+     stay hidden even though it should now appear. Reusing this same
+     mine_list fetch (already being made for the plan check) keeps this
+     at no extra network cost. */
+  const prevCount=(window._myBusinesses||[]).length;
+  window._myBusinesses=data.partners;
+  const businessCountChanged=data.partners.length!==prevCount;
   const mine=data.partners.find(p=>p.id===db.settings.myPartnerId);
   if(!mine) return;
-  const changed=(mine.plan||"free")!==db.settings.myPlan||(mine.plan_expires_at||null)!==(db.settings.myPlanExpiresAt||null);
-  if(!changed) return;
-  db.settings.myPlan=mine.plan||"free";
-  db.settings.myPlanExpiresAt=mine.plan_expires_at||null;
-  save();
+  const planChanged=(mine.plan||"free")!==db.settings.myPlan||(mine.plan_expires_at||null)!==(db.settings.myPlanExpiresAt||null);
+  if(!planChanged&&!businessCountChanged) return;
+  if(planChanged){
+   db.settings.myPlan=mine.plan||"free";
+   db.settings.myPlanExpiresAt=mine.plan_expires_at||null;
+   save();
+  }
   const onDashboard=!location.hash||location.hash==="#dashboard";
   if(onDashboard&&!tcCurrentIsFromMenu) dashboard();
  }catch(e){}
@@ -1870,7 +1884,7 @@ function dashboard(){
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button>${(window._myBusinesses||[]).length>1?`<button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; ${tcT("switch_business")}</button>`:""}</div>
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button><button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; ${tcT("switch_business")}</button></div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>${tcPlanValidUntilHtml()}`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">${tcT("free_notice")}</div>`}
@@ -1884,6 +1898,7 @@ function dashboard(){
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("my_business_vehicles")}</button><button onclick="view('activeboard')">${tcT("active_vehicles_board")}</button></div>
  <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
+ ${TC_TRIP_ALERT_TYPES&&TC_TRIP_ALERT_TYPES.includes(db.settings.myBusinessType)?`<div class="actions"><button onclick="tcShowPartnerTripHistory()">&#128202; Trip Alerts History</button></div>`:""}
  <hr>
  <div class="grid">
  <div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("drivers_metric")}<b>${db.drivers.length}</b></div><div class="metric" onclick="view('master')" style="cursor:pointer">${tcT("vehicles_metric")}<b>${db.vehicles.length}</b></div>
