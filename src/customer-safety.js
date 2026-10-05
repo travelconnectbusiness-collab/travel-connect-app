@@ -889,8 +889,31 @@ function admin(){
    <label>Test from this location (optional - leave blank to skip the radius check)<div style="display:flex;gap:6px"><input id="tadLat" placeholder="Latitude" style="flex:1"><input id="tadLon" placeholder="Longitude" style="flex:1"><button type="button" onclick="tcDebugUseMyLocation()">&#128205;</button></div></label>
   </div>
   <div class="actions"><button class="primary" onclick="tcRunTripAlertsDebug()">Run Check</button></div>
+  <hr>
+  <p class="muted">Or: see every business registered under one mobile number, regardless of category - for tracking down a registration that seems to have gone missing.</p>
+  <label>Mobile number<input id="tadMobile" placeholder="e.g. 9048253019"></label>
+  <div class="actions"><button onclick="tcRunMobileDebug()">Look Up This Number</button></div>
  </div>
  <div class="actions"><button onclick="adminLogout()">End Admin Session on This Device</button></div>`);
+}
+async function tcRunMobileDebug(){
+ const mobile=document.querySelector("#tadMobile").value.trim();
+ if(!mobile){ toast("Enter a mobile number first"); return; }
+ modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
+ try{
+  const res=await fetch("/api/trip_alerts?action=debug_mobile&mobile="+encodeURIComponent(mobile)+"&token="+encodeURIComponent(adminToken()));
+  const data=await res.json();
+  if(!data.ok){ modal(`<h2>Could not look up</h2><p class="muted">${esc(data.error||"Unknown error")}</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  if(!data.count){ modal(`<h2>No businesses found</h2><p class="muted">Nothing in the database at all is registered to ${esc(mobile)}, as mobile1 or mobile2.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
+  modal(`<h2>${data.count} business${data.count===1?"":"es"} found</h2><p class="muted">For ${esc(mobile)}</p>
+   ${data.partners.map(p=>`<div class="listitem">
+    <b>${esc(p.business_name||"(no name)")}</b> <span class="muted">(id ${p.id})</span><br>
+    <span style="font-weight:700;color:#0b6b78">Category: ${esc(p.business_type||"(none set)")}</span>${p.business_subtype?" / "+esc(p.business_subtype):""}<br>
+    <span class="muted" style="font-size:11.5px">Mobile1: ${esc(p.mobile1)} &bull; Mobile2: ${esc(p.mobile2||"-")}</span><br>
+    <span class="muted" style="font-size:11.5px">Verified: ${p.verified?"yes":"no"} &bull; Active: ${p.available?"yes":"no"} &bull; Created: ${esc(tcFormatDateTime(p.created_at))}</span>
+   </div>`).join("")}
+   <div class="actions"><button onclick="closeModal()">Close</button></div>`);
+ }catch(e){ modal(`<h2>Network error</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
 function tcDebugUseMyLocation(){
  if(!navigator.geolocation){ toast("GPS not available on this device"); return; }
