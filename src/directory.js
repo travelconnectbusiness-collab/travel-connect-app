@@ -728,6 +728,7 @@ function tcOpenDirectory(){
 async function tcRenderDirectory(){
  const typeOptions=`<option value="">${tcT("all_types")}</option>`+Object.keys(TC_BUSINESS_TYPES).map(k=>`<option value="${k}">${tcBizLabel(k)}</option>`).join("")+`<option value="other">${tcT("other_type")}</option>`+`<option value="__blood">&#129656; ${tcBl("Blood Donors","രക്തദാതാക്കൾ")}</option>`;
  app().innerHTML=card("&#128269; "+tcT("local_directory_title"),`
+  ${tcBloodCardHtml()}
   <p class="muted">${tcT("directory_search_hint")}</p>
   <div class="grid">
    <label>${tcT("category_label")}<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
@@ -737,11 +738,7 @@ async function tcRenderDirectory(){
    <label>${tcBl("Blood group needed","ആവശ്യമായ ബ്ലഡ് ഗ്രൂപ്പ്")}<select id="tcBloodGroupSel" onchange="tcSearchBloodDonors()">${tcBloodGroupOptions("",tcBl("-- Select blood group --","-- ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക --"))}</select></label>
    <div id="tcBloodList"></div>
   </div>
-  <div id="tcDirList">${tcT("loading")}</div>
-  <details id="tcBloodMine" ontoggle="if(this.open)tcLoadMyBlood()" style="margin-top:14px;border:1px solid #e3c9c9;border-radius:12px;padding:10px 12px;background:#fff7f7">
-   <summary style="cursor:pointer;font-weight:700;color:#a12d2d">&#129656; ${tcBl("My blood donor setting (optional)","എന്റെ ബ്ലഡ് ഡോണർ സെറ്റിംഗ് (ഓപ്ഷണൽ)")}</summary>
-   <div id="tcBloodMineBox" style="margin-top:8px">${tcT("loading")}</div>
-  </details>`);
+  <div id="tcDirList">${tcT("loading")}</div>`);
  try{
   const res=await fetch("/api/partners?action=directory");
   const data=await res.json();
@@ -843,13 +840,57 @@ function tcBloodGroupOptions(selected,placeholder){
 function tcBloodDeviceMsg(){
  return tcBl("Please log out and log in again on this phone, then try again.","ഈ ഫോണിൽ ഒന്ന് ലോഗൗട്ട് ചെയ്ത് വീണ്ടും ലോഗിൻ ചെയ്തിട്ട് ശ്രമിക്കുക.");
 }
+function tcBloodCardHtml(){
+ return `<div id="tcBloodCard" style="margin:0 0 14px;border:1px solid #e6c4c4;border-radius:16px;background:#fff7f7;padding:12px 14px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+   <div style="font-size:24px">&#129656;</div>
+   <div style="flex:1;min-width:150px">
+    <div style="font-weight:800;color:#a12d2d;font-size:15.5px">${tcBl("Blood Donors","രക്തദാതാക്കൾ")}</div>
+    <div class="muted" style="font-size:12px">${tcBl("Find a donor, or list yourself (optional)","ദാതാവിനെ കണ്ടെത്താം, താൽപര്യമുണ്ടെങ്കിൽ നിങ്ങൾക്കും ചേരാം")}</div>
+   </div>
+   <button class="primary" style="background:#a12d2d" onclick="tcOpenBloodSearch()">${tcBl("Find donor","ദാതാവിനെ തിരയുക")}</button>
+  </div>
+  <details id="tcBloodMine" ontoggle="if(this.open)tcLoadMyBlood()" style="margin-top:8px">
+   <summary style="cursor:pointer;font-weight:700;color:#a12d2d;font-size:13px">${tcBl("My blood donor setting (optional)","എന്റെ ബ്ലഡ് ഡോണർ സെറ്റിംഗ് (ഓപ്ഷണൽ)")}</summary>
+   <div id="tcBloodMineBox" style="margin-top:8px">${tcT("loading")}</div>
+  </details>
+ </div>`;
+}
+function tcOpenBloodSearch(){
+ if(!document.querySelector("#tcDirType")) tcOpenDirectory();
+ const sel=document.querySelector("#tcDirType");
+ if(sel){
+  sel.value="__blood";
+  tcFilterDirectory();
+  const g=document.querySelector("#tcBloodGroupSel");
+  if(g) g.scrollIntoView({block:"center"});
+ }
+}
+/* Blood actions are checked against the device recorded at login. If this
+   phone is not recorded yet (e.g. an older login), register it silently by
+   repeating the same login the person already did, then retry once. */
+async function tcBloodHeal(){
+ const u=getCurrentUser();
+ if(!u||!u.mobile||!u.name) return false;
+ try{
+  const r=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name:u.name,mobile:u.mobile,role:u.role==="customer"?"customer":"owner",device_token:getDeviceToken()})});
+  const d=await r.json();
+  return !!d.ok;
+ }catch(e){ return false; }
+}
+async function tcBloodApi(url,opts){
+ let res=await fetch(url,opts), data=await res.json();
+ if(!data.ok&&data.error==="device_mismatch"&&await tcBloodHeal()){
+  res=await fetch(url,opts); data=await res.json();
+ }
+ return data;
+}
 async function tcLoadMyBlood(){
  const box=document.querySelector("#tcBloodMineBox");
  const user=getCurrentUser();
  if(!box||!user) return;
  try{
-  const res=await fetch("/api/auth?action=my_blood&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
-  const data=await res.json();
+  const data=await tcBloodApi("/api/auth?action=my_blood&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
   if(!data.ok){ box.innerHTML=`<p class="danger">${data.error==="device_mismatch"?tcBloodDeviceMsg():"Could not load."}</p>`; return; }
   box.innerHTML=`
    <div class="notice" style="font-size:12.5px">${tcBl(
@@ -870,8 +911,7 @@ async function tcSaveMyBlood(){
  const donor=document.querySelector("#tcMyBloodDonor").checked;
  if(donor&&!group){ toast(tcBl("Choose your blood group to switch ON","സ്വിച്ച് ON ആക്കാൻ ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക")); return; }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_blood",mobile:user.mobile,device_token:getDeviceToken(),blood_group:group,blood_donor:donor})});
-  const data=await res.json();
+  const data=await tcBloodApi("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_blood",mobile:user.mobile,device_token:getDeviceToken(),blood_group:group,blood_donor:donor})});
   if(data.ok) toast(donor?tcBl("Saved. You are now visible to blood donor searches.","സേവ് ചെയ്തു. ഇനി ബ്ലഡ് ഡോണർ സെർച്ചിൽ നിങ്ങളെ കാണിക്കും."):tcBl("Saved. You are hidden from donor searches.","സേവ് ചെയ്തു. നിങ്ങൾ ഡോണർ സെർച്ചിൽ കാണില്ല."));
   else toast(data.error==="device_mismatch"?tcBloodDeviceMsg():(data.error==="group_required"?tcBl("Choose your blood group","ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക"):"Could not save"));
  }catch(e){ toast("Network error"); }
@@ -890,8 +930,7 @@ async function tcSearchBloodDonors(){
  if(!user){ box.innerHTML=""; return; }
  box.innerHTML=tcT("loading");
  try{
-  const res=await fetch("/api/auth?action=blood_donors&group="+encodeURIComponent(group)+"&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
-  const data=await res.json();
+  const data=await tcBloodApi("/api/auth?action=blood_donors&group="+encodeURIComponent(group)+"&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
   if(!data.ok){ box.innerHTML=`<p class="danger">${data.error==="device_mismatch"?tcBloodDeviceMsg():"Could not load."}</p>`; return; }
   if(!data.donors.length){ box.innerHTML=`<p class="muted">${tcBl("No donors with blood group "+group+" are available right now.",group+" ബ്ലഡ് ഗ്രൂപ്പിലുള്ള ദാതാക്കൾ ഇപ്പോൾ ലഭ്യമല്ല.")}</p>`; return; }
   box.innerHTML=data.donors.map(d=>{
@@ -1502,7 +1541,7 @@ function tcMessagesCardHtml(){
  const n=_tcMsgUnread;
  const user=getCurrentUser();
  const sub=(user&&user.role==="customer")?tcT("msg_card_sub_customer"):tcT("msg_card_sub_owner");
- return `<div id="tcMsgCard" onclick="tcOpenMessages()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0a5f6c 0%,#0f8a8f 55%,#1fb0a6 100%);box-shadow:0 8px 18px rgba(11,107,120,.38)">
+ const _msgCardHtml=`<div id="tcMsgCard" onclick="tcOpenMessages()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0a5f6c 0%,#0f8a8f 55%,#1fb0a6 100%);box-shadow:0 8px 18px rgba(11,107,120,.38)">
   <div style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">&#9993;</div>
   <div style="flex:1;min-width:0">
    <div style="font-weight:800;font-size:18px;letter-spacing:.3px">${tcT("msg_card_title")}</div>
@@ -1511,6 +1550,7 @@ function tcMessagesCardHtml(){
   <span class="tcMsgPill" style="${n>0?"":"display:none;"}min-width:28px;height:28px;padding:0 8px;box-sizing:border-box;border-radius:14px;background:#e74c3c;color:#fff;font-weight:900;font-size:14px;display:${n>0?"inline-flex":"none"};align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.55)">${n>0?n:""}</span>
   <div style="font-size:26px;opacity:.9;line-height:1">&rsaquo;</div>
  </div>`;
+ return _msgCardHtml+(typeof tcBloodCardHtml==="function"?tcBloodCardHtml():"");
 }
 /* Puts the Messages card at the top of the taxi owner's Dashboard (its page
    is drawn by business.js; this adds the card right under the title once
