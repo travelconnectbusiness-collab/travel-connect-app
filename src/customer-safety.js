@@ -544,7 +544,6 @@ async function tcDeletePlace(id){
   toast("Place deleted"); tcLoadPlacesAdmin();
  }catch(e){ toast("Network error"); }
 }
-
 /* ---------- SOS / NETWORK (Business Owners only - core.js's header hides
    the SOS button entirely for Customers, see tcBuildPremiumHeader()) ---------- */
 let _sosHistoryTimer=null;
@@ -878,6 +877,12 @@ function admin(){
   <div class="actions"><button class="primary" onclick="changeAdminPassword()">Update Password</button></div>
  </div>
  <div class="card">
+  <h3>Google Maps Usage (this month)</h3>
+  <div id="mapsUsageBox"><p class="muted">Loading...</p></div>
+  <div class="actions"><button onclick="tcLoadMapsUsage()">Refresh</button></div>
+  <p class="muted" style="font-size:11.5px">Each real road-distance lookup for a trip request is one Google call. After the "free drivers" limit, only Premium drivers still get real road distance; after the "everyone" limit nobody does until next month. Trip alerts themselves are never blocked. To change the limits: Cloudflare &rarr; your Worker &rarr; Settings &rarr; Variables &rarr; ROUTES_FREE_MONTHLY_LIMIT and ROUTES_HARD_MONTHLY_LIMIT.</p>
+ </div>
+ <div class="card">
   <h3>Trip Alerts Debug</h3>
   <p class="muted">Shows every partner of a category and exactly why each one would or wouldn't be notified right now - for tracking down a "why didn't my test request arrive" case without guessing.</p>
   <div class="grid">
@@ -895,6 +900,36 @@ function admin(){
   <div class="actions"><button onclick="tcRunMobileDebug()">Look Up This Number</button></div>
  </div>
  <div class="actions"><button onclick="adminLogout()">End Admin Session on This Device</button></div>`);
+ tcLoadMapsUsage();
+}
+async function tcLoadMapsUsage(){
+ const box=document.querySelector("#mapsUsageBox");
+ if(!box) return;
+ box.innerHTML='<p class="muted">Loading...</p>';
+ try{
+  const res=await fetch("/api/trip_alerts?action=maps_usage&token="+encodeURIComponent(adminToken()));
+  const d=await res.json();
+  if(!d.ok){ box.innerHTML='<p class="danger">Could not load usage ('+esc(d.error||"error")+')</p>'; return; }
+  const hard=Math.max(1,d.hard_limit), free=Math.min(d.free_limit,hard);
+  const pct=Math.min(100,Math.round(d.calls*100/hard));
+  const softPct=Math.min(100,Math.round(free*100/hard));
+  const allStopped=d.calls>=d.hard_limit, freeStopped=d.calls>=d.free_limit;
+  const color=allStopped?"#c0392b":(freeStopped?"#e08e0b":"#1f9d55");
+  const status=allStopped
+   ?"&#128308; Limit reached - everyone now sees straight-line distance until next month. Trip alerts still work."
+   :(freeStopped
+    ?"&#128992; Free drivers now see straight-line distance. Premium drivers still get real road distance."
+    :"&#9989; Everyone gets real road distance.");
+  box.innerHTML=
+   '<div style="font-size:22px;font-weight:800;color:'+color+'">'+d.calls+' <span style="font-size:13px;font-weight:600;color:#6a7a87">calls in '+esc(d.month)+'</span></div>'+
+   '<div style="position:relative;height:12px;background:#e6ebef;border-radius:8px;margin:8px 0 4px;overflow:hidden">'+
+    '<div style="width:'+pct+'%;height:100%;background:'+color+'"></div>'+
+    '<div style="position:absolute;left:'+softPct+'%;top:0;bottom:0;width:2px;background:#172536"></div>'+
+   '</div>'+
+   '<div class="muted" style="font-size:12px">Free drivers limit: <b>'+d.free_limit+'</b> (marker) &bull; Everyone limit: <b>'+d.hard_limit+'</b> (end of bar)</div>'+
+   '<div style="margin-top:6px;font-size:13px">'+status+'</div>'+
+   '<div class="muted" style="font-size:11.5px;margin-top:4px">Counts reset at the start of each month. This is the app\'s own count - Google\'s billing page is the final word.</div>';
+ }catch(e){ box.innerHTML='<p class="danger">Network error.</p>'; }
 }
 async function tcRunMobileDebug(){
  const mobile=document.querySelector("#tadMobile").value.trim();
@@ -1066,3 +1101,4 @@ async function tcRenderFeedbackAdmin(){
    "not defined yet" error, regardless of which of those functions the
    current page/role happens to need. */
 render();
+
