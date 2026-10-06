@@ -1,5 +1,33 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 
+
+/* ---------- BLOOD DONORS (optional, opt-in) ----------
+   A user (customer or business owner - both live in app_users) may add a blood
+   group and switch "available to donate" ON. Only while that switch is ON do
+   their name, area and mobile number appear to other logged-in users who
+   search by blood group. Switching OFF hides them again immediately.
+   Because turning the switch ON exposes a mobile number, every blood action
+   checks the DEVICE TOKEN that was recorded at login - knowing someone's
+   mobile number alone is not enough to switch them on or read donor lists.
+   A user row with no device token yet adopts the first one presented. */
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+async function bloodAuthUser(env, mobile, device) {
+  mobile = (mobile || "").trim();
+  device = (device || "").trim();
+  if (!mobile || !device) return null;
+  const row = await env.DB
+    .prepare("SELECT mobile, name, blocked, device_token, blood_group, blood_donor FROM app_users WHERE mobile=?")
+    .bind(mobile)
+    .first();
+  if (!row || row.blocked) return null;
+  if (!row.device_token) {
+    await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=?").bind(device, mobile).run();
+    return row;
+  }
+  return row.device_token === device ? row : null;
+}
+
 /* GET ?action=users&token=...        — owner: list all logged-in users
    GET ?action=check&mobile=...&device=... — is this mobile OR this device blocked?
    GET ?action=lookup&mobile=...       — returns this mobile's own previously-saved
@@ -67,6 +95,31 @@ export async function onRequestGet({ request, env }) {
       authorized = !!allowed;
     }
     return Response.json({ ok: true, blocked, authorized, isOwner: false });
+  }
+
+
+  /* GET ?action=my_blood&mobile=...&device=... - the caller's own blood settings */
+  if (action === "my_blood") {
+    const me = await bloodAuthUser(env, url.searchParams.get("mobile"), url.searchParams.get("device"));
+    if (!me) return Response.json({ ok: false, error: "device_mismatch" }, { status: 403 });
+    return Response.json({ ok: true, blood_group: me.blood_group || "", blood_donor: me.blood_donor ? 1 : 0 });
+  }
+
+  /* GET ?action=blood_donors&group=O+&mobile=...&device=... - donors of one blood
+     group who have their switch ON. Requires a logged-in caller (device checked).
+     Returns only what a person needs to contact a donor: name, area, mobile. */
+  if (action === "blood_donors") {
+    const me = await bloodAuthUser(env, url.searchParams.get("mobile"), url.searchParams.get("device"));
+    if (!me) return Response.json({ ok: false, error: "device_mismatch" }, { status: 403 });
+    const group = (url.searchParams.get("group") || "").trim().toUpperCase();
+    if (!BLOOD_GROUPS.includes(group)) return Response.json({ ok: false, error: "invalid_group" }, { status: 400 });
+    const { results } = await env.DB
+      .prepare(
+        "SELECT name, mobile, location, pincode, blood_group FROM app_users WHERE blood_donor=1 AND blood_group=? AND COALESCE(blocked,0)=0 AND mobile<>? ORDER BY name LIMIT 100"
+      )
+      .bind(group, me.mobile)
+      .all();
+    return Response.json({ ok: true, donors: results });
   }
 
   return Response.json({ ok: false, error: "unknown_action" });
@@ -270,6 +323,28 @@ export async function onRequestPost({ request, env }) {
       .bind(token, body.recipient_name || null, body.recipient_mobile || null, now)
       .run();
     return Response.json({ ok: true, token });
+  }
+
+
+  /* POST action=set_blood {mobile, device_token, blood_group, blood_donor}
+     Saves the caller's OWN setting. Switching ON requires a valid blood group.
+     blood_group may be saved while the switch is OFF (then nobody can see it). */
+  if (action === "set_blood") {
+    const me = await bloodAuthUser(env, body.mobile, body.device_token);
+    if (!me) return Response.json({ ok: false, error: "device_mismatch" }, { status: 403 });
+    const group = (body.blood_group || "").trim().toUpperCase();
+    if (group && !BLOOD_GROUPS.includes(group)) {
+      return Response.json({ ok: false, error: "invalid_group" }, { status: 400 });
+    }
+    const donor = body.blood_donor ? 1 : 0;
+    if (donor && !group) {
+      return Response.json({ ok: false, error: "group_required" }, { status: 400 });
+    }
+    await env.DB
+      .prepare("UPDATE app_users SET blood_group=?, blood_donor=? WHERE mobile=?")
+      .bind(group || null, donor, me.mobile)
+      .run();
+    return Response.json({ ok: true, blood_group: group, blood_donor: donor });
   }
 
   return Response.json({ ok: false, error: "unknown_action" });
