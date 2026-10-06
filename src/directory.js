@@ -726,14 +726,22 @@ function tcOpenDirectory(){
  tcRenderDirectory();
 }
 async function tcRenderDirectory(){
- const typeOptions=`<option value="">${tcT("all_types")}</option>`+Object.keys(TC_BUSINESS_TYPES).map(k=>`<option value="${k}">${tcBizLabel(k)}</option>`).join("")+`<option value="other">${tcT("other_type")}</option>`;
+ const typeOptions=`<option value="">${tcT("all_types")}</option>`+Object.keys(TC_BUSINESS_TYPES).map(k=>`<option value="${k}">${tcBizLabel(k)}</option>`).join("")+`<option value="other">${tcT("other_type")}</option>`+`<option value="__blood">&#129656; ${tcBl("Blood Donors","രക്തദാതാക്കൾ")}</option>`;
  app().innerHTML=card("&#128269; "+tcT("local_directory_title"),`
   <p class="muted">${tcT("directory_search_hint")}</p>
   <div class="grid">
    <label>${tcT("category_label")}<select id="tcDirType" onchange="tcFilterDirectory()">${typeOptions}</select></label>
-   <label>${tcT("business_search_label")}<input id="tcDirSearch" placeholder="e.g. Krishna Tours and Travels, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
+   <label id="tcDirSearchLabel">${tcT("business_search_label")}<input id="tcDirSearch" placeholder="e.g. Krishna Tours and Travels, Vadakara, 673001" oninput="tcFilterDirectory()"></label>
   </div>
-  <div id="tcDirList">${tcT("loading")}</div>`);
+  <div id="tcBloodSearchBox" style="display:none">
+   <label>${tcBl("Blood group needed","ആവശ്യമായ ബ്ലഡ് ഗ്രൂപ്പ്")}<select id="tcBloodGroupSel" onchange="tcSearchBloodDonors()">${tcBloodGroupOptions("",tcBl("-- Select blood group --","-- ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക --"))}</select></label>
+   <div id="tcBloodList"></div>
+  </div>
+  <div id="tcDirList">${tcT("loading")}</div>
+  <details id="tcBloodMine" ontoggle="if(this.open)tcLoadMyBlood()" style="margin-top:14px;border:1px solid #e3c9c9;border-radius:12px;padding:10px 12px;background:#fff7f7">
+   <summary style="cursor:pointer;font-weight:700;color:#a12d2d">&#129656; ${tcBl("My blood donor setting (optional)","എന്റെ ബ്ലഡ് ഡോണർ സെറ്റിംഗ് (ഓപ്ഷണൽ)")}</summary>
+   <div id="tcBloodMineBox" style="margin-top:8px">${tcT("loading")}</div>
+  </details>`);
  try{
   const res=await fetch("/api/partners?action=directory");
   const data=await res.json();
@@ -792,6 +800,12 @@ function tcExpandSearchTerms(q){
 }
 function tcFilterDirectory(){
  const type=document.querySelector("#tcDirType").value;
+ const bloodMode=(type==="__blood");
+ const bBox=document.querySelector("#tcBloodSearchBox"), sLbl=document.querySelector("#tcDirSearchLabel"), dList=document.querySelector("#tcDirList");
+ if(bBox) bBox.style.display=bloodMode?"block":"none";
+ if(sLbl) sLbl.style.display=bloodMode?"none":"";
+ if(dList) dList.style.display=bloodMode?"none":"";
+ if(bloodMode){ tcSearchBloodDonors(); return; }
  const q=(document.querySelector("#tcDirSearch").value||"").trim().toLowerCase();
  let filtered=_tcDirectoryEntries;
  if(type==="other") filtered=filtered.filter(p=>!TC_BUSINESS_TYPES.hasOwnProperty(p.business_type||"taxi_travel"));
@@ -813,6 +827,86 @@ function tcFilterDirectory(){
   return;
  }
  tcRenderDirectoryList(filtered);
+}
+
+/* ---------- BLOOD DONORS (optional, opt-in) ----------
+   Anyone (customer or business owner) can add a blood group and switch
+   "available to donate" ON. Only while the switch is ON do their name, area
+   and mobile show to other logged-in users who search by blood group in the
+   Local Directory (category "Blood Donors"). Backend: functions/api/auth.js
+   (my_blood / blood_donors / set_blood), device-token checked. */
+const TC_BLOOD_GROUPS=["A+","A-","B+","B-","AB+","AB-","O+","O-"];
+function tcBl(en,ml){ return (typeof tcLang==="function"&&tcLang()==="ml")?ml:en; }
+function tcBloodGroupOptions(selected,placeholder){
+ return `<option value="">${placeholder}</option>`+TC_BLOOD_GROUPS.map(g=>`<option value="${g}"${g===selected?" selected":""}>${g}</option>`).join("");
+}
+function tcBloodDeviceMsg(){
+ return tcBl("Please log out and log in again on this phone, then try again.","ഈ ഫോണിൽ ഒന്ന് ലോഗൗട്ട് ചെയ്ത് വീണ്ടും ലോഗിൻ ചെയ്തിട്ട് ശ്രമിക്കുക.");
+}
+async function tcLoadMyBlood(){
+ const box=document.querySelector("#tcBloodMineBox");
+ const user=getCurrentUser();
+ if(!box||!user) return;
+ try{
+  const res=await fetch("/api/auth?action=my_blood&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML=`<p class="danger">${data.error==="device_mismatch"?tcBloodDeviceMsg():"Could not load."}</p>`; return; }
+  box.innerHTML=`
+   <div class="notice" style="font-size:12.5px">${tcBl(
+    "Optional. Add your blood group only if you wish. Your name, area and mobile number are shown to other Travel Connect users who search for blood donors ONLY while the switch below is ON. Switch it OFF any time and you are hidden immediately.",
+    "ഓപ്ഷണൽ ആണ്. താൽപര്യമുണ്ടെങ്കിൽ മാത്രം ബ്ലഡ് ഗ്രൂപ്പ് ചേർത്താൽ മതി. താഴെയുള്ള സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ, ബ്ലഡ് ഡോണറെ തിരയുന്ന മറ്റ് ഉപയോക്താക്കൾക്ക് നിങ്ങളുടെ പേര്, സ്ഥലം, മൊബൈൽ നമ്പർ എന്നിവ കാണൂ. എപ്പോൾ വേണമെങ്കിലും OFF ആക്കാം, ഉടനെ മറയും.")}</div>
+   <label>${tcBl("My blood group","എന്റെ ബ്ലഡ് ഗ്രൂപ്പ്")}<select id="tcMyBloodGroup">${tcBloodGroupOptions(data.blood_group||"",tcBl("-- Not set --","-- നൽകിയിട്ടില്ല --"))}</select></label>
+   <label style="display:flex;align-items:center;gap:10px;margin-top:10px;font-weight:650">
+    <input type="checkbox" id="tcMyBloodDonor" style="width:22px;height:22px;flex:none"${data.blood_donor?" checked":""}>
+    <span>${tcBl("I am available to donate blood (visible to others)","ഞാൻ രക്തം ദാനം ചെയ്യാൻ തയ്യാറാണ് (മറ്റുള്ളവർക്ക് കാണാം)")}</span>
+   </label>
+   <div class="actions"><button class="primary" onclick="tcSaveMyBlood()">${tcBl("Save","സേവ് ചെയ്യുക")}</button></div>`;
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
+}
+async function tcSaveMyBlood(){
+ const user=getCurrentUser();
+ if(!user) return;
+ const group=document.querySelector("#tcMyBloodGroup").value;
+ const donor=document.querySelector("#tcMyBloodDonor").checked;
+ if(donor&&!group){ toast(tcBl("Choose your blood group to switch ON","സ്വിച്ച് ON ആക്കാൻ ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക")); return; }
+ try{
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_blood",mobile:user.mobile,device_token:getDeviceToken(),blood_group:group,blood_donor:donor})});
+  const data=await res.json();
+  if(data.ok) toast(donor?tcBl("Saved. You are now visible to blood donor searches.","സേവ് ചെയ്തു. ഇനി ബ്ലഡ് ഡോണർ സെർച്ചിൽ നിങ്ങളെ കാണിക്കും."):tcBl("Saved. You are hidden from donor searches.","സേവ് ചെയ്തു. നിങ്ങൾ ഡോണർ സെർച്ചിൽ കാണില്ല."));
+  else toast(data.error==="device_mismatch"?tcBloodDeviceMsg():(data.error==="group_required"?tcBl("Choose your blood group","ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുക്കുക"):"Could not save"));
+ }catch(e){ toast("Network error"); }
+}
+function tcBloodPhoneDigits(m){
+ let d=String(m||"").replace(/\D/g,"");
+ if(d.length===10) d="91"+d;
+ return d;
+}
+async function tcSearchBloodDonors(){
+ const box=document.querySelector("#tcBloodList");
+ const group=(document.querySelector("#tcBloodGroupSel")||{}).value;
+ const user=getCurrentUser();
+ if(!box) return;
+ if(!group){ box.innerHTML=`<p class="muted">${tcBl("Choose a blood group to see donors who are available now.","ബ്ലഡ് ഗ്രൂപ്പ് തിരഞ്ഞെടുത്താൽ ഇപ്പോൾ ദാനത്തിന് തയ്യാറുള്ളവരെ കാണാം.")}</p>`; return; }
+ if(!user){ box.innerHTML=""; return; }
+ box.innerHTML=tcT("loading");
+ try{
+  const res=await fetch("/api/auth?action=blood_donors&group="+encodeURIComponent(group)+"&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
+  const data=await res.json();
+  if(!data.ok){ box.innerHTML=`<p class="danger">${data.error==="device_mismatch"?tcBloodDeviceMsg():"Could not load."}</p>`; return; }
+  if(!data.donors.length){ box.innerHTML=`<p class="muted">${tcBl("No donors with blood group "+group+" are available right now.",group+" ബ്ലഡ് ഗ്രൂപ്പിലുള്ള ദാതാക്കൾ ഇപ്പോൾ ലഭ്യമല്ല.")}</p>`; return; }
+  box.innerHTML=data.donors.map(d=>{
+   const num=tcBloodPhoneDigits(d.mobile);
+   const wa="https://wa.me/"+num+"?text="+encodeURIComponent("Hello, I found you as a blood donor on Travel Connect. We need "+group+" blood. Are you available to help?");
+   return `<div class="listitem">
+    <b>${esc(d.name||"Donor")}</b> <span style="background:#a12d2d;color:#fff;border-radius:8px;padding:1px 8px;font-size:12px;font-weight:700">${esc(d.blood_group)}</span><br>
+    <span class="muted">${d.location?esc(d.location)+" ":""}${esc(d.pincode||"")}</span>
+    <div class="actions">
+     <a href="tel:${esc(d.mobile)}"><button class="primary">&#128222; ${tcBl("Call","വിളിക്കുക")} ${esc(d.mobile)}</button></a>
+     <a href="${wa}" target="_blank"><button style="background:#25a244;color:#fff">WhatsApp</button></a>
+    </div>
+   </div>`;
+  }).join("")+`<p class="muted" style="font-size:11.5px;margin-top:8px">${tcBl("These people chose to be listed as donors. Please contact only for a genuine need and be respectful - a donor may not always be available.","ഇവർ സ്വമേധയാ ഡോണർ ആയി ചേർന്നവരാണ്. ശരിക്കും ആവശ്യമുള്ളപ്പോൾ മാത്രം ബന്ധപ്പെടുക, മാന്യമായി പെരുമാറുക - ദാതാവ് എപ്പോഴും ലഭ്യമാകണമെന്നില്ല.")}</p>`;
+ }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
 
 /* ---------- ACTIVE VEHICLES BOARD ---------- */
@@ -882,7 +976,6 @@ function tcFilterActiveBoard(){
  }
  tcRenderActiveBoardList(filtered);
 }
-
 /* ---------- ADMIN: PENDING APPROVALS (Partners & Vehicles) ---------- */
 function tcOpenPendingApprovals(){
  requireAdmin(()=>{
@@ -1843,3 +1936,4 @@ async function tcDeleteUserRecord(mobile){
   toast("User record deleted"); tcRenderAllUsersAdmin();
  }catch(e){ toast("Network error"); }
 }
+
