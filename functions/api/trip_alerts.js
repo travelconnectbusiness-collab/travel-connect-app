@@ -61,6 +61,14 @@ async function ensure(env) {
       PRIMARY KEY (alert_id, partner_id)
     )`
   ).run();
+  /* Counts Google Routes calls per calendar month so the bill can never run
+     away: see routeCallAllowed() below. */
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS maps_usage (
+      month TEXT PRIMARY KEY,
+      calls INTEGER NOT NULL DEFAULT 0
+    )`
+  ).run();
   /* Safe to run against a DB from before destinations/accepted_distance_km
      existed - SQLite has no "ADD COLUMN IF NOT EXISTS", so each is simply
      attempted and the harmless "already exists" error is swallowed. */
@@ -76,6 +84,10 @@ async function ensure(env) {
     "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
     "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
     "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
+    /* plan / plan_expires_at are read below to decide who still gets real road
+       distance once the monthly free Google budget is used up. */
+    "ALTER TABLE travel_partners ADD COLUMN plan TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
   }
@@ -133,12 +145,59 @@ async function drivingRoute(env, lat1, lon1, lat2, lon2) {
   }
 }
 
-/* Best-effort real distance/time: tries the actual driving route first,
-   falls back to straight-line (with a rough 28 km/h local-roads average
-   for the duration estimate) only if Google can't be reached - so a
-   figure is always returned, just less precise without Google. */
-async function bestRoute(env, lat1, lon1, lat2, lon2) {
-  const real = await drivingRoute(env, lat1, lon1, lat2, lon2);
+/* ---------- GOOGLE ROUTES CALL BUDGET ----------
+   Each real driving-distance lookup is a billable Google call, and one trip
+   request makes one call per nearby driver. To keep the monthly bill at zero:
+     - ROUTES_FREE_MONTHLY_LIMIT (default 300): after this many calls in a
+       calendar month, only PREMIUM / Owner-Free drivers still get real road
+       distance; everyone else gets the straight-line estimate instead.
+     - ROUTES_HARD_MONTHLY_LIMIT (default 4000): after this, NOBODY triggers a
+       Google call until next month (kept below Google's own free allowance).
+   Trip alerts themselves are NEVER blocked by any of this - only how precise
+   the shown distance/ETA is. Both limits can be changed any time as
+   Cloudflare Worker variables, no code change needed. */
+function monthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+function envInt(v, dflt) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : dflt;
+}
+/* Premium (not yet expired) or Owner Free. An expired Premium counts as free. */
+function isPremiumPlan(p) {
+  if (!p) return false;
+  if (p.plan === "owner_free") return true;
+  if (p.plan !== "premium") return false;
+  return !p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now();
+}
+async function routeCallAllowed(env, isPremium) {
+  const soft = envInt(env.ROUTES_FREE_MONTHLY_LIMIT, 300);
+  const hard = envInt(env.ROUTES_HARD_MONTHLY_LIMIT, 4000);
+  const limit = isPremium ? hard : Math.min(soft, hard);
+  const month = monthKey();
+  await env.DB.prepare("INSERT OR IGNORE INTO maps_usage (month, calls) VALUES (?, 0)").bind(month).run();
+  /* One conditional UPDATE: only counts (and allows) the call if still under
+     the limit - so concurrent requests cannot overshoot it. */
+  const r = await env.DB
+    .prepare("UPDATE maps_usage SET calls = calls + 1 WHERE month = ? AND calls < ?")
+    .bind(month, limit)
+    .run();
+  return !!(r.meta && r.meta.changes > 0);
+}
+
+/* Best-effort real distance/time: tries the actual driving route first
+   (while the monthly budget allows it for this driver's plan), falls back to
+   straight-line (with a rough 28 km/h local-roads average for the duration
+   estimate) otherwise - so a figure is always returned, just less precise
+   without Google. */
+async function bestRoute(env, lat1, lon1, lat2, lon2, isPremium) {
+  let real = null;
+  const canCall = env.GOOGLE_MAPS_API_KEY && lat1 != null && lon1 != null && lat2 != null && lon2 != null;
+  if (canCall) {
+    let allowed = false;
+    try { allowed = await routeCallAllowed(env, !!isPremium); } catch (e) { allowed = false; }
+    if (allowed) real = await drivingRoute(env, lat1, lon1, lat2, lon2);
+  }
   if (real) return { ...real, estimated: false };
   const straight = haversineKm(lat1, lon1, lat2, lon2);
   if (straight == null) return null;
@@ -199,7 +258,7 @@ export async function onRequestPost({ request, env, ctx }) {
     const expiresAt = new Date(now.getTime() + ALERT_LIFETIME_MINUTES * 60000).toISOString();
 
     const partnersRes = await env.DB
-      .prepare("SELECT id, business_name, mobile1, mobile2, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
+      .prepare("SELECT id, business_name, mobile1, mobile2, plan, plan_expires_at, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
       .bind(businessType)
       .all();
     let candidates = partnersRes.results || [];
@@ -237,7 +296,7 @@ export async function onRequestPost({ request, env, ctx }) {
        again for the same pair of points. */
     const work = Promise.all(
       candidates.map(async (p) => {
-        const route = (lat != null && lon != null) ? await bestRoute(env, p.lat, p.lon, lat, lon) : null;
+        const route = (lat != null && lon != null) ? await bestRoute(env, p.lat, p.lon, lat, lon, isPremiumPlan(p)) : null;
         if (route) {
           await env.DB
             .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min) VALUES (?,?,?,?)`)
@@ -404,6 +463,21 @@ export async function onRequestGet({ request, env }) {
      under", for exactly the situation a person scrolling an admin list
      by eye can miss an entry whose category or name isn't what they
      expect to see. */
+  /* Admin: how many Google Routes calls this month vs the limits. */
+  if (action === "maps_usage") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const row = await env.DB.prepare("SELECT calls FROM maps_usage WHERE month=?").bind(monthKey()).first();
+    return Response.json({
+      ok: true,
+      month: monthKey(),
+      calls: row ? row.calls : 0,
+      free_limit: envInt(env.ROUTES_FREE_MONTHLY_LIMIT, 300),
+      hard_limit: envInt(env.ROUTES_HARD_MONTHLY_LIMIT, 4000),
+    });
+  }
+
   if (action === "debug_mobile") {
     if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
