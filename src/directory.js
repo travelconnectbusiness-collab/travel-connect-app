@@ -1556,11 +1556,28 @@ function tcMessagesCardHtml(){
    is drawn by business.js; this adds the card right under the title once
    that page is on screen). */
 function tcInjectDashboardMsgCard(){
- if(document.querySelector("#tcMsgCard")) return;
+ const msg=document.querySelector("#tcMsgCard");
+ if(msg){
+  /* Messages card already there: make sure the Blood Donor card sits right under it. */
+  if(!document.querySelector("#tcBloodCard")&&typeof tcBloodCardHtml==="function") msg.insertAdjacentHTML("afterend",tcBloodCardHtml());
+  return;
+ }
  const h2=document.querySelector("#app h2");
- if(!h2||h2.textContent.trim()!=="Travel Connect Dashboard") return;
+ if(!h2||!/Travel Connect Dashboard/i.test(h2.textContent)) return;
  h2.insertAdjacentHTML("afterend",tcMessagesCardHtml());
 }
+/* Safety net: the owner Dashboard is drawn by other code at different moments,
+   so re-check for a short while after every page change. */
+(function(){
+ let t=null;
+ function chk(){ try{ tcInjectDashboardMsgCard(); }catch(e){} }
+ function start(){
+  const app=document.getElementById("app"); if(!app||!window.MutationObserver) return;
+  new MutationObserver(()=>{ clearTimeout(t); t=setTimeout(chk,60); }).observe(app,{childList:true});
+  chk();
+ }
+ if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start); else start();
+})();
 function tcPaintMsgBadge(){
  const n=_tcMsgUnread;
  document.querySelectorAll(".tcMsgPill").forEach(el=>{ el.textContent=n>0?String(n):""; el.style.display=n>0?"inline-flex":"none"; });
