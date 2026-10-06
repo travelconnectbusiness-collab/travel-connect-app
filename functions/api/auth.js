@@ -25,7 +25,19 @@ async function bloodAuthUser(env, mobile, device) {
     await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=?").bind(device, mobile).run();
     return row;
   }
-  return row.device_token === device ? row : null;
+  if (row.device_token === device) return row;
+  /* The same person may use several devices (phone + another browser). Every
+     login records its device in user_devices, so logging in somewhere else no
+     longer locks the first device out. Wrapped in try/catch so nothing breaks
+     before the table exists. */
+  try {
+    const known = await env.DB
+      .prepare("SELECT 1 AS ok FROM user_devices WHERE mobile=? AND device_token=?")
+      .bind(mobile, device)
+      .first();
+    if (known) return row;
+  } catch (e) {}
+  return null;
 }
 
 /* GET ?action=users&token=...        — owner: list all logged-in users
@@ -230,6 +242,16 @@ export async function onRequestPost({ request, env }) {
         )
         .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode, lat, lon, role)
         .run();
+    }
+
+    /* remember this device for this mobile (several devices allowed) */
+    if (deviceToken) {
+      try {
+        await env.DB
+          .prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)")
+          .bind(mobile, deviceToken, now)
+          .run();
+      } catch (e) {}
     }
 
     if (body.invite_token) {
