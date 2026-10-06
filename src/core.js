@@ -479,9 +479,9 @@ function renderLogin(){
    ${tcHasPinSet()?"":`<div style="text-align:left;border-top:1px solid #eee;margin-top:6px;padding-top:14px">
     <label style="display:block;font-size:12px;font-weight:650;margin-bottom:4px;color:#172536">Create a PIN for this device</label>
     <p style="color:#8a98a3;font-size:11.5px;margin:0 0 8px">Keeps your business data private on this phone - you'll enter this same PIN each time you reopen the app here.</p>
-    <div style="display:flex;gap:8px;margin-bottom:6px">
-     <input id="loginPinNew" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="flex:1;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
-     <input id="loginPinConfirm" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm" style="flex:1;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:6px">
+     <input id="loginPinNew" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" style="width:100%;min-width:0;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
+     <input id="loginPinConfirm" autocomplete="off" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Confirm PIN" style="width:100%;min-width:0;font-size:18px;text-align:center;letter-spacing:4px;padding:10px;border-radius:9px;border:1px solid #c9d4dc;box-sizing:border-box">
     </div>
    </div>`}
    <div id="loginError" style="color:#a12d2d;font-size:13px;min-height:18px;margin:6px 0 10px"></div>
