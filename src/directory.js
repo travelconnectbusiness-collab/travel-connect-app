@@ -1344,12 +1344,19 @@ async function tcCheckPendingTripAlerts(){
  const user=getCurrentUser();
  if(!user) return;
  let businesses;
- try{
-  const res=await fetch("/api/partners?action=mine_list&mobile="+encodeURIComponent(user.mobile));
-  const data=await res.json();
-  if(!data.ok||!data.partners) return;
-  businesses=data.partners;
- }catch(e){ return; }
+ /* The business list rarely changes, so the repeated background checks reuse
+    it for 5 minutes instead of fetching it every time. */
+ const _c=window._tcBizCache;
+ if(_c&&_c.mobile===user.mobile&&Date.now()-_c.at<300000){ businesses=_c.list; }
+ else{
+  try{
+   const res=await fetch("/api/partners?action=mine_list&mobile="+encodeURIComponent(user.mobile));
+   const data=await res.json();
+   if(!data.ok||!data.partners) return;
+   businesses=data.partners;
+   window._tcBizCache={mobile:user.mobile,list:businesses,at:Date.now()};
+  }catch(e){ return; }
+ }
  const eligible=businesses.filter(p=>TC_TRIP_ALERT_TYPES.includes(p.business_type));
  if(!eligible.length) return;
  try{
@@ -1669,7 +1676,17 @@ function tcStartMsgPolling(){
    if(m.tcOpenTripAlert){ (window._tcPoppedAlertIds=window._tcPoppedAlertIds||new Set()).add(m.tcOpenTripAlert); tcPlayTripAlertTone(); tcOpenTripAlertModal(m.tcOpenTripAlert); }
   });
  }catch(e){}
- document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") tcRefreshMsgUnread(); });
+ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ tcRefreshMsgUnread(); try{ tcCheckPendingTripAlerts(); }catch(e){} } });
+ /* Safety net for phones whose push notifications arrive late or never (old
+    phones / strict battery saving): while the app is open and on screen, ask
+    the server for new trip requests every ~25 seconds. Only does anything
+    for a logged-in business with a taxi/auto/goods type. */
+ if(!window._tcTripPollTimer){
+  window._tcTripPollTimer=setInterval(()=>{
+   if(document.visibilityState!=="visible") return;
+   try{ tcCheckPendingTripAlerts(); }catch(e){}
+  },25000);
+ }
  if(typeof tcSyncPushSubscription==="function") tcSyncPushSubscription();
 }
 /* Removes message notifications from the phone's notification shade once
