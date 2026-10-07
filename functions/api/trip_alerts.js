@@ -261,7 +261,15 @@ export async function onRequestPost({ request, env, ctx }) {
       .prepare("SELECT id, business_name, mobile1, mobile2, plan, plan_expires_at, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
       .bind(businessType)
       .all();
-    let candidates = partnersRes.results || [];
+    /* The person asking is never alerted about their own request - e.g. a
+       business owner who taps "Nearby Vehicles" because they need another
+       vehicle must not get the enquiry on their own phone. Compared by the
+       last 10 digits so +91 / spaces don't matter. */
+    const last10 = (v) => String(v || "").replace(/\D/g, "").slice(-10);
+    const askerNum = last10(customerMobile);
+    let candidates = (partnersRes.results || []).filter(
+      (p) => !askerNum || (last10(p.mobile1) !== askerNum && last10(p.mobile2) !== askerNum)
+    );
     if (lat != null && lon != null) {
       candidates = candidates
         .map((p) => ({ ...p, straight_km: haversineKm(lat, lon, p.lat, p.lon) }))
@@ -432,11 +440,14 @@ export async function onRequestGet({ request, env }) {
       .all();
     const now = Date.now();
     const open = [];
+    const l10 = (v) => String(v || "").replace(/\D/g, "").slice(-10);
     for (const a of results) {
       if (new Date(a.expires_at).getTime() < now) {
         await env.DB.prepare("UPDATE trip_alerts SET status='expired' WHERE id=? AND status='open'").bind(a.id).run();
         continue;
       }
+      /* never show a business its own request */
+      if (l10(a.customer_mobile) && (l10(a.customer_mobile) === l10(partner.mobile1) || l10(a.customer_mobile) === l10(partner.mobile2))) continue;
       const candidate = await env.DB.prepare("SELECT distance_km, duration_min FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
       open.push({
         ...a,
