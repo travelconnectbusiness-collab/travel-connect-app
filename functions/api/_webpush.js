@@ -112,12 +112,23 @@ export async function sendWebPush(env, subscription, payloadObj) {
   const jwt = await createVapidJWT(audience, env.VAPID_SUBJECT, privateJwk);
   const body = await encryptPayload(payloadObj, subscription.p256dh, subscription.auth);
 
+  /* Time-critical pushes (a trip request, its acceptance, SOS) must be sent
+     with "Urgency: high": without it Android's battery saver / Doze (very
+     aggressive on 4-5 year old phones) is allowed to hold a normal-priority
+     push for minutes or hours, so older phones got the request late or
+     never while new phones got it at once. A trip request is also only
+     useful for a few minutes, so its TTL is short - a push that sat
+     queued for a day should not show up as a stale request. */
+  const t = payloadObj && payloadObj.type;
+  const urgent = t === "trip_alert" || t === "trip_alert_accepted" || (typeof t === "string" && t.indexOf("sos") === 0);
+  const ttl = t === "trip_alert" ? "600" : urgent ? "3600" : "86400";
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
-      "TTL": "86400",
+      "TTL": ttl,
+      "Urgency": urgent ? "high" : "normal",
       "Authorization": `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`
     },
     body
