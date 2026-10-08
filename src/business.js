@@ -2026,7 +2026,7 @@ function dashboard(){
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
-  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button><button onclick="sessionStorage.removeItem('tc_chosen_partner_id');view('partner')">&#8646; ${tcT("switch_business")}</button></div>
+  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button><button onclick="sessionStorage.removeItem('tc_chosen_partner_id');sessionStorage.setItem('tc_force_picker','1');view('partner')">&#8646; ${tcT("switch_business")}</button></div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>${tcPlanValidUntilHtml()}`:
    `<div style="margin-top:8px;background:#fff8e8;border:1px solid #d2b478;border-radius:8px;padding:8px;font-size:11.5px;color:#7a5a1e">${tcT("free_notice")}</div>`}
