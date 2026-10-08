@@ -280,7 +280,9 @@ async function partnerView(){
   }
   localStorage.removeItem("tc_chosen_business_type");
   if(list.length>1){
-   const chosenId=sessionStorage.getItem("tc_chosen_partner_id");
+   /* No explicit choice this session -> reopen the business that is already
+      open on this device, unless the person pressed Switch Business. */
+   const chosenId=sessionStorage.getItem("tc_chosen_partner_id")||(sessionStorage.getItem("tc_force_picker")?null:String(db.settings.myPartnerId||""));
    const chosen=chosenId?list.find(p=>String(p.id)===chosenId):null;
    if(!chosen){ tcRenderBusinessPicker(list); return; }
    tcOpenOneBusiness(chosen);
@@ -306,11 +308,13 @@ function tcRenderBusinessPicker(list){
   <div class="actions" style="margin-top:10px"><button onclick="renderPartnerRegisterForm()">+ Register Another Business</button></div>`;
 }
 function tcSelectBusiness(partnerId){
+ sessionStorage.removeItem("tc_force_picker");
  sessionStorage.setItem("tc_chosen_partner_id",String(partnerId));
  partnerView();
 }
 function tcSwitchBusiness(){
  sessionStorage.removeItem("tc_chosen_partner_id");
+ sessionStorage.setItem("tc_force_picker","1");
  partnerView();
 }
 function tcOpenOneBusiness(partner){
@@ -359,7 +363,7 @@ function tcOpenOneBusiness(partner){
  /* Remember which business is open, so "Edit Business Details" goes
     straight to THIS business instead of showing the picker again. Only
     the Switch Business button clears this. */
- try{ sessionStorage.setItem("tc_chosen_partner_id",String(partner.id)); }catch(e){}
+ try{ sessionStorage.setItem("tc_chosen_partner_id",String(partner.id)); sessionStorage.removeItem("tc_force_picker"); }catch(e){}
  const confirmedType=partner.business_type||"taxi_travel";
  const wasUnknown=db.settings.myBusinessType==null;
  db.settings.myBusinessType=confirmedType;
