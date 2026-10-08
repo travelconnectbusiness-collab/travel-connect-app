@@ -1531,7 +1531,8 @@ async function tcAcceptTripAlert(alertId,partnerId){
      success screen, not just in the prompt that's now gone. */
   const original=(window._tcPendingTripAlerts||[]).find(a=>a.id===alertId);
   const hasLoc=original&&original.pickup_lat!=null&&original.pickup_lon!=null;
-  const callMobile=data.partner&&(data.partner.mobile1||data.partner.mobile2);
+  /* Call the CUSTOMER (not the driver's own number). */
+ const callMobile=data.customer&&data.customer.mobile;
   modal(`<div style="text-align:center">
    <div style="font-size:40px">&#9989;</div>
    <h2 style="color:#1c6b2c;margin:6px 0">Trip accepted!</h2>
