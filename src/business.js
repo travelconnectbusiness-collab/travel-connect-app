@@ -222,8 +222,24 @@ async function tcLoadBrandFont(key,sample,weight){
    as an image. tcPrepareBrandNameImage() must be awaited BEFORE building
    the PDF (the PDF builders are synchronous); the header then uses
    window._tcBrandNameImg if it matches the current name/font/weight. */
+/* Premium logo for the PDF: fetched once per PDF and measured, so the header
+   can show the logo alone (instead of the typed name), like the printed bill. */
+async function tcPrepareBrandLogo(){
+ window._tcBrandLogo=null;
+ const isPremiumTier=db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
+ if(!isPremiumTier||!tcIsPremiumPlan()) return;
+ try{
+  const data=await tcFetchLogoDataUrl();
+  if(!data) return;
+  const dim=await new Promise(r=>{ const im=new Image(); im.onload=()=>r({w:im.naturalWidth,h:im.naturalHeight}); im.onerror=()=>r(null); im.src=data; });
+  if(!dim||!dim.w||!dim.h) return;
+  const fmt=/^data:image\/jpe?g/i.test(data)?"JPEG":"PNG";
+  window._tcBrandLogo={pid:db.settings.myPartnerId,data,fmt,w:dim.w,h:dim.h};
+ }catch(e){ window._tcBrandLogo=null; }
+}
 async function tcPrepareBrandNameImage(){
  window._tcBrandNameImg=null;
+ await tcPrepareBrandLogo();
  const key=tcBrandFontKey();
  const f=TC_FONT_FAMILIES[key];
  if(!f||!f.display||!tcIsPremiumPlan()) return;
@@ -771,14 +787,20 @@ function tcPdfBrandedHeader(doc,titleText){
  const isPaidTier=tcIsPremiumPlan();
  const partnerPhonesPdf=[db.business.phone,db.business.phone2].filter(Boolean);
  const partnerBoxTop=y;
- const partnerBoxHeight=15+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhonesPdf.length?5.5:0);
+ /* Premium logo (if any) replaces the typed name, drawn centred, max 60mm x 18mm. */
+ const lg=(isPaidTier&&window._tcBrandLogo&&window._tcBrandLogo.pid===db.settings.myPartnerId)?window._tcBrandLogo:null;
+ let lgH=0,lgW=0;
+ if(lg){ lgH=Math.min(18,60*lg.h/lg.w); lgW=lgH*lg.w/lg.h; }
+ const partnerBoxHeight=15+(lg?Math.max(0,lgH-3):0)+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhonesPdf.length?5.5:0);
  doc.setFillColor(isPaidTier?255:232,isPaidTier?255:245,isPaidTier?255:244);
  doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
  doc.setDrawColor(rgb[0],rgb[1],rgb[2]);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
  let py=partnerBoxTop+7;
  doc.setFont(font,(isPaidTier&&tcBrandWeight()<700)?"normal":"bold");doc.setFontSize(14);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
  const nameImg=(isPaidTier&&window._tcBrandNameImg&&window._tcBrandNameImg.text===db.business.name&&window._tcBrandNameImg.key===tcBrandFontKey()&&window._tcBrandNameImg.weight===tcBrandWeight())?window._tcBrandNameImg:null;
- if(nameImg){
+ if(lg){
+  try{ doc.addImage(lg.data,lg.fmt,105-lgW/2,partnerBoxTop+2,lgW,lgH); py=partnerBoxTop+2+lgH-2; }catch(e){ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"}); }
+ }else if(nameImg){
   const ih=8, iw=Math.min(170,ih*nameImg.w/nameImg.h);
   try{ doc.addImage(nameImg.data,"PNG",105-iw/2,py-5.5,iw,ih); }catch(e){ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"}); }
  }else{
