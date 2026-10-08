@@ -803,9 +803,12 @@ function tcListNameHtml(p,size){
   }
  }
  const pid=p.partner_id||p.id;
- const logo=(prem&&p.logo_key&&pid)?'<img src="/api/partners?action=logo&partner_id='+pid+'" style="height:28px;max-width:70px;object-fit:contain;vertical-align:middle;margin-right:6px;border-radius:4px">':"";
+ /* Premium with a logo: the logo ALONE stands in for the name (it already
+    contains the name), so no typed name next to it. */
+ const lh=Math.round((size||16)*2.6);
+ const logo=(prem&&p.logo_key&&pid)?'<img src="/api/partners?action=logo&partner_id='+pid+'" alt="'+esc(p.business_name)+'" style="max-height:'+lh+'px;max-width:'+Math.round(lh*4)+'px;object-fit:contain;display:block;margin:2px 0">':"";
  const tag=p.tagline?'<div style="font-size:12px;color:#555;font-family:'+(ok?f.css:"inherit")+'">'+esc(p.tagline)+'</div>':"";
- return logo+'<span style="'+css+'">'+esc(p.business_name)+'</span>'+tag;
+ return (logo||'<span style="'+css+'">'+esc(p.business_name)+'</span>')+tag;
 }
 function tcRenderDirectoryList(entries){
  const box=document.querySelector("#tcDirList");
