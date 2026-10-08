@@ -414,7 +414,7 @@ function renderPartnerDashboard(p){
  ${tcMessagesCardHtml()}
  ${hasMultiple?`<div class="actions"><button onclick="tcSwitchBusiness()">&#8646; ${tcT("switch_business")}</button></div>`:""}
  <div class="card">
-  <h3>${tcListNameHtml(Object.assign({},p,{plan:db.settings.myPlan,plan_expires_at:db.settings.myPlanExpiresAt,tagline:db.business.tagline||p.tagline}),19)} ${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</h3>
+  ${tcIsPremiumPlan()?tcBrandingBox([db.business.phone,db.business.phone2].filter(Boolean).join(" / "))+`<div style="text-align:center">${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</div>`:`<h3>${tcListNameHtml(Object.assign({},p,{plan:db.settings.myPlan,plan_expires_at:db.settings.myPlanExpiresAt,tagline:db.business.tagline||p.tagline}),19)} ${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</h3>`}
   <div class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</div>
   <div class="muted">${tcT("owner_label")}: ${esc(p.owner_name)} - ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
   ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
