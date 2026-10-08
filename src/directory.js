@@ -343,6 +343,7 @@ function tcOpenOneBusiness(partner){
  const wasUnknown=db.settings.myBusinessType==null;
  db.settings.myBusinessType=confirmedType;
  save();
+ if(typeof tcHideAdminTabs==="function") tcHideAdminTabs();
  if(confirmedType==="taxi_travel"&&wasUnknown&&(window._myBusinesses||[]).length<=1){
   dashboard();
   tcInjectDashboardMsgCard();
