@@ -156,10 +156,132 @@ function rateOptions(){
 
 /* ---------- PRINT / PDF: BRANDING BOX (Free/Paid/Premium tiers) ---------- */
 const TC_FONT_FAMILIES={
- helvetica:{label:"Standard (Helvetica)",css:"Arial, Helvetica, sans-serif"},
- times:{label:"Elegant Serif (Times)",css:"'Times New Roman', Times, serif"},
- courier:{label:"Typewriter (Courier)",css:"'Courier New', Courier, monospace"}
+ helvetica:{label:"Standard (Helvetica)",css:"Arial, Helvetica, sans-serif",weights:[400,700],paid:true},
+ times:{label:"Elegant Serif (Times)",css:"'Times New Roman', Times, serif",weights:[400,700],paid:true},
+ courier:{label:"Typewriter (Courier)",css:"'Courier New', Courier, monospace",weights:[400,700]},
+ /* Display fonts: "fam" is the Google Fonts family, "weights" the weights
+    that really exist for it (asking for a missing weight makes the whole
+    request fail). "paid:true" fonts are offered on the Paid plan too;
+    everything is offered on Premium. The business name (and tagline) use
+    these; address/contact stay plain so numbers stay easy to read. Loaded
+    on demand only when printing/exporting; offline falls back to "css". */
+ poppins:{label:"Modern Clean (Poppins)",name:"Poppins",fam:"Poppins",weights:[400,700,800],css:"'Poppins', Arial, sans-serif",display:true},
+ playfair:{label:"Classic Display (Playfair)",name:"Playfair Display",fam:"Playfair+Display",weights:[400,700,800],css:"'Playfair Display', Georgia, serif",display:true},
+ oswald:{label:"Strong Condensed (Oswald)",name:"Oswald",fam:"Oswald",weights:[400,700],css:"'Oswald', Arial, sans-serif",display:true},
+ pacifico:{label:"Friendly Script (Pacifico)",name:"Pacifico",fam:"Pacifico",weights:[400],css:"'Pacifico', cursive",display:true},
+ dancing:{label:"Handwritten (Dancing Script)",name:"Dancing Script",fam:"Dancing+Script",weights:[400,700],css:"'Dancing Script', cursive",display:true},
+ manjari:{label:"Malayalam Modern (Manjari)",name:"Manjari",fam:"Manjari",weights:[400,700],css:"'Manjari', 'Noto Sans Malayalam', sans-serif",display:true,paid:true},
+ chilanka:{label:"Malayalam Handwritten (Chilanka)",name:"Chilanka",fam:"Chilanka",weights:[400],css:"'Chilanka', 'Noto Sans Malayalam', cursive",display:true},
+ notoserifml:{label:"Malayalam Classic (Noto Serif)",name:"Noto Serif Malayalam",fam:"Noto+Serif+Malayalam",weights:[400,700,800],css:"'Noto Serif Malayalam', serif",display:true}
 };
+const TC_WEIGHT_LABELS={400:"Normal",700:"Bold",800:"Extra Bold"};
+function tcFontGf(f){ return f&&f.fam?(f.weights.length>1?f.fam+":wght@"+f.weights.join(";"):f.fam):""; }
+/* Stored as "key" or "key:weight" in the single brand_font_family field. */
+function tcParseBrandFont(raw){ const a=String(raw||"").split(":"); return {key:a[0],weight:parseInt(a[1],10)||0}; }
+/* Premium/owner_free: every font. Paid: only the fonts flagged paid:true. */
+function tcFontAllowed(key){
+ const f=TC_FONT_FAMILIES[key]; if(!f) return false;
+ const plan=db.settings.myPlan;
+ if(plan==="premium"||plan==="owner_free") return true;
+ return !!f.paid&&tcIsPremiumPlan();
+}
+function tcBrandFontKey(){
+ const k=tcParseBrandFont(db.settings.myBrandFontFamily).key;
+ return tcFontAllowed(k)?k:"helvetica";
+}
+function tcBrandWeight(){
+ const w=tcParseBrandFont(db.settings.myBrandFontFamily).weight;
+ const f=TC_FONT_FAMILIES[tcBrandFontKey()];
+ return f.weights.includes(w)?w:(f.weights.includes(700)?700:f.weights[0]);
+}
+/* <link> tag for a hidden print frame's <head>, so the frame (a separate
+   document) can use the chosen display font too. "" for non-display fonts. */
+function tcBrandFontLinkTag(key){
+ const f=TC_FONT_FAMILIES[key||tcBrandFontKey()];
+ if(!f||!f.fam) return "";
+ return `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${tcFontGf(f)}&display=swap">`;
+}
+/* Loads the font into THIS page (used by the PDF name image and the live
+   preview). Resolves true if it is ready, false on any problem/timeout. */
+async function tcLoadBrandFont(key,sample,weight){
+ const f=TC_FONT_FAMILIES[key];
+ if(!f||!f.fam) return true;
+ try{
+  if(!document.querySelector('link[data-tcfont="'+key+'"]')){
+   const l=document.createElement("link");
+   l.rel="stylesheet"; l.href="https://fonts.googleapis.com/css2?family="+tcFontGf(f)+"&display=swap"; l.dataset.tcfont=key;
+   document.head.appendChild(l);
+  }
+  const timeout=new Promise(r=>setTimeout(()=>r(false),5000));
+  const ok=document.fonts.load((weight||700)+' 40px "'+f.name+'"',sample||"Aa").then(list=>list&&list.length>0);
+  return await Promise.race([ok,timeout]);
+ }catch(e){ return false; }
+}
+/* PDF can't use web fonts directly, so for a display font the business
+   name is drawn on a canvas in that font (and weight) and placed in the PDF
+   as an image. tcPrepareBrandNameImage() must be awaited BEFORE building
+   the PDF (the PDF builders are synchronous); the header then uses
+   window._tcBrandNameImg if it matches the current name/font/weight. */
+async function tcPrepareBrandNameImage(){
+ window._tcBrandNameImg=null;
+ const key=tcBrandFontKey();
+ const f=TC_FONT_FAMILIES[key];
+ if(!f||!f.display||!tcIsPremiumPlan()) return;
+ const text=db.business.name||"";
+ if(!text) return;
+ try{
+  const weight=tcBrandWeight();
+  const ok=await tcLoadBrandFont(key,text,weight);
+  if(!ok) return;
+  const color=(db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free")&&db.settings.myBrandColor?db.settings.myBrandColor:"#0f5a55";
+  const px=96;
+  const fnt=weight+' '+px+'px "'+f.name+'"';
+  const c=document.createElement("canvas");
+  const ctx=c.getContext("2d");
+  ctx.font=fnt;
+  const w=Math.ceil(ctx.measureText(text).width)+24, h=Math.ceil(px*1.5);
+  c.width=w; c.height=h;
+  const g=c.getContext("2d");
+  g.font=fnt;
+  g.fillStyle=color; g.textBaseline="middle"; g.textAlign="center";
+  g.fillText(text,w/2,h/2);
+  window._tcBrandNameImg={key,text,color,weight,w,h,data:c.toDataURL("image/png")};
+ }catch(e){ window._tcBrandNameImg=null; }
+}
+/* Font + weight pickers (shared by the Paid and Premium settings blocks). */
+function tcFontPickerHtml(p){
+ const cur=tcParseBrandFont(p.brand_font_family);
+ const key=tcFontAllowed(cur.key)?cur.key:"helvetica";
+ const opts=Object.entries(TC_FONT_FAMILIES).filter(([k])=>tcFontAllowed(k)).map(([k,v])=>`<option value="${k}" ${key===k?"selected":""}>${v.label}</option>`).join("");
+ const f=TC_FONT_FAMILIES[key];
+ const w=f.weights.includes(cur.weight)?cur.weight:(f.weights.includes(700)?700:f.weights[0]);
+ const wopts=f.weights.map(x=>`<option value="${x}" ${x===w?"selected":""}>${TC_WEIGHT_LABELS[x]}</option>`).join("");
+ return `<label style="margin-top:8px;display:block">Font style (business name &amp; tagline)<select id="bizFontFamily" onchange="tcFontChanged()">${opts}</select></label>
+  <label style="margin-top:8px;display:block">Letter boldness<select id="bizFontWeight" onchange="tcPreviewBrandFont()">${wopts}</select></label>
+  <div id="bizFontPreview" style="margin-top:6px;padding:10px;border:1px dashed #b9d6da;border-radius:10px;text-align:center;font-size:22px;color:#0b4f5a;background:#f7fbfb">${esc(db.business.name||"Your Business Name")}</div>
+  <div class="muted" style="font-size:11.5px;margin-top:3px">Preview. Your saved font and boldness are used on printed bills and PDFs. Needs internet to load the font; offline, a plain font is used.</div>`;
+}
+function tcFontChanged(){
+ const sel=document.querySelector("#bizFontFamily"), ws=document.querySelector("#bizFontWeight");
+ if(!sel||!ws) return;
+ const f=TC_FONT_FAMILIES[sel.value]||TC_FONT_FAMILIES.helvetica;
+ const prev=parseInt(ws.value,10);
+ const w=f.weights.includes(prev)?prev:(f.weights.includes(700)?700:f.weights[0]);
+ ws.innerHTML=f.weights.map(x=>`<option value="${x}" ${x===w?"selected":""}>${TC_WEIGHT_LABELS[x]}</option>`).join("");
+ tcPreviewBrandFont();
+}
+function tcPreviewBrandFont(){
+ const box=document.querySelector("#bizFontPreview");
+ const sel=document.querySelector("#bizFontFamily"), ws=document.querySelector("#bizFontWeight");
+ if(!box||!sel) return;
+ const key=sel.value, f=TC_FONT_FAMILIES[key]||TC_FONT_FAMILIES.helvetica;
+ const weight=parseInt(ws&&ws.value,10)||700;
+ const name=db.business.name||"Your Business Name";
+ box.textContent=name;
+ box.style.fontFamily=f.css;
+ box.style.fontWeight=String(weight);
+ if(f.fam) tcLoadBrandFont(key,name,weight).then(()=>{ box.style.fontFamily=f.css; });
+}
 const TC_LOGO_SIZES={small:120,medium:220,large:320};
 const TC_DETAIL_SIZES={small:10,medium:12,large:14};
 /* A Paid/Premium plan stops counting as such the moment its paid period
@@ -259,7 +381,8 @@ function tcShowUpgradePrompt(feature){
   ${db.platform.email?`<div><a href="mailto:${esc(db.platform.email)}">${esc(db.platform.email)}</a></div>`:""}
   <div class="actions" style="margin-top:10px"><button onclick="closeModal()">Close</button></div>`);
 }
-const TC_APP_URL="https://travel-connect-app.travelconnect-business.workers.dev/";
+const TC_APP_URL="https://travelconnect.dev/";
+const TC_WEBSITE="travelconnect.dev";
 function tcAppDownloadBlockHtml(){
  const qrData=getQRDataURL(TC_APP_URL,140);
  return `<div style="page-break-inside:avoid;break-inside:avoid;text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc">
@@ -275,14 +398,21 @@ function tcBrandingBox(partnerPhones){
  if(isPaidTier){
   const color=(isPremiumTier&&db.settings.myBrandColor)?db.settings.myBrandColor:"#148c76";
   const fontSize=(isPremiumTier&&db.settings.myBrandFontSize)?db.settings.myBrandFontSize:"21";
-  const fontCss=(isPremiumTier&&TC_FONT_FAMILIES[db.settings.myBrandFontFamily])?TC_FONT_FAMILIES[db.settings.myBrandFontFamily].css:"inherit";
+  const fontKey=tcBrandFontKey();
+  const fontDef=TC_FONT_FAMILIES[fontKey];
+  /* Display fonts style only the name + tagline; the rest stays plain so
+     phone numbers/addresses stay easy to read. Standard/Serif/Courier keep
+     applying to the whole box exactly as before. */
+  const fontCss=(fontDef&&!fontDef.display)?fontDef.css:"inherit";
+  const nameFontCss=(fontDef&&fontDef.display)?fontDef.css:fontCss;
+  const nameWeight=tcBrandWeight();
   const detailPx=(isPremiumTier&&TC_DETAIL_SIZES[db.settings.myBrandDetailSize])?TC_DETAIL_SIZES[db.settings.myBrandDetailSize]:12;
   const logoPx=(isPremiumTier&&TC_LOGO_SIZES[db.settings.myBrandLogoSize])?TC_LOGO_SIZES[db.settings.myBrandLogoSize]:220;
   const hasLogo=isPremiumTier&&db.settings.myLogoKey&&db.settings.myPartnerId;
   const logoImg=hasLogo?`<img src="${location.origin}/api/partners?action=logo&partner_id=${db.settings.myPartnerId}" style="max-width:${logoPx}px;height:auto;margin-bottom:6px;display:block;margin-left:auto;margin-right:auto">`:"";
   return `<div style="page-break-inside:avoid;break-inside:avoid;background:${hasLogo?"#ffffff":"#e8f5f4"};border:2px solid ${color};border-radius:8px;padding:12px;text-align:center;margin:10px 0;font-family:${fontCss}">
-   ${hasLogo?logoImg:`<div style="font-weight:bold;font-size:${fontSize}px;color:${color}">${esc(db.business.name)}</div>`}
-   ${db.business.tagline?`<div style="color:#555;font-size:${detailPx}px">${esc(db.business.tagline)}</div>`:""}
+   ${hasLogo?logoImg:`<div style="font-weight:${nameWeight};font-size:${fontSize}px;color:${color};font-family:${nameFontCss}">${esc(db.business.name)}</div>`}
+   ${db.business.tagline?`<div style="color:#555;font-size:${detailPx}px;font-family:${nameFontCss}">${esc(db.business.tagline)}</div>`:""}
    ${db.business.address?`<div style="font-size:${detailPx}px;color:#555">${esc(db.business.address)}</div>`:""}
    ${db.business.gstin?`<div style="font-size:11px;color:#555">GSTIN: ${esc(db.business.gstin)}</div>`:""}
    ${partnerPhones?`<div style="font-weight:bold;color:${color};font-size:${detailPx+3}px;margin-top:4px">Contact: ${partnerPhones}</div>`:""}
@@ -293,12 +423,12 @@ function tcBrandingBox(partnerPhones){
   <div style="color:#555;font-size:12px">Book your next trip directly - fast, reliable service</div>
   ${db.platform.phone1?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">Call: ${esc(db.platform.phone1)}${db.platform.phone2?" / "+esc(db.platform.phone2):""}</div>`:""}
   ${db.platform.email?`<div style="font-size:12px;color:#555">${esc(db.platform.email)}</div>`:""}
+  <div style="font-size:12px;color:#0f5a55;font-weight:bold">${esc(TC_WEBSITE)}</div>
   <div style="font-size:10.5px;color:#888;margin-top:6px">Trip arranged via ${esc(db.business.name)}${partnerPhones?" ("+partnerPhones+")":""}</div>
  </div>`;
 }
 function tcPdfFontFamily(){
- const isPremiumTier=db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
- const key=isPremiumTier?(db.settings.myBrandFontFamily||"helvetica"):"helvetica";
+ const key=tcBrandFontKey();
  return {helvetica:"helvetica",times:"times",courier:"courier"}[key]||"helvetica";
 }
 function tcHexToRgb(hex){
@@ -338,7 +468,7 @@ function printContent(title,html,asImage){
  document.body.appendChild(frame);
  const doc=frame.contentWindow.document;
  doc.open();
- doc.write(`<html><head><title>${title}</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:16.5px;line-height:1.6;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:4px 0}td b,td strong{font-weight:800}</style></head><body>${html}</body></html>`);
+ doc.write(`<html><head><title>${title}</title>${tcBrandFontLinkTag()}<style>body{font-family:sans-serif;padding:20px;color:#111;font-size:16.5px;line-height:1.6;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:4px 0}td b,td strong{font-weight:800}</style></head><body>${html}</body></html>`);
  doc.close();
  const images=Array.from(doc.images||[]);
  const waitForImages=Promise.all(images.map(img=>{
@@ -350,6 +480,9 @@ function printContent(title,html,asImage){
   });
  }));
  waitForImages.then(async ()=>{
+  /* Give a Premium display font (loaded by the <link> in the frame's head)
+     a moment to arrive before printing / capturing - never longer than 4s. */
+  try{ await Promise.race([doc.fonts.ready,new Promise(r=>setTimeout(r,4000))]); }catch(e){}
   if(!asImage){
    frame.contentWindow.focus();
    frame.contentWindow.print();
@@ -418,6 +551,7 @@ function printQuoteObj(q,asImage){
     <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
     ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
     ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+    <div style="color:#888;font-size:10px">${esc(TC_WEBSITE)}</div>
    </div>
   </div>
   <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
@@ -557,6 +691,7 @@ function printBill(tripId,asImage){
     <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
     ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
     ${db.platform.email?`<div style="color:#888;font-size:10px">${esc(db.platform.email)}</div>`:""}
+    <div style="color:#888;font-size:10px">${esc(TC_WEBSITE)}</div>
    </div>
   </div>
   <div style="color:#444;font-weight:bold;font-size:12px;text-align:right">${platformPhones}</div>
@@ -598,7 +733,6 @@ function printBill(tripId,asImage){
  `,asImage);
 }
 function imageBill(tripId){ printBill(tripId,true); }
-
 /* ---------- PDF HELPERS ---------- */
 function pdfDoc(){
  if(typeof window.jspdf==="undefined"||!window.jspdf.jsPDF){ toast("PDF library not loaded - try again in a moment"); return null; }
@@ -626,7 +760,7 @@ function tcPdfBrandedHeader(doc,titleText){
  doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
  doc.setFont(font,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
  if(db.platform.tagline) doc.text(db.platform.tagline,29,y+5);
- if(db.platform.email) doc.text(db.platform.email,29,y+9);
+ doc.text([db.platform.email,TC_WEBSITE].filter(Boolean).join("   |   "),29,y+9);
  doc.setFont(font,"bold");doc.setFontSize(8);doc.setTextColor(70);
  const platformPhones=[db.platform.phone1,db.platform.phone2].filter(Boolean).join("  |  ");
  if(platformPhones) doc.text(platformPhones,195,y+1,{align:"right"});
@@ -642,8 +776,15 @@ function tcPdfBrandedHeader(doc,titleText){
  doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
  doc.setDrawColor(rgb[0],rgb[1],rgb[2]);doc.rect(15,partnerBoxTop,180,partnerBoxHeight);doc.setDrawColor(210);
  let py=partnerBoxTop+7;
- doc.setFont(font,"bold");doc.setFontSize(14);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
- doc.text(isPaidTier?(db.business.name||"Travel Partner"):(db.platform.name||"Travel Connect"),105,py,{align:"center"});py+=5;
+ doc.setFont(font,(isPaidTier&&tcBrandWeight()<700)?"normal":"bold");doc.setFontSize(14);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+ const nameImg=(isPaidTier&&window._tcBrandNameImg&&window._tcBrandNameImg.text===db.business.name&&window._tcBrandNameImg.key===tcBrandFontKey()&&window._tcBrandNameImg.weight===tcBrandWeight())?window._tcBrandNameImg:null;
+ if(nameImg){
+  const ih=8, iw=Math.min(170,ih*nameImg.w/nameImg.h);
+  try{ doc.addImage(nameImg.data,"PNG",105-iw/2,py-5.5,iw,ih); }catch(e){ doc.text(db.business.name||"Travel Partner",105,py,{align:"center"}); }
+ }else{
+  doc.text(isPaidTier?(db.business.name||"Travel Partner"):(db.platform.name||"Travel Connect"),105,py,{align:"center"});
+ }
+ py+=5;
  doc.setFont(font,"normal");doc.setFontSize(8.5);doc.setTextColor(60);
  if(isPaidTier){
   if(db.business.tagline){doc.text(db.business.tagline,105,py,{align:"center"});py+=4.5;}
@@ -681,7 +822,8 @@ function tcPdfAppDownloadBlock(doc,y){
 }
 
 /* ---------- QUOTATION PDF ---------- */
-function downloadQuotePDFObj(q){
+async function downloadQuotePDFObj(q){
+ await tcPrepareBrandNameImage();
  const doc=pdfDoc();if(!doc)return;
  const font=tcPdfFontFamily();
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
@@ -793,7 +935,8 @@ function downloadQuotePDFObj(q){
 function downloadQuotePDF(id){ const q=db.quotes.find(x=>x.id===id); if(q) downloadQuotePDFObj(q); }
 
 /* ---------- FINAL BILL PDF ---------- */
-function downloadBillPDF(tripId){
+async function downloadBillPDF(tripId){
+ await tcPrepareBrandNameImage();
  const t=db.trips.find(x=>x.id===tripId);if(!t)return;
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
@@ -1922,7 +2065,6 @@ function renderBillingIdentitySection(p){
  if(!box) return;
  const unlocked=tcIsPremiumPlan();
  const isPremiumTier=db.settings.myPlan==="premium"||db.settings.myPlan==="owner_free";
- const fontOpts=Object.entries(TC_FONT_FAMILIES).map(([k,v])=>`<option value="${k}" ${(p.brand_font_family||"helvetica")===k?"selected":""}>${v.label}</option>`).join("");
  box.innerHTML=`
  <div>${esc(db.business.name||"-")}</div>
  ${db.business.tagline?`<div class="muted">${esc(db.business.tagline)}</div>`:""}
@@ -1931,6 +2073,11 @@ function renderBillingIdentitySection(p){
  <div class="muted">${[db.business.phone,db.business.phone2].filter(Boolean).join(" / ")||"No contact number set"}</div>
  ${unlocked?`<div class="muted">UPI: ${esc(db.business.upiId||"Not set")}</div>`:`<div class="muted">UPI payment QR: <span style="color:#a12d2d">Paid/Premium feature</span></div>`}
  <div class="actions" style="margin-top:8px"><button onclick="openEditBillingIdentity()">Edit Billing Details</button></div>
+ ${(unlocked&&!isPremiumTier)?`<hr><h4>Font Style (Paid)</h4>
+  ${tcFontPickerHtml(p)}
+  <div class="actions"><button class="primary" onclick="tcSaveBrandFont(${p.id})">Save Font</button></div>
+  <div id="bizBrandErr" class="danger"></div>
+  <p class="muted" style="font-size:12px">More fonts, colours, logo and sizes are available on Premium.</p>`:""}
  ${isPremiumTier?`<hr><h4>Custom Branding (Premium)</h4>
   ${p.logo_key?`<img src="/api/partners?action=logo&partner_id=${p.id}" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid #c9d4dc;display:block;margin-bottom:8px">`:`<p class="muted" style="font-size:12px">No logo uploaded yet.</p>`}
   <input type="file" id="bizLogoFile" accept="image/*">
@@ -1947,7 +2094,7 @@ function renderBillingIdentitySection(p){
     <option value="26" ${p.brand_font_size==26?"selected":""}>Large</option>
     <option value="32" ${p.brand_font_size==32?"selected":""}>Extra Large</option>
   </select></label>
-  <label style="margin-top:8px;display:block">Font style (tagline/address/contact)<select id="bizFontFamily">${fontOpts}</select></label>
+  ${tcFontPickerHtml(p)}
   <label style="margin-top:8px;display:block">Tagline/address/contact text size<select id="bizDetailSize">
     <option value="small" ${p.brand_detail_size=="small"?"selected":""}>Small</option>
     <option value="medium" ${(!p.brand_detail_size||p.brand_detail_size=="medium")?"selected":""}>Medium (default)</option>
@@ -2012,7 +2159,7 @@ async function tcSaveBrandColor(partnerId){
  const user=getCurrentUser();
  const color=document.querySelector("#bizBrandColor").value;
  const fontSize=document.querySelector("#bizFontSize")?.value||"21";
- const fontFamily=document.querySelector("#bizFontFamily")?.value||"helvetica";
+ const fontFamily=(document.querySelector("#bizFontFamily")?.value||"helvetica")+":"+(document.querySelector("#bizFontWeight")?.value||"700");
  const detailSize=document.querySelector("#bizDetailSize")?.value||"medium";
  const logoSize=document.querySelector("#bizLogoSize")?.value||"medium";
  const p=window._myPartner||{};
@@ -2029,6 +2176,25 @@ async function tcSaveBrandColor(partnerId){
   toast("Branding settings saved");
   Object.assign(window._myPartner,{brand_color:color,brand_font_size:fontSize,brand_font_family:fontFamily,brand_detail_size:detailSize,brand_logo_size:logoSize});
   Object.assign(db.settings,{myBrandColor:color,myBrandFontSize:fontSize,myBrandFontFamily:fontFamily,myBrandDetailSize:detailSize,myBrandLogoSize:logoSize});
+  save();
+ }catch(e){ toast("Network error"); }
+}
+
+async function tcSaveBrandFont(partnerId){
+ const user=getCurrentUser();
+ const fontFamily=(document.querySelector("#bizFontFamily")?.value||"helvetica")+":"+(document.querySelector("#bizFontWeight")?.value||"700");
+ const errBox=document.querySelector("#bizBrandErr");
+ const p=window._myPartner||{};
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update",partner_id:partnerId,mobile:user.mobile,
+   business_name:p.business_name,owner_name:p.owner_name,mobile2:p.mobile2,email:p.email,
+   location:p.location,pincode:p.pincode,business_type:p.business_type,description:p.description,business_hours:p.business_hours,
+   brand_font_family:fontFamily})});
+  const data=await res.json();
+  if(!data.ok){ if(errBox) errBox.textContent="Could not save ("+(data.error||"unknown")+")"; return; }
+  toast("Font saved");
+  window._myPartner.brand_font_family=fontFamily;
+  db.settings.myBrandFontFamily=fontFamily;
   save();
  }catch(e){ toast("Network error"); }
 }
@@ -2150,4 +2316,3 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
-
