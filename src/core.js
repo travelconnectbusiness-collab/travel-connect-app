@@ -761,11 +761,11 @@ function tcHideAdminTabs(){
   if(btn) btn.style.display="none";
  });
  /* Enquiries / Quotations / Trips / Billing are the Taxi-Travel toolset.
-    Once the open business is confirmed to be something else (a shop,
-    restaurant, workshop...), those tabs are hidden - they only lead to
-    taxi screens. Unknown type (not yet loaded) leaves them as they were. */
+    They stay hidden until the open business is CONFIRMED as Taxi/Travel
+    (a shop, restaurant, workshop, skilled worker... never needs them, and
+    a brand-new device or registration screen has no confirmed type yet). */
  const bt=(typeof db!=="undefined"&&db.settings)?db.settings.myBusinessType:null;
- const nonTaxi=!!bt&&bt!=="none"&&bt!=="taxi_travel";
+ const nonTaxi=bt!=="taxi_travel";
  ["enquiries","quotations","trips","billing"].forEach(v=>{
   const btn=document.querySelector(`.tabs button[data-view="${v}"]`);
   if(btn) btn.style.display=nonTaxi?"none":"";
