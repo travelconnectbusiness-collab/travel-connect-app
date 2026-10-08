@@ -32,6 +32,7 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
     "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
     "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN tagline TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -99,7 +100,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan
+        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline
          FROM travel_partners WHERE verified=1
          ORDER BY CASE
            WHEN plan='owner_free' THEN 1
@@ -285,6 +286,8 @@ export async function onRequestPost({ request, env }) {
       if (m && (isPremium ? premiumFonts : paidFonts).includes(m[1])) brandFontFamily = m[0];
     }
     const brandDetailSize = isPremium && body.brand_detail_size ? String(body.brand_detail_size).trim() : null;
+    /* Tagline is shown in the public Directory, so only Paid/Premium can set it. */
+    const tagline = isPaidOrBetter && body.tagline != null ? String(body.tagline).trim().slice(0, 100) : null;
     const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
     /* mobile1 is the account's actual login identity (what push
        subscriptions, trip-alert matching, and login itself all key off
@@ -300,7 +303,7 @@ export async function onRequestPost({ request, env }) {
        field can never accidentally wipe out someone's login number. */
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=COALESCE(NULLIF(?,''),mobile1), mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=COALESCE(NULLIF(?,''),mobile1), mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size), tagline=COALESCE(?,tagline)
          WHERE id=?`
       )
       .bind(
@@ -322,6 +325,7 @@ export async function onRequestPost({ request, env }) {
         brandFontFamily,
         brandDetailSize,
         brandLogoSize,
+        tagline,
         body.partner_id
       )
       .run();
