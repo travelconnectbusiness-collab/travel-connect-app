@@ -380,6 +380,9 @@ export async function onRequestPost({ request, env, ctx }) {
       ok: true,
       accepted: true,
       partner: { id: partner.id, business_name: partner.business_name, mobile1: partner.mobile1, mobile2: partner.mobile2 },
+      /* The customer's number is handed over only to the driver who actually
+         won the trip, so they can call the customer. */
+      customer: { name: alert.customer_name, mobile: alert.customer_mobile },
       distance_km: candidate ? candidate.distance_km : null,
       duration_min: candidate ? candidate.duration_min : null,
     });
@@ -449,8 +452,9 @@ export async function onRequestGet({ request, env }) {
       /* never show a business its own request */
       if (l10(a.customer_mobile) && (l10(a.customer_mobile) === l10(partner.mobile1) || l10(a.customer_mobile) === l10(partner.mobile2))) continue;
       const candidate = await env.DB.prepare("SELECT distance_km, duration_min FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
+      const { customer_mobile: _hidden, ...aSafe } = a; /* number only revealed after Accept */
       open.push({
-        ...a,
+        ...aSafe,
         destinations: a.destinations ? JSON.parse(a.destinations) : [],
         distance_km: candidate ? candidate.distance_km : null,
         duration_min: candidate ? candidate.duration_min : null,
