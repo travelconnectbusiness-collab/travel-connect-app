@@ -1005,7 +1005,7 @@ function quoteForm(){
  <label>Service (optional, e.g. AC / Non-AC)<input id="qService"></label>
  <label>Rate<select id="qRate">${rateOptions()}</select></label>
  <label>Custom / Drop amount<input id="qCustom" type="number" oninput="qCustom.dataset.auto='0'"></label>
- <label><input type="checkbox" id="qBataOn" onchange="toggleBata()"> Include Driver Bata</label>
+ <label class="tcTick"><input type="checkbox" id="qBataOn" onchange="toggleBata()"><span><span class="tcTickTitle">&#129489;&#8205;&#9992;&#65039; Include Driver Bata</span><span class="tcTickHint">Adds the driver's daily bata to the fare.</span><span class="tcTickGo">&#128073; Tick to add it</span></span></label>
  <label>Driver Bata amount<input id="qBata" type="number" value="0" disabled></label>
  <label>Discount type<select id="qDiscType">
    <option value="none">No discount</option>
@@ -1031,12 +1031,12 @@ function quoteForm(){
  </div>
  <div style="margin-top:10px">
   <label style="display:block">Fare Details - what's included &amp; excluded (optional, shown to customer)<textarea id="qFareNote" rows="3" placeholder="e.g. 700 km included at Rs.3500/day. Extra KM Rs.23/km. Toll, permit, parking actual. Driver food/stay included. Kolukkumalai jeep, boating, entry tickets customer direct."></textarea></label>
-  <label style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="qHideMobile"> Hide customer mobile number on Print/PDF/Image <span class="muted" style="font-weight:normal">(for sharing with another driver before the trip is confirmed - the number stays visible to you inside the app)</span></label>
-  <label style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="qShowHours" checked onchange="this.dataset.userSet='1'"> Show included hours in the fare comparison <span class="muted" style="font-weight:normal">(usually only needed for Local/One Day trips - for Outstation, Additional KM is normally what applies, so hours are hidden by default to avoid confusing the customer)</span></label>
+  <label class="tcTick" style="margin-top:8px"><input type="checkbox" id="qHideMobile"><span><span class="tcTickTitle">&#128274; Hide customer mobile number</span><span class="tcTickHint">On Print/PDF/Image only - for sharing with another driver before the trip is confirmed. The number stays visible to you inside the app.</span><span class="tcTickGo">&#128073; Tick to hide it</span></span></label>
+  <label class="tcTick" style="margin-top:8px"><input type="checkbox" id="qShowHours" checked onchange="this.dataset.userSet='1'"><span><span class="tcTickTitle">&#9201;&#65039; Show included hours in the fare comparison</span><span class="tcTickHint">Usually only needed for Local/One Day trips. For Outstation, Additional KM is what applies, so hours are hidden by default to avoid confusing the customer.</span><span class="tcTickGo">&#128073; Tick to show the hours</span></span></label>
  </div>
  ${extraChargeFieldsHtml("qExtra")}
  <div class="grid">
-  <label><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"> Include GST (only if you're GST-registered)</label>
+  <label class="tcTick"><input type="checkbox" id="qGstOn" onchange="qGstPct.disabled=!qGstOn.checked"><span><span class="tcTickTitle">&#129534; Include GST</span><span class="tcTickHint">Only if you are GST-registered.</span><span class="tcTickGo">&#128073; Tick, then enter GST %</span></span></label>
   <label>GST %<input id="qGstPct" type="number" value="0" disabled></label>
  </div>
  <div class="actions"><button class="primary" onclick="calcQuote()">Calculate</button><button onclick="printCurrentQuote()">Print</button><button onclick="downloadCurrentQuotePDF()">PDF</button><button onclick="imageCurrentQuote()">Image</button><button onclick="saveQuote()">Save Quotation</button></div><div id="qCalc" class="ratebox"></div>`;
@@ -1441,7 +1441,6 @@ function renderBillQR(amount,note){
  new QRCode(box,{text:buildUpiLink(amount,note),width:180,height:180});
  box.insertAdjacentHTML("beforeend",`<div class="muted" style="text-align:center;margin-top:4px">Scan to pay balance: ${money(amount)}</div>`);
 }
-
 /* ---------- BILLING PAGE ---------- */
 function billing(){
  app().innerHTML=card("Final Billing",`
@@ -2151,3 +2150,4 @@ function addExpense(){
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
 }
+
