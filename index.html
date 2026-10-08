@@ -71,6 +71,14 @@ button.danger{
 }
 @keyframes tcPill{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.18); } }
 .tcMsgPill{ animation:tcPill 1.6s ease-in-out infinite; }
+/* Tick-box rows: the tick sits on the left, a bold title with an icon and a
+   one-line "what this does" hint sit beside it, inside a light tappable box. */
+label.tcTick{ flex-direction:row !important; align-items:flex-start; gap:12px; background:#eef6f7; border:1.5px solid #b9d6da; border-radius:12px; padding:12px; cursor:pointer; font-weight:650; }
+label.tcTick input[type="checkbox"]{ flex:none; width:24px !important; height:24px !important; margin:1px 0 0; accent-color:#0b6b78; }
+label.tcTick .tcTickTitle{ display:block; font-weight:800; color:#0b4f5a; font-size:14px; }
+label.tcTick .tcTickHint{ display:block; font-weight:500; color:#4d6270; font-size:12px; margin-top:3px; line-height:1.35; }
+label.tcTick .tcTickGo{ display:inline-block; font-weight:800; color:#0b6b78; font-size:11.5px; margin-top:4px; }
+
 </style>
 </head>
 <body>
