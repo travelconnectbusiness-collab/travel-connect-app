@@ -360,6 +360,11 @@ function tcOpenOneBusiness(partner){
   }
   db.settings.myBillingIdentityFor=partner.id;
  }
+ /* The server copy of the tagline (set from Edit Billing Details by a Paid/
+    Premium owner) wins; if the server has none yet but this device has one,
+    upload it once so the Directory can show it. */
+ if(partner.tagline!=null) db.business.tagline=partner.tagline;
+ else if(db.business.tagline&&typeof tcSyncTagline==="function") setTimeout(()=>tcSyncTagline(partner.id),500);
  /* Remember which business is open, so "Edit Business Details" goes
     straight to THIS business instead of showing the picker again. Only
     the Switch Business button clears this. */
@@ -409,7 +414,7 @@ function renderPartnerDashboard(p){
  ${tcMessagesCardHtml()}
  ${hasMultiple?`<div class="actions"><button onclick="tcSwitchBusiness()">&#8646; ${tcT("switch_business")}</button></div>`:""}
  <div class="card">
-  <h3>${esc(p.business_name)} ${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</h3>
+  <h3>${tcListNameHtml(Object.assign({},p,{plan:db.settings.myPlan,plan_expires_at:db.settings.myPlanExpiresAt,tagline:db.business.tagline||p.tagline}),19)} ${p.verified?'<span class="ok">&#9989; '+tcT("verified_badge")+'</span>':'<span class="muted">'+tcT("pending_verification")+'</span>'}</h3>
   <div class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}</div>
   <div class="muted">${tcT("owner_label")}: ${esc(p.owner_name)} - ${esc(p.mobile1)}${p.mobile2?" / "+esc(p.mobile2):""}</div>
   ${p.email?`<div class="muted">${esc(p.email)}</div>`:""}
@@ -772,6 +777,36 @@ async function tcRenderDirectory(){
   tcRenderDirectoryList(_tcDirectoryEntries);
  }catch(e){document.querySelector("#tcDirList").innerHTML="<p class='danger'>Network error.</p>"}
 }
+/* Business name as shown in the Directory and the Active Vehicles board.
+   Free listings: plain bold name. Paid: the font/boldness they chose from
+   the Paid fonts. Premium: their font, boldness, brand colour and a small
+   logo. A lapsed plan drops back to plain. The font is loaded on demand. */
+function tcListNameHtml(p,size){
+ const plain="<b>"+esc(p.business_name)+"</b>";
+ const plan=p.plan, exp=p.plan_expires_at;
+ const prem=plan==="owner_free"||plan==="premium";
+ const live=plan==="owner_free"||((plan==="premium"||plan==="paid")&&(!exp||new Date(String(exp).replace(" ","T"))>=new Date()));
+ if(!live) return plain;
+ /* (tagline below is shown for Paid/Premium only) */
+ const raw=tcParseBrandFont(p.brand_font_family);
+ const f=TC_FONT_FAMILIES[raw.key];
+ const ok=f&&(prem||f.paid);
+ const weight=ok&&f.weights.includes(raw.weight)?raw.weight:700;
+ const color=(prem&&p.brand_color)?p.brand_color:"#0f5a55";
+ let css="font-weight:"+weight+";color:"+color+";font-size:"+(size||16)+"px";
+ if(ok){
+  css+=";font-family:"+f.css;
+  if(f.fam&&!document.querySelector('link[data-tcfont="'+raw.key+'"]')){
+   const l=document.createElement("link");
+   l.rel="stylesheet"; l.href="https://fonts.googleapis.com/css2?family="+tcFontGf(f)+"&display=swap"; l.dataset.tcfont=raw.key;
+   document.head.appendChild(l);
+  }
+ }
+ const pid=p.partner_id||p.id;
+ const logo=(prem&&p.logo_key&&pid)?'<img src="/api/partners?action=logo&partner_id='+pid+'" style="height:28px;max-width:70px;object-fit:contain;vertical-align:middle;margin-right:6px;border-radius:4px">':"";
+ const tag=p.tagline?'<div style="font-size:12px;color:#555;font-family:'+(ok?f.css:"inherit")+'">'+esc(p.tagline)+'</div>':"";
+ return logo+'<span style="'+css+'">'+esc(p.business_name)+'</span>'+tag;
+}
 function tcRenderDirectoryList(entries){
  const box=document.querySelector("#tcDirList");
  if(!box) return;
@@ -785,7 +820,7 @@ function tcRenderDirectoryList(entries){
    ?"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lon
    :"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([p.business_name,p.location,p.pincode].filter(Boolean).join(", "));
   return `<div class="listitem">
-  <b>${esc(p.business_name)}</b> ${effectivelyActive?'<span class="ok">&#9679; Active now</span>':''}<br>
+  ${tcListNameHtml(p)} ${effectivelyActive?'<span class="ok">&#9679; Active now</span>':''}<br>
   <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}${p.location?" &bull; "+esc(p.location)+" "+esc(p.pincode||""):""}</span>${tcBusinessHoursNote(hours)}
   ${p.description?`<div style="font-size:12.5px;margin-top:4px;color:#333">${esc(p.description)}</div>`:""}
   <div class="actions">
@@ -1004,7 +1039,7 @@ function tcRenderActiveBoardList(vehicles,append){
    ${v.front_photo_key?`<img src="/api/vehicles?action=public_front_photo&vehicle_id=${v.id}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">`:""}
    <div>
     <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
-    ${esc(v.business_name)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
+    ${tcListNameHtml(v)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
    </div>
   </div>
   <div class="actions">
