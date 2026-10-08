@@ -2021,8 +2021,8 @@ function dashboard(){
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card(tcT("dashboard_title"),`
  <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
-  <div style="font-weight:800;font-size:19px;color:#0f5a55">${esc(db.business.name||tcT("your_business_name"))}</div>
-  ${db.business.tagline?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
+  <div>${tcListNameHtml({business_name:db.business.name||tcT("your_business_name"),plan:db.settings.myPlan,plan_expires_at:db.settings.myPlanExpiresAt,brand_color:db.settings.myBrandColor,brand_font_family:db.settings.myBrandFontFamily,logo_key:db.settings.myLogoKey,partner_id:db.settings.myPartnerId,tagline:db.business.tagline},19)}</div>
+  ${(!tcIsPremiumPlan()&&db.business.tagline)?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
@@ -2125,6 +2125,20 @@ function openEditBillingIdentity(){
   ${unlocked?"":`<div class="actions"><button onclick="tcShowUpgradePrompt('Your own UPI payment QR')">&#128274; Unlock UPI payment QR</button></div>`}
   <button class="primary" onclick="saveBillingIdentity()">Save</button>`);
 }
+/* Sends the tagline to the server so the public Directory / Active Board
+   can show it (Paid/Premium only; the server ignores it for Free). */
+async function tcSyncTagline(partnerId){
+ const user=getCurrentUser(); const p=window._myPartner||{};
+ if(!user||!partnerId||!tcIsPremiumPlan()) return;
+ try{
+  const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update",partner_id:partnerId,mobile:user.mobile,
+   business_name:p.business_name,owner_name:p.owner_name,mobile2:p.mobile2,email:p.email,
+   location:p.location,pincode:p.pincode,business_type:p.business_type,description:p.description,business_hours:p.business_hours,
+   tagline:db.business.tagline||""})});
+  const data=await res.json();
+  if(data.ok&&window._myPartner) window._myPartner.tagline=db.business.tagline||"";
+ }catch(e){}
+}
 function saveBillingIdentity(){
  const unlocked=tcIsPremiumPlan();
  const update={
@@ -2135,6 +2149,7 @@ function saveBillingIdentity(){
  if(unlocked){ update.upiId=document.querySelector("#bizUpiId").value; update.upiName=document.querySelector("#bizUpiName").value; }
  Object.assign(db.business,update);
  save(); closeModal(); toast("Billing details saved");
+ if(unlocked) tcSyncTagline(db.settings.myPartnerId);
  renderBillingIdentitySection(window._myPartner);
 }
 async function tcUploadPartnerLogo(partnerId){
