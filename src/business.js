@@ -787,10 +787,10 @@ function tcPdfBrandedHeader(doc,titleText){
  const isPaidTier=tcIsPremiumPlan();
  const partnerPhonesPdf=[db.business.phone,db.business.phone2].filter(Boolean);
  const partnerBoxTop=y;
- /* Premium logo (if any) replaces the typed name, drawn centred, max 60mm x 18mm. */
+ /* Premium logo (if any) replaces the typed name, centred, width follows the Logo size setting. */
  const lg=(isPaidTier&&window._tcBrandLogo&&window._tcBrandLogo.pid===db.settings.myPartnerId)?window._tcBrandLogo:null;
  let lgH=0,lgW=0;
- if(lg){ lgH=Math.min(18,60*lg.h/lg.w); lgW=lgH*lg.w/lg.h; }
+ if(lg){ const maxW=({small:32,medium:58,large:85})[db.settings.myBrandLogoSize]||58; lgW=maxW; lgH=maxW*lg.h/lg.w; if(lgH>30){ lgH=30; lgW=30*lg.w/lg.h; } }
  const partnerBoxHeight=15+(lg?Math.max(0,lgH-3):0)+(db.business.tagline?4.5:0)+(db.business.address?4.5:0)+(partnerPhonesPdf.length?5.5:0);
  doc.setFillColor(isPaidTier?255:232,isPaidTier?255:245,isPaidTier?255:244);
  doc.rect(15,partnerBoxTop,180,partnerBoxHeight,"F");
@@ -2042,12 +2042,14 @@ function dashboard(){
  if(typeof tcRefreshMyLocationIfActive==="function") tcRefreshMyLocationIfActive();
  const partnerPhones=[db.business.phone,db.business.phone2].filter(Boolean).join(" / ");
  app().innerHTML=card(tcT("dashboard_title"),`
- <div style="background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">
+ <div style="${tcIsPremiumPlan()?"text-align:center;margin-bottom:14px":"background:#e8f5f4;border:2px solid #148c76;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px"}">
+  ${tcIsPremiumPlan()?tcBrandingBox(partnerPhones)+(db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""):`
   <div>${tcListNameHtml({business_name:db.business.name||tcT("your_business_name"),plan:db.settings.myPlan,plan_expires_at:db.settings.myPlanExpiresAt,brand_color:db.settings.myBrandColor,brand_font_family:db.settings.myBrandFontFamily,logo_key:db.settings.myLogoKey,partner_id:db.settings.myPartnerId,tagline:db.business.tagline},19)}</div>
   ${(!tcIsPremiumPlan()&&db.business.tagline)?`<div style="color:#555;font-size:12px">${esc(db.business.tagline)}</div>`:""}
   ${db.business.address?`<div style="font-size:12px;color:#555">${esc(db.business.address)}</div>`:""}
   ${db.business.email?`<div style="font-size:12px;color:#555">${esc(db.business.email)}</div>`:""}
   ${partnerPhones?`<div style="font-weight:bold;color:#0f5a55;font-size:14px;margin-top:4px">${esc(partnerPhones)}</div>`:""}
+  `}
   <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("edit_business_details")}</button><button onclick="sessionStorage.removeItem('tc_chosen_partner_id');sessionStorage.setItem('tc_force_picker','1');view('partner')">&#8646; ${tcT("switch_business")}</button></div>
   ${tcIsPremiumPlan()?
    `<div style="margin-top:8px;font-size:11.5px;color:#0f5a55;font-weight:bold">${tcT("premium_notice")}</div>${tcPlanValidUntilHtml()}`:
