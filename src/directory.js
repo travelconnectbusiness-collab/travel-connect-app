@@ -18,7 +18,7 @@
 function tcBusinessHoursFieldsHtml(prefix,hours){
  hours=hours||{};
  return `<div class="grid">
-  <label><input type="checkbox" id="${prefix}HoursOn" ${hours.enabled?"checked":""} onchange="document.querySelector('#${prefix}HoursRow').style.display=this.checked?'':'none'"> Set business hours (Active status auto-hides outside these hours)</label>
+  <label class="tcTick" style="grid-column:1/-1"><input type="checkbox" id="${prefix}HoursOn" ${hours.enabled?"checked":""} onchange="document.querySelector('#${prefix}HoursRow').style.display=this.checked?'':'none'"><span><span class="tcTickTitle">&#9200; ${tcBl("Set opening &amp; closing time","തുറക്കുന്നതും അടയ്ക്കുന്നതുമായ സമയം സെറ്റ് ചെയ്യുക")}</span><span class="tcTickHint">${tcBl("Outside these hours your listing is not shown as Active. It comes back by itself the next day - no daily switch needed.","ഈ സമയത്തിന് പുറത്ത് നിങ്ങളുടെ ലിസ്റ്റിങ് Active ആയി കാണിക്കില്ല. അടുത്ത ദിവസം തനിയെ വീണ്ടും വരും - ദിവസവും സ്വിച്ച് ഇടേണ്ട.")}</span><span class="tcTickGo">&#128073; ${tcBl("Tick the box, then choose the times","ടിക്ക് ചെയ്ത് സമയം തിരഞ്ഞെടുക്കുക")}</span></span></label>
  </div>
  <div id="${prefix}HoursRow" class="grid" style="${hours.enabled?"":"display:none"}">
   <label>Opens at<input id="${prefix}HoursOpen" type="time" value="${esc(hours.open||"09:00")}"></label>
@@ -898,10 +898,7 @@ async function tcLoadMyBlood(){
     "Optional. Add your blood group only if you wish. Your name, area and mobile number are shown to other Travel Connect users who search for blood donors ONLY while the switch below is ON. Switch it OFF any time and you are hidden immediately.",
     "ഓപ്ഷണൽ ആണ്. താൽപര്യമുണ്ടെങ്കിൽ മാത്രം ബ്ലഡ് ഗ്രൂപ്പ് ചേർത്താൽ മതി. താഴെയുള്ള സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ, ബ്ലഡ് ഡോണറെ തിരയുന്ന മറ്റ് ഉപയോക്താക്കൾക്ക് നിങ്ങളുടെ പേര്, സ്ഥലം, മൊബൈൽ നമ്പർ എന്നിവ കാണൂ. എപ്പോൾ വേണമെങ്കിലും OFF ആക്കാം, ഉടനെ മറയും.")}</div>
    <label>${tcBl("My blood group","എന്റെ ബ്ലഡ് ഗ്രൂപ്പ്")}<select id="tcMyBloodGroup">${tcBloodGroupOptions(data.blood_group||"",tcBl("-- Not set --","-- നൽകിയിട്ടില്ല --"))}</select></label>
-   <label style="display:flex;align-items:center;gap:10px;margin-top:10px;font-weight:650">
-    <input type="checkbox" id="tcMyBloodDonor" style="width:22px;height:22px;flex:none"${data.blood_donor?" checked":""}>
-    <span>${tcBl("I am available to donate blood (visible to others)","ഞാൻ രക്തം ദാനം ചെയ്യാൻ തയ്യാറാണ് (മറ്റുള്ളവർക്ക് കാണാം)")}</span>
-   </label>
+   <label class="tcTick" style="margin-top:10px"><input type="checkbox" id="tcMyBloodDonor"${data.blood_donor?" checked":""}><span><span class="tcTickTitle">&#129656; ${tcBl("I am available to donate blood","ഞാൻ രക്തം ദാനം ചെയ്യാൻ തയ്യാറാണ്")}</span><span class="tcTickHint">${tcBl("Others searching for blood donors can see your name, area and mobile. Untick any time to hide.","ബ്ലഡ് ഡോണറെ തിരയുന്നവർക്ക് നിങ്ങളുടെ പേര്, സ്ഥലം, മൊബൈൽ കാണാം. എപ്പോൾ വേണമെങ്കിലും ടിക്ക് മാറ്റി മറയ്ക്കാം.")}</span><span class="tcTickGo">&#128073; ${tcBl("Tick to turn ON, then press Save","ON ആക്കാൻ ടിക്ക് ചെയ്ത് Save അമർത്തുക")}</span></span></label>
    <div class="actions"><button class="primary" onclick="tcSaveMyBlood()">${tcBl("Save","സേവ് ചെയ്യുക")}</button></div>`;
  }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
 }
