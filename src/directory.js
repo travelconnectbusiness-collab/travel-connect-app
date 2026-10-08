@@ -333,12 +333,32 @@ function tcOpenOneBusiness(partner){
     Resetting it here, every time a DIFFERENT partner is opened, to sane
     defaults drawn from that partner's own server record keeps each
     business's identity from leaking into another's. */
+ /* Each business keeps its OWN tagline / UPI ID / GSTIN etc. on this
+    device: when switching away, the live db.business is filed under the
+    business being left (db.billingByPartner[id]); when switching to a
+    business that was opened here before, its filed copy is restored.
+    Only a business never opened on this device starts from the defaults
+    below. (Before this, every switch wiped the tagline and UPI ID.) */
  if(db.settings.myBillingIdentityFor!==partner.id){
-  db.business={name:partner.business_name||"Your Business Name",tagline:"",address:partner.location||"",
-   officeLocation:partner.location||"",phone:partner.mobile1||"",phone2:partner.mobile2||"",
-   email:partner.email||"",gstin:"",upiId:"",upiName:partner.business_name||"",description:partner.description||""};
+  if(!db.billingByPartner) db.billingByPartner={};
+  const leaving=db.settings.myBillingIdentityFor;
+  if(leaving!=null&&db.business){
+   try{ db.billingByPartner[String(leaving)]=JSON.parse(JSON.stringify(db.business)); }catch(e){}
+  }
+  const filed=db.billingByPartner[String(partner.id)];
+  if(filed){
+   db.business=JSON.parse(JSON.stringify(filed));
+  }else{
+   db.business={name:partner.business_name||"Your Business Name",tagline:"",address:partner.location||"",
+    officeLocation:partner.location||"",phone:partner.mobile1||"",phone2:partner.mobile2||"",
+    email:partner.email||"",gstin:"",upiId:"",upiName:partner.business_name||"",description:partner.description||""};
+  }
   db.settings.myBillingIdentityFor=partner.id;
  }
+ /* Remember which business is open, so "Edit Business Details" goes
+    straight to THIS business instead of showing the picker again. Only
+    the Switch Business button clears this. */
+ try{ sessionStorage.setItem("tc_chosen_partner_id",String(partner.id)); }catch(e){}
  const confirmedType=partner.business_type||"taxi_travel";
  const wasUnknown=db.settings.myBusinessType==null;
  db.settings.myBusinessType=confirmedType;
