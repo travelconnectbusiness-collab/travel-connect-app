@@ -274,7 +274,16 @@ export async function onRequestPost({ request, env }) {
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
     const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
     const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
-    const brandFontFamily = isPremium && body.brand_font_family ? String(body.brand_font_family).trim() : null;
+    /* Font: Paid may choose from a short list, Premium from all. Stored as
+       "key" or "key:weight" (weight 400/700/800). Anything else is ignored. */
+    const isPaidOrBetter = isPremium || row.plan === "paid";
+    let brandFontFamily = null;
+    if (isPaidOrBetter && body.brand_font_family) {
+      const m = String(body.brand_font_family).trim().match(/^([a-z]+)(?::(400|700|800))?$/);
+      const premiumFonts = ["helvetica","times","courier","poppins","playfair","oswald","pacifico","dancing","manjari","chilanka","notoserifml"];
+      const paidFonts = ["helvetica","times","manjari"];
+      if (m && (isPremium ? premiumFonts : paidFonts).includes(m[1])) brandFontFamily = m[0];
+    }
     const brandDetailSize = isPremium && body.brand_detail_size ? String(body.brand_detail_size).trim() : null;
     const brandLogoSize = isPremium && body.brand_logo_size ? String(body.brand_logo_size).trim() : null;
     /* mobile1 is the account's actual login identity (what push
