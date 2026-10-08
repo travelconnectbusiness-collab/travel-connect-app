@@ -319,6 +319,7 @@ function tcOpenOneBusiness(partner){
  db.settings.myPlanExpiresAt=partner.plan_expires_at||null;
  db.settings.myPartnerId=partner.id;
  db.settings.myLogoKey=partner.logo_key||null;
+ Object.assign(db.settings,{myBrandColor:partner.brand_color||null,myBrandFontSize:partner.brand_font_size||null,myBrandFontFamily:partner.brand_font_family||null,myBrandDetailSize:partner.brand_detail_size||null,myBrandLogoSize:partner.brand_logo_size||null});
  if(partner.brand_settings){
   try{ Object.assign(db.settings,JSON.parse(partner.brand_settings)); }catch(e){}
  }
@@ -2029,4 +2030,3 @@ async function tcDeleteUserRecord(mobile){
   toast("User record deleted"); tcRenderAllUsersAdmin();
  }catch(e){ toast("Network error"); }
 }
-
