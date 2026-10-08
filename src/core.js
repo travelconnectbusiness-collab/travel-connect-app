@@ -760,6 +760,16 @@ function tcHideAdminTabs(){
   const btn=document.querySelector(`.tabs button[data-view="${v}"]`);
   if(btn) btn.style.display="none";
  });
+ /* Enquiries / Quotations / Trips / Billing are the Taxi-Travel toolset.
+    Once the open business is confirmed to be something else (a shop,
+    restaurant, workshop...), those tabs are hidden - they only lead to
+    taxi screens. Unknown type (not yet loaded) leaves them as they were. */
+ const bt=(typeof db!=="undefined"&&db.settings)?db.settings.myBusinessType:null;
+ const nonTaxi=!!bt&&bt!=="none"&&bt!=="taxi_travel";
+ ["enquiries","quotations","trips","billing"].forEach(v=>{
+  const btn=document.querySelector(`.tabs button[data-view="${v}"]`);
+  if(btn) btn.style.display=nonTaxi?"none":"";
+ });
 }
 function tcMenuItem(iconPaths,label,onclick,danger){
  const color=danger?"#a12d2d":"#0b6b78";
