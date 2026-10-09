@@ -530,7 +530,7 @@ async function submitLogin(inviteToken){
   if(pinNew!==pinConfirm){ errBox.textContent="PINs don't match."; return; }
  }
  try{
-  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,role,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken()})});
+  const res=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"login",name,mobile,email,location:location_,pincode,role,lat,lon,invite_token:inviteToken||undefined,device_token:getDeviceToken(),mode:tcAppMode()})});
   const data=await res.json();
   if(!data.ok){
    if(data.error==="blocked") errBox.textContent="Access has been blocked for this number. Contact the app owner.";
@@ -619,11 +619,15 @@ async function pushConfigToServer(){
   await fetch("/api/config",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:adminToken(),config:{categories:db.categories,platform:db.platform,settings:db.settings}})});
  }catch(e){}
 }
+/* "app" when opened as an installed app (home-screen icon), else "web". */
+function tcAppMode(){
+ try{ return (window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true)?"app":"web"; }catch(e){ return "web"; }
+}
 async function checkStillAllowed(){
  const user=getCurrentUser();
  if(!user) return;
  try{
-  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
+  const res=await fetch("/api/auth?action=check&mobile="+encodeURIComponent(user.mobile)+"&device="+encodeURIComponent(getDeviceToken())+"&mode="+tcAppMode());
   const data=await res.json();
   if(data.ok&&data.blocked){
    localStorage.removeItem("tc_user");
