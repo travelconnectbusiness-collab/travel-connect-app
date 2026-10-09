@@ -49,6 +49,23 @@ async function bloodAuthUser(env, mobile, device) {
                                           again every time. No auth needed — this only
                                           returns what that person themselves already
                                           typed in on an earlier login, nothing new. */
+/* app_mode: "app" once the person has ever opened Travel Connect as an
+   installed app (home-screen / standalone), otherwise "web" (website only);
+   NULL until they next open the app after this update. Adds the column the
+   first time; the "duplicate column" error on later runs is swallowed. */
+async function ensureAuthColumns(env) {
+  try { await env.DB.prepare("ALTER TABLE app_users ADD COLUMN app_mode TEXT").run(); } catch (e) { /* exists */ }
+}
+async function recordAppMode(env, mobile, mode) {
+  if (!mobile || (mode !== "app" && mode !== "web")) return;
+  try {
+    await env.DB
+      .prepare("UPDATE app_users SET app_mode=CASE WHEN ?='app' THEN 'app' ELSE COALESCE(app_mode,'web') END WHERE mobile=?")
+      .bind(mode, mobile)
+      .run();
+  } catch (e) {}
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -65,13 +82,14 @@ export async function onRequestGet({ request, env }) {
   }
 
   if (action === "users") {
+    await ensureAuthColumns(env);
     const token = url.searchParams.get("token");
     if (!(await verifyAdminToken(env, token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     const { results } = await env.DB
       .prepare(
-        "SELECT id,name,mobile,email,location,pincode,role,first_login_at,last_login_at,login_count,blocked FROM app_users ORDER BY last_login_at DESC"
+        "SELECT id,name,mobile,email,location,pincode,role,first_login_at,last_login_at,login_count,blocked,app_mode FROM app_users ORDER BY last_login_at DESC"
       )
       .all();
     return Response.json({ ok: true, users: results });
@@ -81,6 +99,8 @@ export async function onRequestGet({ request, env }) {
     const mobile = url.searchParams.get("mobile");
     const device = url.searchParams.get("device");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
+    await ensureAuthColumns(env);
+    await recordAppMode(env, mobile, url.searchParams.get("mode"));
 
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     if (ownerRow && ownerRow.mobile === mobile) {
@@ -244,6 +264,8 @@ export async function onRequestPost({ request, env }) {
         .run();
     }
 
+    await ensureAuthColumns(env);
+    await recordAppMode(env, mobile, body.mode);
     /* remember this device for this mobile (several devices allowed) */
     if (deviceToken) {
       try {
