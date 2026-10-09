@@ -2017,26 +2017,50 @@ function tcOpenAllUsersAdmin(){
  requireAdmin(()=>{ tcOpenMenuPage("allusers",tcRenderAllUsersAdmin); });
 }
 async function tcRenderAllUsersAdmin(){
- app().innerHTML=card("All Users",`<p class="muted">Every mobile number that has ever logged in - business owners and customers alike. Edit their saved name, block their access, or remove their record entirely.</p><label>Search by name or mobile<input id="tcAllUsersSearch" oninput="tcFilterAllUsers()"></label><div id="tcAllUsersList">Loading...</div>`);
+ app().innerHTML=card("All Users",`<div id="tcAllUsersSummary"></div><p class="muted">Every mobile number that has ever logged in, shown separately as Business Owners and Customers. Edit their saved name, block their access, or remove their record entirely.</p><label>Search by name or mobile<input id="tcAllUsersSearch" oninput="tcFilterAllUsers()"></label><div id="tcAllUsersList">Loading...</div>`);
  try{
   const res=await fetch("/api/auth?action=users&token="+encodeURIComponent(adminToken()));
   const data=await res.json();
   window._tcAllUsers=(data.ok&&data.users)?data.users:[];
+  tcRenderAllUsersSummary(window._tcAllUsers);
   tcRenderAllUsersList(window._tcAllUsers);
  }catch(e){document.querySelector("#tcAllUsersList").innerHTML="<p class='danger'>Network error.</p>"}
 }
-function tcRenderAllUsersList(list){
- const box=document.querySelector("#tcAllUsersList");
+/* Totals shown at the top (always for ALL users, not the searched subset). */
+function tcRenderAllUsersSummary(all){
+ const box=document.querySelector("#tcAllUsersSummary");
  if(!box) return;
- box.innerHTML=list.map(u=>`<div class="listitem">
-  <b>${esc(u.name||"(no name)")}</b> ${u.blocked?'<span class="danger">Blocked</span>':'<span class="ok">Active</span>'} <span class="muted">${u.role==="owner"?"Business Owner":"Customer"}</span><br>
+ const owners=all.filter(u=>u.role==="owner"), custs=all.filter(u=>u.role!=="owner");
+ const n=(list,m)=>list.filter(u=>u.app_mode===m).length;
+ const unk=list=>list.filter(u=>!u.app_mode).length;
+ const m=(label,val,sub)=>`<div class="metric">${label}<b>${val}</b>${sub?`<div class="muted" style="font-size:11px">${sub}</div>`:""}</div>`;
+ box.innerHTML=`<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  ${m("Total users",all.length)}
+  ${m("Business Owners",owners.length,"&#128241; "+n(owners,"app")+" app &bull; &#127760; "+n(owners,"web")+" web")}
+  ${m("Customers",custs.length,"&#128241; "+n(custs,"app")+" app &bull; &#127760; "+n(custs,"web")+" web")}
+  ${m("Installed the app",n(all,"app"))}
+  ${m("Website only",n(all,"web"))}
+  ${m("Not known yet",unk(all))}
+ </div><p class="muted" style="font-size:11.5px;margin:4px 0 10px">"Installed the app" = opened Travel Connect from the home-screen app at least once. "Not known yet" = hasn't opened the app since this feature was added; it fills in as people open it.</p>`;
+}
+function tcUserRowHtml(u){
+ const mode=u.app_mode==="app"?'<span class="chip">&#128241; App</span>':(u.app_mode==="web"?'<span class="chip">&#127760; Website</span>':"");
+ return `<div class="listitem">
+  <b>${esc(u.name||"(no name)")}</b> ${u.blocked?'<span class="danger">Blocked</span>':'<span class="ok">Active</span>'} ${mode}<br>
   <span class="muted">${esc(u.mobile)}${u.location?" - "+esc(u.location):""}</span>
   <div class="actions" style="margin-top:6px">
    <button onclick="tcOpenAdminEditUser('${esc(u.mobile)}')">Edit Name</button>
    <button class="${u.blocked?"primary":"danger"}" onclick="tcToggleUserBlock('${esc(u.mobile)}',${!u.blocked})">${u.blocked?"Unblock":"Block"}</button>
    <button class="danger" onclick="tcDeleteUserRecord('${esc(u.mobile)}')">Delete</button>
   </div>
- </div>`).join("")||"<p class='muted'>No users found.</p>";
+ </div>`;
+}
+function tcRenderAllUsersList(list){
+ const box=document.querySelector("#tcAllUsersList");
+ if(!box) return;
+ const owners=list.filter(u=>u.role==="owner"), custs=list.filter(u=>u.role!=="owner");
+ box.innerHTML=`<h3>Business Owners (${owners.length})</h3>${owners.map(tcUserRowHtml).join("")||"<p class='muted'>None.</p>"}
+  <h3 style="margin-top:16px">Customers (${custs.length})</h3>${custs.map(tcUserRowHtml).join("")||"<p class='muted'>None.</p>"}`;
 }
 function tcFilterAllUsers(){
  const q=(document.querySelector("#tcAllUsersSearch").value||"").toLowerCase();
