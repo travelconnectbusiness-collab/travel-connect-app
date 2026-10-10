@@ -154,6 +154,11 @@ function rateOptions(){
  return opts;
 }
 
+/* The logo comes from /src/TravelConnect-logo-data.js. If that file ever
+   fails to load or is damaged (e.g. truncated when pasted on a phone),
+   LOGO_DATA_URI does not exist and using it directly would break the whole
+   quotation/bill; this keeps everything else printing, just without the logo. */
+function tcLogoUri(){ return (typeof LOGO_DATA_URI!=="undefined"&&LOGO_DATA_URI)?LOGO_DATA_URI:""; }
 /* ---------- PRINT / PDF: BRANDING BOX (Free/Paid/Premium tiers) ---------- */
 const TC_FONT_FAMILIES={
  helvetica:{label:"Standard (Helvetica)",css:"Arial, Helvetica, sans-serif",weights:[400,700],paid:true},
@@ -562,7 +567,7 @@ function printQuoteObj(q,asImage){
  printContent("Quotation "+q.no,`
  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
   <div style="display:flex;align-items:center;gap:8px">
-   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   ${tcLogoUri()?`<img src="${tcLogoUri()}" style="width:28px;height:28px">`:""}
    <div>
     <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
     ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
@@ -702,7 +707,7 @@ function printBill(tripId,asImage){
  printContent("Bill "+(q.no||""),`
  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd;padding-bottom:6px">
   <div style="display:flex;align-items:center;gap:8px">
-   <img src="${LOGO_DATA_URI}" style="width:28px;height:28px">
+   ${tcLogoUri()?`<img src="${tcLogoUri()}" style="width:28px;height:28px">`:""}
    <div>
     <div style="font-weight:bold;color:#444;font-size:13px">${esc((db.platform.name||"Travel Connect").toUpperCase())}</div>
     ${db.platform.tagline?`<div style="color:#888;font-size:10px">${esc(db.platform.tagline)}</div>`:""}
@@ -771,7 +776,7 @@ function tcPdfBrandedHeader(doc,titleText){
  const font=tcPdfFontFamily();
  doc.setFont(font,"normal");
  let y=15;
- try{ doc.addImage(LOGO_DATA_URI,"PNG",15,y-3,11,11); }catch(e){}
+ try{ if(tcLogoUri()) doc.addImage(tcLogoUri(),"PNG",15,y-3,11,11); }catch(e){}
  doc.setTextColor(70);doc.setFont(font,"bold");doc.setFontSize(10.5);
  doc.text((db.platform.name||"Travel Connect").toUpperCase(),29,y+1);
  doc.setFont(font,"normal");doc.setFontSize(7.5);doc.setTextColor(120);
