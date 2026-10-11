@@ -43,7 +43,9 @@ async function tcBkCall(action,extra){
   body:JSON.stringify(Object.assign({mobile:u.mobile,device:getDeviceToken()},extra||{}))
  });
  let j=null; try{ j=await res.json(); }catch(e){}
- return j||{ok:false,error:"network"};
+ if(!j) return {ok:false,error:"http_"+res.status};
+ if(!j.ok&&!j.error) j.error="http_"+res.status;
+ return j;
 }
 function tcBkFmt(iso){
  try{
@@ -84,10 +86,10 @@ async function tcBackupNow(manual){
    tcBkWarned=false;
    if(manual) toast(tcBkTxt("Backup saved","ബാക്കപ്പ് സേവ് ചെയ്തു"));
   }else if(manual){
-   toast(r.error==="not_premium"?tcBkTxt("Not a Premium account","Premium അക്കൗണ്ട് അല്ല"):r.error==="too_big"?tcBkTxt("Data is too big to back up","ഡാറ്റ ബാക്കപ്പ് ചെയ്യാൻ കഴിയാത്തത്ര വലുതാണ്"):tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക"));
+   toast(r.error==="not_premium"?tcBkTxt("Not a Premium account","Premium അക്കൗണ്ട് അല്ല"):r.error==="too_big"?tcBkTxt("Data is too big to back up","ഡാറ്റ ബാക്കപ്പ് ചെയ്യാൻ കഴിയാത്തത്ര വലുതാണ്"):tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക")+" ["+(r.error||"?")+"]");
   }
  }catch(e){
-  if(manual) toast(tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക"));
+  if(manual) toast(tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക")+" ["+(e&&e.message?e.message:"error")+"]");
  }finally{
   tcBkBusy=false; tcBkLastRun=Date.now();
  }
