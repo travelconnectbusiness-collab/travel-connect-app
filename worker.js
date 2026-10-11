@@ -12,6 +12,7 @@ import { onRequestGet as placesGet, onRequestPost as placesPost } from "./functi
 import { onRequestGet as callsGet, onRequestPost as callsPost } from "./functions/api/calls.js";
 import { onRequestGet as messagesGet, onRequestPost as messagesPost } from "./functions/api/messages.js";
 import { onRequestGet as tripAlertsGet, onRequestPost as tripAlertsPost } from "./functions/api/trip_alerts.js";
+import { onRequestPost as backupPost } from "./functions/api/backup.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -86,6 +87,10 @@ async function handleApi(request, env, url, ctx) {
   if (url.pathname === "/api/trip_alerts") {
     if (request.method === "GET") return tripAlertsGet({ request, env });
     if (request.method === "POST") return tripAlertsPost({ request, env, ctx });
+  }
+
+  if (url.pathname === "/api/backup") {
+    if (request.method === "POST") return backupPost({ request, env });
   }
 
   return null;
