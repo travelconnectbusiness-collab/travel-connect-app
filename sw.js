@@ -76,7 +76,7 @@ self.addEventListener("push",(event)=>{
    await self.registration.showNotification(data.title||"\u2709 New message",{
     body:data.body||"",
     tag:data.tag||"tc-msg",
-    icon:"/icon-192.png",
+    icon:"/tc-icon-192.png",
     badge:"/icon-192.png",
     vibrate:[150,80,150,80,250],
     silent:false,
