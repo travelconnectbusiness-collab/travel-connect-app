@@ -787,6 +787,8 @@ function tcOpenMenu(){
  const logo=(typeof LOGO_DATA_URI!=="undefined")?LOGO_DATA_URI:"";
  const logoutItem=tcMenuItem('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',tcT("menu_logout"),"closeModal();logout()",true);
  const reloadItem=tcMenuItem('<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',tcT("menu_reload_app"),"closeModal();tcApplyUpdate()");
+ /* Cloud Backup entry - shown only to Premium accounts (see tc-backup.js). */
+ const backupItem=(typeof tcBkEligible==="function"&&tcBkEligible())?tcMenuItem('<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="12 13 12 17"></polyline><polyline points="10 15 12 13 14 15"></polyline>',(typeof tcLang==="function"&&tcLang()==="ml")?"ക്ലൗഡ് ബാക്കപ്പ്":"Cloud Backup","closeModal();tcOpenBackupPage()"):"";
  modal(`
   <div style="text-align:center;margin-bottom:4px">
    ${logo?`<img src="${logo}" style="width:38px;height:38px;border-radius:9px;margin-bottom:6px">`:""}
@@ -812,6 +814,7 @@ function tcOpenMenu(){
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_useful_places"),"closeModal();tcMenuNavPending=true;tcOpenPlacesAdmin()")}
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_partner"),"closeModal();tcMenuNavPending=true;tcPreviewPartnerPage()")}
   ${tcMenuItem('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',tcT("menu_preview_customer"),"closeModal();tcMenuNavPending=true;tcPreviewCustomerPage()")}
+  ${backupItem}
   ${reloadItem}
   ${logoutItem}
   </div>`);
