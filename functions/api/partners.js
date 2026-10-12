@@ -106,6 +106,7 @@ export async function onRequestGet({ request, env }) {
            WHEN plan='owner_free' THEN 1
            WHEN plan='premium' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 1
            WHEN plan='paid' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 2
+           WHEN plan='owner_plus' THEN 2
            ELSE 3
          END, business_name`
       )
@@ -277,7 +278,7 @@ export async function onRequestPost({ request, env }) {
     const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
     /* Font: Paid may choose from a short list, Premium from all. Stored as
        "key" or "key:weight" (weight 400/700/800). Anything else is ignored. */
-    const isPaidOrBetter = isPremium || row.plan === "paid";
+    const isPaidOrBetter = isPremium || row.plan === "paid" || row.plan === "owner_plus";
     let brandFontFamily = null;
     if (isPaidOrBetter && body.brand_font_family) {
       const m = String(body.brand_font_family).trim().match(/^([a-z]+)(?::(400|700|800))?$/);
