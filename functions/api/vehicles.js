@@ -74,6 +74,7 @@ export async function onRequestGet({ request, env }) {
            WHEN p.plan='owner_free' THEN 1
            WHEN p.plan='premium' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 1
            WHEN p.plan='paid' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 2
+           WHEN p.plan='owner_plus' THEN 2
            ELSE 3
          END, v.id DESC`
       )
