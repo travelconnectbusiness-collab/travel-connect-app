@@ -2096,4 +2096,4 @@ async function tcDeleteUserRecord(mobile){
   if(!data.ok){ toast("Could not delete - try again."); return; }
   toast("User record deleted"); tcRenderAllUsersAdmin();
  }catch(e){ toast("Network error"); }
-}
+} 
