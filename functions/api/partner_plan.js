@@ -74,4 +74,4 @@ export async function onRequestPost({ request, env }) {
 
   await env.DB.prepare("UPDATE travel_partners SET plan=?, plan_expires_at=? WHERE id=?").bind(body.plan, expiresAt, body.partner_id).run();
   return Response.json({ ok: true, plan_expires_at: expiresAt });
-}
+} 
