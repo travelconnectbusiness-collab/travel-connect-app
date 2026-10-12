@@ -847,7 +847,7 @@ const TC_STRINGS={
  menu_authorized_users:{en:"Authorized Users (Login Allowlist)",ml:"അനുവദിച്ച നമ്പറുകൾ (ലോഗിൻ)"},
  menu_messages:{en:"Messages",ml:"സന്ദേശങ്ങൾ"},
  menu_feedback:{en:"Feedback / Suggestions",ml:"അഭിപ്രായം / നിർദ്ദേശം"},
- menu_partner_plans:{en:"Partner Plans (Free / Paid)",ml:"പാർട്ണർ പ്ലാനുകൾ"},
+ menu_partner_plans:{en:"Partner Plans (Free / Plus / Premium)",ml:"പാർട്ണർ പ്ലാനുകൾ"},
  menu_preview_partner:{en:"Preview: Partner Page",ml:"പ്രിവ്യൂ: പാർട്ണർ പേജ്"},
  menu_preview_customer:{en:"Preview: Customer Page",ml:"പ്രിവ്യൂ: കസ്റ്റമർ പേജ്"},
  menu_logout:{en:"Log out of this device",ml:"ഈ ഫോണിൽ നിന്ന് ലോഗ് ഔട്ട്"},
