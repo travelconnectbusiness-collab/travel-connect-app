@@ -358,7 +358,7 @@ async function tcRefreshMyPlan(){
  }catch(e){}
 }
 function tcIsPremiumPlan(){
- if(db.settings.myPlan==="owner_free") return true;
+ if(db.settings.myPlan==="owner_free"||db.settings.myPlan==="owner_plus") return true; /* never expire */
  if(db.settings.myPlan!=="paid"&&db.settings.myPlan!=="premium") return false;
  if(!db.settings.myPlanExpiresAt) return true;
  return new Date(db.settings.myPlanExpiresAt).getTime()>Date.now();
@@ -390,13 +390,13 @@ function tcPlanValidUntilHtml(){
 function tcPlanExpiryWarningHtml(){
  const days=tcPlanDaysLeft();
  if(days===null||days>7) return "";
- const planLabel=db.settings.myPlan==="premium"?"Premium":"Paid";
+ const planLabel=db.settings.myPlan==="premium"?"Premium":"Plus";
  if(days<0) return `<div style="margin-top:8px;background:#fdeceb;border:2px solid #c0392b;border-radius:8px;padding:10px;font-size:12.5px;color:#7b241c;font-weight:600">&#9888; Your ${planLabel} plan expired ${-days} day${-days===1?"":"s"} ago - bills are now showing Travel Connect's branding again. Contact Travel Connect to renew.</div>`;
  return `<div style="margin-top:8px;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:10px;font-size:12.5px;color:#7a5a1e;font-weight:600">&#9203; Your ${planLabel} plan expires in ${days} day${days===1?"":"s"} - contact Travel Connect to renew and keep your own branding on bills.</div>`;
 }
 function tcShowUpgradePrompt(feature){
  modal(`<h2>Premium Feature</h2>
-  <p class="muted">${esc(feature||"This")} is available on Paid and Premium plans.</p>
+  <p class="muted">${esc(feature||"This")} is available on Plus and Premium plans.</p>
   <p>Contact Travel Connect to upgrade your plan and unlock this and other features (your own branding on bills, your own UPI payment QR, and more).</p>
   ${db.platform.phone1?`<div><a href="tel:${esc(db.platform.phone1)}">Call ${esc(db.platform.phone1)}</a></div>`:""}
   ${db.platform.email?`<div><a href="mailto:${esc(db.platform.email)}">${esc(db.platform.email)}</a></div>`:""}
@@ -492,13 +492,27 @@ function printContent(title,html,asImage){
  doc.write(`<html><head><title>${title}</title>${tcBrandFontLinkTag()}<style>body{font-family:sans-serif;padding:20px;color:#111;font-size:16.5px;line-height:1.6;background:#fff}h2,h3{margin:8px 0}hr{margin:12px 0}table{width:100%}td{padding:4px 0}td b,td strong{font-weight:800}</style></head><body>${html}</body></html>`);
  doc.close();
  const images=Array.from(doc.images||[]);
- const waitForImages=Promise.all(images.map(img=>{
-  if(img.complete) return Promise.resolve();
-  return new Promise(resolve=>{
-   img.addEventListener("load",resolve,{once:true});
-   img.addEventListener("error",resolve,{once:true});
-   setTimeout(resolve,3000);
-  });
+ const waitForImages=Promise.all(images.map(async img=>{
+  /* Partner logo: fetch it fully first and embed as data (no half-loaded
+     image), then wait until the browser has decoded every pixel. */
+  try{
+   if(/action=logo/.test(img.getAttribute("src")||"")){
+    const res=await fetch(img.getAttribute("src"),{cache:"reload"});
+    if(res.ok){
+     const blob=await res.blob();
+     const data=await new Promise(r=>{const fr=new FileReader();fr.onloadend=()=>r(fr.result);fr.onerror=()=>r(null);fr.readAsDataURL(blob);});
+     if(data) img.src=data;
+    }
+   }
+  }catch(e){}
+  if(!(img.complete&&img.naturalWidth>0)){
+   await new Promise(resolve=>{
+    img.addEventListener("load",resolve,{once:true});
+    img.addEventListener("error",resolve,{once:true});
+    setTimeout(resolve,6000);
+   });
+  }
+  try{ if(img.decode) await Promise.race([img.decode(),new Promise(r=>setTimeout(r,3000))]); }catch(e){}
  }));
  waitForImages.then(async ()=>{
   /* Give a Premium display font (loaded by the <link> in the frame's head)
@@ -2100,9 +2114,9 @@ function renderBillingIdentitySection(p){
  ${db.business.address?`<div class="muted">${esc(db.business.address)}</div>`:""}
  ${db.business.email?`<div class="muted">${esc(db.business.email)}</div>`:""}
  <div class="muted">${[db.business.phone,db.business.phone2].filter(Boolean).join(" / ")||"No contact number set"}</div>
- ${unlocked?`<div class="muted">UPI: ${esc(db.business.upiId||"Not set")}</div>`:`<div class="muted">UPI payment QR: <span style="color:#a12d2d">Paid/Premium feature</span></div>`}
+ ${unlocked?`<div class="muted">UPI: ${esc(db.business.upiId||"Not set")}</div>`:`<div class="muted">UPI payment QR: <span style="color:#a12d2d">Plus/Premium feature</span></div>`}
  <div class="actions" style="margin-top:8px"><button onclick="openEditBillingIdentity()">Edit Billing Details</button></div>
- ${(unlocked&&!isPremiumTier)?`<hr><h4>Font Style (Paid)</h4>
+ ${(unlocked&&!isPremiumTier)?`<hr><h4>Font Style (Plus)</h4>
   ${tcFontPickerHtml(p)}
   <div class="actions"><button class="primary" onclick="tcSaveBrandFont(${p.id})">Save Font</button></div>
   <div id="bizBrandErr" class="danger"></div>
@@ -2146,9 +2160,9 @@ function openEditBillingIdentity(){
    <label>Contact number 2<input id="bizPhone2" value="${esc(db.business.phone2||"")}"></label>
   </div>
   <div class="grid">
-   <label>UPI ID (for payment QR) ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Paid/Premium)</span>'}
+   <label>UPI ID (for payment QR) ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Plus/Premium)</span>'}
     <input id="bizUpiId" value="${esc(db.business.upiId||"")}" ${unlocked?"":"disabled"}></label>
-   <label>UPI name ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Paid/Premium)</span>'}
+   <label>UPI name ${unlocked?"":'<span style="color:#a12d2d;font-size:11px">(Plus/Premium)</span>'}
     <input id="bizUpiName" value="${esc(db.business.upiName||"")}" ${unlocked?"":"disabled"}></label>
   </div>
   ${unlocked?"":`<div class="actions"><button onclick="tcShowUpgradePrompt('Your own UPI payment QR')">&#128274; Unlock UPI payment QR</button></div>`}
