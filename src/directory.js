@@ -785,7 +785,7 @@ function tcListNameHtml(p,size){
  const plain="<b>"+esc(p.business_name)+"</b>";
  const plan=p.plan, exp=p.plan_expires_at;
  const prem=plan==="owner_free"||plan==="premium";
- const live=plan==="owner_free"||((plan==="premium"||plan==="paid")&&(!exp||new Date(String(exp).replace(" ","T"))>=new Date()));
+ const live=plan==="owner_free"||plan==="owner_plus"||((plan==="premium"||plan==="paid")&&(!exp||new Date(String(exp).replace(" ","T"))>=new Date()));
  if(!live) return plain;
  /* (tagline below is shown for Paid/Premium only) */
  const raw=tcParseBrandFont(p.brand_font_family);
@@ -1258,12 +1258,12 @@ async function tcSaveAdminEditPartner(id){
  }catch(e){ toast("Network error"); }
 }
 
-/* ---------- ADMIN: PARTNER PLANS (Free / Paid / Premium / Owner Free) ---------- */
+/* ---------- ADMIN: PARTNER PLANS (Free / Plus / Premium / Owner Plus / Owner Premium) ---------- */
 function tcOpenPartnerPlans(){
  requireAdmin(()=>{ tcOpenMenuPage("plans",tcRenderPartnerPlans); });
 }
 async function tcRenderPartnerPlans(){
- app().innerHTML=card("Partner Plans",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations, no own UPI QR. Paid/Premium = their own business branding + own UPI payment QR (Premium also unlocks logo/colour/font customization) for however many months they've paid for - after that it automatically drops back to Free on its own. Owner Free = your own account/staff - always free, full features, never expires.</p><div id="tcPlansList">Loading...</div>`);
+ app().innerHTML=card("Partner Plans",`<p class="muted">Free = Travel Connect branding shown on their bills/quotations, no own UPI QR. Plus/Premium = their own business branding + own UPI payment QR (Premium also unlocks logo/colour/font customization) for however many months they've paid for - after that it automatically drops back to Free on its own. Owner Free = your own account/staff - always free, full features, never expires.</p><div id="tcPlansList">Loading...</div>`);
  tcLoadPartnerPlans();
 }
 /* Formats a plan's remaining time plainly - expired/active/never - so the
@@ -1293,9 +1293,10 @@ async function tcLoadPartnerPlans(){
    <div class="actions" style="margin-top:6px;flex-wrap:wrap">
     <select id="plan_${p.id}" onchange="tcToggleMonthsField(${p.id})">
      <option value="free" ${(!p.plan||p.plan==="free")?"selected":""}>Free</option>
-     <option value="paid" ${p.plan==="paid"?"selected":""}>Paid</option>
+     <option value="paid" ${p.plan==="paid"?"selected":""}>Plus</option>
      <option value="premium" ${p.plan==="premium"?"selected":""}>Premium</option>
-     <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Free</option>
+     <option value="owner_plus" ${p.plan==="owner_plus"?"selected":""}>Owner Plus (free, no expiry)</option>
+     <option value="owner_free" ${p.plan==="owner_free"?"selected":""}>Owner Premium (free, no expiry)</option>
     </select>
     <input id="months_${p.id}" type="number" min="1" placeholder="Months paid" style="width:110px;display:${(p.plan==="paid"||p.plan==="premium")?"":"none"}">
     <button class="primary" onclick="tcSetPartnerPlan(${p.id})">Save</button>
