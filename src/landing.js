@@ -35,7 +35,10 @@ const TC_SITE_VIDEOS=[];
  try{ loggedIn=!!localStorage.getItem("tc_user"); }catch(e){}
  try{ opened=sessionStorage.getItem("tc_site_opened")==="1"; }catch(e){}
  const forced=/[?&]home=1/.test(location.search);
- if(!forced&&(standalone||loggedIn||opened||location.hash.length>1||(location.search&&location.search.length>1))) return;
+ /* Harmless tracking/share params (?v=2 for a fresh WhatsApp preview, utm_*, fbclid...) must NOT hide the website. */
+ let realQuery=false;
+ try{ new URLSearchParams(location.search).forEach((v,k)=>{ if(!/^(v|ref|src|share|home|fbclid|igshid|gclid|utm_[a-z]+)$/i.test(k)) realQuery=true; }); }catch(e){ realQuery=location.search.length>1; }
+ if(!forced&&(standalone||loggedIn||opened||location.hash.length>1||realQuery)) return;
 
  const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  const wa=txt=>"https://wa.me/91"+PHONE+"?text="+encodeURIComponent(txt);
@@ -96,6 +99,8 @@ const TC_SITE_VIDEOS=[];
 .tcl-ad h3{font-size:16.5px;font-weight:800;color:#082b49}.tcl-ad p{font-size:13.5px;color:#4d6270;font-weight:500;flex:1}
 .tcl-ad .tcl-btn{align-self:flex-start;margin-top:6px}
 .tcl-ad.dash{background:transparent;border:2px dashed #9fb3c2;box-shadow:none}
+.tcl-help{background:#fff8e1;border:2px solid #ffc928;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:600;color:#5a4300;text-align:center}
+.tcl-help .tcl-btn{margin-top:10px}
 .tcl-faq details{background:#fff;border-radius:14px;padding:13px 16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(8,43,73,.07)}
 .tcl-faq summary{font-weight:700;cursor:pointer;color:#082b49;font-size:15px}.tcl-faq details p{margin-top:8px;font-size:14px;color:#4d6270;font-weight:500}
 .tcl-foot{background:#071a2e;color:#cfe0ee;margin-top:40px;padding:28px 0 calc(28px + env(safe-area-inset-bottom,0px));text-align:center;font-size:13.5px}
@@ -116,7 +121,7 @@ const TC_SITE_VIDEOS=[];
  <div class="tcl-brand">CONNECTING EVERYTHING</div>
  <div class="tcl-ml">നിങ്ങളെ മറ്റുള്ളവർ കണ്ടെത്തട്ടെ. ബന്ധങ്ങൾ വളരട്ടെ.<br>നമുക്കൊന്നിച്ച് മുന്നേറാം.</div>
  <p class="s">Taxi, auto, pickup, shops, hotels, skilled workers and blood donors near you - all in one app. Call them directly, no middlemen.<br><b>നാട്ടിലെ സേവനങ്ങൾ ഒരൊറ്റ ആപ്പിൽ - നേരിട്ട് വിളിക്കാം, ഇടനിലക്കാരില്ല.</b></p>
- <div class="tcl-cta"><button class="tcl-btn y" data-open>Open the App · ആപ്പ് തുറക്കൂ</button><a class="tcl-btn w" href="#tclInstall" data-go="tclInstall">How to install ↓</a></div>
+ <div class="tcl-cta"><button class="tcl-btn y" data-open>Open the App · ആപ്പ് തുറക്കൂ</button><button class="tcl-btn w" data-install>⬇ Install App · ഇൻസ്റ്റാൾ</button></div>
 </div></header>
 
 <section class="tcl-sec"><div class="tcl-wrap"><h2>What you can find</h2><div class="sub">എന്തൊക്കെ കിട്ടും</div>
@@ -150,6 +155,8 @@ const TC_SITE_VIDEOS=[];
 <section class="tcl-sec"><div class="tcl-wrap"><div class="tcl-blood"><div class="ic">🩸</div><div><h3>Become a blood donor · രക്തദാതാവാകാം</h3><p>Register with your blood group and place. Your phone number is visible only while your donor switch is ON. People in need can search by blood group and call you directly.<br>രക്തഗ്രൂപ്പും സ്ഥലവും നൽകി റജിസ്റ്റർ ചെയ്യൂ. സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ നിങ്ങളുടെ നമ്പർ കാണൂ.</p></div></div></div></section>
 
 <section class="tcl-sec" id="tclInstall"><div class="tcl-wrap"><h2>Install the app</h2><div class="sub">ഇൻസ്റ്റാൾ ചെയ്യാം - Play Store വേണ്ട</div>
+ <div class="tcl-cta" style="margin:0 0 16px"><button class="tcl-btn y" data-install>⬇ Install App now · ഇപ്പോൾ ഇൻസ്റ്റാൾ ചെയ്യൂ</button></div>
+ <div class="tcl-help" id="tclHelp" hidden></div>
  <div class="tcl-inst">
   <div class="tcl-step"><i style="background:#3DDC84"><svg width="20" height="20" fill="#fff" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.44 5.559q-1.015 1.748-2.028 3.498-.055-.023-.111-.043a12.098 12.098 0 0 0-8.68.033C7.537 8.897 5.868 6.026 5.6 5.56a1 1 0 0 0-.141-.19 1.104 1.104 0 0 0-1.768 1.298c1.947 3.37-.096-.216 1.948 3.36.017.03-.495.263-1.393 1.017C2.9 12.176.452 14.772 0 18.99h24a11.7 11.7 0 0 0-.746-3.068 12.1 12.1 0 0 0-2.74-4.184 12 12 0 0 0-2.131-1.687c.66-1.122 1.312-2.256 1.965-3.385a1.11 1.11 0 0 0-.008-1.12 1.1 1.1 0 0 0-.852-.532c-.522-.054-.939.313-1.049.545m-.04 8.46c.395.593.324 1.331-.156 1.65-.48.32-1.188.1-1.582-.493s-.324-1.33.156-1.65c.473-.316 1.182-.11 1.582.494m-11.193-.492c.48.32.55 1.058.156 1.65-.394.593-1.103.815-1.584.495-.48-.32-.55-1.058-.156-1.65.4-.603 1.109-.811 1.584-.495"/></svg></i><div><b>Android</b><span>Open <span class="tcl-url">travelconnect.dev</span> in Chrome → ⋮ Menu → <b style="display:inline">Install app</b> / Add to Home screen<br>Chrome-ൽ തുറക്കൂ → ⋮ → Install app</span></div></div>
   <div class="tcl-step"><i style="background:#111"><svg width="20" height="20" fill="#fff" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></i><div><b>iPhone</b><span>Open in Safari → Share → <b style="display:inline">Add to Home Screen</b><br>Safari-യിൽ തുറക്കൂ → Share → Add to Home Screen</span></div></div>
@@ -180,11 +187,36 @@ const TC_SITE_VIDEOS=[];
  const st=document.createElement("style"); st.id="tcLandingCss"; st.textContent=css; document.head.appendChild(st);
  const box=document.createElement("div"); box.id="tcLanding"; box.innerHTML=html;
  document.body.appendChild(box);
+ /* One-tap install: Chrome/Edge on Android give us a real install prompt (beforeinstallprompt).
+    iPhone has no such thing (Apple allows only Share -> Add to Home Screen), and the browser
+    inside Facebook/Instagram/WhatsApp cannot install at all, so those get a clear instruction. */
+ let installEvt=null;
+ addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); installEvt=e; });
+ addEventListener("appinstalled",()=>{ installEvt=null; showHelp("<b>✅ Installed! · ഇൻസ്റ്റാൾ ആയി.</b><br>Open Travel Connect from your home screen.<br>ഹോം സ്ക്രീനിൽ നിന്ന് തുറക്കൂ."); });
+ function showHelp(h){
+  const el=document.getElementById("tclHelp"); if(!el) return;
+  el.innerHTML=h; el.hidden=false;
+  const sec=document.getElementById("tclInstall"); if(sec) sec.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ async function doInstall(){
+  if(installEvt){
+   const ev=installEvt; installEvt=null;
+   try{ ev.prompt(); await ev.userChoice; }catch(e){}
+   return;
+  }
+  const ua=navigator.userAgent||"";
+  const android=/Android/i.test(ua), ios=/iPhone|iPad|iPod/i.test(ua);
+  const inApp=/FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Telegram|MiuiBrowser|; wv\)/i.test(ua);
+  if(ios) return showHelp("<b>iPhone:</b> open this page in <b>Safari</b> → tap <b>Share</b> (⬆) → <b>Add to Home Screen</b>.<br>Safari-യിൽ തുറക്കൂ → Share → Add to Home Screen");
+  if(android&&inApp) return showHelp("This in-app browser cannot install apps. Open in Chrome first.<br>ഈ ബ്രൗസറിൽ ഇൻസ്റ്റാൾ ചെയ്യാൻ കഴിയില്ല - Chrome-ൽ തുറക്കൂ.<br><a class='tcl-btn y sm' href='intent://travelconnect.dev/#Intent;scheme=https;package=com.android.chrome;end'>Open in Chrome · Chrome-ൽ തുറക്കൂ</a>");
+  showHelp("Tap the <b>⋮ menu</b> in Chrome → <b>Install app</b> (or Add to Home screen).<br>If you do not see it, the app may already be installed.<br>Chrome-ൽ ⋮ → Install app. കാണുന്നില്ലെങ്കിൽ ആപ്പ് ഇൻസ്റ്റാൾ ആയിട്ടുണ്ടാകാം.");
+ }
  function openApp(){
   try{ sessionStorage.setItem("tc_site_opened","1"); }catch(e){}
   box.remove(); st.remove(); scrollTo(0,0);
  }
  box.addEventListener("click",e=>{
+  const ins=e.target.closest("[data-install]"); if(ins){ e.preventDefault(); doInstall(); return; }
   const o=e.target.closest("[data-open]"); if(o){ e.preventDefault(); openApp(); return; }
   const g=e.target.closest("[data-go]"); if(g){ e.preventDefault(); const t=document.getElementById(g.getAttribute("data-go")); if(t) t.scrollIntoView({behavior:"smooth",block:"start"}); }
  });
