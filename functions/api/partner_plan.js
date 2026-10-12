@@ -33,9 +33,10 @@ export async function onRequestGet({ request, env }) {
   return Response.json({ ok: true, partners: results });
 }
 
-/* POST action=set_plan — admin-only, sets a partner's plan to 'free', 'paid',
-   'premium', or 'owner_free' (the owner's own account / staff — permanently
-   free, never expires).
+/* POST action=set_plan — admin-only, sets a partner's plan to 'free', 'paid'
+   (shown in the app as "Plus"), 'premium', 'owner_free' (shown as "Owner
+   Premium") or 'owner_plus' - the two owner plans are for the owner's own
+   account / staff / associated vehicles: free, never expire.
 
    For 'paid'/'premium', months is how many months they just paid for (a
    plain number, e.g. 3 for three months at 30 days each - set by the admin
@@ -45,7 +46,7 @@ export async function onRequestGet({ request, env }) {
    already on the account) - otherwise (expired, or switching plan for the
    first time) the new period starts fresh from right now.
 
-   For 'free'/'owner_free', any expiry is cleared - those plans don't
+   For 'free'/'owner_free'/'owner_plus', any expiry is cleared - those plans don't
    expire by definition. */
 export async function onRequestPost({ request, env }) {
   await ensureColumn(env);
@@ -54,7 +55,7 @@ export async function onRequestPost({ request, env }) {
   if (!(await verifyAdminToken(env, body.token))) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  if (!body.partner_id || !["free", "paid", "premium", "owner_free"].includes(body.plan)) {
+  if (!body.partner_id || !["free", "paid", "premium", "owner_free", "owner_plus"].includes(body.plan)) {
     return Response.json({ ok: false, error: "invalid_input" }, { status: 400 });
   }
 
