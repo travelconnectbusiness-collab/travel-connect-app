@@ -2373,4 +2373,4 @@ function addExpense(){
 }
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
-}
+} 
