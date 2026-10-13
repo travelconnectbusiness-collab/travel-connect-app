@@ -810,6 +810,27 @@ function tcListNameHtml(p,size){
  const tag=p.tagline?'<div style="font-size:12px;color:#555;font-family:'+(ok?f.css:"inherit")+'">'+esc(p.tagline)+'</div>':"";
  return (logo||'<span style="'+css+'">'+esc(p.business_name)+'</span>')+tag;
 }
+/* Badges customers see under a business / vehicle name:
+   - Premium (gold crown seal) and Plus (blue tick seal, like a verified
+     account on social apps) - only while the paid plan is live.
+   - "Verified" (green) once the admin has approved it, otherwise a quiet
+     grey "Not verified by admin" so customers know it is self-registered. */
+function tcSealSvg(fill,inner){
+ return '<svg width="17" height="17" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:3px"><g fill="'+fill+'"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" transform="rotate(45 12 12)"/></g>'+inner+'</svg>';
+}
+function tcListBadgesHtml(p){
+ const plan=p.plan, exp=p.plan_expires_at;
+ const live=plan==="owner_free"||plan==="owner_plus"||((plan==="premium"||plan==="paid")&&(!exp||new Date(String(exp).replace(" ","T"))>=new Date()));
+ const prem=live&&(plan==="owner_free"||plan==="premium");
+ const plus=live&&!prem;
+ const chip="display:inline-block;margin:3px 6px 0 0;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;";
+ let h="";
+ if(prem) h+='<span style="'+chip+'background:#fff4cf;color:#8a6100;border:1px solid #e7c04a">'+tcSealSvg("#e0a100",'<path d="M6.6 15.6l-.8-6.1 3.4 2.5L12 8l2.8 4 3.4-2.5-.8 6.1z" fill="#fff"/>')+tcBl("Premium","പ്രീമിയം")+'</span>';
+ else if(plus) h+='<span style="'+chip+'background:#e8f4fe;color:#0b6bb3;border:1px solid #9fd0f5">'+tcSealSvg("#1d9bf0",'<path d="M7.8 12.4l3 3 5.4-6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>')+tcBl("Plus","പ്ലസ്")+'</span>';
+ if(p.verified) h+='<span style="'+chip+'background:#e6f6ec;color:#17803d;border:1px solid #9bd7b0">&#10003; '+tcBl("Verified","വെരിഫൈഡ്")+'</span>';
+ else h+='<span style="'+chip+'background:#f1f1f1;color:#666;border:1px solid #d6d6d6">'+tcBl("Not verified by admin","അഡ്മിൻ വെരിഫൈ ചെയ്തിട്ടില്ല")+'</span>';
+ return '<div>'+h+'</div>';
+}
 function tcRenderDirectoryList(entries){
  const box=document.querySelector("#tcDirList");
  if(!box) return;
@@ -823,7 +844,8 @@ function tcRenderDirectoryList(entries){
    ?"https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lon
    :"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([p.business_name,p.location,p.pincode].filter(Boolean).join(", "));
   return `<div class="listitem">
-  ${tcListNameHtml(p)} ${effectivelyActive?'<span class="ok">&#9679; Active now</span>':''}<br>
+  ${tcListNameHtml(p)} ${effectivelyActive?'<span class="ok">&#9679; Active now</span>':''}
+  ${tcListBadgesHtml(p)}
   <span class="muted">${esc(tcBizDisplayLabel(p.business_type,p.business_subtype))}${p.location?" &bull; "+esc(p.location)+" "+esc(p.pincode||""):""}</span>${tcBusinessHoursNote(hours)}
   ${p.description?`<div style="font-size:12.5px;margin-top:4px;color:#333">${esc(p.description)}</div>`:""}
   <div class="actions">
@@ -1043,6 +1065,7 @@ function tcRenderActiveBoardList(vehicles,append){
    <div>
     <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
     ${tcListNameHtml(v)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
+    ${tcListBadgesHtml(v)}
    </div>
   </div>
   <div class="actions">
@@ -2096,4 +2119,4 @@ async function tcDeleteUserRecord(mobile){
   if(!data.ok){ toast("Could not delete - try again."); return; }
   toast("User record deleted"); tcRenderAllUsersAdmin();
  }catch(e){ toast("Network error"); }
-} 
+}
