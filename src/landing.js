@@ -192,6 +192,19 @@ const TC_SITE_VIDEOS=[];
  const st=document.createElement("style"); st.id="tcLandingCss"; st.textContent=css; document.head.appendChild(st);
  const box=document.createElement("div"); box.id="tcLanding"; box.innerHTML=html;
  document.body.appendChild(box);
+ /* Opened inside Instagram / Facebook / Telegram etc.? Their built-in browser cannot install the app,
+    so say so right at the top, before the person scrolls anywhere. */
+ try{
+  const ua0=navigator.userAgent||"";
+  if(/FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Telegram|; wv\)/i.test(ua0)){
+   const ios0=/iPhone|iPad|iPod/i.test(ua0);
+   const how=ios0
+    ?"Tap the <b>⋯</b> or <b>compass</b> icon → <b>Open in Safari</b>.<br>താഴെയുള്ള <b>⋯</b> / കോമ്പസ് ചിഹ്നം അമർത്തി <b>Open in Safari</b> തിരഞ്ഞെടുക്കൂ."
+    :"Tap the <b>⋮</b> menu (top right) → <b>Open in Chrome</b> / <b>Open in external browser</b>.<br>മുകളിൽ വലതുവശത്തെ <b>⋮</b> അമർത്തി <b>Open in Chrome</b> തിരഞ്ഞെടുക്കൂ.";
+   const btn=ios0?"":"<br><a class='tcl-btn y sm' style='margin-top:8px' href='intent://travelconnect.dev/#Intent;scheme=https;package=com.android.chrome;end'>Open in Chrome · Chrome-ൽ തുറക്കൂ</a>";
+   box.insertAdjacentHTML("afterbegin","<div class='tcl-warn' style='max-width:none;border-radius:0;margin:0;border-width:0 0 4px 0'><span class='t'>⚠ You are in an app's built-in browser · ഇത് ആപ്പിനുള്ളിലെ ബ്രൗസർ ആണ്</span><b>You cannot install Travel Connect from here.</b> "+how+"<br>ഇവിടെ നിന്ന് ഇൻസ്റ്റാൾ ചെയ്യാൻ പറ്റില്ല."+btn+"</div>");
+  }
+ }catch(e){}
  /* One-tap install: Chrome/Edge on Android give us a real install prompt (beforeinstallprompt).
     iPhone has no such thing (Apple allows only Share -> Add to Home Screen), and the browser
     inside Facebook/Instagram/WhatsApp cannot install at all, so those get a clear instruction. */
