@@ -33,6 +33,7 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
     "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
     "ALTER TABLE travel_partners ADD COLUMN tagline TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -100,7 +101,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline, verified
+        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline, verified, email_verified
          FROM travel_partners
          ORDER BY CASE
            WHEN plan='owner_free' THEN 1
@@ -308,7 +309,7 @@ export async function onRequestPost({ request, env }) {
        field can never accidentally wipe out someone's login number. */
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=COALESCE(NULLIF(?,''),mobile1), mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size), tagline=COALESCE(?,tagline)
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=COALESCE(NULLIF(?,''),mobile1), mobile2=?, email_verified=CASE WHEN LOWER(COALESCE(email,''))=LOWER(COALESCE(?,'')) THEN email_verified ELSE 0 END, email=?, location=?, pincode=?, business_type=?, business_subtype=?, description=?, business_hours=?, lat=COALESCE(?,lat), lon=COALESCE(?,lon), brand_color=COALESCE(?,brand_color), brand_font_size=COALESCE(?,brand_font_size), brand_font_family=COALESCE(?,brand_font_family), brand_detail_size=COALESCE(?,brand_detail_size), brand_logo_size=COALESCE(?,brand_logo_size), tagline=COALESCE(?,tagline)
          WHERE id=?`
       )
       .bind(
@@ -316,6 +317,7 @@ export async function onRequestPost({ request, env }) {
         body.owner_name,
         (body.mobile1 || "").trim(),
         body.mobile2 || null,
+        body.email || null,
         body.email || null,
         body.location || null,
         body.pincode || null,
@@ -417,6 +419,11 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
     }
     await env.DB.prepare("DELETE FROM vehicles WHERE partner_id=?").bind(body.partner_id).run();
+    /* Also clear this business's verification / plan requests (tables exist
+       only once upgrade.js has run, so each is wrapped). */
+    for (const t of ["verify_requests", "upgrade_requests", "email_otps"]) {
+      try { await env.DB.prepare(`DELETE FROM ${t} WHERE partner_id=?`).bind(body.partner_id).run(); } catch (e) { /* table not created yet */ }
+    }
     await env.DB.prepare("DELETE FROM travel_partners WHERE id=?").bind(body.partner_id).run();
     return Response.json({ ok: true });
   }
@@ -428,9 +435,15 @@ export async function onRequestPost({ request, env }) {
     if (!body.partner_id) {
       return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
     }
+    /* The admin edit form has no email box - if no email was sent, keep the
+       one on file (otherwise saving would wipe a verified email). */
+    if (body.email === undefined) {
+      const cur = await env.DB.prepare("SELECT email FROM travel_partners WHERE id=?").bind(body.partner_id).first();
+      body.email = cur ? cur.email : null;
+    }
     await env.DB
       .prepare(
-        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=?, mobile2=?, email=?, location=?, pincode=?, business_type=?, business_subtype=?
+        `UPDATE travel_partners SET business_name=?, owner_name=?, mobile1=?, mobile2=?, email_verified=CASE WHEN LOWER(COALESCE(email,''))=LOWER(COALESCE(?,'')) THEN email_verified ELSE 0 END, email=?, location=?, pincode=?, business_type=?, business_subtype=?
          WHERE id=?`
       )
       .bind(
@@ -438,6 +451,7 @@ export async function onRequestPost({ request, env }) {
         body.owner_name,
         body.mobile1,
         body.mobile2 || null,
+        body.email || null,
         body.email || null,
         body.location || null,
         body.pincode || null,
