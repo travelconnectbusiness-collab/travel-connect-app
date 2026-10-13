@@ -38,6 +38,9 @@ async function ensureNewColumns(env) {
     await env.DB.prepare("ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT").run();
   } catch (e) { /* already exists */ }
   try {
+    await env.DB.prepare("ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0").run();
+  } catch (e) { /* already exists */ }
+  try {
     await env.DB.prepare("ALTER TABLE travel_partners ADD COLUMN tagline TEXT").run();
   } catch (e) { /* already exists */ }
 }
@@ -68,7 +71,8 @@ export async function onRequestGet({ request, env }) {
       .prepare(
         `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
-                (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified
+                (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified,
+                p.email_verified AS email_verified
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
          WHERE v.active=1
          ORDER BY CASE
