@@ -108,7 +108,7 @@ const TC_SITE_VIDEOS=[];
 .tcl-foot .links{margin:12px 0;display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
 `;
 
- const services=[["🚕","Taxi & Auto","ടാക്സി · ഓട്ടോ"],["🛻","Pickup & Goods","പിക്കപ്പ് · ചരക്ക് വാഹനങ്ങൾ"],["🏪","Shops & Businesses","കടകൾ · ബിസിനസുകൾ"],["🏨","Hotels & Homestays","ഹോട്ടൽ · ഹോംസ്റ്റേ"],["🔧","Skilled Workers","ഇലക്ട്രീഷ്യൻ · പ്ലംബർ · മെക്കാനിക്"],["🩸","Blood Donors","രക്തദാതാക്കൾ","red"],["🧭","Trip Requests","യാത്ര ആവശ്യപ്പെടാം"],["💬","and More","കൂടുതൽ സേവനങ്ങൾ"]];
+ const services=[["🚕","Taxi & Auto","ടാക്സി · ഓട്ടോ"],["🛻","Pickup & Goods","പിക്കപ്പ് · ചരക്ക് വാഹനങ്ങൾ"],["🏪","Shops & Businesses","കടകൾ · ബിസിനസുകൾ"],["🏨","Hotels & Homestays","ഹോട്ടൽ · ഹോംസ്റ്റേ"],["🔧","Skilled Workers","ഇലക്ട്രീഷ്യൻ · പ്ലംബർ · മെക്കാനിക്"],["🩸","Blood Donors","രക്തദാതാക്കൾ","red"],["🧭","Find a Vehicle","വാഹനം കണ്ടെത്താം"],["💬","and More","കൂടുതൽ സേവനങ്ങൾ"]];
  const adCard=a=>`<div class="tcl-ad">${a.image?`<img src="${esc(a.image)}" alt="${esc(a.title)}" loading="lazy">`:""}<div class="b"><small>Advertisement${a.by?" · "+esc(a.by):""}</small><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>${a.link?`<a class="tcl-btn y sm" href="${esc(a.link)}" target="_blank" rel="noopener">Know more</a>`:a.phone?`<a class="tcl-btn y sm" href="tel:+91${esc(a.phone)}">📞 Call</a>`:""}</div></div>`;
 
  const html=`
@@ -139,7 +139,7 @@ const TC_SITE_VIDEOS=[];
   <li>Be found by people nearby<small>അടുത്തുള്ളവർ നിങ്ങളെ കണ്ടെത്തും</small></li>
   <li>Bills &amp; quotations in your name<small>സ്വന്തം പേരിൽ ബിൽ, ക്വട്ടേഷൻ</small></li>
   <li>Own UPI QR on your bills (Plus / Premium)<small>ബില്ലിൽ സ്വന്തം UPI QR</small></li>
-  <li>Trip requests reach nearby vehicles<small>വാഹന ഉടമകൾക്ക് സമീപത്തെ ട്രിപ്പ് അലർട്ട്</small></li>
+  <li>Your trip alert reaches nearby vehicles<small>വാഹന ഉടമകൾക്ക് സമീപത്തെ ട്രിപ്പ് അലർട്ട്</small></li>
   <li>SOS alert for vehicle owners (taxi / auto / pickup)<small>വാഹന ഉടമകൾക്ക് മാത്രം SOS</small></li>
   <li>Cloud backup of your data (Premium)<small>ഡാറ്റ ക്ലൗഡ് ബാക്കപ്പ്</small></li></ul></div>
  <h3 style="margin:22px 0 10px;text-align:center;color:#082b49;font-size:18px">How to register · റജിസ്റ്റർ ചെയ്യാൻ</h3>
