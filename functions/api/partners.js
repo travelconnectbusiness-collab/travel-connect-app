@@ -100,15 +100,15 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline
-         FROM travel_partners WHERE verified=1
+        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline, verified
+         FROM travel_partners
          ORDER BY CASE
            WHEN plan='owner_free' THEN 1
            WHEN plan='premium' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 1
            WHEN plan='paid' AND (plan_expires_at IS NULL OR julianday(plan_expires_at)>=julianday('now')) THEN 2
            WHEN plan='owner_plus' THEN 2
            ELSE 3
-         END, business_name`
+         END, verified DESC, business_name`
       )
       .all();
     return Response.json({ ok: true, partners: results });
@@ -133,6 +133,10 @@ export async function onRequestGet({ request, env }) {
    POST action=update   - a verified-or-not partner edits their own details (ownership
                            checked by matching mobile, not by admin token)
    POST action=verify   - admin: approve or un-approve a partner */
+/* OPEN REGISTRATION: false = a number no longer needs a category grant from
+   the owner to register a business. Set true to enforce grants again. */
+const REQUIRE_CATEGORY_GRANTS = false;
+
 export async function onRequestPost({ request, env }) {
   await ensureNewColumns(env);
   const url = new URL(request.url);
@@ -217,7 +221,7 @@ export async function onRequestPost({ request, env }) {
        never silently blocks a number authorized before this feature
        existed, or one the owner simply hasn't categorised yet. */
     const catCountRow = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_categories WHERE mobile=?").bind(mobile1).first();
-    if (catCountRow && catCountRow.c > 0) {
+    if (REQUIRE_CATEGORY_GRANTS && catCountRow && catCountRow.c > 0) {
       /* A business_type that isn't one of the fixed, known categories is
          whatever free text someone typed into "Other (please specify)" -
          there is no way for the admin to have pre-authorized that EXACT
