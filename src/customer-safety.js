@@ -53,14 +53,14 @@ function tcToggleCollapsible(id){
    first gets it. Backend: functions/api/trip_alerts.js. */
 let _tcTripPollTimer=null;
 function tcOpenTripRequest(){
- modal(`<h2>&#128663; Request Nearby Vehicle</h2>
-  <p class="muted">Sends one request to every Active driver nearby. Whoever accepts first gets your trip - you'll see their name and number here.</p>
+ modal(`<h2>&#128663; Find Nearby Vehicle</h2>
+  <p class="muted">Alerts every Active driver nearby at once. Whoever accepts first gets your trip - you'll see their name and number here.</p>
   <div class="actions" style="flex-direction:column;gap:8px">
    <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel')">&#128663; Taxi / Travel</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128762; Auto Rickshaw</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('pickup_goods')">&#128666; Pickup / Goods Carrier</button>
   </div>
-  <div class="actions"><button onclick="tcShowMyRequestHistory()">&#128203; My Past Requests</button></div>`);
+  <div class="actions"><button onclick="tcShowMyRequestHistory()">&#128203; My Past Searches</button></div>`);
 }
 function tcTripOutcomeBadge(status,acceptedName){
  if(status==="accepted") return `<span style="color:#1c6b2c;font-weight:700">&#9989; ${acceptedName?esc(acceptedName)+" accepted":"Accepted"}</span>`;
@@ -76,8 +76,8 @@ async function tcShowMyRequestHistory(){
   const res=await fetch("/api/trip_alerts?action=my_history&mobile="+encodeURIComponent(user.mobile));
   const data=await res.json();
   if(!data.ok){ modal(`<h2>Could not load history</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
-  if(!data.history.length){ modal(`<h2>My Past Requests</h2><p class="muted">You haven't sent any Nearby Vehicle requests yet.</p><div class="actions"><button onclick="closeModal()">Close</button></div>`); return; }
-  modal(`<h2>&#128203; My Past Requests</h2>
+  if(!data.history.length){ modal(`<h2>My Past Searches</h2><p class="muted">You haven't searched for a nearby vehicle yet.</p><div class="actions"><button onclick="closeModal()">Close</button></div>`); return; }
+  modal(`<h2>&#128203; My Past Searches</h2>
    ${data.history.map(h=>`<div class="listitem">
     <b>${esc(tcBizLabel(h.business_type))}</b> <span class="muted">${esc(tcFormatDateTime(h.created_at))}</span><br>
     ${h.pickup_text?`<div class="muted">&#128205; ${esc(h.pickup_text)}</div>`:""}
@@ -144,7 +144,7 @@ function tcShowTripWaiting(alertId,notifiedCount,businessType){
   <h2 style="margin:4px 0">Waiting for a driver...</h2>
   <p class="muted">${notifiedCount>0?notifiedCount+" nearby "+esc(tcBizLabel(businessType))+(notifiedCount>1?" drivers":" driver")+" notified.":"No drivers are currently Active nearby for this category."}</p>
   <div id="tripWaitStatus" class="muted" style="font-size:12.5px;min-height:18px"></div>
-  <div class="actions" style="margin-top:10px"><button onclick="tcCancelTripRequest(${alertId})">Cancel Request</button></div>
+  <div class="actions" style="margin-top:10px"><button onclick="tcCancelTripRequest(${alertId})">Cancel Search</button></div>
  </div>`);
  if(_tcTripPollTimer) clearInterval(_tcTripPollTimer);
  _tcTripPollTimer=setInterval(()=>tcPollTripStatus(alertId),4000);
@@ -217,7 +217,7 @@ async function tcCancelTripRequest(alertId){
   await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"cancel",alert_id:alertId,mobile:user.mobile})});
  }catch(e){}
  closeModal();
- toast("Request cancelled");
+ toast("Search cancelled");
 }
 function customerHome(){
  const cat=db.categories.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
@@ -227,7 +227,7 @@ function customerHome(){
   <div onclick="tcOpenTripRequest()" style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#b8860b,#e0a526 60%,#f0b94a);box-shadow:0 8px 18px rgba(184,134,11,.4);border:2px solid #fff0cc;animation:tcSosPulse 2.5s infinite">
    <div style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">&#128663;</div>
    <div style="flex:1;min-width:0">
-    <div style="font-weight:800;font-size:17px">Request Nearby Vehicle</div>
+    <div style="font-weight:800;font-size:17px">Find Nearby Vehicle</div>
     <div style="font-size:12.5px;opacity:.95">Taxi, Auto or Pickup - alerts all nearby drivers at once</div>
    </div>
    <div style="font-size:26px;opacity:.9;line-height:1">&rsaquo;</div>
@@ -604,7 +604,7 @@ function getLocation(){
  if(status) status.textContent="Getting location...";
  navigator.geolocation.getCurrentPosition(pos=>{
   window.tcLoc={lat:pos.coords.latitude,lon:pos.coords.longitude};
-  if(status) status.textContent="\u2705 Location captured - will be included if you send SOS or a request.";
+  if(status) status.textContent="\u2705 Location captured - will be included if you send SOS or a message.";
  },()=>{ if(status) status.textContent="Location permission denied."; });
 }
 function sendNetwork(){
@@ -612,7 +612,7 @@ function sendNetwork(){
  if(!msg){ toast("Type a message first"); return; }
  const user=getCurrentUser();
  fetch("/api/sos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sender_name:user.name||"",sender_mobile:user.mobile||"",message:"REQUEST from "+(user.name||"a user")+": "+msg,lat:window.tcLoc?window.tcLoc.lat:null,lon:window.tcLoc?window.tcLoc.lon:null})})
-  .then(()=>{ toast("Request sent"); loadSosHistory(); })
+  .then(()=>{ toast("Message sent"); loadSosHistory(); })
   .catch(()=>toast("Network error"));
 }
 async function checkLocationPermissionUI(){
