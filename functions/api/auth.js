@@ -66,6 +66,12 @@ async function recordAppMode(env, mobile, mode) {
   } catch (e) {}
 }
 
+/* OPEN REGISTRATION: when false, nobody needs to be on the "Authorized
+   Users" allowlist any more - anyone can log in and register a business.
+   Admin verification still decides the "Verified" badge customers see, and
+   blocking still works. Set to true to bring the old allowlist back. */
+const REQUIRE_ALLOWLIST = false;
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -122,7 +128,7 @@ export async function onRequestGet({ request, env }) {
     let authorized = true;
     const isCustomer = row && row.role === "customer";
     const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
-    if (!isCustomer && allowlistCount && allowlistCount.c > 0) {
+    if (REQUIRE_ALLOWLIST && !isCustomer && allowlistCount && allowlistCount.c > 0) {
       const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
       authorized = !!allowed;
     }
@@ -211,7 +217,7 @@ export async function onRequestPost({ request, env }) {
 
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     const isOwner = !!(ownerRow && ownerRow.mobile === mobile);
-    const skipAllowlist = isOwner || role === "customer";
+    const skipAllowlist = !REQUIRE_ALLOWLIST || isOwner || role === "customer";
 
     if (!skipAllowlist) {
       const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
