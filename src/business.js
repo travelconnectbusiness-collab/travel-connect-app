@@ -2082,7 +2082,7 @@ function dashboard(){
   <button style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="view('trips')">${tcT("tab_trips")}</button>
  </div>
  <div class="actions" style="margin-top:8px"><button onclick="view('partner')">${tcT("my_business_vehicles")}</button><button onclick="view('activeboard')">${tcT("active_vehicles_board")}</button></div>
- <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Request Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
+ <div class="actions" style="margin-top:8px"><button onclick="tcOpenDirectory()">&#128269; ${tcT("local_directory")}</button>${typeof tcOpenTripRequest==="function"?`<button onclick="tcOpenTripRequest()" style="background:linear-gradient(135deg,#b8860b,#e0a526);color:#fff;font-weight:800">&#128663; Find Nearby Vehicle</button>`:""}${tcMessagesButtonHtml()}</div>
  ${TC_TRIP_ALERT_TYPES&&TC_TRIP_ALERT_TYPES.includes(db.settings.myBusinessType)?`<div class="actions"><button onclick="tcShowPartnerTripHistory()">&#128202; Trip Alerts History</button></div>`:""}
  <hr>
  <div class="grid">
@@ -2373,4 +2373,4 @@ function addExpense(){
 }
 function deleteExpense(i){
  db.expenses.splice(i,1); save(); toast("Expense deleted"); accounts();
-} 
+}
