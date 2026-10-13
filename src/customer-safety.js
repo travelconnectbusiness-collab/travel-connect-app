@@ -101,7 +101,7 @@ async function tcStartTripBroadcast(businessType){
   modal(`<h2>Location needed</h2><p class="muted">${esc(tcLocationErrorText(loc.error))}</p><div class="actions"><button onclick="closeModal()">OK</button></div>`);
   return;
  }
- modal(`<h2>&#128663; Confirm Request</h2>
+ modal(`<h2>&#128663; Book Your Trip</h2>
   <p class="muted">Category: <b>${esc(tcBizLabel(businessType))}</b></p>
   <label>Pickup landmark (optional, helps drivers find you)<input id="tripPickupText" placeholder="e.g. Near Nadapuram bus stand"></label>
   <div style="font-weight:650;font-size:13px;margin:8px 0 4px">Where are you going? (optional, helps a driver decide)</div>
@@ -109,7 +109,7 @@ async function tcStartTripBroadcast(businessType){
   <div class="actions"><button type="button" onclick="tcAddTripDestField()">+ Add a destination</button></div>
   <label style="margin-top:8px">Short note (optional)<textarea id="tripNote" rows="2" placeholder="e.g. 3 people, one bag"></textarea></label>
   <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#f5f8fa;font-size:11.5px;color:#55666b;line-height:1.5">&#8505;&#65039; The fare is normally charged from the vehicle's own starting point (garage) &mdash; not just your pickup point &mdash; and includes its return back there after the trip. The driver will confirm the exact fare with you.</div>
-  <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon})">Send Request</button><button onclick="closeModal()">Cancel</button></div>`);
+  <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon})">Find a Vehicle</button><button onclick="closeModal()">Cancel</button></div>`);
 }
 function tcAddTripDestField(value=""){
  const c=document.querySelector("#tripDestContainer");
