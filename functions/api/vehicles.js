@@ -67,16 +67,17 @@ export async function onRequestGet({ request, env }) {
     const { results } = await env.DB
       .prepare(
         `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
-                p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline
+                p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
+                (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
-         WHERE v.active=1 AND v.verified=1 AND p.verified=1
+         WHERE v.active=1
          ORDER BY CASE
            WHEN p.plan='owner_free' THEN 1
            WHEN p.plan='premium' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 1
            WHEN p.plan='paid' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 2
            WHEN p.plan='owner_plus' THEN 2
            ELSE 3
-         END, v.id DESC`
+         END, (v.verified=1 AND p.verified=1) DESC, v.id DESC`
       )
       .all();
     return Response.json({ ok: true, vehicles: results });
@@ -125,7 +126,7 @@ export async function onRequestGet({ request, env }) {
     const row = await env.DB
       .prepare(
         `SELECT v.front_photo_key FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
-         WHERE v.id=? AND v.active=1 AND v.verified=1 AND p.verified=1`
+         WHERE v.id=? AND v.active=1`
       )
       .bind(vehicleId)
       .first();
