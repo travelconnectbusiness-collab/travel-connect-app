@@ -956,7 +956,7 @@ const TC_STRINGS={
  about_text:{en:"Travel Connect only connects customers with independent local partners - we don't own vehicles, fix final prices, or handle payments. Please confirm final fare and details directly with the partner.",ml:"Travel Connect കസ്റ്റമേഴ്സിനെ സ്വതന്ത്ര ലോക്കൽ പാർട്ണർമാരുമായി ബന്ധിപ്പിക്കുക മാത്രമാണ് ചെയ്യുന്നത് - വാഹനങ്ങൾ ഞങ്ങളുടേതല്ല, ചാർജ് ഞങ്ങൾ തീരുമാനിക്കുന്നില്ല, പേയ്മെന്റും ഞങ്ങൾ കൈകാര്യം ചെയ്യുന്നില്ല. അവസാന ചാർജും വിവരങ്ങളും പാർട്ണറുമായി നേരിട്ട് ഉറപ്പിക്കുക."},
  logout_device:{en:"Log out of this device",ml:"ഈ ഫോണിൽ നിന്ന് ലോഗ് ഔട്ട്"},
  local_directory_title:{en:"Local Directory",ml:"ലോക്കൽ ഡയറക്ടറി"},
- directory_search_hint:{en:"Search verified local businesses - taxis, autos, restaurants, workshops, skilled work and more.",ml:"അംഗീകരിച്ച ലോക്കൽ ബിസിനസുകൾ സെർച്ച് ചെയ്യുക - ടാക്സി, ഓട്ടോ, ഹോട്ടൽ, വർക്ക്ഷോപ്പ്, സ്കിൽഡ് വർക്ക് തുടങ്ങിയവ."},
+ directory_search_hint:{en:"Search local businesses - taxis, autos, restaurants, workshops, skilled work and more. A green Verified mark means the admin has checked it.",ml:"ലോക്കൽ ബിസിനസുകൾ സെർച്ച് ചെയ്യുക - ടാക്സി, ഓട്ടോ, ഹോട്ടൽ, വർക്ക്ഷോപ്പ്, സ്കിൽഡ് വർക്ക് തുടങ്ങിയവ. പച്ച \"വെരിഫൈഡ്\" അടയാളം അഡ്മിൻ പരിശോധിച്ചതാണെന്ന് കാണിക്കുന്നു."},
  category_label:{en:"Category",ml:"വിഭാഗം"},
  all_types:{en:"All types",ml:"എല്ലാ വിഭാഗവും"},
  other_type:{en:"Other",ml:"മറ്റുള്ളവ"},
