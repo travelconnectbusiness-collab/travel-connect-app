@@ -513,7 +513,9 @@ function tcGenerateNonTaxiQR(){
 
 /* ---------- VEHICLE REGISTRATION (Taxi/Travel Agency only) ---------- */
 /* Seats are stored as TOTAL (passengers + driver). Customer-facing label. */
-function tcSeatLabel(total){
+/* Only Taxi/Travel vehicles get the seat label and the Motor Cab / Contract Carriage class; autos and goods vehicles get none. */
+function tcSeatLabel(total,bt){
+ if(bt&&bt!=="taxi_travel") return "";
  const t=parseInt(total,10); if(!(t>=2)) return "";
  return (t-1)+" passengers + driver ("+t+" seats) - "+(t>7?"Contract Carriage":"Motor Cab");
 }
@@ -641,7 +643,7 @@ async function loadMyVehicles(partnerId){
    let hours={};
    try{ hours=JSON.parse(v.business_hours||"{}"); }catch(e){}
    return `<div class="listitem">
-   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.seats?'<span class="chip">'+esc(tcSeatLabel(v.seats))+'</span>':'<span class="chip" style="background:#fde8e8">Seats missing - tap Edit</span>'} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${(window._myPartner?.business_type||"taxi_travel")!=="taxi_travel"?"":(v.seats?'<span class="chip">'+esc(tcSeatLabel(v.seats,"taxi_travel"))+'</span>':'<span class="chip" style="background:#fde8e8">Seats missing - tap Edit</span>')} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
    <div class="actions" style="margin-top:4px"><button onclick="tcOpenEditVehicle(${v.id})">Edit Vehicle / Documents</button></div>
@@ -671,7 +673,7 @@ function tcOpenEditVehicle(vehicleId){
  <div class="grid">
   <label>Vehicle number<input id="evNo" value="${esc(v.vehicle_number||"")}"></label>
   <label>Category<input id="evCat" value="${esc(v.category||"")}"></label>
-  <label>Passenger seats (excluding driver)${(window._myPartner?.business_type||"taxi_travel")==="taxi_travel"?" *":""}<input id="evSeats" type="number" min="1" max="59" value="${v.seats>1?esc(v.seats-1):""}" placeholder="e.g. 6" oninput="tcSeatPreview('evSeats','evSeatsPrev')"></label>
+  ${(window._myPartner?.business_type||"taxi_travel")==="taxi_travel"?`<label>Passenger seats (excluding driver)${(window._myPartner?.business_type||"taxi_travel")==="taxi_travel"?" *":""}<input id="evSeats" type="number" min="1" max="59" value="${v.seats>1?esc(v.seats-1):""}" placeholder="e.g. 6" oninput="tcSeatPreview('evSeats','evSeatsPrev')"></label>`:""}
  </div>
  <h4>Driver</h4>
  <div class="grid">
@@ -716,7 +718,7 @@ async function tcSubmitEditVehicle(vehicleId){
  fd.append("vehicle_id",vehicleId);
  fd.append("mobile",user.mobile);
  fd.append("category",document.querySelector("#evCat").value);
- const evSeats=parseInt(document.querySelector("#evSeats").value,10);
+ const evSeats=parseInt((document.querySelector("#evSeats")||{}).value,10);
  if((window._myPartner?.business_type||"taxi_travel")==="taxi_travel"&&!(evSeats>=1&&evSeats<=59)){
   errBox.textContent="Enter the passenger seats (excluding the driver) - required.";
   saveBtn.disabled=false; saveBtn.textContent="Save Changes";return}
@@ -1083,7 +1085,7 @@ function tcRenderActiveBoardList(vehicles,append){
   <div class="row">
    ${v.front_photo_key?`<img src="/api/vehicles?action=public_front_photo&vehicle_id=${v.id}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">`:""}
    <div>
-    <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span>${v.seats?` <span class="chip">${esc(tcSeatLabel(v.seats))}</span>`:""}<br>
+    <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span>${v.seats&&tcSeatLabel(v.seats,v.business_type)?` <span class="chip">${esc(tcSeatLabel(v.seats,v.business_type))}</span>`:""}<br>
     ${tcListNameHtml(v)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
     ${tcListBadgesHtml(v)}
    </div>
