@@ -31,6 +31,8 @@ export function missingDocs(v, today = istToday()) {
   else if (v.insurance_expiry < today) m.push("Insurance expired");
   if (!v.permit_expiry) m.push("Permit expiry date");
   else if (v.permit_expiry < today) m.push("Permit expired");
+  /* Taxi/Travel vehicles must also have the seating capacity (passengers + driver) */
+  if (v.business_type === "taxi_travel" && !(parseInt(v.seats, 10) >= 2)) m.push("Seating capacity (passenger seats)");
   return m;
 }
 export const isComplete = (v, today) => missingDocs(v, today).length === 0;
