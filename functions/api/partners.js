@@ -272,7 +272,7 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
     const row = await env.DB
-      .prepare("SELECT mobile1, mobile2, plan FROM travel_partners WHERE id=?")
+      .prepare("SELECT mobile1, mobile2, plan, business_type FROM travel_partners WHERE id=?")
       .bind(body.partner_id)
       .first();
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
@@ -321,7 +321,7 @@ export async function onRequestPost({ request, env }) {
         body.email || null,
         body.location || null,
         body.pincode || null,
-        body.business_type || "taxi_travel",
+        row.business_type || "taxi_travel", /* CATEGORY LOCK: owner cannot change category; only admin_update can */
         body.business_subtype || null,
         body.description || null,
         body.business_hours || null,
