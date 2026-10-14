@@ -28,6 +28,9 @@ async function ensureNewColumns(env) {
   try {
     await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN business_hours TEXT").run();
   } catch (e) { /* already exists */ }
+  try {
+    await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run();
+  } catch (e) { /* already exists */ }
   /* The "active" query below joins travel_partners and sorts by its
      plan_expires_at (so an expired Paid/Premium plan correctly drops to
      the Free tier's position) - that column is normally added by
@@ -69,7 +72,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "active") {
     const { results } = await env.DB
       .prepare(
-        `SELECT v.id, v.vehicle_number, v.category, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
+        `SELECT v.id, v.vehicle_number, v.category, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
                 (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified,
                 p.email_verified AS email_verified
@@ -161,6 +164,32 @@ export async function onRequestPost({ request, env }) {
     if (!partner_id || !vehicle_number) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    /* Every new vehicle needs the 4 photos and the Insurance + Permit expiry dates. */
+    for (const f of ["front_photo", "rc_photo", "insurance_photo", "permit_photo"]) {
+      const file = form.get(f);
+      if (!file || typeof file.arrayBuffer !== "function" || !(file.size > 0)) {
+        return Response.json({ ok: false, error: "docs_required", field: f }, { status: 400 });
+      }
+    }
+    for (const f of ["insurance_expiry", "permit_expiry"]) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test((form.get(f) || "").toString())) {
+        return Response.json({ ok: false, error: "date_required", field: f }, { status: 400 });
+      }
+    }
+    /* Seats: owner enters PASSENGER seats (excluding the driver); we store the total
+       (passengers + driver). Mandatory for taxi/travel vehicles. Older clients that
+       send "seats" (already the total) are still accepted. */
+    const pRow = await env.DB.prepare("SELECT business_type FROM travel_partners WHERE id=?").bind(partner_id).first();
+    let seatsTotal = null;
+    const ps = parseInt((form.get("passenger_seats") || "").toString(), 10);
+    if (ps >= 1 && ps <= 59) seatsTotal = ps + 1;
+    else {
+      const st = parseInt((form.get("seats") || "").toString(), 10);
+      if (st >= 2 && st <= 60) seatsTotal = st;
+    }
+    if (pRow && pRow.business_type === "taxi_travel" && !seatsTotal) {
+      return Response.json({ ok: false, error: "seats_required" }, { status: 400 });
+    }
     const now = new Date().toISOString();
     const field = (name) => {
       const v = form.get(name);
@@ -172,8 +201,8 @@ export async function onRequestPost({ request, env }) {
         `INSERT INTO vehicles
           (partner_id, vehicle_number, category, driver_name, driver_mobile1, driver_mobile2,
            driver_license_number, driver_license_expiry, rc_expiry, insurance_expiry, permit_expiry,
-           fitness_expiry, puc_expiry, verified, active, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?)`
+           fitness_expiry, puc_expiry, seats, verified, active, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?)`
       )
       .bind(
         partner_id,
@@ -189,6 +218,7 @@ export async function onRequestPost({ request, env }) {
         field("permit_expiry"),
         field("fitness_expiry"),
         field("puc_expiry"),
+        seatsTotal,
         now
       )
       .run();
@@ -242,6 +272,14 @@ export async function onRequestPost({ request, env }) {
       "driver_license_expiry", "rc_expiry", "insurance_expiry", "permit_expiry", "fitness_expiry", "puc_expiry"];
     const setParts = [];
     const bindVals = [];
+    {
+      const ps = parseInt((form.get("passenger_seats") || "").toString(), 10);
+      const st = parseInt((form.get("seats") || "").toString(), 10);
+      let tot = null;
+      if (ps >= 1 && ps <= 59) tot = ps + 1;
+      else if (st >= 2 && st <= 60) tot = st;
+      if (tot) { setParts.push("seats=?"); bindVals.push(tot); }
+    }
     for (const f of dateFields) {
       if (form.has(f)) {
         setParts.push(`${f}=?`);
