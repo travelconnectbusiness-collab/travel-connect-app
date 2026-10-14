@@ -1,32 +1,12 @@
 import { verifyAdminToken } from "./_auth_helper.js";
+import { getFlag, setFlag } from "./_flags.js";
 
-/* Category-scoped authorization, on top of the existing plain mobile
-   allowlist above - lets the owner say "this number may register as Taxi
-   and Auto Rickshaw", so the same number can't also self-register as (say)
-   Restaurant without the owner deliberately adding that category too. A
-   mobile with ZERO rows here is left unrestricted (matches the app's
-   existing "empty allowlist = no restriction yet" pattern) - so this only
-   starts enforcing once the owner actually grants at least one category to
-   that specific number, and never silently locks out someone authorized
-   before this feature existed. */
-async function ensureCategoryTable(env) {
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS authorized_categories (mobile TEXT NOT NULL, category TEXT NOT NULL, added_at TEXT NOT NULL, PRIMARY KEY (mobile, category))"
-  ).run();
-}
-
-/* GET ?action=list - returns every authorized mobile number (admin panel only).
-   GET ?action=check&mobile=... - used by the login flow itself (auth.js) to
+/* GET ?action=list — returns every authorized mobile number (admin panel only).
+   GET ?action=check&mobile=... — used by the login flow itself (auth.js) to
    check whether a given mobile is allowed to log in at all. Kept as a public,
    read-only, mobile-scoped check (no name/list data leaked) since the login
-   screen needs to call it before a session exists.
-   GET ?action=list_categories&mobile=... - public, mobile-scoped: which
-   business categories (if any) this number is restricted to. An empty array
-   means "not restricted to specific categories yet".
-   GET ?action=check_category&mobile=...&category=... - public: is this
-   mobile allowed to register under this specific category right now? */
+   screen needs to call it before a session exists. */
 export async function onRequestGet({ request, env }) {
-  await ensureCategoryTable(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
@@ -37,6 +17,13 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, allowed: !!row });
   }
 
+  if (action === "mode") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    return Response.json({ ok: true, require_allowlist: await getFlag(env, "require_allowlist", false) });
+  }
+
   if (action === "list") {
     if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -45,23 +32,8 @@ export async function onRequestGet({ request, env }) {
     return Response.json({ ok: true, users: results });
   }
 
-  if (action === "list_categories") {
-    const mobile = (url.searchParams.get("mobile") || "").trim();
-    if (!mobile) return Response.json({ ok: true, categories: [] });
-    const { results } = await env.DB.prepare("SELECT category FROM authorized_categories WHERE mobile=? ORDER BY category").bind(mobile).all();
-    return Response.json({ ok: true, categories: results.map((r) => r.category) });
-  }
-
-  if (action === "check_category") {
-    const mobile = (url.searchParams.get("mobile") || "").trim();
-    const category = (url.searchParams.get("category") || "").trim();
-    if (!mobile || !category) return Response.json({ ok: true, allowed: true });
-    const countRow = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_categories WHERE mobile=?").bind(mobile).first();
-    if (!countRow || countRow.c === 0) return Response.json({ ok: true, allowed: true, restricted: false });
-    const row = await env.DB.prepare("SELECT 1 FROM authorized_categories WHERE mobile=? AND category=?").bind(mobile, category).first();
-    return Response.json({ ok: true, allowed: !!row, restricted: true });
-  }
-
+  /* The owner's own mobile/name — admin-only to view, since it's shown on the
+     same admin-gated page. */
   if (action === "get_owner") {
     if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -73,14 +45,11 @@ export async function onRequestGet({ request, env }) {
   return Response.json({ ok: false, error: "unknown_action" });
 }
 
-/* POST action=add / action=remove - admin-only (token required), adds or
+/* POST action=add / action=remove — admin-only (token required), adds or
    removes a mobile number from the allowlist. Matching at login time is by
-   mobile number only (not name), per the owner's decision - a name typo or
-   spelling difference should never lock out someone whose number IS allowed.
-   POST action=add_category / action=remove_category - admin-only: grants or
-   revokes one specific business category for one mobile number. */
+   mobile number only (not name), per the owner's decision — a name typo or
+   spelling difference should never lock out someone whose number IS allowed. */
 export async function onRequestPost({ request, env }) {
-  await ensureCategoryTable(env);
   let body;
   try { body = await request.json(); } catch (e) { return Response.json({ ok: false, error: "bad_json" }, { status: 400 }); }
 
@@ -98,33 +67,37 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true });
   }
 
+  /* The big switch: ON = only numbers on this list can be business owners; OFF = open registration. */
+  if (body.action === "set_mode") {
+    await setFlag(env, "require_allowlist", !!body.on);
+    return Response.json({ ok: true, require_allowlist: !!body.on });
+  }
+
+  /* One tap: put every number that already owns a business on the list (so switching ON never locks anyone out). */
+  if (body.action === "add_all_owners") {
+    const { results } = await env.DB.prepare("SELECT mobile1, MIN(owner_name) AS n FROM travel_partners WHERE mobile1 IS NOT NULL AND mobile1<>'' GROUP BY mobile1").all();
+    const now = new Date().toISOString();
+    let added = 0;
+    for (const r of results) {
+      const ex = await env.DB.prepare("SELECT 1 AS x FROM authorized_users WHERE mobile=?").bind(r.mobile1).first();
+      if (ex) continue;
+      await env.DB.prepare("INSERT INTO authorized_users (mobile, name, added_at) VALUES (?,?,?)").bind(r.mobile1, r.n || "", now).run();
+      added++;
+    }
+    return Response.json({ ok: true, added });
+  }
+
   if (body.action === "remove") {
     const mobile = (body.mobile || "").trim();
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
     await env.DB.prepare("DELETE FROM authorized_users WHERE mobile=?").bind(mobile).run();
-    await env.DB.prepare("DELETE FROM authorized_categories WHERE mobile=?").bind(mobile).run();
     return Response.json({ ok: true });
   }
 
-  if (body.action === "add_category") {
-    const mobile = (body.mobile || "").trim();
-    const category = (body.category || "").trim();
-    if (!mobile || !category) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
-    await env.DB
-      .prepare("INSERT OR REPLACE INTO authorized_categories (mobile, category, added_at) VALUES (?,?,?)")
-      .bind(mobile, category, new Date().toISOString())
-      .run();
-    return Response.json({ ok: true });
-  }
-
-  if (body.action === "remove_category") {
-    const mobile = (body.mobile || "").trim();
-    const category = (body.category || "").trim();
-    if (!mobile || !category) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
-    await env.DB.prepare("DELETE FROM authorized_categories WHERE mobile=? AND category=?").bind(mobile, category).run();
-    return Response.json({ ok: true });
-  }
-
+  /* Sets (or changes) the one permanent owner number — this one number can never
+     be blocked and never needs to be in the authorized_users allowlist, so the
+     owner can never lock themselves out. Editing it still requires the admin
+     password, same as everything else here. */
   if (body.action === "set_owner") {
     const mobile = (body.mobile || "").trim();
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
