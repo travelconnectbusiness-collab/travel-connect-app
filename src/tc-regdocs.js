@@ -44,8 +44,11 @@
    if(s[0]==="permit") h+='<label>Permit expiry date * / പെർമിറ്റ് കാലാവധി തീരുന്ന തീയതി<input type="date" id="rdPermitDate"></label>';
    if(s[0]==="ins") h+='<label>Insurance expiry date * / ഇൻഷുറൻസ് കാലാവധി തീരുന്ന തീയതി<input type="date" id="rdInsDate"></label>';
   });
-  h+='<div class="actions" style="margin-top:12px"><button class="primary" id="rdSend" onclick="tcRegDocsSubmit('+p.id+')">Submit documents</button></div><div id="rdErr" class="danger"></div>';
+  window._rdHasOld=!!existing;
+  h+='<div class="actions" style="margin-top:12px"><button class="primary" id="rdSend" onclick="tcRegDocsSubmit('+p.id+')">Submit documents</button>'+(existing?'<button onclick="partnerView()">Cancel</button>':'')+'</div><div id="rdErr" class="danger"></div>';
+  if(existing) h='<p class="muted" style="margin-top:0">Photos are optional now - add only the ones that changed. Enter the new expiry dates.<br>മാറ്റമുള്ള ഫോട്ടോകൾ മാത്രം നൽകിയാൽ മതി. പുതിയ കാലാവധി തീയതികൾ നൽകുക.</p>'+h;
   app().innerHTML=card("Vehicle documents / വാഹന രേഖകൾ",h);
+  if(existing){ var pd=document.querySelector("#rdPermitDate"), idd=document.querySelector("#rdInsDate"); if(pd) pd.value=existing.permit_expiry||""; if(idd) idd.value=existing.ins_expiry||""; }
  };
  window.tcRegDocsPreview=function(k){
   var f=document.querySelector("#rd_"+k).files[0], im=document.querySelector("#rdp_"+k);
@@ -76,13 +79,25 @@
    say("Documents submitted - waiting for admin approval"); partnerView();
   }catch(e){ err.textContent="Network error - try again."; btn.disabled=false; btn.textContent="Submit documents"; }
  };
+ function left(d){ if(!d) return ""; var n=Math.round((new Date(d+"T00:00:00")-new Date(new Date().toDateString()))/86400000); return n<0?'<b style="color:#b00">expired</b>':(n<=30?'<b style="color:#c60">'+n+' days left</b>':n+' days left'); }
  async function check(p){
-  if(!p||p.verified||VEH.indexOf(p.business_type||"taxi_travel")<0) return;
+  if(!p||VEH.indexOf(p.business_type||"taxi_travel")<0) return;
   var u=getCurrentUser(); if(!u) return;
   try{
    var r=await fetch("/api/regdocs?action=status&partner_id="+encodeURIComponent(p.id)+"&mobile="+encodeURIComponent(u.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
-   var d=await r.json();
-   if(d.ok&&d.required&&!d.submitted){ window._rdHasOld=false; tcRegDocsOpen(p,null); }
+   var d=await r.json(); if(!d.ok) return;
+   if(d.required&&!d.submitted){ tcRegDocsOpen(p,null); return; }
+   window._rdDocs=d.docs||null; window._rdPartner=p;
+   if(document.querySelector("#rdBanner")) return;
+   var b='<div id="rdBanner" style="border:2px solid #c8d3dc;border-radius:12px;padding:8px 10px;margin:0 0 10px;font-size:13px">';
+   if(d.docs){
+    b+='<b>Vehicle documents</b> ('+E(d.docs.vehicle_no)+')<br>Permit: '+E(d.docs.permit_expiry)+' ('+left(d.docs.permit_expiry)+') &middot; Insurance: '+E(d.docs.ins_expiry)+' ('+left(d.docs.ins_expiry)+')'+
+     '<div class="actions" style="margin-top:6px"><button onclick="tcRegDocsOpen(window._rdPartner,window._rdDocs)">Update documents</button></div>';
+   } else if(p.verified){
+    b+='<b>Add your vehicle documents</b><br>Upload permit &amp; insurance with their expiry dates - we will remind you before they expire.<br>പെർമിറ്റ്, ഇൻഷുറൻസ് രേഖകളും കാലാവധിയും നൽകൂ - തീരും മുമ്പ് ഓർമ്മിപ്പിക്കാം.'+
+     '<div class="actions" style="margin-top:6px"><button class="primary" onclick="tcRegDocsOpen(window._rdPartner,null)">Add documents</button></div>';
+   } else return;
+   app().insertAdjacentHTML("afterbegin",b+'</div>');
   }catch(e){}
  }
  var oldOpen=window.tcOpenOneBusiness;
