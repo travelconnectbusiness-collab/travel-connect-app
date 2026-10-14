@@ -512,15 +512,27 @@ function tcGenerateNonTaxiQR(){
 }
 
 /* ---------- VEHICLE REGISTRATION (Taxi/Travel Agency only) ---------- */
+/* Seats are stored as TOTAL (passengers + driver). Customer-facing label. */
+function tcSeatLabel(total){
+ const t=parseInt(total,10); if(!(t>=2)) return "";
+ return (t-1)+" passengers + driver ("+t+" seats) - "+(t>7?"Contract Carriage":"Motor Cab");
+}
+function tcSeatPreview(inputId,outId){
+ const el=document.getElementById(outId), p=parseInt((document.getElementById(inputId)||{}).value,10);
+ if(!el) return;
+ el.textContent=(p>=1&&p<=59)?(p+" passengers + driver = "+(p+1)+" seats - "+(p+1>7?"Contract Carriage":"Motor Cab")):"Enter only the passenger seats - the driver is added automatically. Example: Marazzo = 6 passengers + driver = 7 = Motor Cab. 7 passengers + driver = 8 = Contract Carriage.";
+}
 function openAddVehicle(partnerId){
  const isTaxiVehicle=(window._myPartner?.business_type||"taxi_travel")==="taxi_travel";
- const reqPhoto=isTaxiVehicle?" *":" (optional)";
- const optPhoto=" (optional)"; /* RC/Fitness/PUC - date is enough, even for Taxi */
+ const reqPhoto=" *"; /* Front, RC, Insurance and Permit photos are required for every vehicle type */
+ const optPhoto=" (optional)"; /* Fitness/PUC - date is enough */
  modal(`<h2>Add Vehicle</h2>
  <div class="grid">
   <label>Vehicle number<input id="vNoNew" placeholder="e.g. KL 07 AB 1234"></label>
   <label>Category<input id="vCatNew" placeholder="e.g. Sedan, 17 Seat Urbania"></label>
+  ${isTaxiVehicle?`<label>Passenger seats (excluding driver) *<input id="vSeats" type="number" min="1" max="59" placeholder="e.g. 6" oninput="tcSeatPreview('vSeats','vSeatsPrev')"></label>`:""}
  </div>
+ ${isTaxiVehicle?`<p id="vSeatsPrev" class="muted" style="font-size:12px;margin:0 0 6px">Enter only the passenger seats - the driver is added automatically. Example: Marazzo = 6 passengers + driver = 7 = Motor Cab. 7 passengers + driver = 8 = Contract Carriage.</p>`:""}
  <h4>Driver (optional - leave blank if same as RC owner)</h4>
  <div class="grid">
   <label>Driver name<input id="vDriverName"></label>
@@ -530,15 +542,15 @@ function openAddVehicle(partnerId){
   <label>License expiry${tcDateInputHtml("vLicExp","")}</label>
   <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
- <h4>Vehicle documents${isTaxiVehicle?" - Front/Insurance/Permit photos are required; RC/Fitness/PUC just need their expiry date":" - the expiry date is enough; a photo is optional"}</h4>
+ <h4>Vehicle documents - Front, RC, Insurance and Permit photos are required, with the Insurance and Permit expiry dates. Fitness/PUC need only the expiry date.</h4>
  <div class="grid">
   <label>Front photo${reqPhoto} (vehicle number must be clearly visible - shown to customers when they search)<input id="vFrontPhoto" type="file" accept="image/*"></label>
-  <label>RC photo${optPhoto}<input id="vRcPhoto" type="file" accept="image/*"></label>
+  <label>RC photo${reqPhoto}<input id="vRcPhoto" type="file" accept="image/*"></label>
   <label>RC expiry${tcDateInputHtml("vRcExp","")}</label>
   <label>Insurance photo${reqPhoto}<input id="vInsPhoto" type="file" accept="image/*"></label>
-  <label>Insurance expiry${tcDateInputHtml("vInsExp","")}</label>
+  <label>Insurance expiry *${tcDateInputHtml("vInsExp","")}</label>
   <label>Permit photo${reqPhoto}<input id="vPermitPhoto" type="file" accept="image/*"></label>
-  <label>Permit expiry${tcDateInputHtml("vPermitExp","")}</label>
+  <label>Permit expiry *${tcDateInputHtml("vPermitExp","")}</label>
   <label>Fitness photo${optPhoto}<input id="vFitnessPhoto" type="file" accept="image/*"></label>
   <label>Fitness expiry${tcDateInputHtml("vFitnessExp","")}</label>
   <label>PUC photo${optPhoto}<input id="vPucPhoto" type="file" accept="image/*"></label>
@@ -557,25 +569,25 @@ async function submitAddVehicle(partnerId){
   if(r===null){errBox.textContent="Enter dates as DD-MM-YYYY (for example 25-12-2026).";return}
   dateVals[id]=r;
  }
- /* Photo uploads are only required for Taxi/Travel Agency vehicles - for
-    Auto Rickshaw/Pickup-Goods, entering just the document EXPIRY DATES is
-    enough (front photo is still welcome if they want to add it, just not
-    required). Two reasons: R2 storage has a free-tier cap the owner pays
-    past, and an auto driver's documents typically aren't checked as
-    rigorously as a full taxi fleet's - dates alone still let expiry
-    warnings work correctly. */
+ /* Every vehicle (Taxi, Auto, Goods) needs the Front, RC, Insurance and Permit photos plus the
+    Insurance and Permit expiry dates - only vehicles with these complete stay Verified and receive trip alerts. */
  const isTaxiVehicle=(window._myPartner?.business_type||"taxi_travel")==="taxi_travel";
- if(isTaxiVehicle){
-  const requiredPhotos={vFrontPhoto:"Front photo",vInsPhoto:"Insurance photo",vPermitPhoto:"Permit photo"};
-  const missing=Object.entries(requiredPhotos).filter(([elId])=>{
-   const el=document.querySelector("#"+elId);
-   return !(el&&el.files&&el.files[0]);
-  }).map(([,label])=>label);
-  if(missing.length){
-   errBox.textContent="Please upload: "+missing.join(", ")+" - all vehicle documents are required for verification.";
-   return;
-  }
+ const requiredPhotos={vFrontPhoto:"Front photo",vRcPhoto:"RC photo",vInsPhoto:"Insurance photo",vPermitPhoto:"Permit photo"};
+ const missing=Object.entries(requiredPhotos).filter(([elId])=>{
+  const el=document.querySelector("#"+elId);
+  return !(el&&el.files&&el.files[0]);
+ }).map(([,label])=>label);
+ if(missing.length){
+  errBox.textContent="Please upload: "+missing.join(", ")+" - all of these are required.";
+  return;
  }
+ if(!dateVals.vInsExp){errBox.textContent="Enter the Insurance expiry date.";return}
+ if(!dateVals.vPermitExp){errBox.textContent="Enter the Permit expiry date.";return}
+ const todayIso=new Date().toISOString().slice(0,10);
+ if(dateVals.vInsExp<todayIso){errBox.textContent="The Insurance has already expired - renew it first.";return}
+ if(dateVals.vPermitExp<todayIso){errBox.textContent="The Permit has already expired - renew it first.";return}
+ const seatsVal=isTaxiVehicle?parseInt((document.querySelector("#vSeats")||{}).value,10):0;
+ if(isTaxiVehicle&&!(seatsVal>=1&&seatsVal<=59)){errBox.textContent="Enter the passenger seats (excluding the driver) - required.";return}
  const saveBtn=document.querySelector("#vSaveBtn");
  if(saveBtn.disabled) return;
  saveBtn.disabled=true; saveBtn.textContent="Saving...";
@@ -583,6 +595,7 @@ async function submitAddVehicle(partnerId){
  fd.append("partner_id",partnerId);
  fd.append("vehicle_number",no);
  fd.append("category",document.querySelector("#vCatNew").value);
+ if(seatsVal>0) fd.append("passenger_seats",seatsVal);
  fd.append("driver_name",document.querySelector("#vDriverName").value);
  fd.append("driver_mobile1",document.querySelector("#vDriverMobile1").value);
  fd.append("driver_mobile2",document.querySelector("#vDriverMobile2").value);
@@ -628,7 +641,7 @@ async function loadMyVehicles(partnerId){
    let hours={};
    try{ hours=JSON.parse(v.business_hours||"{}"); }catch(e){}
    return `<div class="listitem">
-   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
+   <b>${esc(v.vehicle_number)}</b> ${esc(v.category||"")} ${v.seats?'<span class="chip">'+esc(tcSeatLabel(v.seats))+'</span>':'<span class="chip" style="background:#fde8e8">Seats missing - tap Edit</span>'} ${v.verified?'<span class="ok">Verified</span>':'<span class="muted">Pending verification</span>'}<br>
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
    <div class="actions" style="margin-top:4px"><button onclick="tcOpenEditVehicle(${v.id})">Edit Vehicle / Documents</button></div>
@@ -658,6 +671,7 @@ function tcOpenEditVehicle(vehicleId){
  <div class="grid">
   <label>Vehicle number<input id="evNo" value="${esc(v.vehicle_number||"")}"></label>
   <label>Category<input id="evCat" value="${esc(v.category||"")}"></label>
+  <label>Passenger seats (excluding driver)${(window._myPartner?.business_type||"taxi_travel")==="taxi_travel"?" *":""}<input id="evSeats" type="number" min="1" max="59" value="${v.seats>1?esc(v.seats-1):""}" placeholder="e.g. 6" oninput="tcSeatPreview('evSeats','evSeatsPrev')"></label>
  </div>
  <h4>Driver</h4>
  <div class="grid">
@@ -702,6 +716,11 @@ async function tcSubmitEditVehicle(vehicleId){
  fd.append("vehicle_id",vehicleId);
  fd.append("mobile",user.mobile);
  fd.append("category",document.querySelector("#evCat").value);
+ const evSeats=parseInt(document.querySelector("#evSeats").value,10);
+ if((window._myPartner?.business_type||"taxi_travel")==="taxi_travel"&&!(evSeats>=1&&evSeats<=59)){
+  errBox.textContent="Enter the passenger seats (excluding the driver) - required.";
+  saveBtn.disabled=false; saveBtn.textContent="Save Changes";return}
+ if(evSeats>0) fd.append("passenger_seats",evSeats);
  fd.append("driver_name",document.querySelector("#evDriverName").value);
  fd.append("driver_mobile1",document.querySelector("#evDriverMobile1").value);
  fd.append("driver_mobile2",document.querySelector("#evDriverMobile2").value);
@@ -1041,7 +1060,7 @@ function tcRenderActiveBoardList(vehicles,append){
   <div class="row">
    ${v.front_photo_key?`<img src="/api/vehicles?action=public_front_photo&vehicle_id=${v.id}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">`:""}
    <div>
-    <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span><br>
+    <b>${esc(v.category||"Vehicle")}</b>${v.vehicle_number?" - "+esc(v.vehicle_number):""} <span class="ok">&#9679; Active</span> <span class="chip">${esc(tcBizLabel(v.business_type))}</span>${v.seats?` <span class="chip">${esc(tcSeatLabel(v.seats))}</span>`:""}<br>
     ${tcListNameHtml(v)}${shownLocation?` &bull; ${esc(shownLocation)}${v.temp_location?' <span class="ok">(currently here)</span>':" "+esc(v.pincode||"")}`:""}
    </div>
   </div>
