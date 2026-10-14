@@ -20,6 +20,7 @@
 
 import { sendWebPush } from "./_webpush.js";
 import { verifyAdminToken } from "./_auth_helper.js";
+import { eligiblePartners, partnerMatches, VCLASSES } from "./trip_class.js";
 
 const RADIUS_KM = 15; // straight-line pre-filter only, not what's shown
 const ALERT_LIFETIME_MINUTES = 10;
@@ -74,6 +75,7 @@ async function ensure(env) {
      attempted and the harmless "already exists" error is swallowed. */
   for (const stmt of [
     "ALTER TABLE trip_alerts ADD COLUMN destinations TEXT",
+    "ALTER TABLE trip_alerts ADD COLUMN vclass TEXT",
     "ALTER TABLE trip_alerts ADD COLUMN accepted_distance_km REAL",
     "ALTER TABLE trip_alerts ADD COLUMN accepted_duration_min REAL",
     /* current_lat/current_lon/current_location_at on travel_partners are
@@ -257,10 +259,9 @@ export async function onRequestPost({ request, env, ctx }) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ALERT_LIFETIME_MINUTES * 60000).toISOString();
 
-    const partnersRes = await env.DB
-      .prepare("SELECT id, business_name, mobile1, mobile2, plan, plan_expires_at, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1")
-      .bind(businessType)
-      .all();
+    /* Travel Agency / Motor Cab / Contract Carriage / Auto / Goods - see trip_class.js */
+    const vclass = VCLASSES.includes(body.vclass) && businessType === "taxi_travel" ? body.vclass : null;
+    const partnersRes = { results: await eligiblePartners(env, businessType, vclass) };
     /* The person asking is never alerted about their own request - e.g. a
        business owner who taps "Nearby Vehicles" because they need another
        vehicle must not get the enquiry on their own phone. Compared by the
@@ -279,8 +280,8 @@ export async function onRequestPost({ request, env, ctx }) {
 
     const result = await env.DB
       .prepare(
-        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at)
-         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?)`
+        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at, vclass)
+         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?)`
       )
       .bind(
         businessType,
@@ -293,7 +294,8 @@ export async function onRequestPost({ request, env, ctx }) {
         (body.message || "").trim(),
         candidates.length,
         now.toISOString(),
-        expiresAt
+        expiresAt,
+        vclass
       )
       .run();
     const alertId = result.meta.last_row_id;
@@ -343,6 +345,9 @@ export async function onRequestPost({ request, env, ctx }) {
     alert = await expireIfDue(env, alert);
     if (alert.status !== "open") {
       return Response.json({ ok: true, accepted: false, reason: alert.status === "accepted" ? "already_taken" : "expired" });
+    }
+    if (alert.vclass && !(await partnerMatches(env, partnerId, alert.business_type, alert.vclass))) {
+      return Response.json({ ok: false, error: "not_eligible" }, { status: 403 });
     }
 
     const candidate = await env.DB.prepare("SELECT distance_km, duration_min FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(alertId, partnerId).first();
@@ -451,6 +456,8 @@ export async function onRequestGet({ request, env }) {
       }
       /* never show a business its own request */
       if (l10(a.customer_mobile) && (l10(a.customer_mobile) === l10(partner.mobile1) || l10(a.customer_mobile) === l10(partner.mobile2))) continue;
+      /* Cab / Carriage alerts only for businesses that really have a matching verified vehicle */
+      if (a.vclass && !(await partnerMatches(env, partnerId, a.business_type, a.vclass))) continue;
       const candidate = await env.DB.prepare("SELECT distance_km, duration_min FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
       const { customer_mobile: _hidden, ...aSafe } = a; /* number only revealed after Accept */
       open.push({
@@ -557,7 +564,7 @@ export async function onRequestGet({ request, env }) {
     if (!mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     const { results } = await env.DB
       .prepare(
-        `SELECT ta.id, ta.business_type, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
+        `SELECT ta.id, ta.business_type, ta.vclass, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
                 ta.accepted_partner_id, ta.accepted_distance_km, ta.accepted_duration_min, p.business_name AS accepted_business_name, p.mobile1 AS accepted_mobile1
          FROM trip_alerts ta
          LEFT JOIN travel_partners p ON p.id = ta.accepted_partner_id
