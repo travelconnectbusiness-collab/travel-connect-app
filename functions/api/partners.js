@@ -428,7 +428,7 @@ export async function onRequestPost({ request, env }) {
         if (!listed) {
           let ok = false;
           try {
-            const { results } = await env.DB.prepare("SELECT * FROM vehicles WHERE partner_id=?").bind(part.id).all();
+            const { results } = await env.DB.prepare("SELECT v.*, ? AS business_type FROM vehicles v WHERE v.partner_id=?").bind(part.business_type, part.id).all();
             ok = results.some((v) => isComplete(v));
           } catch (e) {}
           if (!ok) return Response.json({ ok: false, error: "docs_missing" }, { status: 409 });
