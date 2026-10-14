@@ -1,4 +1,5 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
+import { getFlag } from "./_flags.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -128,7 +129,8 @@ export async function onRequestGet({ request, env }) {
     let authorized = true;
     const isCustomer = row && row.role === "customer";
     const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
-    if (REQUIRE_ALLOWLIST && !isCustomer && allowlistCount && allowlistCount.c > 0) {
+    /* The switch lives in Admin > Authorized Users (stored in the database). When ON, only listed numbers can be business owners. */
+    if ((await getFlag(env, "require_allowlist", REQUIRE_ALLOWLIST)) && !isCustomer) {
       const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
       authorized = !!allowed;
     }
@@ -217,15 +219,12 @@ export async function onRequestPost({ request, env }) {
 
     const ownerRow = await env.DB.prepare("SELECT mobile FROM app_owner WHERE id=1").first();
     const isOwner = !!(ownerRow && ownerRow.mobile === mobile);
-    const skipAllowlist = !REQUIRE_ALLOWLIST || isOwner || role === "customer";
+    const skipAllowlist = !(await getFlag(env, "require_allowlist", REQUIRE_ALLOWLIST)) || isOwner || role === "customer";
 
     if (!skipAllowlist) {
-      const allowlistCount = await env.DB.prepare("SELECT COUNT(*) AS c FROM authorized_users").first();
-      if (allowlistCount && allowlistCount.c > 0) {
-        const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
-        if (!allowed) {
-          return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
-        }
+      const allowed = await env.DB.prepare("SELECT 1 FROM authorized_users WHERE mobile=?").bind(mobile).first();
+      if (!allowed) {
+        return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
       }
     }
 
