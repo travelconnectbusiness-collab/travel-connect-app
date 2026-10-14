@@ -52,11 +52,19 @@ function tcToggleCollapsible(id){
    driver of the chosen category within range; whichever one accepts
    first gets it. Backend: functions/api/trip_alerts.js. */
 let _tcTripPollTimer=null;
+function tcTripKindLabel(businessType,vclass){
+ if(businessType==="taxi_travel"&&vclass==="cab") return "Motor Cab (up to 6 passengers + driver)";
+ if(businessType==="taxi_travel"&&vclass==="carriage") return "Contract Carriage (7+ passengers + driver)";
+ if(businessType==="taxi_travel"&&vclass==="agency") return "Travel Agency";
+ return tcBizLabel(businessType);
+}
 function tcOpenTripRequest(){
  modal(`<h2>&#128663; Find Nearby Vehicle</h2>
   <p class="muted">Alerts every Active driver nearby at once. Whoever accepts first gets your trip - you'll see their name and number here.</p>
   <div class="actions" style="flex-direction:column;gap:8px">
-   <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel')">&#128663; Taxi / Travel</button>
+   <button class="primary" style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel','cab')">&#128663; Motor Cab <span style="font-weight:400;font-size:12px">(up to 6 passengers + driver)</span></button>
+   <button style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel','carriage')">&#128652; Contract Carriage <span style="font-weight:400;font-size:12px">(7+ passengers + driver)</span></button>
+   <button style="padding:14px" onclick="tcStartTripBroadcast('taxi_travel','agency')">&#127970; Travel Agency</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('auto_rickshaw')">&#128762; Auto Rickshaw</button>
    <button style="padding:14px" onclick="tcStartTripBroadcast('pickup_goods')">&#128666; Pickup / Goods Carrier</button>
   </div>
@@ -79,7 +87,7 @@ async function tcShowMyRequestHistory(){
   if(!data.history.length){ modal(`<h2>My Past Searches</h2><p class="muted">You haven't searched for a nearby vehicle yet.</p><div class="actions"><button onclick="closeModal()">Close</button></div>`); return; }
   modal(`<h2>&#128203; My Past Searches</h2>
    ${data.history.map(h=>`<div class="listitem">
-    <b>${esc(tcBizLabel(h.business_type))}</b> <span class="muted">${esc(tcFormatDateTime(h.created_at))}</span><br>
+    <b>${esc(tcTripKindLabel(h.business_type,h.vclass))}</b> <span class="muted">${esc(tcFormatDateTime(h.created_at))}</span><br>
     ${h.pickup_text?`<div class="muted">&#128205; ${esc(h.pickup_text)}</div>`:""}
     ${h.destinations&&h.destinations.length?`<div class="muted">&#127919; ${esc(h.destinations.join(" \u2192 "))}</div>`:""}
     <div style="margin-top:3px">${tcTripOutcomeBadge(h.status,h.accepted_business_name)}</div>
@@ -89,7 +97,7 @@ async function tcShowMyRequestHistory(){
    <div class="actions"><button onclick="closeModal()">Close</button></div>`);
  }catch(e){ modal(`<h2>Network error</h2><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
-async function tcStartTripBroadcast(businessType){
+async function tcStartTripBroadcast(businessType,vclass){
  const user=getCurrentUser();
  if(!user) return;
  modal(`<div style="text-align:center;padding:10px 0">
@@ -102,14 +110,14 @@ async function tcStartTripBroadcast(businessType){
   return;
  }
  modal(`<h2>&#128663; Book Your Trip</h2>
-  <p class="muted">Category: <b>${esc(tcBizLabel(businessType))}</b></p>
+  <p class="muted">Category: <b>${esc(tcTripKindLabel(businessType,vclass))}</b></p>
   <label>Pickup landmark (optional, helps drivers find you)<input id="tripPickupText" placeholder="e.g. Near Nadapuram bus stand"></label>
   <div style="font-weight:650;font-size:13px;margin:8px 0 4px">Where are you going? (optional, helps a driver decide)</div>
   <div id="tripDestContainer"></div>
   <div class="actions"><button type="button" onclick="tcAddTripDestField()">+ Add a destination</button></div>
   <label style="margin-top:8px">Short note (optional)<textarea id="tripNote" rows="2" placeholder="e.g. 3 people, one bag"></textarea></label>
   <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#f5f8fa;font-size:11.5px;color:#55666b;line-height:1.5">&#8505;&#65039; The fare is normally charged from the vehicle's own starting point (garage) &mdash; not just your pickup point &mdash; and includes its return back there after the trip. The driver will confirm the exact fare with you.</div>
-  <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon})">Find a Vehicle</button><button onclick="closeModal()">Cancel</button></div>`);
+  <div class="actions"><button class="primary" onclick="tcSendTripBroadcast('${businessType}',${loc.lat},${loc.lon},'${vclass||""}')">Find a Vehicle</button><button onclick="closeModal()">Cancel</button></div>`);
 }
 function tcAddTripDestField(value=""){
  const c=document.querySelector("#tripDestContainer");
@@ -122,7 +130,7 @@ function tcAddTripDestField(value=""){
 function tcCollectTripDestinations(){
  return Array.from(document.querySelectorAll(".trip-dest-input")).map(i=>i.value.trim()).filter(Boolean);
 }
-async function tcSendTripBroadcast(businessType,lat,lon){
+async function tcSendTripBroadcast(businessType,lat,lon,vclass){
  const user=getCurrentUser();
  if(!user) return;
  const pickupText=document.querySelector("#tripPickupText")?.value.trim()||"";
@@ -131,18 +139,18 @@ async function tcSendTripBroadcast(businessType,lat,lon){
  modal(`<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>`);
  try{
   const res=await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-   action:"broadcast",business_type:businessType,customer_name:user.name,customer_mobile:user.mobile,lat,lon,pickup_text:pickupText,destinations,message:note})});
+   action:"broadcast",business_type:businessType,vclass:vclass||null,customer_name:user.name,customer_mobile:user.mobile,lat,lon,pickup_text:pickupText,destinations,message:note})});
   const data=await res.json();
   if(!data.ok){ modal(`<h2>Could not send</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); return; }
-  tcShowTripWaiting(data.alert_id,data.notified_count,businessType);
+  tcShowTripWaiting(data.alert_id,data.notified_count,businessType,vclass);
  }catch(e){ modal(`<h2>Network error</h2><p class="muted">Please check your connection and try again.</p><div class="actions"><button onclick="closeModal()">OK</button></div>`); }
 }
-function tcShowTripWaiting(alertId,notifiedCount,businessType){
+function tcShowTripWaiting(alertId,notifiedCount,businessType,vclass){
  window._tcActiveTripAlertId=alertId;
  modal(`<div style="text-align:center;padding:6px 0">
   <div class="spinner" style="margin:0 auto 10px"></div>
   <h2 style="margin:4px 0">Waiting for a driver...</h2>
-  <p class="muted">${notifiedCount>0?notifiedCount+" nearby "+esc(tcBizLabel(businessType))+(notifiedCount>1?" drivers":" driver")+" notified.":"No drivers are currently Active nearby for this category."}</p>
+  <p class="muted">${notifiedCount>0?notifiedCount+" nearby "+esc(tcTripKindLabel(businessType,vclass))+(notifiedCount>1?" drivers":" driver")+" notified.":"No drivers are currently Active nearby for this category."}</p>
   <div id="tripWaitStatus" class="muted" style="font-size:12.5px;min-height:18px"></div>
   <div class="actions" style="margin-top:10px"><button onclick="tcCancelTripRequest(${alertId})">Cancel Search</button></div>
  </div>`);
