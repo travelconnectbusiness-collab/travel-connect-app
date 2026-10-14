@@ -27,7 +27,7 @@ async function ownerAuth(env, partnerId, mobile, device) {
 }
 async function vehiclesOf(env, partnerId) {
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
-  return ((await env.DB.prepare("SELECT * FROM vehicles WHERE partner_id=? ORDER BY id").bind(partnerId).all()).results) || [];
+  return ((await env.DB.prepare("SELECT v.*, (SELECT business_type FROM travel_partners WHERE id=v.partner_id) AS business_type FROM vehicles v WHERE v.partner_id=? ORDER BY v.id").bind(partnerId).all()).results) || [];
 }
 
 export async function onRequestGet({ request, env }) {
