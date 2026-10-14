@@ -15,6 +15,7 @@ import { onRequestGet as tripAlertsGet, onRequestPost as tripAlertsPost } from "
 import { onRequestPost as backupPost } from "./functions/api/backup.js";
 import { onRequestGet as upgradeGet, onRequestPost as upgradePost } from "./functions/api/upgrade.js";
 import { onRequestGet as regdocsGet, onRequestPost as regdocsPost } from "./functions/api/regdocs.js";
+import { maybeRunExpirySweep } from "./functions/api/docs_expiry.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -135,6 +136,7 @@ export default {
           },
         });
       }
+      if (ctx && ctx.waitUntil) ctx.waitUntil(maybeRunExpirySweep(env)); /* daily permit/insurance date check */
       const apiRes = await handleApi(request, env, url, ctx);
       if (apiRes) {
         const withCors = new Response(apiRes.body, apiRes);
