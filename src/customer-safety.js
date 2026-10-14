@@ -1015,6 +1015,8 @@ async function tcRenderAuthorizedUsers(){
  app().innerHTML=card("Authorized Users",`<p class="muted">Only mobile numbers listed here can log in as a Business Owner. Each number can also be limited to specific business categories - leave a number's categories empty to allow it to register as any category.</p>
  <div class="grid"><label>Mobile number<input id="auMobile"></label><label>Name/Label (optional)<input id="auLabel" placeholder="e.g. Driver Rajan"></label></div>
  <div class="actions"><button class="primary" onclick="tcAddAuthorized()">Add Number</button></div>
+ <div class="actions"><button onclick="tcConfirmAllRegistered()">Lock all to their registered categories</button></div>
+ <p class="muted" style="font-size:12px">Each number shows the category it has actually registered. Nothing is locked until you tap "Lock" (per number) or "Lock all" - after that it can register only in the categories you confirmed.</p>
  <div id="auList">Loading...</div>`);
  tcLoadAuthorized();
 }
@@ -1025,6 +1027,7 @@ async function tcLoadAuthorized(){
   const res=await fetch("/api/authorized?action=list&token="+encodeURIComponent(adminToken()));
   const data=await res.json();
   const users=data.ok?data.users:[];
+  window._auReg={}; users.forEach(u=>{window._auReg[u.mobile]=u.registered||[]});
   if(!users.length){ box.innerHTML="<p class='muted'>No authorized numbers yet.</p>"; return; }
   box.innerHTML=users.map(u=>`<div class="listitem">
    <b>${esc(u.mobile)}</b>${u.name?" - "+esc(u.name):""}
@@ -1046,9 +1049,26 @@ async function tcLoadCategoriesFor(mobile){
   const res=await fetch("/api/authorized?action=list_categories&mobile="+encodeURIComponent(mobile));
   const data=await res.json();
   const cats=(data.ok&&data.categories)?data.categories:[];
-  if(!cats.length){ box.innerHTML="No category limit set - can register as any business type."; return; }
-  box.innerHTML="Allowed categories: "+cats.map(c=>`<span style="display:inline-block;background:#e8f5f4;border-radius:12px;padding:2px 8px;margin:2px;font-size:11px">${esc(tcBizLabel(c))} <a href="#" onclick="tcRemoveCategoryFor('${esc(mobile)}','${esc(c)}');return false" style="color:#a12d2d;text-decoration:none">&times;</a></span>`).join("");
+  const reg=((window._auReg||{})[mobile]||[]);
+  const sug=reg.filter(r=>!cats.includes(r));
+  const sugHtml=sug.length?`<div style="margin-top:4px">Registered as: <b>${sug.map(r=>esc(tcBizLabel(r))).join(", ")}</b> <button style="padding:2px 8px;font-size:12px" onclick="tcConfirmRegistered('${esc(mobile)}')">Lock to this</button></div>`:"";
+  if(!cats.length){ box.innerHTML="No category limit set - can register as any business type."+sugHtml; return; }
+  box.innerHTML="Allowed categories: "+cats.map(c=>`<span style="display:inline-block;background:#e8f5f4;border-radius:12px;padding:2px 8px;margin:2px;font-size:11px">${esc(tcBizLabel(c))} <a href="#" onclick="tcRemoveCategoryFor('${esc(mobile)}','${esc(c)}');return false" style="color:#a12d2d;text-decoration:none">&times;</a></span>`).join("")+sugHtml;
  }catch(e){ box.innerHTML=""; }
+}
+async function tcConfirmRegistered(mobile){
+ if(!confirm("Lock "+mobile+" to the category it has registered?")) return;
+ try{
+  await fetch("/api/authorized",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"confirm_registered",mobile,token:adminToken()})});
+  toast("Category locked"); tcLoadCategoriesFor(mobile);
+ }catch(e){ toast("Network error"); }
+}
+async function tcConfirmAllRegistered(){
+ if(!confirm("Lock every number that has no category yet to the category it has registered?")) return;
+ try{
+  const r=await fetch("/api/authorized",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"confirm_all_registered",token:adminToken()})});
+  const d=await r.json(); toast(d.ok?("Locked "+d.numbers+" numbers"):"Failed"); tcLoadAuthorized();
+ }catch(e){ toast("Network error"); }
 }
 async function tcAddCategoryFor(mobile){
  const safeId=mobile.replace(/[^0-9a-zA-Z]/g,"");
