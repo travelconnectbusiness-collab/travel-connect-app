@@ -1,5 +1,6 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { getFlag } from "./_flags.js";
+import { isComplete } from "./trip_class.js";
 
 /* Must match the keys of TC_BUSINESS_TYPES in core.js exactly - used to
    tell a known, fixed category apart from free-typed "Other" text (see
@@ -421,13 +422,16 @@ export async function onRequestPost({ request, env }) {
         await env.DB.prepare("UPDATE travel_partners SET business_type=? WHERE id=?").bind(newType, part.id).run();
         part.business_type = newType;
       }
-      /* Vehicle owners not on the Authorized list must have uploaded their documents first (admin can force). */
-      if (!body.force && ["taxi_travel", "auto_rickshaw", "pickup_goods"].includes(part.business_type || "taxi_travel")) {
+      /* Auto / Goods owners not on the Authorized list need a vehicle with complete documents before approval (admin can force). */
+      if (!body.force && ["auto_rickshaw", "pickup_goods"].includes(part.business_type)) {
         const listed = await env.DB.prepare("SELECT 1 AS x FROM authorized_users WHERE mobile=?").bind(part.mobile1).first();
         if (!listed) {
-          let has = null;
-          try { has = await env.DB.prepare("SELECT 1 AS x FROM reg_docs WHERE partner_id=?").bind(part.id).first(); } catch (e) {}
-          if (!has) return Response.json({ ok: false, error: "docs_missing" }, { status: 409 });
+          let ok = false;
+          try {
+            const { results } = await env.DB.prepare("SELECT * FROM vehicles WHERE partner_id=?").bind(part.id).all();
+            ok = results.some((v) => isComplete(v));
+          } catch (e) {}
+          if (!ok) return Response.json({ ok: false, error: "docs_missing" }, { status: 409 });
         }
       }
     }
