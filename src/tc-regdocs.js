@@ -75,7 +75,7 @@
     if(isVeh){
      dh='<div style="margin-top:6px;font-size:13px"><b>Vehicles ('+vs.length+')</b>'+(vs.length?"":' <span style="color:#a12d2d">none added yet</span>');
      vs.forEach(function(v){
-      dh+='<div style="margin:4px 0;padding:4px 6px;border:1px solid #dde;border-radius:8px"><b>'+E(v.vehicle_number)+'</b> '+E(v.category||"")+(v.seats?' &middot; '+(v.seats-1)+' passengers + driver ('+v.seats+' seats, '+VC[v.vclass]+')':'')+' '+(v.verified?'<span class="ok">Verified</span>':'<span class="muted">pending</span>')+
+      dh+='<div style="margin:4px 0;padding:4px 6px;border:1px solid #dde;border-radius:8px"><b>'+E(v.vehicle_number)+'</b> '+E(v.category||"")+(v.seats&&(p.business_type||'taxi_travel')==='taxi_travel'?' &middot; '+(v.seats-1)+' passengers + driver ('+v.seats+' seats, '+VC[v.vclass]+')':'')+' '+(v.verified?'<span class="ok">Verified</span>':'<span class="muted">pending</span>')+
        '<br>Permit: '+E(v.permit_expiry||"-")+(v.permit_expiry?' ('+dleft(v.permit_expiry)+')':'')+' &middot; Insurance: '+E(v.insurance_expiry||"-")+(v.insurance_expiry?' ('+dleft(v.insurance_expiry)+')':'')+
        (v.missing.length?'<br><span style="color:#a12d2d">Missing: '+E(v.missing.join(", "))+'</span>':'<br><span style="color:#1b7a2f">Documents complete</span>')+
        '<div>'+Object.keys(v.keys).filter(function(k){return v.keys[k];}).map(function(k){ return '<a href="/api/vehicles?action=file&key='+encodeURIComponent(v.keys[k])+'&token='+t+'" target="_blank" style="margin-right:8px">'+k+'</a>'; }).join("")+'</div></div>';
