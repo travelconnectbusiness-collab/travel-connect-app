@@ -1,4 +1,5 @@
 import { verifyAdminToken } from "./_auth_helper.js";
+import { getFlag } from "./_flags.js";
 
 /* Must match the keys of TC_BUSINESS_TYPES in core.js exactly - used to
    tell a known, fixed category apart from free-typed "Other" text (see
@@ -204,6 +205,11 @@ export async function onRequestPost({ request, env }) {
     /* A mobile can register MULTIPLE businesses (each its own row/page), but
        never the SAME category twice - that specific combination is what has
        to stay unique now, not the bare mobile number on its own. */
+    /* When the Authorized Users switch is ON, only listed numbers may register a business. */
+    if (await getFlag(env, "require_allowlist", false)) {
+      const listed = await env.DB.prepare("SELECT 1 AS x FROM authorized_users WHERE mobile=?").bind(mobile1).first();
+      if (!listed) return Response.json({ ok: false, error: "not_authorized" }, { status: 403 });
+    }
     const existing = await env.DB
       .prepare("SELECT id FROM travel_partners WHERE mobile1=? AND business_type=?")
       .bind(mobile1, business_type)
@@ -403,6 +409,27 @@ export async function onRequestPost({ request, env }) {
   if (action === "verify") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    const part = await env.DB.prepare("SELECT id, mobile1, business_type, verified FROM travel_partners WHERE id=?").bind(body.partner_id).first();
+    if (!part) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (body.verified) {
+      /* Admin may fix the category while approving - after this the owner can never change it. */
+      const newType = String(body.business_type || "").trim().slice(0, 60);
+      if (newType && newType !== part.business_type) {
+        const clash = await env.DB.prepare("SELECT id FROM travel_partners WHERE mobile1=? AND business_type=? AND id<>?").bind(part.mobile1, newType, part.id).first();
+        if (clash) return Response.json({ ok: false, error: "category_conflict" }, { status: 409 });
+        await env.DB.prepare("UPDATE travel_partners SET business_type=? WHERE id=?").bind(newType, part.id).run();
+        part.business_type = newType;
+      }
+      /* Vehicle owners not on the Authorized list must have uploaded their documents first (admin can force). */
+      if (!body.force && ["taxi_travel", "auto_rickshaw", "pickup_goods"].includes(part.business_type || "taxi_travel")) {
+        const listed = await env.DB.prepare("SELECT 1 AS x FROM authorized_users WHERE mobile=?").bind(part.mobile1).first();
+        if (!listed) {
+          let has = null;
+          try { has = await env.DB.prepare("SELECT 1 AS x FROM reg_docs WHERE partner_id=?").bind(part.id).first(); } catch (e) {}
+          if (!has) return Response.json({ ok: false, error: "docs_missing" }, { status: 409 });
+        }
+      }
     }
     await env.DB
       .prepare("UPDATE travel_partners SET verified=? WHERE id=?")
