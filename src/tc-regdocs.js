@@ -1,102 +1,36 @@
-/* Vehicle documents + Approve-page category/documents + Authorized-Users switch.
+/* Vehicle-document prompts, Approve-page category + vehicle documents, Authorized-Users switch.
    Loaded last; overrides / wraps older functions by name. */
 (function(){
  var E=function(v){ return typeof esc==="function"?esc(v):String(v==null?"":v); };
  var say=function(m){ try{ toast(m); }catch(e){ alert(m); } };
  var VEH=["taxi_travel","auto_rickshaw","pickup_goods"];
- var MSG={
-  photo_missing:"One of the photos is missing.",image_too_big:"A photo is too big - try again.",
-  vehicle_no_required:"Enter the vehicle number.",permit_date_required:"Enter the permit expiry date.",ins_date_required:"Enter the insurance expiry date.",
-  permit_expired:"The permit has already expired.",ins_expired:"The insurance has already expired.",rc_date_bad:"RC date is not valid.",unauthorized:"Please log in again."
- };
 
- /* ---------- shrink a phone photo so the upload is quick ---------- */
- function shrink(file){
-  return new Promise(function(resolve){
-   if(!file||!file.type||file.type.indexOf("image/")!==0){ resolve(null); return; }
-   var url=URL.createObjectURL(file), img=new Image();
-   img.onload=function(){
-    var s=Math.min(1,1600/Math.max(img.width,img.height)), c=document.createElement("canvas");
-    c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
-    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-    c.toBlob(function(b){ URL.revokeObjectURL(url); resolve(b||file); },"image/jpeg",0.8);
-   };
-   img.onerror=function(){ URL.revokeObjectURL(url); resolve(file); };
-   img.src=url;
-  });
- }
-
- /* ---------- owner: documents page ---------- */
- var SLOTS=[
-  ["front","Vehicle front photo","വാഹനത്തിന്റെ മുൻഭാഗത്തിന്റെ ഫോട്ടോ"],
-  ["rc","RC book photo","ആർസി ബുക്കിന്റെ ഫോട്ടോ"],
-  ["permit","Permit photo","പെർമിറ്റിന്റെ ഫോട്ടോ"],
-  ["ins","Insurance first page photo (shows vehicle number and your address)","ഇൻഷുറൻസിന്റെ ഒന്നാം പേജ് (വണ്ടി നമ്പറും അഡ്രസ്സും കാണണം)"]
- ];
- window.tcRegDocsOpen=function(p,existing){
-  var h='<p class="muted" style="margin-top:0">To finish your registration, upload your vehicle documents. All photos are required.<br>രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ വാഹനത്തിന്റെ രേഖകൾ നൽകണം. എല്ലാ ഫോട്ടോയും നിർബന്ധമാണ്.</p>'+
-   '<label>Vehicle number / വാഹന നമ്പർ<input id="rdVno" placeholder="KL 00 A 0000" value="'+E(existing&&existing.vehicle_no||"")+'" autocapitalize="characters"></label>';
-  SLOTS.forEach(function(s){
-   h+='<label style="display:block;margin-top:10px"><b>'+s[1]+'</b><br><span class="muted">'+s[2]+'</span>'+
-    '<input type="file" accept="image/*" id="rd_'+s[0]+'" onchange="tcRegDocsPreview(\''+s[0]+'\')">'+
-    '<img id="rdp_'+s[0]+'" style="display:none;max-width:100%;max-height:160px;margin-top:6px;border-radius:8px;border:1px solid #ccd"></label>';
-   if(s[0]==="rc") h+='<label>RC date (optional) / ആർസി തീയതി (ഓപ്ഷണൽ)<input type="date" id="rdRcDate" value="'+E(existing&&existing.rc_date||"")+'"></label>';
-   if(s[0]==="permit") h+='<label>Permit expiry date * / പെർമിറ്റ് കാലാവധി തീരുന്ന തീയതി<input type="date" id="rdPermitDate"></label>';
-   if(s[0]==="ins") h+='<label>Insurance expiry date * / ഇൻഷുറൻസ് കാലാവധി തീരുന്ന തീയതി<input type="date" id="rdInsDate"></label>';
-  });
-  window._rdHasOld=!!existing;
-  h+='<div class="actions" style="margin-top:12px"><button class="primary" id="rdSend" onclick="tcRegDocsSubmit('+p.id+')">Submit documents</button>'+(existing?'<button onclick="partnerView()">Cancel</button>':'')+'</div><div id="rdErr" class="danger"></div>';
-  if(existing) h='<p class="muted" style="margin-top:0">Photos are optional now - add only the ones that changed. Enter the new expiry dates.<br>മാറ്റമുള്ള ഫോട്ടോകൾ മാത്രം നൽകിയാൽ മതി. പുതിയ കാലാവധി തീയതികൾ നൽകുക.</p>'+h;
-  app().innerHTML=card("Vehicle documents / വാഹന രേഖകൾ",h);
-  if(existing){ var pd=document.querySelector("#rdPermitDate"), idd=document.querySelector("#rdInsDate"); if(pd) pd.value=existing.permit_expiry||""; if(idd) idd.value=existing.ins_expiry||""; }
- };
- window.tcRegDocsPreview=function(k){
-  var f=document.querySelector("#rd_"+k).files[0], im=document.querySelector("#rdp_"+k);
-  if(f){ im.src=URL.createObjectURL(f); im.style.display=""; }
- };
- window.tcRegDocsSubmit=async function(pid){
-  var err=document.querySelector("#rdErr"), btn=document.querySelector("#rdSend");
-  err.textContent="";
-  var u=getCurrentUser(); if(!u){ renderLogin(); return; }
-  var vno=document.querySelector("#rdVno").value.trim();
-  if(vno.length<4){ err.textContent=MSG.vehicle_no_required; return; }
-  var haveOld=!!window._rdHasOld;
-  for(var i=0;i<SLOTS.length;i++){ if(!document.querySelector("#rd_"+SLOTS[i][0]).files[0]&&!haveOld){ err.textContent="Add the photo: "+SLOTS[i][1]; return; } }
-  var pd=document.querySelector("#rdPermitDate").value, idt=document.querySelector("#rdInsDate").value;
-  if(!pd){ err.textContent=MSG.permit_date_required; return; }
-  if(!idt){ err.textContent=MSG.ins_date_required; return; }
-  btn.disabled=true; btn.textContent="Uploading...";
+ /* ---------- owner: what is missing on my vehicles? ---------- */
+ function dleft(s){ var n=Math.round((new Date(s+"T00:00:00")-new Date(new Date().toDateString()))/86400000); return n<0?'<b style="color:#b00">expired</b>':(n<=30?'<b style="color:#c60">'+n+' days left</b>':n+' days left'); }
+ window.tcFixVehicleDocs=async function(partnerId,vehicleId){
   try{
-   var fd=new FormData();
-   fd.set("action","submit"); fd.set("partner_id",pid); fd.set("mobile",u.mobile); fd.set("device_token",getDeviceToken());
-   fd.set("vehicle_no",vno); fd.set("rc_date",document.querySelector("#rdRcDate").value); fd.set("permit_expiry",pd); fd.set("ins_expiry",idt);
-   for(var j=0;j<SLOTS.length;j++){
-    var f=document.querySelector("#rd_"+SLOTS[j][0]).files[0];
-    if(f){ var b=await shrink(f); fd.set(SLOTS[j][0],b,SLOTS[j][0]+".jpg"); }
-   }
-   var r=await fetch("/api/regdocs",{method:"POST",body:fd}), d=await r.json();
-   if(!d.ok){ err.textContent=MSG[d.error]||("Could not upload ("+(d.error||"error")+")"); btn.disabled=false; btn.textContent="Submit documents"; return; }
-   say("Documents submitted - waiting for admin approval"); partnerView();
-  }catch(e){ err.textContent="Network error - try again."; btn.disabled=false; btn.textContent="Submit documents"; }
+   var d=await (await fetch("/api/vehicles?action=list&partner_id="+encodeURIComponent(partnerId))).json();
+   window._myVehicles=d.vehicles||[];
+   if(vehicleId) tcOpenEditVehicle(vehicleId); else openAddVehicle(partnerId);
+  }catch(e){ say("Network error"); }
  };
- function left(d){ if(!d) return ""; var n=Math.round((new Date(d+"T00:00:00")-new Date(new Date().toDateString()))/86400000); return n<0?'<b style="color:#b00">expired</b>':(n<=30?'<b style="color:#c60">'+n+' days left</b>':n+' days left'); }
  async function check(p){
   if(!p||VEH.indexOf(p.business_type||"taxi_travel")<0) return;
   var u=getCurrentUser(); if(!u) return;
   try{
    var r=await fetch("/api/regdocs?action=status&partner_id="+encodeURIComponent(p.id)+"&mobile="+encodeURIComponent(u.mobile)+"&device="+encodeURIComponent(getDeviceToken()));
    var d=await r.json(); if(!d.ok) return;
-   if(d.required&&!d.submitted){ tcRegDocsOpen(p,null); return; }
-   window._rdDocs=d.docs||null; window._rdPartner=p;
+   if(d.required&&!d.vehicles.length){
+    app().innerHTML=card("Add your vehicle / വാഹനം ചേർക്കൂ",'<p>To finish your registration, add your vehicle with its documents: front photo, RC photo, insurance photo and expiry date, permit photo and expiry date.</p><p class="muted">രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ വാഹനവും രേഖകളും ചേർക്കണം: മുൻവശത്തെ ഫോട്ടോ, RC ഫോട്ടോ, ഇൻഷുറൻസ് ഫോട്ടോയും തീയതിയും, പെർമിറ്റ് ഫോട്ടോയും തീയതിയും.</p><div class="actions"><button class="primary" onclick="tcFixVehicleDocs('+p.id+')">Add vehicle</button></div>');
+    return;
+   }
+   var bad=d.vehicles.filter(function(v){ return v.missing.length; });
+   var none=!d.vehicles.length&&p.business_type!=="taxi_travel";
+   if(!bad.length&&!none) return;
    if(document.querySelector("#rdBanner")) return;
-   var b='<div id="rdBanner" style="border:2px solid #c8d3dc;border-radius:12px;padding:8px 10px;margin:0 0 10px;font-size:13px">';
-   if(d.docs){
-    b+='<b>Vehicle documents</b> ('+E(d.docs.vehicle_no)+')<br>Permit: '+E(d.docs.permit_expiry)+' ('+left(d.docs.permit_expiry)+') &middot; Insurance: '+E(d.docs.ins_expiry)+' ('+left(d.docs.ins_expiry)+')'+
-     '<div class="actions" style="margin-top:6px"><button onclick="tcRegDocsOpen(window._rdPartner,window._rdDocs)">Update documents</button></div>';
-   } else if(p.verified){
-    b+='<b>Add your vehicle documents</b><br>Upload permit &amp; insurance with their expiry dates - we will remind you before they expire.<br>പെർമിറ്റ്, ഇൻഷുറൻസ് രേഖകളും കാലാവധിയും നൽകൂ - തീരും മുമ്പ് ഓർമ്മിപ്പിക്കാം.'+
-     '<div class="actions" style="margin-top:6px"><button class="primary" onclick="tcRegDocsOpen(window._rdPartner,null)">Add documents</button></div>';
-   } else return;
+   var b='<div id="rdBanner" style="border:2px solid #e0a526;background:#fff8e6;border-radius:12px;padding:8px 10px;margin:0 0 10px;font-size:13px"><b>Complete your vehicle documents</b><br>From '+E(d.enforce_date)+' only vehicles with all documents stay Verified and get trip alerts. / '+E(d.enforce_date)+' മുതൽ രേഖകൾ പൂർണ്ണമായ വാഹനങ്ങൾക്ക് മാത്രമേ Verified, ട്രിപ്പ് അലേർട്ട് ലഭിക്കൂ.';
+   bad.forEach(function(v){ b+='<div style="margin-top:6px"><b>'+E(v.vehicle_number)+'</b>: '+E(v.missing.join(", "))+' <button onclick="tcFixVehicleDocs('+p.id+','+v.id+')">Complete</button></div>'; });
+   if(none) b+='<div style="margin-top:6px">No vehicle added yet. <button class="primary" onclick="tcFixVehicleDocs('+p.id+')">Add vehicle</button></div>';
    app().insertAdjacentHTML("afterbegin",b+'</div>');
   }catch(e){}
  }
@@ -115,31 +49,38 @@
   return r;
  };
 
- /* ---------- admin: Pending Approvals with category + documents ---------- */
+
+ /* ---------- admin: Pending Approvals with category + vehicle documents ---------- */
  function typeOptions(cur){
   var keys=Object.keys(TC_BUSINESS_TYPES), h="";
   if(keys.indexOf(cur)<0&&cur) h+='<option value="'+E(cur)+'" selected>'+E(cur)+'</option>';
   keys.forEach(function(k){ h+='<option value="'+k+'"'+(k===cur?" selected":"")+'>'+E(TC_BUSINESS_TYPES[k])+'</option>'; });
   return h;
  }
- function dayLeft(s){ if(!s) return ""; var d=Math.ceil((new Date(s+"T23:59:59")-new Date())/86400000); return d<0?'<b style="color:#b00">expired</b>':(d<=30?'<b style="color:#c60">'+d+' days left</b>':d+" days left"); }
+ var VC={cab:"Motor Cab",carriage:"Contract Carriage"};
  window.tcLoadPendingPartners=async function(){
   var box=document.querySelector("#tcPendingPartners"); if(!box) return;
   try{
    var res=await fetch("/api/partners?action=pending&token="+encodeURIComponent(adminToken())), data=await res.json();
    if(!data.ok){ box.innerHTML="<p class='danger'>Could not load.</p>"; return; }
    if(!data.partners.length){ box.innerHTML="<p class='muted'>No pending partner registrations.</p>"; return; }
-   var docs={};
+   var sums={};
    await Promise.all(data.partners.map(function(p){
     if(VEH.indexOf(p.business_type||"taxi_travel")<0) return null;
-    return fetch("/api/regdocs?action=get&partner_id="+p.id+"&token="+encodeURIComponent(adminToken())).then(function(r){return r.json();}).then(function(d){ docs[p.id]=d.ok?d.docs:null; }).catch(function(){});
+    return fetch("/api/regdocs?action=admin_summary&partner_id="+p.id+"&token="+encodeURIComponent(adminToken())).then(function(r){return r.json();}).then(function(d){ sums[p.id]=d.ok?d.vehicles:[]; }).catch(function(){});
    }));
+   var t=encodeURIComponent(adminToken());
    box.innerHTML=data.partners.map(function(p){
-    var isVeh=VEH.indexOf(p.business_type||"taxi_travel")>=0, d=docs[p.id], dh="";
+    var isVeh=VEH.indexOf(p.business_type||"taxi_travel")>=0, vs=sums[p.id]||[], dh="";
     if(isVeh){
-     dh=d?'<div style="margin-top:6px;font-size:13px"><b style="color:#1b7a2f">Documents submitted</b> - Vehicle '+E(d.vehicle_no)+'<br>Permit expiry: '+E(d.permit_expiry)+' ('+dayLeft(d.permit_expiry)+') &middot; Insurance expiry: '+E(d.ins_expiry)+' ('+dayLeft(d.ins_expiry)+')'+(d.rc_date?' &middot; RC date: '+E(d.rc_date):'')+
-      '<div><button onclick="tcApViewDocs('+p.id+')">View photos</button></div><div id="apImgs'+p.id+'"></div></div>'
-      :'<div style="margin-top:6px;font-size:13px;color:#a12d2d"><b>Documents not submitted yet</b> (needed if the number is not on the Authorized list)</div>';
+     dh='<div style="margin-top:6px;font-size:13px"><b>Vehicles ('+vs.length+')</b>'+(vs.length?"":' <span style="color:#a12d2d">none added yet</span>');
+     vs.forEach(function(v){
+      dh+='<div style="margin:4px 0;padding:4px 6px;border:1px solid #dde;border-radius:8px"><b>'+E(v.vehicle_number)+'</b> '+E(v.category||"")+(v.seats?' &middot; '+(v.seats-1)+' passengers + driver ('+v.seats+' seats, '+VC[v.vclass]+')':'')+' '+(v.verified?'<span class="ok">Verified</span>':'<span class="muted">pending</span>')+
+       '<br>Permit: '+E(v.permit_expiry||"-")+(v.permit_expiry?' ('+dleft(v.permit_expiry)+')':'')+' &middot; Insurance: '+E(v.insurance_expiry||"-")+(v.insurance_expiry?' ('+dleft(v.insurance_expiry)+')':'')+
+       (v.missing.length?'<br><span style="color:#a12d2d">Missing: '+E(v.missing.join(", "))+'</span>':'<br><span style="color:#1b7a2f">Documents complete</span>')+
+       '<div>'+Object.keys(v.keys).filter(function(k){return v.keys[k];}).map(function(k){ return '<a href="/api/vehicles?action=file&key='+encodeURIComponent(v.keys[k])+'&token='+t+'" target="_blank" style="margin-right:8px">'+k+'</a>'; }).join("")+'</div></div>';
+     });
+     dh+='<div class="muted" style="font-size:11.5px">Approve the vehicles under Pending Vehicles below.</div></div>';
     }
     return '<div class="listitem"><b>'+E(p.business_name)+'</b> <span class="muted">'+E(tcBizDisplayLabel(p.business_type,p.business_subtype))+'</span><br>'+
      '<span class="muted">'+E(p.owner_name)+' - '+E(p.mobile1)+(p.location?' - '+E(p.location):'')+'</span>'+
@@ -149,15 +90,6 @@
    }).join("");
   }catch(e){ box.innerHTML="<p class='danger'>Network error.</p>"; }
  };
- window.tcApViewDocs=async function(id){
-  var box=document.querySelector("#apImgs"+id); if(!box) return;
-  try{
-   var d=(await (await fetch("/api/regdocs?action=get&partner_id="+id+"&token="+encodeURIComponent(adminToken()))).json()).docs; if(!d) return;
-   var t=encodeURIComponent(adminToken());
-   var items=[["Front",d.front_key],["RC book",d.rc_key],["Permit",d.permit_key],["Insurance",d.ins_key]];
-   box.innerHTML=items.map(function(x){ var u="/api/regdocs?action=file&key="+encodeURIComponent(x[1])+"&token="+t; return '<div style="margin-top:6px"><b>'+x[0]+'</b><br><a href="'+u+'" target="_blank"><img src="'+u+'" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #ccd"></a></div>'; }).join("");
-  }catch(e){ say("Could not load photos"); }
- };
  window.tcApprovePartner=async function(id,force){
   var sel=document.querySelector("#apCat"+id), body={action:"verify",partner_id:id,verified:true,token:adminToken()};
   if(sel) body.business_type=sel.value;
@@ -165,7 +97,7 @@
   try{
    var res=await fetch("/api/partners?action=verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}), data=await res.json();
    if(!data.ok){
-    if(data.error==="docs_missing"){ if(confirm("This owner has not uploaded the vehicle documents. Approve anyway?")) return tcApprovePartner(id,true); return; }
+    if(data.error==="docs_missing"){ if(confirm("This owner has no vehicle with complete documents. Approve anyway?")) return tcApprovePartner(id,true); return; }
     if(data.error==="category_conflict"){ say("This number already has a business in that category."); return; }
     say("Could not approve - try again."); return;
    }
