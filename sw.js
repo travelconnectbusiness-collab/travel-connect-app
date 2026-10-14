@@ -1,4 +1,4 @@
-const CACHE="tcp-v4-network-first";
+const CACHE="tcp-v5-network-first";
 /* Only files that actually exist at these paths today. Each one is cached
    on its own and a missing file is ignored - cache.addAll() rejects the
    WHOLE install if even one file 404s (which is exactly what happens when
@@ -77,7 +77,7 @@ self.addEventListener("push",(event)=>{
     body:data.body||"",
     tag:data.tag||"tc-msg",
     icon:"/tc-icon-192.png",
-    badge:"/icon-192.png",
+    badge:"/tc-icon-192.png",
     vibrate:[150,80,150,80,250],
     silent:false,
     data:{type:"message",url:data.url||"/#messages"}
@@ -104,6 +104,8 @@ self.addEventListener("push",(event)=>{
    await self.registration.showNotification(data.title||"\ud83d\ude95 New trip request nearby",{
     body:data.body||"",
     tag:data.tag||"tc-trip",
+    icon:"/tc-icon-192.png",
+    badge:"/tc-icon-192.png",
     renotify:true,
     requireInteraction:true,
     vibrate:[150,80,150,80,150],
@@ -118,6 +120,8 @@ self.addEventListener("push",(event)=>{
    self.registration.showNotification(data.title||"\u2705 A driver accepted your trip",{
     body:data.body||"",
     tag:data.tag||"tc-trip",
+    icon:"/tc-icon-192.png",
+    badge:"/tc-icon-192.png",
     vibrate:[150,80,150],
     data:{type:"trip_alert_accepted",alert_id:data.alert_id,url:"/#trip_alert_"+data.alert_id}
    })
@@ -129,6 +133,8 @@ self.addEventListener("push",(event)=>{
  const options={
   body:data.body||"Needs urgent assistance.",
   tag:"tc-sos",
+  icon:"/tc-icon-192.png",
+  badge:"/tc-icon-192.png",
   renotify:true,
   requireInteraction:true,
   vibrate:[200,100,200,100,200],
