@@ -12,7 +12,16 @@
  function chip(c){ if(!c||!COUNTRY[c]) return ""; var o=COUNTRY[c];
   return '<span style="display:inline-block;background:'+o.bg+';color:'+o.fg+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800;margin-right:6px">'+o.txt+'</span>'; }
  function get(){ return fetch("/api/emergency?action=list").then(function(r){return r.json();}); }
- function post(o){ o.token=adminToken(); return fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}).then(function(r){return r.json();}); }
+ function post(o){ o.token=adminToken(); return fetch("/api/emergency",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}).then(function(r){return r.json();}).then(function(d){
+  if(d&&d.error==="unauthorized"){
+   /* admin session expired: ask for the password again, keep the pasted text */
+   var ta=document.querySelector("#ecBulk"), keep=ta?ta.value:"";
+   sessionStorage.removeItem("tc_admin_token");
+   toast("Admin session expired - enter the password again, then press Import once more");
+   requireAdmin(function(){ tcRenderEmergencyAdmin().then(function(){ var t=document.querySelector("#ecBulk"); if(t) t.value=keep; }); });
+   return {ok:false,error:"session_expired",handled:true};
+  }
+  return d; }); }
 
  /* ---------- customer list ---------- */
  window.tcRenderCustEmergencyContacts=async function(){
@@ -67,7 +76,7 @@
   if(!name||(!phone&&!email)){ toast("Enter a name and a phone or email"); return; }
   try{
    var d=await post({action:ecEditId?"update":"add",id:ecEditId,name:name,number:phone,email:email});
-   if(!d.ok){ toast(d.error==="bad_email"?"Email looks wrong":"Could not save ("+(d.error||"unknown")+")"); return; }
+   if(!d.ok){ if(d.handled) return; toast(d.error==="bad_email"?"Email looks wrong":"Could not save ("+(d.error||"unknown")+")"); return; }
    toast(ecEditId?"Contact updated":"Contact added");
    ecEditId=null; tcRenderEmergencyAdmin();
   }catch(e){ toast("Network error"); }
@@ -114,7 +123,7 @@
    var all={added:0,updated:0,skipped:0,invalid:0};
    for(var i=0;i<rows.length;i+=100){
     var d=await post({action:"bulk_add",rows:rows.slice(i,i+100)});
-    if(!d.ok){ toast("Import failed ("+(d.error||"unknown")+")"); return; }
+    if(!d.ok){ if(!d.handled) toast("Import failed ("+(d.error||"unknown")+")"); return; }
     ["added","updated","skipped","invalid"].forEach(function(k){all[k]+=d[k]||0;});
    }
    toast("Added "+all.added+", updated "+all.updated+", already there "+all.skipped+(all.invalid?", invalid "+all.invalid:""));
