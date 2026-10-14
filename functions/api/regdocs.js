@@ -1,4 +1,5 @@
 import { verifyAdminToken } from "./_auth_helper.js";
+import { runExpirySweep } from "./docs_expiry.js";
 
 /* Vehicle documents for Taxi / Auto / Goods owners who are NOT on the
    Authorized Users list.
@@ -57,8 +58,13 @@ export async function onRequestGet({ request, env }) {
     const p = await ownerAuth(env, url.searchParams.get("partner_id"), url.searchParams.get("mobile"), url.searchParams.get("device"));
     if (!p) return j({ ok: false, error: "unauthorized" }, 403);
     const need = await required(env, p);
-    const d = await env.DB.prepare("SELECT vehicle_no, permit_expiry, ins_expiry FROM reg_docs WHERE partner_id=?").bind(p.id).first();
+    const d = await env.DB.prepare("SELECT vehicle_no, rc_date, permit_expiry, ins_expiry FROM reg_docs WHERE partner_id=?").bind(p.id).first();
     return j({ ok: true, required: need, submitted: !!d, docs: d || null });
+  }
+
+  if (action === "sweep") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) return j({ ok: false, error: "unauthorized" }, 401);
+    return j({ ok: true, ...(await runExpirySweep(env)) });
   }
 
   if (action === "get" || action === "file") {
@@ -122,5 +128,7 @@ export async function onRequestPost({ request, env }) {
      ON CONFLICT(partner_id) DO UPDATE SET vehicle_no=excluded.vehicle_no, front_key=excluded.front_key, rc_key=excluded.rc_key, rc_date=excluded.rc_date,
        permit_key=excluded.permit_key, permit_expiry=excluded.permit_expiry, ins_key=excluded.ins_key, ins_expiry=excluded.ins_expiry, updated_at=excluded.updated_at`
   ).bind(p.id, vehicleNo, keys.front, keys.rc, rcDate || null, keys.permit, permitExp, keys.ins, insExp, now, now).run();
+  /* new dates uploaded: the 30/7/1-day and expired reminders start fresh */
+  try { await env.DB.prepare("DELETE FROM reg_docs_notices WHERE partner_id=?").bind(p.id).run(); } catch (e) {}
   return j({ ok: true });
 }
