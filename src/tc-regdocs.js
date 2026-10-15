@@ -248,7 +248,7 @@
 /* Extra scripts that are loaded from here, so index.html never has to change (bump ?v= when a file changes).
    guard.js also syntax-checks every src/tc-*.js file. */
 (function(){
- ["/src/tc-abuse.js?v=20261015a"].forEach(function(src){
+ ["/src/tc-abuse.js?v=20261015a","/src/tc-trips.js?v=20261015a"].forEach(function(src){
   try{ var s=document.createElement("script"); s.src=src; s.async=false; document.head.appendChild(s); }catch(e){}
  });
 })();
