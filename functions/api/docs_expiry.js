@@ -3,7 +3,8 @@ import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete } from ".
 
 /* Daily check of every vehicle's documents (runs by itself once a day, on the first API request of the day).
    1. Permit / Insurance dates: message + phone notification 30, 7 and 1 day before and when expired.
-      An expired vehicle loses Verified (the business itself stays).
+      An expired vehicle loses Verified (the business itself stays). Fitness / PUC dates (optional fields): the same
+      reminders, but only reminders - they never change Verified.
    2. Missing documents (front/RC/insurance/permit photos, insurance/permit dates): reminders about the
       the deadline (first notice, then 30, 7, 1 day before, and on the day).
    3. From the deadline: vehicles with incomplete documents lose Verified; Auto/Goods owners left with no verified
@@ -76,13 +77,26 @@ export async function runExpirySweep(env0) {
   const byPartner = new Map();
   for (const v of vehicles) { if (!byPartner.has(v.partner_id)) byPartner.set(v.partner_id, []); byPartner.get(v.partner_id).push(v); }
 
-  /* 1. permit / insurance dates */
+  /* 1. permit / insurance dates (+ optional fitness / PUC reminders) */
   for (const v of vehicles) {
     if (full()) { stats.more = true; break; }
     const p = { id: v.partner_id, mobile1: v.mobile1, mobile2: v.mobile2 };
-    for (const [doc, en, ml, date] of [["permit", "Permit", "പെർമിറ്റ്", v.permit_expiry], ["ins", "Insurance", "ഇൻഷുറൻസ്", v.insurance_expiry]]) {
+    /* Fitness and PUC are optional: reminder messages only - they never change Verified. */
+    for (const [doc, en, ml, date, optional] of [["permit", "Permit", "പെർമിറ്റ്", v.permit_expiry], ["ins", "Insurance", "ഇൻഷുറൻസ്", v.insurance_expiry],
+      ["fit", "Fitness certificate", "ഫിറ്റ്നസ് സർട്ടിഫിക്കറ്റ്", v.fitness_expiry, true], ["puc", "PUC (pollution certificate)", "PUC (പുക പരിശോധന സർട്ടിഫിക്കറ്റ്)", v.puc_expiry, true]]) {
       if (!date) continue;
       const dl = dayDiff(date, today);
+      if (!Number.isFinite(dl)) continue;
+      if (optional) {
+        const st = dl < 0 ? 0 : dl <= 1 ? 1 : dl <= 7 ? 7 : dl <= 30 ? 30 : null;
+        if (st === null) continue;
+        const no = v.vehicle_number || "vehicle", nice = date.split("-").reverse().join("-");
+        const body = st === 0
+          ? `${en} of ${no} expired on ${nice}. Please renew it and update the date (Business page > Vehicles > Edit). This does not affect Verified.\n${no} ${ml} ${nice}-ന് കാലാവധി കഴിഞ്ഞു. പുതുക്കി തീയതി മാറ്റുക (Business പേജ് > Vehicles > Edit). ഇത് Verified സ്റ്റാറ്റസിനെ ബാധിക്കില്ല.`
+          : `${en} of ${no} expires on ${nice} (${dl <= 0 ? "today" : dl + " day" + (dl === 1 ? "" : "s") + " left"}). Please renew it and update the date (Business page > Vehicles > Edit). This does not affect Verified.\n${no} ${ml} ${nice}-ന് കാലാവധി തീരും (${dl <= 0 ? "ഇന്ന്" : dl + " ദിവസം ബാക്കി"}). പുതുക്കി തീയതി മാറ്റുക (Business പേജ് > Vehicles > Edit). ഇത് Verified സ്റ്റാറ്റസിനെ ബാധിക്കില്ല.`;
+        if (await notify(env, `v${v.id}:${doc}:${date}:${st}`, p, st === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body)) stats.sent++;
+        continue;
+      }
       const stage = dl < 0 ? 0 : dl <= 1 ? 1 : dl <= 7 ? 7 : dl <= 30 ? 30 : null;
       if (stage === 0 && v.verified) {
         await env.DB.prepare("UPDATE vehicles SET verified=0 WHERE id=?").bind(v.id).run();
