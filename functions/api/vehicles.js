@@ -32,6 +32,9 @@ async function ensureNewColumns(env) {
   try {
     await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run();
   } catch (e) { /* already exists */ }
+  try {
+    await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN tax_expiry TEXT").run();
+  } catch (e) { /* already exists */ }
   /* The "active" query below joins travel_partners and sorts by its
      plan_expires_at (so an expired Paid/Premium plan correctly drops to
      the Free tier's position) - that column is normally added by
@@ -216,8 +219,8 @@ export async function onRequestPost({ request, env }) {
         `INSERT INTO vehicles
           (partner_id, vehicle_number, category, driver_name, driver_mobile1, driver_mobile2,
            driver_license_number, driver_license_expiry, rc_expiry, insurance_expiry, permit_expiry,
-           fitness_expiry, puc_expiry, seats, verified, active, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?)`
+           fitness_expiry, puc_expiry, tax_expiry, seats, verified, active, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?)`
       )
       .bind(
         partner_id,
@@ -233,6 +236,7 @@ export async function onRequestPost({ request, env }) {
         field("permit_expiry"),
         field("fitness_expiry"),
         field("puc_expiry"),
+        field("tax_expiry"),
         seatsTotal,
         now
       )
@@ -284,7 +288,7 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const dateFields = ["category", "driver_name", "driver_mobile1", "driver_mobile2", "driver_license_number",
-      "driver_license_expiry", "rc_expiry", "insurance_expiry", "permit_expiry", "fitness_expiry", "puc_expiry"];
+      "driver_license_expiry", "rc_expiry", "insurance_expiry", "permit_expiry", "fitness_expiry", "puc_expiry", "tax_expiry"];
     const setParts = [];
     const bindVals = [];
     {
