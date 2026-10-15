@@ -1,4 +1,5 @@
 import { verifyAdminToken } from "./_auth_helper.js";
+import { istToday, getEnforceDate, vehicleLive } from "./trip_class.js";
 
 const DOC_FIELDS = [
   "front_photo",
@@ -63,30 +64,44 @@ export async function onRequestGet({ request, env }) {
     const partnerId = url.searchParams.get("partner_id");
     if (!partnerId) return Response.json({ ok: false, error: "missing_partner_id" });
     const { results } = await env.DB
-      .prepare("SELECT * FROM vehicles WHERE partner_id=? ORDER BY created_at DESC")
+      .prepare("SELECT v.*, p.business_type AS business_type FROM vehicles v LEFT JOIN travel_partners p ON p.id=v.partner_id WHERE v.partner_id=? ORDER BY v.created_at DESC")
       .bind(partnerId)
       .all();
+    /* owner sees the live state: an expired / incomplete vehicle is not shown as Verified */
+    const today = istToday(), ed = await getEnforceDate(env);
+    results.forEach((v) => { v.verified = vehicleLive(v, today, ed) ? 1 : 0; });
     return Response.json({ ok: true, vehicles: results });
   }
 
   if (action === "active") {
-    const { results } = await env.DB
+    const { results: rows } = await env.DB
       .prepare(
-        `SELECT v.id, v.vehicle_number, v.category, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
+        `SELECT v.insurance_expiry, v.permit_expiry, v.rc_photo_key, v.insurance_photo_key, v.permit_photo_key, v.verified AS vverified,
+                CASE
+                  WHEN p.plan='owner_free' THEN 1
+                  WHEN p.plan='premium' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 1
+                  WHEN p.plan='paid' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 2
+                  WHEN p.plan='owner_plus' THEN 2
+                  ELSE 3
+                END AS tier,
+                v.id, v.vehicle_number, v.category, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
                 (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified,
                 p.email_verified AS email_verified
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
-         WHERE v.active=1
-         ORDER BY CASE
-           WHEN p.plan='owner_free' THEN 1
-           WHEN p.plan='premium' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 1
-           WHEN p.plan='paid' AND (p.plan_expires_at IS NULL OR julianday(p.plan_expires_at)>=julianday('now')) THEN 2
-           WHEN p.plan='owner_plus' THEN 2
-           ELSE 3
-         END, (v.verified=1 AND p.verified=1) DESC, v.id DESC`
+         WHERE v.active=1`
       )
       .all();
+    /* Verified is decided live (expired / incomplete documents never show as Verified), then the board is
+       ordered: plan tier first, verified before unverified, newest first - same order as before. */
+    const today = istToday(), ed = await getEnforceDate(env);
+    const results = rows.map((r) => {
+      const live = !!r.verified && vehicleLive({ ...r, verified: r.vverified }, today, ed);
+      const { insurance_expiry, permit_expiry, rc_photo_key, insurance_photo_key, permit_photo_key, vverified, tier, ...pub } = r;
+      return { ...pub, verified: live ? 1 : 0, _tier: tier };
+    });
+    results.sort((a, b) => (a._tier - b._tier) || (b.verified - a.verified) || (b.id - a.id));
+    results.forEach((r) => { delete r._tier; });
     return Response.json({ ok: true, vehicles: results });
   }
 
