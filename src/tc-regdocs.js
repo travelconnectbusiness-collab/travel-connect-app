@@ -1,4 +1,4 @@
-/* Vehicle-document prompts, Approve-page category + vehicle documents, Authorized-Users switch.
+/* Vehicle-document prompts, Approve-page category + vehicle documents, Verification deadline preview, Authorized-Users switch.
    Loaded last; overrides / wraps older functions by name. */
 (function(){
  var E=function(v){ return typeof esc==="function"?esc(v):String(v==null?"":v); };
@@ -135,5 +135,73 @@
    var d=await (await fetch("/api/authorized",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"add_all_owners",token:adminToken()})})).json();
    say(d.ok?(d.added+" numbers added to the list"):"Could not add"); if(d.ok&&typeof tcLoadAuthorized==="function") tcLoadAuthorized();
   }catch(e){ say("Network error"); }
+ };
+
+ /* ---------- admin: Verification deadline preview (top of Pending Approvals) ---------- */
+ var oldPending=window.tcRenderPendingApprovals;
+ if(typeof oldPending==="function") window.tcRenderPendingApprovals=async function(){
+  var r=await oldPending.apply(this,arguments);
+  try{
+   var box=document.querySelector("#tcPendingPartners"), h=box&&box.previousElementSibling;
+   if(h&&!document.querySelector("#tcEnf")){
+    h.insertAdjacentHTML("beforebegin",'<div id="tcEnf" style="border:2px solid #e0a526;background:#fff8e6;border-radius:12px;padding:10px;margin:0 0 12px">Loading deadline preview...</div>');
+    tcEnfLoad();
+   }
+  }catch(e){}
+  return r;
+ };
+ function tomorrow(){ var d=new Date(Date.now()+86400000); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+ window.tcEnfLoad=async function(){
+  var box=document.querySelector("#tcEnf"); if(!box) return;
+  try{
+   var d=await (await fetch("/api/regdocs?action=enforce_preview&token="+encodeURIComponent(adminToken()))).json();
+   if(!d.ok){ box.textContent="Could not load the deadline preview."; return; }
+   window._enfOwners=d.owners;
+   var t=d.totals, h='<b>Verification deadline: '+E(d.enforce_date)+'</b> <span class="muted">('+(d.enforced?'already in force':d.days_left+' days left')+')</span>'+
+    '<div style="margin:6px 0;font-size:12.5px">Change date: <input type="date" id="enfDate" min="'+tomorrow()+'" value="'+(d.enforced?"":E(d.enforce_date))+'"> <button onclick="tcEnfSetDate()">Change</button></div>';
+   if(!d.owners.length){
+    h+='<div style="color:#1b7a2f"><b>'+(d.enforced?'Nobody is waiting to lose Verified.':'Everyone is ready - no one will lose Verified on this date.')+'</b></div>';
+   }else{
+    h+='<div style="font-size:13.5px"><b>'+(d.enforced?'Today':'On '+E(d.enforce_date))+': '+t.owners+' owner(s), '+t.vehicles+' vehicle(s) with incomplete documents.</b><br>'+t.owners_losing_verified+' auto/goods business(es) would lose Verified completely; the others lose only those vehicles (Motor Cab / Contract Carriage alerts).</div>'+
+     '<div class="actions" style="margin:8px 0"><button class="primary" onclick="tcEnfRemind()">Send reminder to all ('+d.owners.length+')</button></div>'+
+     '<div id="enfProg" class="muted" style="font-size:12.5px"></div>'+
+     '<details style="margin-top:6px"><summary><b>Show the list</b></summary>'+d.owners.map(function(o){
+      return '<div style="margin:6px 0;padding:6px 8px;border:1px solid #e3d3a5;border-radius:8px;background:#fff">'+
+       '<b>'+E(o.business_name)+'</b> <span class="muted">'+E(TC_BUSINESS_TYPES[o.business_type]||o.business_type)+(o.owner_name?' - '+E(o.owner_name):'')+'</span><br>'+
+       (o.loses_verified?'<span style="color:#a12d2d"><b>Loses Verified</b></span>':'<span style="color:#c60"><b>Vehicle(s) only</b></span>')+
+       ' &middot; <a href="tel:'+E(o.mobile1)+'">'+E(o.mobile1)+'</a>'+(o.mobile2?' / <a href="tel:'+E(o.mobile2)+'">'+E(o.mobile2)+'</a>':'')+
+       (o.no_vehicle?'<br>No vehicle added yet':'')+
+       o.vehicles.map(function(v){ return '<br><b>'+E(v.vehicle_number||"vehicle")+'</b>: '+E(v.missing.join(", ")); }).join("")+
+       '<div class="actions" style="margin-top:4px"><button onclick="tcEnfRemind(['+o.partner_id+'])">Remind this owner</button></div></div>';
+     }).join("")+'</details>';
+   }
+   box.innerHTML=h;
+  }catch(e){ box.textContent="Network error."; }
+ };
+ window.tcEnfSetDate=async function(){
+  var el=document.querySelector("#enfDate"), v=el&&el.value; if(!v){ say("Pick a date first"); return; }
+  if(!confirm("Change the verification deadline to "+v+"?\nFrom that day vehicles with incomplete documents lose Verified. Owners see the new date in their reminders.")) return;
+  try{
+   var d=await (await fetch("/api/regdocs",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_enforce_date",date:v,token:adminToken()})})).json();
+   if(!d.ok){ say(d.error==="must_be_future"?"The date must be after today":d.error==="too_far"?"Date is too far away (max 2 years)":"Could not change"); return; }
+   say("Deadline changed to "+d.enforce_date); tcEnfLoad();
+  }catch(e){ say("Network error"); }
+ };
+ /* ids omitted = everyone on the list; sent 3 owners at a time (free-plan limit per request) */
+ window.tcEnfRemind=async function(ids){
+  var all=!ids; ids=ids||(window._enfOwners||[]).map(function(o){ return o.partner_id; });
+  if(!ids.length) return;
+  if(all&&!confirm("Send the reminder message + notification to "+ids.length+" owner(s)?")) return;
+  var prog=document.querySelector("#enfProg"), sent=0, already=0, none=0;
+  try{
+   for(var i=0;i<ids.length;i+=3){
+    if(prog) prog.textContent="Sending... "+Math.min(i+3,ids.length)+" / "+ids.length;
+    var d=await (await fetch("/api/regdocs",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"remind",partner_ids:ids.slice(i,i+3),token:adminToken()})})).json();
+    if(!d.ok) throw new Error("fail");
+    sent+=d.sent; already+=d.already_today; none+=d.nothing_to_fix;
+   }
+   var m="Sent to "+sent+(already?" - "+already+" already reminded today":"")+(none?" - "+none+" had nothing to fix":"");
+   if(prog) prog.textContent=m; say(m);
+  }catch(e){ if(prog) prog.textContent="Stopped after "+sent+" sent - network/server error. Tap again to continue (already-sent owners are skipped)."; say("Could not finish"); }
  };
 })();
