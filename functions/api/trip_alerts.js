@@ -22,6 +22,7 @@ import { sendWebPush } from "./_webpush.js";
 import { verifyAdminToken } from "./_auth_helper.js";
 import { eligiblePartners, partnerMatches, VCLASSES } from "./trip_class.js";
 import { ensureAbuse, checkBroadcast, last10 as last10Digits, abuseGet, abusePost } from "./trip_abuse.js";
+import { fallbackGet, fallbackPost } from "./trip_fallback.js";
 
 const RADIUS_KM = 15; // straight-line pre-filter only, not what's shown
 const ALERT_LIFETIME_MINUTES = 10;
@@ -248,7 +249,7 @@ export async function onRequestPost({ request, env, ctx }) {
     return Response.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
 
-  const adminRes = await abusePost(env, body);
+  const adminRes = (await abusePost(env, body)) || (await fallbackPost(env, body));
   if (adminRes) return adminRes;
 
   if (body.action === "broadcast") {
@@ -322,12 +323,12 @@ export async function onRequestPost({ request, env, ctx }) {
     const work = Promise.all(
       candidates.map(async (p) => {
         const route = (lat != null && lon != null) ? await bestRoute(env, p.lat, p.lon, lat, lon, isPremiumPlan(p)) : null;
-        if (route) {
-          await env.DB
-            .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min) VALUES (?,?,?,?)`)
-            .bind(alertId, p.id, route.distanceKm, route.durationMin)
-            .run();
-        }
+        /* every alerted driver is stored (with the road distance when known, else the straight-line one) -
+           used for the "nobody accepted" help list and the driver response stats (trip_fallback.js) */
+        await env.DB
+          .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min) VALUES (?,?,?,?)`)
+          .bind(alertId, p.id, route ? route.distanceKm : (p.straight_km != null ? Math.round(p.straight_km * 10) / 10 : null), route ? route.durationMin : null)
+          .run();
         const distText = route ? `${route.distanceKm} km away, ~${formatEta(route.durationMin)}` : "";
         return pushToPartner(env, p, {
           type: "trip_alert",
@@ -427,7 +428,7 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
-  const adminRes = await abuseGet(env, action, url);
+  const adminRes = (await abuseGet(env, action, url)) || (await fallbackGet(env, action, url));
   if (adminRes) return adminRes;
 
   if (action === "status") {
