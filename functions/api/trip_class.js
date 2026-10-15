@@ -66,6 +66,35 @@ export function missingDocs(v, today = istToday()) {
 }
 export const isComplete = (v, today) => missingDocs(v, today).length === 0;
 
+/* LIVE rule: is this vehicle Verified RIGHT NOW? Checked at the moment of use (alerts, boards, lists),
+   so it never depends on the daily check having run yet. A vehicle counts only if
+   - the admin approved it (verified=1),
+   - its insurance / permit date (if set) has not passed,
+   - and from the deadline on, all its documents are complete. */
+export function vehicleLive(v, today, enforceDate) {
+  if (!v.verified) return false;
+  if (v.insurance_expiry && v.insurance_expiry < today) return false;
+  if (v.permit_expiry && v.permit_expiry < today) return false;
+  if (today >= enforceDate && missingDocs(v, today).length) return false;
+  return true;
+}
+
+/* From the deadline an Auto / Goods business without a live vehicle is not Verified. Applied to partner rows
+   (directory, "mine") so the Verified chip is right even before the daily check has updated the database. */
+export async function applyLivePartnerVerified(env, partners) {
+  const today = istToday(), ed = await getEnforceDate(env);
+  if (today < ed) return partners;
+  const rows = partners.filter((p) => p && p.verified && (p.business_type === "auto_rickshaw" || p.business_type === "pickup_goods"));
+  if (!rows.length) return partners;
+  await ensureSeats(env);
+  const vs = ((await env.DB.prepare(
+    "SELECT v.*, p.business_type FROM vehicles v JOIN travel_partners p ON p.id=v.partner_id WHERE v.verified=1 AND p.business_type IN ('auto_rickshaw','pickup_goods')"
+  ).all()).results) || [];
+  const ok = new Set(vs.filter((v) => vehicleLive(v, today, ed)).map((v) => v.partner_id));
+  for (const p of rows) if (!ok.has(p.id)) p.verified = 0;
+  return partners;
+}
+
 const BASE =
   "SELECT id, business_name, mobile1, mobile2, plan, plan_expires_at, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1";
 
@@ -81,10 +110,13 @@ export async function eligiblePartners(env, businessType, vclass) {
   if (!needVehicles) return partners;
   await ensureSeats(env);
   const vs = ((await env.DB.prepare(
-    "SELECT partner_id, category, seats FROM vehicles WHERE verified=1 AND partner_id IN (SELECT id FROM travel_partners WHERE business_type=? AND verified=1 AND available=1)"
+    "SELECT * FROM vehicles WHERE verified=1 AND partner_id IN (SELECT id FROM travel_partners WHERE business_type=? AND verified=1 AND available=1)"
   ).bind(businessType).all()).results) || [];
+  const today = istToday(), ed = await getEnforceDate(env);
   const ok = new Set();
   for (const v of vs) {
+    v.business_type = businessType;
+    if (!vehicleLive(v, today, ed)) continue;
     if (businessType === "taxi_travel" && vclassOf(v) !== vclass) continue;
     ok.add(v.partner_id);
   }
@@ -97,7 +129,9 @@ export async function partnerMatches(env, partnerId, businessType, vclass) {
   const needVehicles = (businessType === "taxi_travel") || istToday() >= (await getEnforceDate(env));
   if (!needVehicles) return true;
   await ensureSeats(env);
-  const vs = ((await env.DB.prepare("SELECT category, seats FROM vehicles WHERE verified=1 AND partner_id=?").bind(partnerId).all()).results) || [];
+  const today = istToday(), ed = await getEnforceDate(env);
+  const vs = (((await env.DB.prepare("SELECT * FROM vehicles WHERE verified=1 AND partner_id=?").bind(partnerId).all()).results) || [])
+    .map((v) => ({ ...v, business_type: businessType })).filter((v) => vehicleLive(v, today, ed));
   if (businessType !== "taxi_travel") return vs.length > 0;
   return vs.some((v) => vclassOf(v) === vclass);
 }
