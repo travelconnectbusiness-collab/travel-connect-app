@@ -33,6 +33,11 @@ const MARKERS = [
   ["functions/api/regdocs.js", "enforce_preview", "Deadline preview: who will lose Verified"],
   ["functions/api/regdocs.js", "set_enforce_date", "Deadline date change by admin"],
   ["src/tc-regdocs.js", "tcEnfLoad", "Admin deadline preview page"],
+  ["functions/api/trip_class.js", "vehicleLive", "Live Verified check (expired/incomplete vehicles never count)"],
+  ["functions/api/partners.js", "applyLivePartnerVerified", "Live Verified chip for auto/goods after the deadline"],
+  ["functions/api/vehicles.js", "vehicleLive", "Active Vehicles board / owner list use the live rule"],
+  ["functions/api/docs_expiry.js", "BUDGET", "Daily sweep stays inside the free-plan query limit"],
+  ["src/tc-regdocs.js", "tcAuSetFilter", "All Users: tap a tile to filter"],
   ["functions/api/trip_alerts.js", "eligiblePartners", "Motor Cab / Carriage / Agency alert targeting"],
   ["functions/api/vehicles.js", "seats_required", "Seat capacity is mandatory"],
   ["functions/api/docs_expiry.js", "doc_notices", "Expiry reminders / sweep"],
@@ -103,4 +108,4 @@ if (problems.length) {
   console.error("\nSomething that must stay is missing or a file is broken. Do not keep this version.");
   process.exit(1);
 }
-console.log("OK - nothing missing."); 
+console.log("OK - nothing missing.");
