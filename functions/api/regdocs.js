@@ -37,16 +37,40 @@ async function vehiclesOf(env, partnerId) {
 const VEH_TYPES = ["taxi_travel", "auto_rickshaw", "pickup_goods"];
 const dayDiff = (a, b) => Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000);
 
+/* Readable wording for what is missing, with the real dates (English + Malayalam). */
+const ML_DOC = {
+  "Front photo": "മുൻവശത്തെ ഫോട്ടോ", "RC photo": "RC ഫോട്ടോ", "Insurance photo": "ഇൻഷുറൻസ് ഫോട്ടോ", "Permit photo": "പെർമിറ്റ് ഫോട്ടോ",
+  "Insurance expiry date": "ഇൻഷുറൻസ് തീയതി ചേർത്തിട്ടില്ല", "Permit expiry date": "പെർമിറ്റ് തീയതി ചേർത്തിട്ടില്ല",
+  "Seating capacity (passenger seats)": "സീറ്റ് ശേഷി (യാത്രക്കാരുടെ സീറ്റ്)",
+};
+const dmy = (d) => String(d).split("-").reverse().join("-");
+function describe(v, miss, today, deadline) {
+  const en = [], ml = [];
+  for (const m of miss) {
+    const k = /^Insurance expired/.test(m) ? "ins" : /^Permit expired/.test(m) ? "per" : null;
+    if (!k) { en.push(m); ml.push(ML_DOC[m] || m); continue; }
+    const date = k === "ins" ? v.insurance_expiry : v.permit_expiry;
+    const nameEn = k === "ins" ? "Insurance" : "Permit", nameMl = k === "ins" ? "ഇൻഷുറൻസ്" : "പെർമിറ്റ്";
+    const left = dayDiff(date, today);
+    if (left < 0) { en.push(`${nameEn} expired on ${dmy(date)}`); ml.push(`${nameMl} ${dmy(date)}-ന് കഴിഞ്ഞു`); }
+    else {
+      en.push(`${nameEn} expires on ${dmy(date)}${left > 0 ? " (" + left + " days left)" : " (today)"}`);
+      ml.push(`${nameMl} ${dmy(date)}-ന് തീരും${left > 0 ? " (" + left + " ദിവസം ബാക്കി)" : " (ഇന്ന്)"}`);
+    }
+  }
+  return { en, ml };
+}
+
 /* What happens to one owner on the deadline. ref = the date the documents are judged on
    (the deadline itself, or today if the deadline has passed). */
-function riskOf(p, vs, ref, future) {
+function riskOf(p, vs, ref, future, today) {
   const risky = [];
   for (const v of vs) {
     if (!v.verified) continue;
-    let miss = missingDocs(v, ref);
+    const miss = missingDocs(v, ref);
     if (!miss.length) continue;
-    if (future) miss = miss.map((m) => m.replace(/(Insurance|Permit) expired/, "$1 expires before the deadline"));
-    risky.push({ id: v.id, vehicle_number: v.vehicle_number, missing: miss });
+    const d = describe(v, miss, today, ref);
+    risky.push({ id: v.id, vehicle_number: v.vehicle_number, missing: d.en, missing_ml: d.ml });
   }
   const verifiedOk = vs.some((v) => v.verified && !missingDocs(v, ref).length);
   const loses = p.business_type !== "taxi_travel" && !!p.verified && !verifiedOk;
@@ -89,7 +113,7 @@ export async function onRequestGet({ request, env }) {
     const owners = [];
     let nVeh = 0, nLose = 0;
     for (const p of partners) {
-      const r = riskOf(p, by.get(p.id) || [], ref, future);
+      const r = riskOf(p, by.get(p.id) || [], ref, future, today);
       if (!r.risky.length && !r.loses) continue;
       nVeh += r.risky.length; if (r.loses) nLose++;
       owners.push({ partner_id: p.id, business_name: p.business_name, owner_name: p.owner_name, mobile1: p.mobile1, mobile2: p.mobile2,
@@ -144,14 +168,14 @@ export async function onRequestPost({ request, env }) {
     const p = await env.DB.prepare("SELECT id, business_name, mobile1, mobile2, business_type, verified FROM travel_partners WHERE id=?").bind(id).first();
     if (!p || !VEH_TYPES.includes(p.business_type)) { out.nothing_to_fix++; continue; }
     const vs = await vehiclesOf(env, id);
-    const r = riskOf(p, vs, ref, future);
+    const r = riskOf(p, vs, ref, future, today);
     if (!r.risky.length && !r.loses) { out.nothing_to_fix++; continue; }
-    const lines = r.risky.map((v) => `${v.vehicle_number || "vehicle"}: ${v.missing.join(", ")}`);
-    if (r.noVehicle) lines.push("No vehicle added yet");
-    const list = lines.slice(0, 6).join("\n");
-    const en = `Reminder from Travel Connect: ${future ? "from " + dl.en : "since " + dl.en}, only vehicles with complete documents stay Verified and get trip alerts.${r.loses ? " Your business will lose its Verified status if this is not completed." : ""} Still missing (Business page > Vehicles):\n${list}`;
-    const ml = `ഓർമ്മപ്പെടുത്തൽ: ${dl.ml} ${future ? "മുതൽ" : "മുതൽ (ഇപ്പോൾ പ്രാബല്യത്തിൽ)"} രേഖകൾ പൂർണ്ണമായ വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ.${r.loses ? " ഇത് പൂർത്തിയാക്കിയില്ലെങ്കിൽ നിങ്ങളുടെ ബിസിനസ്സിന്റെ Verified ഒഴിവാക്കും." : ""} ബാക്കിയുള്ളത് (Business പേജ് > Vehicles):\n${list}`;
-    const sent = await notify(env, `p${id}:preview:${today}`, p, "Complete your vehicle documents", en + "\n\n" + ml);
+    const linesEn = r.risky.map((v) => `${v.vehicle_number || "vehicle"}: ${v.missing.join("; ")}`);
+    const linesMl = r.risky.map((v) => `${v.vehicle_number || "vehicle"}: ${v.missing_ml.join("; ")}`);
+    if (r.noVehicle) { linesEn.push("No vehicle added yet"); linesMl.push("വാഹനം ഒന്നും ചേർത്തിട്ടില്ല"); }
+    const en = `Reminder from Travel Connect: ${future ? "from " + dl.en : "since " + dl.en}, only vehicles with complete and valid documents stay Verified and get trip alerts.${r.loses ? " Your business will lose its Verified status if this is not completed." : ""}\nWhat needs attention (Business page > Vehicles > Edit):\n${linesEn.slice(0, 6).join("\n")}`;
+    const ml = `ഓർമ്മപ്പെടുത്തൽ: ${dl.ml} ${future ? "മുതൽ" : "മുതൽ (ഇപ്പോൾ പ്രാബല്യത്തിൽ)"} രേഖകൾ പൂർണ്ണവും കാലാവധിയുള്ളതുമായ വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ.${r.loses ? " ഇത് പൂർത്തിയാക്കിയില്ലെങ്കിൽ നിങ്ങളുടെ ബിസിനസ്സിന്റെ Verified ഒഴിവാക്കും." : ""}\nശ്രദ്ധിക്കേണ്ടത് (Business പേജ് > Vehicles > Edit):\n${linesMl.slice(0, 6).join("\n")}`;
+    const sent = await notify(env, `p${id}:remind2:${today}`, p, "Complete your vehicle documents", en + "\n\n" + ml);
     if (sent) out.sent++; else out.already_today++;
   }
   return j(out);
