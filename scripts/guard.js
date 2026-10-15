@@ -49,6 +49,7 @@ const MARKERS = [
   ["functions/api/trip_alerts.js", "eligiblePartners", "Motor Cab / Carriage / Agency alert targeting"],
   ["functions/api/trip_alerts.js", "notifyBatch", "Trip alerts are pushed in batches (Free-plan 50-call limit)"],
   ["functions/api/trip_alerts.js", "waiting_push", "Status poll sends the next batch of drivers"],
+  ["functions/api/docs_expiry.js", "Fitness certificate", "Fitness / PUC expiry reminders"],
   ["functions/api/trip_alerts.js", "planTier", "Trip alerts go Premium first, then Plus, then Free"],
   ["functions/api/vehicles.js", "seats_required", "Seat capacity is mandatory"],
   ["functions/api/docs_expiry.js", "doc_notices", "Expiry reminders / sweep"],
