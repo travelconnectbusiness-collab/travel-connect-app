@@ -1,6 +1,6 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { getFlag } from "./_flags.js";
-import { isComplete } from "./trip_class.js";
+import { isComplete, applyLivePartnerVerified } from "./trip_class.js";
 
 /* Must match the keys of TC_BUSINESS_TYPES in core.js exactly - used to
    tell a known, fixed category apart from free-typed "Other" text (see
@@ -62,6 +62,7 @@ export async function onRequestGet({ request, env }) {
       .first();
     const hasPassword = !!(row && row.portal_password_hash);
     if (row) delete row.portal_password_hash; /* never send the hash to the client */
+    if (row) await applyLivePartnerVerified(env, [row]);
     return Response.json({ ok: true, partner: row || null, has_password: hasPassword });
   }
 
@@ -80,6 +81,7 @@ export async function onRequestGet({ request, env }) {
       .bind(mobile, mobile)
       .all();
     results.forEach((r) => delete r.portal_password_hash);
+    await applyLivePartnerVerified(env, results);
     return Response.json({ ok: true, partners: results });
   }
 
@@ -114,6 +116,7 @@ export async function onRequestGet({ request, env }) {
          END, verified DESC, business_name`
       )
       .all();
+    await applyLivePartnerVerified(env, results);
     return Response.json({ ok: true, partners: results });
   }
 
