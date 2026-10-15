@@ -103,4 +103,4 @@ if (problems.length) {
   console.error("\nSomething that must stay is missing or a file is broken. Do not keep this version.");
   process.exit(1);
 }
-console.log("OK - nothing missing.");
+console.log("OK - nothing missing."); 
