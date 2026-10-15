@@ -3,7 +3,7 @@ import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete } from ".
 
 /* Daily check of every vehicle's documents (runs by itself once a day, on the first API request of the day).
    1. Permit / Insurance dates: message + phone notification 30, 7 and 1 day before and when expired.
-      An expired vehicle loses Verified (the business itself stays). Fitness / PUC dates (optional fields): the same
+      An expired vehicle loses Verified (the business itself stays). Fitness / PUC / Tax / RC / Driving licence dates (optional fields): the same
       reminders, but only reminders - they never change Verified.
    2. Missing documents (front/RC/insurance/permit photos, insurance/permit dates): reminders about the
       the deadline (first notice, then 30, 7, 1 day before, and on the day).
@@ -64,6 +64,7 @@ export async function runExpirySweep(env0) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
   env._seen = new Set((((await env.DB.prepare("SELECT k FROM doc_notices").all()).results) || []).map((r) => r.k));
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN tax_expiry TEXT").run(); } catch (e) {}
   const today = istToday();
   const ENFORCE_DATE = await getEnforceDate(env);
   const enforced = today >= ENFORCE_DATE;
@@ -81,9 +82,12 @@ export async function runExpirySweep(env0) {
   for (const v of vehicles) {
     if (full()) { stats.more = true; break; }
     const p = { id: v.partner_id, mobile1: v.mobile1, mobile2: v.mobile2 };
-    /* Fitness and PUC are optional: reminder messages only - they never change Verified. */
+    /* Fitness, PUC, Tax, RC and Driving licence are optional: reminder messages only - they never change Verified. */
     for (const [doc, en, ml, date, optional] of [["permit", "Permit", "പെർമിറ്റ്", v.permit_expiry], ["ins", "Insurance", "ഇൻഷുറൻസ്", v.insurance_expiry],
-      ["fit", "Fitness certificate", "ഫിറ്റ്നസ് സർട്ടിഫിക്കറ്റ്", v.fitness_expiry, true], ["puc", "PUC (pollution certificate)", "PUC (പുക പരിശോധന സർട്ടിഫിക്കറ്റ്)", v.puc_expiry, true]]) {
+      ["fit", "Fitness certificate", "ഫിറ്റ്നസ് സർട്ടിഫിക്കറ്റ്", v.fitness_expiry, true], ["puc", "PUC (pollution certificate)", "PUC (പുക പരിശോധന സർട്ടിഫിക്കറ്റ്)", v.puc_expiry, true],
+      ["tax", "Vehicle tax", "വാഹന നികുതി (ടാക്സ്)", v.tax_expiry, true],
+      ["rc", "RC (registration certificate)", "RC (രജിസ്ട്രേഷൻ സർട്ടിഫിക്കറ്റ്)", v.rc_expiry, true],
+      ["lic", "Driving licence" + (v.driver_name ? " (" + v.driver_name + ")" : ""), "ഡ്രൈവിംഗ് ലൈസൻസ്" + (v.driver_name ? " (" + v.driver_name + ")" : ""), v.driver_license_expiry, true]]) {
       if (!date) continue;
       const dl = dayDiff(date, today);
       if (!Number.isFinite(dl)) continue;
