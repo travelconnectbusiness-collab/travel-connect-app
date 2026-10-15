@@ -544,7 +544,7 @@ function openAddVehicle(partnerId){
   <label>License expiry${tcDateInputHtml("vLicExp","")}</label>
   <label>License photo (optional)<input id="vLicPhoto" type="file" accept="image/*"></label>
  </div>
- <h4>Vehicle documents - Front, RC, Insurance and Permit photos are required, with the Insurance and Permit expiry dates. Fitness/PUC need only the expiry date.</h4>
+ <h4>Vehicle documents - Front, RC, Insurance and Permit photos are required, with the Insurance and Permit expiry dates. Fitness/PUC/Tax need only the expiry date.</h4>
  <div class="grid">
   <label>Front photo${reqPhoto} (vehicle number must be clearly visible - shown to customers when they search)<input id="vFrontPhoto" type="file" accept="image/*"></label>
   <label>RC photo${reqPhoto}<input id="vRcPhoto" type="file" accept="image/*"></label>
@@ -557,6 +557,7 @@ function openAddVehicle(partnerId){
   <label>Fitness expiry${tcDateInputHtml("vFitnessExp","")}</label>
   <label>PUC photo${optPhoto}<input id="vPucPhoto" type="file" accept="image/*"></label>
   <label>PUC expiry${tcDateInputHtml("vPucExp","")}</label>
+  <label>Tax expiry${tcDateInputHtml("vTaxExp","")}</label>
  </div>
  <button class="primary" id="vSaveBtn" onclick="submitAddVehicle(${partnerId})">Save Vehicle</button>
  <div id="vAddErr" class="danger"></div>`);
@@ -566,7 +567,7 @@ async function submitAddVehicle(partnerId){
  const errBox=document.querySelector("#vAddErr");
  if(!no){errBox.textContent="Enter the vehicle number.";return}
  const dateVals={};
- for(const id of ["vLicExp","vRcExp","vInsExp","vPermitExp","vFitnessExp","vPucExp"]){
+ for(const id of ["vLicExp","vRcExp","vInsExp","vPermitExp","vFitnessExp","vPucExp","vTaxExp"]){
   const r=tcReadDateInput(id);
   if(r===null){errBox.textContent="Enter dates as DD-MM-YYYY (for example 25-12-2026).";return}
   dateVals[id]=r;
@@ -608,6 +609,7 @@ async function submitAddVehicle(partnerId){
  fd.append("permit_expiry",dateVals.vPermitExp);
  fd.append("fitness_expiry",dateVals.vFitnessExp);
  fd.append("puc_expiry",dateVals.vPucExp);
+ fd.append("tax_expiry",dateVals.vTaxExp);
  const fileMap={vLicPhoto:"driver_license_photo",vFrontPhoto:"front_photo",vRcPhoto:"rc_photo",vInsPhoto:"insurance_photo",vPermitPhoto:"permit_photo",vFitnessPhoto:"fitness_photo",vPucPhoto:"puc_photo"};
  Object.entries(fileMap).forEach(([elId,field])=>{
   const el=document.querySelector("#"+elId);
@@ -623,7 +625,7 @@ async function submitAddVehicle(partnerId){
  }catch(e){errBox.textContent="Network error - check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Vehicle";}
 }
 function vehicleExpiryWarnings(v){
- const items=[["RC",v.rc_expiry],["Insurance",v.insurance_expiry],["Permit",v.permit_expiry],["Fitness",v.fitness_expiry],["PUC",v.puc_expiry],["License",v.driver_license_expiry]];
+ const items=[["RC",v.rc_expiry],["Insurance",v.insurance_expiry],["Permit",v.permit_expiry],["Fitness",v.fitness_expiry],["PUC",v.puc_expiry],["Tax",v.tax_expiry],["License",v.driver_license_expiry]];
  const soon=items.filter(([,d])=>{
   if(!d) return false;
   const days=(new Date(d)-new Date())/86400000;
@@ -698,6 +700,7 @@ function tcOpenEditVehicle(vehicleId){
   <label>Fitness expiry${tcDateInputHtml("evFitnessExp",v.fitness_expiry)}</label>
   <label>PUC photo${v.puc_photo_key?" (already on file)":""}<input id="evPucPhoto" type="file" accept="image/*"></label>
   <label>PUC expiry${tcDateInputHtml("evPucExp",v.puc_expiry)}</label>
+  <label>Tax expiry${tcDateInputHtml("evTaxExp",v.tax_expiry)}</label>
  </div>
  <button class="primary" id="evSaveBtn" onclick="tcSubmitEditVehicle(${vehicleId})">Save Changes</button>
  <div id="evErr" class="danger"></div>`);
@@ -706,7 +709,7 @@ async function tcSubmitEditVehicle(vehicleId){
  const user=getCurrentUser();
  const errBox=document.querySelector("#evErr");
  const dateVals={};
- for(const id of ["evLicExp","evRcExp","evInsExp","evPermitExp","evFitnessExp","evPucExp"]){
+ for(const id of ["evLicExp","evRcExp","evInsExp","evPermitExp","evFitnessExp","evPucExp","evTaxExp"]){
   const r=tcReadDateInput(id);
   if(r===null){errBox.textContent="Enter dates as DD-MM-YYYY (for example 25-12-2026).";return}
   dateVals[id]=r;
@@ -733,6 +736,7 @@ async function tcSubmitEditVehicle(vehicleId){
  fd.append("permit_expiry",dateVals.evPermitExp);
  fd.append("fitness_expiry",dateVals.evFitnessExp);
  fd.append("puc_expiry",dateVals.evPucExp);
+ fd.append("tax_expiry",dateVals.evTaxExp);
  const fileMap={evLicPhoto:"driver_license_photo",evFrontPhoto:"front_photo",evRcPhoto:"rc_photo",evInsPhoto:"insurance_photo",evPermitPhoto:"permit_photo",evFitnessPhoto:"fitness_photo",evPucPhoto:"puc_photo"};
  Object.entries(fileMap).forEach(([elId,field])=>{
   const el=document.querySelector("#"+elId);
