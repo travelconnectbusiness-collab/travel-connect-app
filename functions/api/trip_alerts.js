@@ -30,70 +30,88 @@ const ALERT_LIFETIME_MINUTES = 10;
 let ready = false;
 async function ensure(env) {
   if (ready) return;
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS trip_alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      business_type TEXT NOT NULL,
-      customer_name TEXT NOT NULL,
-      customer_mobile TEXT NOT NULL,
-      pickup_lat REAL,
-      pickup_lon REAL,
-      pickup_text TEXT,
-      destinations TEXT,
-      message TEXT,
-      status TEXT NOT NULL DEFAULT 'open',
-      accepted_partner_id INTEGER,
-      accepted_distance_km REAL,
-      accepted_duration_min REAL,
-      notified_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      expires_at TEXT NOT NULL
-    )`
-  ).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_trip_alerts_status ON trip_alerts (status, created_at)").run();
-  /* One row per partner actually notified for one alert - holds the real
-     driving distance/duration computed ONCE at broadcast time, so
-     re-opening the Accept prompt later (pending_for_partner) never needs
-     to call Google again for the same figure. */
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS trip_alert_candidates (
-      alert_id INTEGER NOT NULL,
-      partner_id INTEGER NOT NULL,
-      distance_km REAL,
-      duration_min REAL,
-      PRIMARY KEY (alert_id, partner_id)
-    )`
-  ).run();
-  /* Counts Google Routes calls per calendar month so the bill can never run
-     away: see routeCallAllowed() below. */
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS maps_usage (
-      month TEXT PRIMARY KEY,
-      calls INTEGER NOT NULL DEFAULT 0
-    )`
-  ).run();
-  /* Safe to run against a DB from before destinations/accepted_distance_km
-     existed - SQLite has no "ADD COLUMN IF NOT EXISTS", so each is simply
-     attempted and the harmless "already exists" error is swallowed. */
-  for (const stmt of [
-    "ALTER TABLE trip_alerts ADD COLUMN destinations TEXT",
-    "ALTER TABLE trip_alerts ADD COLUMN vclass TEXT",
-    "ALTER TABLE trip_alerts ADD COLUMN accepted_distance_km REAL",
-    "ALTER TABLE trip_alerts ADD COLUMN accepted_duration_min REAL",
-    /* current_lat/current_lon/current_location_at on travel_partners are
-       normally added by partners.js's own migration, but this Worker
-       instance may serve a broadcast/accept before partners.js has ever
-       run, and both queries below read these columns - so the same safe,
-       idempotent ALTER is repeated here too. */
-    "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
-    "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
-    "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
-    /* plan / plan_expires_at are read below to decide who still gets real road
-       distance once the monthly free Google budget is used up. */
-    "ALTER TABLE travel_partners ADD COLUMN plan TEXT",
-    "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
-  ]) {
-    try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
+  /* The table/column set-up below is ~15 database calls. On Cloudflare's Free plan a request may make only 50,
+     so it is done ONCE (remembered in app_flags) instead of at every cold start of the Worker. */
+  const SCHEMA = "batch1";
+  let done = false;
+  try {
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_flags (key TEXT PRIMARY KEY, value TEXT)").run();
+    const f = await env.DB.prepare("SELECT value FROM app_flags WHERE key='trip_alerts_schema'").first();
+    done = !!(f && f.value === SCHEMA);
+  } catch (e) { done = false; }
+  if (!done) {
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS trip_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        business_type TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        customer_mobile TEXT NOT NULL,
+        pickup_lat REAL,
+        pickup_lon REAL,
+        pickup_text TEXT,
+        destinations TEXT,
+        message TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        accepted_partner_id INTEGER,
+        accepted_distance_km REAL,
+        accepted_duration_min REAL,
+        notified_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      )`
+    ).run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_trip_alerts_status ON trip_alerts (status, created_at)").run();
+    /* One row per partner actually notified for one alert - holds the real
+       driving distance/duration computed ONCE at broadcast time, so
+       re-opening the Accept prompt later (pending_for_partner) never needs
+       to call Google again for the same figure. */
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS trip_alert_candidates (
+        alert_id INTEGER NOT NULL,
+        partner_id INTEGER NOT NULL,
+        distance_km REAL,
+        duration_min REAL,
+        notified INTEGER NOT NULL DEFAULT 1,
+        ord INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (alert_id, partner_id)
+      )`
+    ).run();
+    /* Counts Google Routes calls per calendar month so the bill can never run
+       away: see routeCallAllowed() below. */
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS maps_usage (
+        month TEXT PRIMARY KEY,
+        calls INTEGER NOT NULL DEFAULT 0
+      )`
+    ).run();
+    /* Safe to run against a DB from before destinations/accepted_distance_km
+       existed - SQLite has no "ADD COLUMN IF NOT EXISTS", so each is simply
+       attempted and the harmless "already exists" error is swallowed. */
+    for (const stmt of [
+      "ALTER TABLE trip_alerts ADD COLUMN destinations TEXT",
+      "ALTER TABLE trip_alerts ADD COLUMN vclass TEXT",
+      "ALTER TABLE trip_alerts ADD COLUMN accepted_distance_km REAL",
+      "ALTER TABLE trip_alerts ADD COLUMN accepted_duration_min REAL",
+      /* batch sending (see notifyBatch): notified=0 means "alert saved for this driver but push not sent yet".
+         Default 1 so rows from before this change are never pushed twice. */
+      "ALTER TABLE trip_alert_candidates ADD COLUMN notified INTEGER NOT NULL DEFAULT 1",
+      "ALTER TABLE trip_alert_candidates ADD COLUMN ord INTEGER NOT NULL DEFAULT 0",
+      /* current_lat/current_lon/current_location_at on travel_partners are
+         normally added by partners.js's own migration, but this Worker
+         instance may serve a broadcast/accept before partners.js has ever
+         run, and both queries below read these columns - so the same safe,
+         idempotent ALTER is repeated here too. */
+      "ALTER TABLE travel_partners ADD COLUMN current_lat REAL",
+      "ALTER TABLE travel_partners ADD COLUMN current_lon REAL",
+      "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
+      /* plan / plan_expires_at are read below to decide who still gets real road
+         distance once the monthly free Google budget is used up. */
+      "ALTER TABLE travel_partners ADD COLUMN plan TEXT",
+      "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
+    ]) {
+      try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
+    }
+    try { await env.DB.prepare("INSERT OR REPLACE INTO app_flags (key, value) VALUES ('trip_alerts_schema', ?)").bind(SCHEMA).run(); } catch (e) {}
   }
   await ensureAbuse(env);
   ready = true;
@@ -217,21 +235,103 @@ async function expireIfDue(env, alert) {
   return alert;
 }
 
-async function pushToPartner(env, partner, payload) {
-  const numbers = [partner.mobile1, partner.mobile2].filter(Boolean);
-  if (!numbers.length) return;
-  const ph = numbers.map(() => "?").join(",");
-  const { results: subs } = await env.DB.prepare(`SELECT * FROM push_subscriptions WHERE mobile IN (${ph})`).bind(...numbers).all();
-  await Promise.all(
-    subs.map(async (sub) => {
-      try {
-        const r = await sendWebPush(env, sub, payload);
-        if (r.stale) await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
-      } catch (e) {
-        /* one device failing to receive a push should never break the rest */
-      }
-    })
-  );
+/* ---------- BATCH SENDING (keeps every request under the Free-plan limit) ----------
+   Cloudflare's Free plan allows only 50 database queries + outgoing calls per
+   request, and every push to a phone is one outgoing call. So a request can
+   safely push to only a few drivers at once. Instead of trying to alert
+   everybody inside ONE request (the extra drivers would silently be skipped),
+   the broadcast saves ALL drivers (nearest first, notified=0) and sends the
+   first small batch at once; the customer's waiting screen already asks
+   "status" every few seconds, and each of those requests (own fresh limit)
+   sends the next batch - until every driver has been alerted.
+   Safe to call from many requests at once: a driver is "claimed" with one
+   atomic UPDATE, so nobody is pushed twice. */
+const BATCH_DRIVERS = 8;        /* max drivers claimed per request */
+const BATCH_PUSHES = 12;        /* max phones (devices) pushed per request */
+const BATCH_ROUTES = 2;         /* max Google road-distance lookups per request */
+const FIRST_DRIVERS = 5, FIRST_PUSHES = 6; /* the broadcast request itself has more other work to do */
+const FIRST_ROUTES = 1;
+/* All of these can be changed later as Cloudflare variables (TRIP_BATCH_DRIVERS, TRIP_BATCH_PUSHES) without a code change. */
+
+async function notifyBatch(env, alert, opts) {
+  const maxDrivers = (opts && opts.drivers) || Math.min(30, Math.max(1, envInt(env.TRIP_BATCH_DRIVERS, BATCH_DRIVERS)));
+  const maxPushes = (opts && opts.pushes) || Math.min(30, Math.max(1, envInt(env.TRIP_BATCH_PUSHES, BATCH_PUSHES)));
+  const maxRoutes = (opts && opts.routes != null) ? opts.routes : BATCH_ROUTES;
+  const { results: rows } = await env.DB
+    .prepare(
+      `SELECT c.partner_id, c.distance_km, c.duration_min, p.mobile1, p.mobile2, p.plan, p.plan_expires_at,
+              COALESCE(p.current_lat, p.lat) AS lat, COALESCE(p.current_lon, p.lon) AS lon
+       FROM trip_alert_candidates c JOIN travel_partners p ON p.id = c.partner_id
+       WHERE c.alert_id=? AND c.notified=0 ORDER BY c.ord LIMIT ?`
+    )
+    .bind(alert.id, maxDrivers)
+    .all();
+  if (!rows || !rows.length) return { sent: 0, claimed: 0 };
+
+  /* all phones of these drivers in ONE query */
+  const numbers = [...new Set(rows.flatMap((r) => [r.mobile1, r.mobile2]).filter(Boolean))];
+  let subs = [];
+  if (numbers.length) {
+    const ph = numbers.map(() => "?").join(",");
+    subs = ((await env.DB.prepare(`SELECT * FROM push_subscriptions WHERE mobile IN (${ph})`).bind(...numbers).all()).results) || [];
+  }
+  /* take drivers (nearest first) while the phone budget lasts; the rest wait for the next request */
+  const pick = [];
+  let phones = 0;
+  for (const r of rows) {
+    const mine = subs.filter((x) => x.mobile === r.mobile1 || x.mobile === r.mobile2);
+    if (pick.length && phones + mine.length > maxPushes) break;
+    r._subs = mine;
+    phones += mine.length;
+    pick.push(r);
+  }
+  /* claim them atomically - a driver claimed by a parallel request is skipped here */
+  const ids = pick.map((r) => r.partner_id);
+  const claim = await env.DB
+    .prepare(`UPDATE trip_alert_candidates SET notified=1 WHERE alert_id=? AND notified=0 AND partner_id IN (${ids.map(() => "?").join(",")}) RETURNING partner_id`)
+    .bind(alert.id, ...ids)
+    .all();
+  const mine = new Set(((claim && claim.results) || []).map((x) => x.partner_id));
+  const send = pick.filter((r) => mine.has(r.partner_id));
+
+  /* real road distance for the nearest few of this batch only (monthly Google budget still applies) */
+  const hasPoint = alert.pickup_lat != null && alert.pickup_lon != null;
+  let routed = 0;
+  for (const r of send) {
+    if (!hasPoint || routed >= maxRoutes || r.lat == null || r.lon == null) continue;
+    routed++;
+    const route = await bestRoute(env, r.lat, r.lon, alert.pickup_lat, alert.pickup_lon, isPremiumPlan(r));
+    if (route && !route.estimated) {
+      r.distance_km = route.distanceKm; r.duration_min = route.durationMin;
+      await env.DB.prepare("UPDATE trip_alert_candidates SET distance_km=?, duration_min=? WHERE alert_id=? AND partner_id=?")
+        .bind(r.distance_km, r.duration_min, alert.id, r.partner_id).run();
+    }
+  }
+
+  const stale = [];
+  let sent = 0;
+  const tasks = [];
+  for (const r of send) {
+    const distText = r.distance_km != null ? `${r.distance_km} km away, ~${formatEta(r.duration_min)}` : "";
+    const payload = {
+      type: "trip_alert",
+      alert_id: alert.id,
+      title: "\ud83d\ude95 New trip request nearby",
+      body: [alert.customer_name, distText, alert.pickup_text].filter(Boolean).join(" \u2022 "),
+      tag: "tc-trip-" + alert.id,
+    };
+    for (const sub of r._subs) {
+      sent++;
+      tasks.push(
+        sendWebPush(env, sub, payload).then((x) => { if (x && x.stale) stale.push(sub.endpoint); }).catch(() => { /* one device failing never stops the rest */ })
+      );
+    }
+  }
+  await Promise.all(tasks);
+  if (stale.length) {
+    try { await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint IN (${stale.map(() => "?").join(",")})`).bind(...stale).run(); } catch (e) {}
+  }
+  return { sent, claimed: send.length };
 }
 
 function formatEta(durationMin) {
@@ -316,31 +416,42 @@ export async function onRequestPost({ request, env, ctx }) {
       .run();
     const alertId = result.meta.last_row_id;
 
-    /* Real driving distance/time is computed ONCE here, per candidate, and
-       stored - every later read (the Accept prompt re-opened, the
-       customer's status poll) reuses this instead of calling Google
-       again for the same pair of points. */
-    const work = Promise.all(
-      candidates.map(async (p) => {
-        const route = (lat != null && lon != null) ? await bestRoute(env, p.lat, p.lon, lat, lon, isPremiumPlan(p)) : null;
-        /* every alerted driver is stored (with the road distance when known, else the straight-line one) -
-           used for the "nobody accepted" help list and the driver response stats (trip_fallback.js) */
+    /* Every driver is saved with a straight-line distance (nearest first) in ONE query, then the
+       first small batch is pushed right now; the rest are pushed by the customer's status
+       polls (notifyBatch) - so any number of drivers is reached without ever passing the
+       Free-plan 50-call limit of a single request. Real road distance is looked up for the
+       nearest few of each batch inside notifyBatch. */
+    if (candidates.length) {
+      const rowsJson = JSON.stringify(
+        candidates.map((p, i) => {
+          const km = p.straight_km != null ? Math.round(p.straight_km * 10) / 10 : null;
+          return [p.id, km, km != null ? Math.round((km / 28) * 60) : null, i];
+        })
+      );
+      try {
         await env.DB
-          .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min) VALUES (?,?,?,?)`)
-          .bind(alertId, p.id, route ? route.distanceKm : (p.straight_km != null ? Math.round(p.straight_km * 10) / 10 : null), route ? route.durationMin : null)
+          .prepare(
+            `INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord)
+             SELECT ?, json_extract(value,'$[0]'), json_extract(value,'$[1]'), json_extract(value,'$[2]'), 0, json_extract(value,'$[3]') FROM json_each(?)`
+          )
+          .bind(alertId, rowsJson)
           .run();
-        const distText = route ? `${route.distanceKm} km away, ~${formatEta(route.durationMin)}` : "";
-        return pushToPartner(env, p, {
-          type: "trip_alert",
-          alert_id: alertId,
-          title: "\ud83d\ude95 New trip request nearby",
-          body: [customerName, distText, body.pickup_text].filter(Boolean).join(" \u2022 "),
-          tag: "tc-trip-" + alertId,
-        });
-      })
-    );
-    if (ctx && ctx.waitUntil) ctx.waitUntil(work);
-    else await work;
+      } catch (e) {
+        /* safety net: plain multi-row insert, 16 drivers per query */
+        const all = JSON.parse(rowsJson);
+        for (let i = 0; i < all.length; i += 16) {
+          const part = all.slice(i, i + 16);
+          await env.DB
+            .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord) VALUES ${part.map(() => "(?,?,?,?,0,?)").join(",")}`)
+            .bind(...part.flatMap((r) => [alertId, r[0], r[1], r[2], r[3]]))
+            .run();
+        }
+      }
+      const first = { id: alertId, customer_name: customerName, pickup_text: (body.pickup_text || "").trim(), pickup_lat: lat, pickup_lon: lon };
+      try {
+        await notifyBatch(env, first, { drivers: FIRST_DRIVERS, pushes: FIRST_PUSHES, routes: FIRST_ROUTES });
+      } catch (e) { /* the status polls will retry the rest */ }
+    }
 
     return Response.json({ ok: true, alert_id: alertId, notified_count: candidates.length });
   }
@@ -435,10 +546,21 @@ export async function onRequestGet({ request, env }) {
     const alertId = Number(url.searchParams.get("alert_id"));
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!alertId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
-    let alert = await env.DB.prepare("SELECT * FROM trip_alerts WHERE id=?").bind(alertId).first();
+    let alert = await env.DB
+      .prepare("SELECT a.*, (SELECT COUNT(*) FROM trip_alert_candidates c WHERE c.alert_id=a.id AND c.notified=0) AS waiting_push FROM trip_alerts a WHERE a.id=?")
+      .bind(alertId)
+      .first();
     if (!alert) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     if (alert.customer_mobile !== mobile) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     alert = await expireIfDue(env, alert);
+    /* drivers not yet pushed (see notifyBatch): this poll sends the next batch */
+    let waitingPush = alert.waiting_push || 0;
+    if (alert.status === "open" && waitingPush > 0) {
+      try {
+        const r = await notifyBatch(env, alert);
+        waitingPush = Math.max(0, waitingPush - r.claimed);
+      } catch (e) { /* next poll retries */ }
+    }
     let partner = null;
     if (alert.status === "accepted" && alert.accepted_partner_id) {
       partner = await env.DB.prepare("SELECT id, business_name, mobile1, mobile2 FROM travel_partners WHERE id=?").bind(alert.accepted_partner_id).first();
@@ -447,6 +569,7 @@ export async function onRequestGet({ request, env }) {
       ok: true,
       status: alert.status,
       notified_count: alert.notified_count,
+      waiting_push: waitingPush,
       partner,
       distance_km: alert.accepted_distance_km,
       duration_min: alert.accepted_duration_min,
