@@ -6,10 +6,15 @@ import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete } from ".
       An expired vehicle loses Verified (the business itself stays).
    2. Missing documents (front/RC/insurance/permit photos, insurance/permit dates): reminders about the
       the deadline (first notice, then 30, 7, 1 day before, and on the day).
-   3. From ENFORCE_DATE: vehicles with incomplete documents lose Verified; Auto/Goods owners left with no verified
+   3. From the deadline: vehicles with incomplete documents lose Verified; Auto/Goods owners left with no verified
       vehicle lose Verified too. They get alerts again after uploading and being approved by the admin. */
 
-let lastRun = "";
+/* The free Workers plan allows only 50 database queries / subrequests per request. The sweep therefore counts what it
+   uses and stops at BUDGET; it is marked finished for the day only when everything is done, otherwise the next API
+   request continues where it stopped (messages already sent are remembered in doc_notices and cost nothing to skip).
+   Verified itself does not depend on this sweep: alerts, boards and lists apply the same rules live (trip_class.js vehicleLive). */
+const BUDGET = 32;
+let lastRun = "", lastTry = 0;
 const dayDiff = (a, b) => Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000);
 
 async function unreadTotal(env, mobile) {
@@ -28,6 +33,7 @@ async function push(env, mobiles, title, body, tag) {
       const payload = { type: "message", title, body, tag, url: "/#messages", count: await unreadTotal(env, mobile) };
       await Promise.all(subs.map(async (sub) => {
         try {
+          if (env._ctr) env._ctr.n++;
           const r = await sendWebPush(env, sub, payload);
           if (r.stale) await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?").bind(sub.endpoint).run();
         } catch (e) {}
@@ -37,19 +43,25 @@ async function push(env, mobiles, title, body, tag) {
 }
 /* One message in the owner's Messages box (from "Travel Connect") + a notification. Once per key. */
 export async function notify(env, key, p, title, body) {
-  const seen = await env.DB.prepare("SELECT 1 AS x FROM doc_notices WHERE k=?").bind(key).first();
-  if (seen) return false;
+  if (env._seen) { if (env._seen.has(key)) return false; }
+  else { const seen = await env.DB.prepare("SELECT 1 AS x FROM doc_notices WHERE k=?").bind(key).first(); if (seen) return false; }
   try {
     await env.DB.prepare("INSERT INTO messages (partner_id, customer_mobile, customer_name, from_customer, body, created_at) VALUES (?,?,?,?,?,?)")
       .bind(p.id, "TC-SYSTEM", "Travel Connect", 1, body, new Date().toISOString()).run();
   } catch (e) { return false; }
-  await env.DB.prepare("INSERT INTO doc_notices (k, sent_at) VALUES (?,?)").bind(key, new Date().toISOString()).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO doc_notices (k, sent_at) VALUES (?,?)").bind(key, new Date().toISOString()).run();
+  if (env._seen) env._seen.add(key);
   await push(env, [p.mobile1, p.mobile2], title, body.split("\n")[0].slice(0, 160), "tc-doc-" + key.replace(/[^a-z0-9]/gi, "-"));
   return true;
 }
 
-export async function runExpirySweep(env) {
+export async function runExpirySweep(env0) {
+  /* count every database query and push so the run can stop before the free-plan limit */
+  const ctr = { n: 0 };
+  const env = { ...env0, _ctr: ctr, DB: { prepare: (q) => { ctr.n++; return env0.DB.prepare(q); } } };
+  const full = () => ctr.n >= BUDGET;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
+  env._seen = new Set((((await env.DB.prepare("SELECT k FROM doc_notices").all()).results) || []).map((r) => r.k));
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
   const today = istToday();
   const ENFORCE_DATE = await getEnforceDate(env);
@@ -60,12 +72,13 @@ export async function runExpirySweep(env) {
   const { results: partners } = await env.DB.prepare(
     "SELECT id, business_name, mobile1, mobile2, business_type, verified FROM travel_partners WHERE business_type IN ('taxi_travel','auto_rickshaw','pickup_goods')"
   ).all();
-  const stats = { vehicles: vehicles.length, sent: 0, vehicles_unverified: 0, partners_unverified: 0 };
+  const stats = { vehicles: vehicles.length, sent: 0, vehicles_unverified: 0, partners_unverified: 0, more: false };
   const byPartner = new Map();
   for (const v of vehicles) { if (!byPartner.has(v.partner_id)) byPartner.set(v.partner_id, []); byPartner.get(v.partner_id).push(v); }
 
   /* 1. permit / insurance dates */
   for (const v of vehicles) {
+    if (full()) { stats.more = true; break; }
     const p = { id: v.partner_id, mobile1: v.mobile1, mobile2: v.mobile2 };
     for (const [doc, en, ml, date] of [["permit", "Permit", "പെർമിറ്റ്", v.permit_expiry], ["ins", "Insurance", "ഇൻഷുറൻസ്", v.insurance_expiry]]) {
       if (!date) continue;
@@ -88,6 +101,7 @@ export async function runExpirySweep(env) {
   const du = dayDiff(ENFORCE_DATE, today);
   const rstage = du <= 0 ? 0 : du <= 1 ? 1 : du <= 7 ? 7 : du <= 30 ? 30 : 100;
   for (const p of partners) {
+    if (stats.more || full()) { stats.more = true; break; }
     const vs = byPartner.get(p.id) || [];
     const lines = [];
     for (const v of vs) {
@@ -104,14 +118,17 @@ export async function runExpirySweep(env) {
   }
 
   /* 3. enforcement */
-  if (enforced) {
+  if (enforced && !stats.more) {
     for (const v of vehicles) {
+      if (full()) { stats.more = true; break; }
       if (v.verified && !isComplete(v, today)) {
         await env.DB.prepare("UPDATE vehicles SET verified=0 WHERE id=?").bind(v.id).run();
         v.verified = 0; stats.vehicles_unverified++;
       }
     }
     for (const p of partners) {
+      if (stats.more) break;
+      if (full()) { stats.more = true; break; }
       if (p.business_type === "taxi_travel" || !p.verified) continue;
       if (!(byPartner.get(p.id) || []).some((v) => v.verified)) {
         await env.DB.prepare("UPDATE travel_partners SET verified=0 WHERE id=?").bind(p.id).run();
@@ -122,16 +139,20 @@ export async function runExpirySweep(env) {
   return stats;
 }
 
-/* Called from worker.js on API requests; does real work at most once per day. */
+/* Called from worker.js on API requests. Does real work at most once per 30 seconds per server instance and is
+   marked done for the day only when the whole sweep finished (it may take several runs). */
 export async function maybeRunExpirySweep(env) {
   const today = istToday();
-  if (lastRun === today) return;
-  lastRun = today;
+  if (lastRun === today || Date.now() - lastTry < 30000) return;
+  lastTry = Date.now();
   try {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_flags (key TEXT PRIMARY KEY, value TEXT)").run();
     const r = await env.DB.prepare("SELECT value FROM app_flags WHERE key='expiry_sweep_date'").first();
-    if (r && r.value === today) return;
-    await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES ('expiry_sweep_date', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(today).run();
-    await runExpirySweep(env);
-  } catch (e) { lastRun = ""; }
+    if (r && r.value === today) { lastRun = today; return; }
+    const stats = await runExpirySweep(env);
+    if (!stats.more) {
+      await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES ('expiry_sweep_date', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(today).run();
+      lastRun = today;
+    }
+  } catch (e) {}
 }
