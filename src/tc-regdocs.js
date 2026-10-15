@@ -1,4 +1,4 @@
-/* Vehicle-document prompts, Approve-page category + vehicle documents, Verification deadline preview, Authorized-Users switch.
+/* Vehicle-document prompts, Approve-page category + vehicle documents, Verification deadline preview, All Users filter tiles, Authorized-Users switch.
    Loaded last; overrides / wraps older functions by name. */
 (function(){
  var E=function(v){ return typeof esc==="function"?esc(v):String(v==null?"":v); };
@@ -203,5 +203,44 @@
    var m="Sent to "+sent+(already?" - "+already+" already reminded today":"")+(none?" - "+none+" had nothing to fix":"");
    if(prog) prog.textContent=m; say(m);
   }catch(e){ if(prog) prog.textContent="Stopped after "+sent+" sent - network/server error. Tap again to continue (already-sent owners are skipped)."; say("Could not finish"); }
+ };
+
+ /* ---------- admin: All Users - tap a tile to see only that group ---------- */
+ var AU_TILES=[["all","Total users"],["owner","Business Owners"],["customer","Customers"],["app","Installed the app"],["web","Website only"],["unknown","Not known yet"]];
+ function auMatch(u,f){
+  if(f==="owner") return u.role==="owner";
+  if(f==="customer") return u.role!=="owner";
+  if(f==="app"||f==="web") return u.app_mode===f;
+  if(f==="unknown") return !u.app_mode;
+  return true;
+ }
+ var oldOpenAU=window.tcOpenAllUsersAdmin;
+ if(typeof oldOpenAU==="function") window.tcOpenAllUsersAdmin=function(){ window._tcAuFilter="all"; return oldOpenAU.apply(this,arguments); };
+ window.tcAuSetFilter=function(f){
+  window._tcAuFilter=(window._tcAuFilter===f&&f!=="all")?"all":f; /* tap the same tile again = show everyone */
+  tcRenderAllUsersSummary(window._tcAllUsers||[]);
+  tcFilterAllUsers();
+ };
+ window.tcRenderAllUsersSummary=function(all){
+  var box=document.querySelector("#tcAllUsersSummary"); if(!box) return;
+  var f=window._tcAuFilter||"all";
+  var cnt=function(list,m){ return list.filter(function(u){ return u.app_mode===m; }).length; };
+  var owners=all.filter(function(u){ return u.role==="owner"; }), custs=all.filter(function(u){ return u.role!=="owner"; });
+  var vals={all:all.length,owner:owners.length,customer:custs.length,app:cnt(all,"app"),web:cnt(all,"web"),unknown:all.filter(function(u){ return !u.app_mode; }).length};
+  var subs={owner:"&#128241; "+cnt(owners,"app")+" app &bull; &#127760; "+cnt(owners,"web")+" web",customer:"&#128241; "+cnt(custs,"app")+" app &bull; &#127760; "+cnt(custs,"web")+" web"};
+  box.innerHTML='<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+AU_TILES.map(function(t){
+   var on=f===t[0];
+   return '<div class="metric" role="button" onclick="tcAuSetFilter(\''+t[0]+'\')" style="cursor:pointer;'+(on?'outline:3px solid #1d6fa5;background:#eaf4fb':'')+'">'+t[1]+'<b>'+vals[t[0]]+'</b>'+(subs[t[0]]?'<div class="muted" style="font-size:11px">'+subs[t[0]]+'</div>':'')+(on&&t[0]!=="all"?'<div style="font-size:11px;color:#1d6fa5"><b>Showing only this</b></div>':'')+'</div>';
+  }).join("")+'</div><p class="muted" style="font-size:11.5px;margin:4px 0 10px">Tap a box to see only those users; tap it again (or "Total users") to see everyone. "Installed the app" = opened Travel Connect from the home-screen app at least once. "Not known yet" = hasn\'t opened the app since this feature was added; it fills in as people open it.</p>';
+ };
+ window.tcRenderAllUsersList=function(list){
+  var box=document.querySelector("#tcAllUsersList"); if(!box) return;
+  var f=window._tcAuFilter||"all";
+  list=list.filter(function(u){ return auMatch(u,f); });
+  var owners=list.filter(function(u){ return u.role==="owner"; }), custs=list.filter(function(u){ return u.role!=="owner"; });
+  var none="<p class='muted'>None.</p>", h="";
+  if(f!=="customer") h+="<h3>Business Owners ("+owners.length+")</h3>"+(owners.map(tcUserRowHtml).join("")||none);
+  if(f!=="owner") h+='<h3 style="margin-top:'+(f==="customer"?"0":"16px")+'">Customers ('+custs.length+")</h3>"+(custs.map(tcUserRowHtml).join("")||none);
+  box.innerHTML=h;
  };
 })();
