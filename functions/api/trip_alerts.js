@@ -32,7 +32,7 @@ async function ensure(env) {
   if (ready) return;
   /* The table/column set-up below is ~15 database calls. On Cloudflare's Free plan a request may make only 50,
      so it is done ONCE (remembered in app_flags) instead of at every cold start of the Worker. */
-  const SCHEMA = "batch1";
+  const SCHEMA = "batch2";
   let done = false;
   try {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_flags (key TEXT PRIMARY KEY, value TEXT)").run();
@@ -73,6 +73,8 @@ async function ensure(env) {
         duration_min REAL,
         notified INTEGER NOT NULL DEFAULT 1,
         ord INTEGER NOT NULL DEFAULT 0,
+        tier INTEGER NOT NULL DEFAULT 2,
+        rel INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (alert_id, partner_id)
       )`
     ).run();
@@ -96,6 +98,10 @@ async function ensure(env) {
          Default 1 so rows from before this change are never pushed twice. */
       "ALTER TABLE trip_alert_candidates ADD COLUMN notified INTEGER NOT NULL DEFAULT 1",
       "ALTER TABLE trip_alert_candidates ADD COLUMN ord INTEGER NOT NULL DEFAULT 0",
+      /* priority order (see planTier): tier 0 = Premium, 1 = Plus, 2 = Free; rel = seconds after the request
+         when this driver's turn comes */
+      "ALTER TABLE trip_alert_candidates ADD COLUMN tier INTEGER NOT NULL DEFAULT 2",
+      "ALTER TABLE trip_alert_candidates ADD COLUMN rel INTEGER NOT NULL DEFAULT 0",
       /* current_lat/current_lon/current_location_at on travel_partners are
          normally added by partners.js's own migration, but this Worker
          instance may serve a broadcast/accept before partners.js has ever
@@ -193,6 +199,25 @@ function isPremiumPlan(p) {
   if (p.plan !== "premium") return false;
   return !p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now();
 }
+/* Priority tier of a driver - the same grouping the Directory already uses:
+   0 = Premium (running) or Owner Free, 1 = Plus / Paid (running) or Owner Plus, 2 = Free (or an expired plan). */
+function planTier(p) {
+  if (!p) return 2;
+  if (p.plan === "owner_free") return 0;
+  const running = !p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now();
+  if (p.plan === "premium" && running) return 0;
+  if (p.plan === "owner_plus") return 1;
+  if (p.plan === "paid" && running) return 1;
+  return 2;
+}
+/* seconds between the priority groups (Premium -> Plus -> Free); Cloudflare variable TRIP_TIER_DELAY_SEC, 0 = everybody at once */
+function tierDelaySec(env) {
+  return Math.min(10, envInt(env.TRIP_TIER_DELAY_SEC, 3));
+}
+function ageSec(iso) {
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 1000) : 0;
+}
 async function routeCallAllowed(env, isPremium) {
   const soft = envInt(env.ROUTES_FREE_MONTHLY_LIMIT, 300);
   const hard = envInt(env.ROUTES_HARD_MONTHLY_LIMIT, 4000);
@@ -262,9 +287,9 @@ async function notifyBatch(env, alert, opts) {
       `SELECT c.partner_id, c.distance_km, c.duration_min, p.mobile1, p.mobile2, p.plan, p.plan_expires_at,
               COALESCE(p.current_lat, p.lat) AS lat, COALESCE(p.current_lon, p.lon) AS lon
        FROM trip_alert_candidates c JOIN travel_partners p ON p.id = c.partner_id
-       WHERE c.alert_id=? AND c.notified=0 ORDER BY c.ord LIMIT ?`
+       WHERE c.alert_id=? AND c.notified=0 AND c.rel<=? ORDER BY c.ord LIMIT ?`
     )
-    .bind(alert.id, maxDrivers)
+    .bind(alert.id, Math.floor(ageSec(alert.created_at)), maxDrivers)
     .all();
   if (!rows || !rows.length) return { sent: 0, claimed: 0 };
 
@@ -422,17 +447,23 @@ export async function onRequestPost({ request, env, ctx }) {
        Free-plan 50-call limit of a single request. Real road distance is looked up for the
        nearest few of each batch inside notifyBatch. */
     if (candidates.length) {
+      /* Premium drivers first, then Plus, then Free (nearest first inside each group). A group that has no
+         driver at all is skipped at once, so e.g. with no Premium driver the Plus drivers get it immediately. */
+      const gap = tierDelaySec(env);
+      candidates.forEach((p) => { p._tier = planTier(p); });
+      candidates.sort((a, b) => a._tier - b._tier || (a.straight_km ?? 999) - (b.straight_km ?? 999));
+      const present = [...new Set(candidates.map((p) => p._tier))].sort();
       const rowsJson = JSON.stringify(
         candidates.map((p, i) => {
           const km = p.straight_km != null ? Math.round(p.straight_km * 10) / 10 : null;
-          return [p.id, km, km != null ? Math.round((km / 28) * 60) : null, i];
+          return [p.id, km, km != null ? Math.round((km / 28) * 60) : null, i, p._tier, present.indexOf(p._tier) * gap];
         })
       );
       try {
         await env.DB
           .prepare(
-            `INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord)
-             SELECT ?, json_extract(value,'$[0]'), json_extract(value,'$[1]'), json_extract(value,'$[2]'), 0, json_extract(value,'$[3]') FROM json_each(?)`
+            `INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord, tier, rel)
+             SELECT ?, json_extract(value,'$[0]'), json_extract(value,'$[1]'), json_extract(value,'$[2]'), 0, json_extract(value,'$[3]'), json_extract(value,'$[4]'), json_extract(value,'$[5]') FROM json_each(?)`
           )
           .bind(alertId, rowsJson)
           .run();
@@ -442,12 +473,12 @@ export async function onRequestPost({ request, env, ctx }) {
         for (let i = 0; i < all.length; i += 16) {
           const part = all.slice(i, i + 16);
           await env.DB
-            .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord) VALUES ${part.map(() => "(?,?,?,?,0,?)").join(",")}`)
-            .bind(...part.flatMap((r) => [alertId, r[0], r[1], r[2], r[3]]))
+            .prepare(`INSERT OR REPLACE INTO trip_alert_candidates (alert_id, partner_id, distance_km, duration_min, notified, ord, tier, rel) VALUES ${part.map(() => "(?,?,?,?,0,?,?,?)").join(",")}`)
+            .bind(...part.flatMap((r) => [alertId, r[0], r[1], r[2], r[3], r[4], r[5]]))
             .run();
         }
       }
-      const first = { id: alertId, customer_name: customerName, pickup_text: (body.pickup_text || "").trim(), pickup_lat: lat, pickup_lon: lon };
+      const first = { id: alertId, created_at: now.toISOString(), customer_name: customerName, pickup_text: (body.pickup_text || "").trim(), pickup_lat: lat, pickup_lon: lon };
       try {
         await notifyBatch(env, first, { drivers: FIRST_DRIVERS, pushes: FIRST_PUSHES, routes: FIRST_ROUTES });
       } catch (e) { /* the status polls will retry the rest */ }
@@ -600,7 +631,9 @@ export async function onRequestGet({ request, env }) {
       if (l10(a.customer_mobile) && (l10(a.customer_mobile) === l10(partner.mobile1) || l10(a.customer_mobile) === l10(partner.mobile2))) continue;
       /* Cab / Carriage alerts only for businesses that really have a matching verified vehicle */
       if (a.vclass && !(await partnerMatches(env, partnerId, a.business_type, a.vclass))) continue;
-      const candidate = await env.DB.prepare("SELECT distance_km, duration_min FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
+      const candidate = await env.DB.prepare("SELECT distance_km, duration_min, notified, rel FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
+      /* Premium -> Plus -> Free: a driver whose turn has not come yet does not see the request in the app either */
+      if (candidate && candidate.notified === 0 && candidate.rel > ageSec(a.created_at)) continue;
       const { customer_mobile: _hidden, ...aSafe } = a; /* number only revealed after Accept */
       open.push({
         ...aSafe,
