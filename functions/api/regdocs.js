@@ -1,11 +1,15 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { runExpirySweep } from "./docs_expiry.js";
-import { ENFORCE_DATE, istToday, missingDocs, vclassOf, seatsOf } from "./trip_class.js";
+import { getEnforceDate, setEnforceDate, dateLabels, istToday, missingDocs, vclassOf, seatsOf } from "./trip_class.js";
+import { notify } from "./docs_expiry.js";
 
 /* Vehicle-document status (the documents themselves live on each vehicle record).
    GET ?action=status&partner_id&mobile&device   owner: what is still missing?
    GET ?action=admin_summary&partner_id&token    admin: the partner's vehicles with documents
-   GET ?action=sweep&token                       admin: run the daily check now */
+   GET ?action=sweep&token                       admin: run the daily check now
+   GET ?action=enforce_preview&token             admin: who will lose Verified on the deadline, and why
+   POST {action:"set_enforce_date",date,token}   admin: change the deadline (must be a future date)
+   POST {action:"remind",partner_ids:[..],token} admin: send the "complete your documents" message (max 3 owners per call) */
 const j = (o, s) => Response.json(o, s ? { status: s } : undefined);
 
 async function ownerAuth(env, partnerId, mobile, device) {
@@ -30,6 +34,32 @@ async function vehiclesOf(env, partnerId) {
   return ((await env.DB.prepare("SELECT v.*, (SELECT business_type FROM travel_partners WHERE id=v.partner_id) AS business_type FROM vehicles v WHERE v.partner_id=? ORDER BY v.id").bind(partnerId).all()).results) || [];
 }
 
+const VEH_TYPES = ["taxi_travel", "auto_rickshaw", "pickup_goods"];
+const dayDiff = (a, b) => Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000);
+
+/* What happens to one owner on the deadline. ref = the date the documents are judged on
+   (the deadline itself, or today if the deadline has passed). */
+function riskOf(p, vs, ref, future) {
+  const risky = [];
+  for (const v of vs) {
+    if (!v.verified) continue;
+    let miss = missingDocs(v, ref);
+    if (!miss.length) continue;
+    if (future) miss = miss.map((m) => m.replace(/(Insurance|Permit) expired/, "$1 expires before the deadline"));
+    risky.push({ id: v.id, vehicle_number: v.vehicle_number, missing: miss });
+  }
+  const verifiedOk = vs.some((v) => v.verified && !missingDocs(v, ref).length);
+  const loses = p.business_type !== "taxi_travel" && !!p.verified && !verifiedOk;
+  const noVehicle = !vs.length && p.business_type !== "taxi_travel";
+  return { risky, loses, noVehicle };
+}
+async function loadAll(env) {
+  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
+  const vehicles = ((await env.DB.prepare("SELECT v.*, p.business_type FROM vehicles v JOIN travel_partners p ON p.id=v.partner_id").all()).results) || [];
+  const partners = ((await env.DB.prepare("SELECT id, business_name, owner_name, mobile1, mobile2, business_type, verified FROM travel_partners WHERE business_type IN ('taxi_travel','auto_rickshaw','pickup_goods')").all()).results) || [];
+  return { vehicles, partners };
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -46,7 +76,28 @@ export async function onRequestGet({ request, env }) {
     try { authorized = !!(await env.DB.prepare("SELECT 1 AS x FROM authorized_users WHERE mobile=?").bind(p.mobile1).first()); } catch (e) {}
     /* Auto / Goods owners must register a vehicle with complete documents before approval (unless on the Authorized list). */
     const required = ["auto_rickshaw", "pickup_goods"].includes(p.business_type) && !p.verified && !authorized && !hasComplete;
-    return j({ ok: true, vehicle_type: vehicleType, required, enforce_date: ENFORCE_DATE, vehicles: list });
+    return j({ ok: true, vehicle_type: vehicleType, required, enforce_date: await getEnforceDate(env), vehicles: list });
+  }
+
+  if (action === "enforce_preview") {
+    if (!(await verifyAdminToken(env, url.searchParams.get("token")))) return j({ ok: false, error: "unauthorized" }, 401);
+    const ed = await getEnforceDate(env);
+    const future = ed > today, ref = future ? ed : today;
+    const { vehicles, partners } = await loadAll(env);
+    const by = new Map();
+    for (const v of vehicles) { if (!by.has(v.partner_id)) by.set(v.partner_id, []); by.get(v.partner_id).push(v); }
+    const owners = [];
+    let nVeh = 0, nLose = 0;
+    for (const p of partners) {
+      const r = riskOf(p, by.get(p.id) || [], ref, future);
+      if (!r.risky.length && !r.loses) continue;
+      nVeh += r.risky.length; if (r.loses) nLose++;
+      owners.push({ partner_id: p.id, business_name: p.business_name, owner_name: p.owner_name, mobile1: p.mobile1, mobile2: p.mobile2,
+        business_type: p.business_type, loses_verified: r.loses, no_vehicle: r.noVehicle, vehicles: r.risky });
+    }
+    owners.sort((a, b) => (b.loses_verified - a.loses_verified) || String(a.business_name).localeCompare(String(b.business_name)));
+    return j({ ok: true, enforce_date: ed, today, days_left: dayDiff(ed, today), enforced: !future, owners,
+      totals: { owners: owners.length, vehicles: nVeh, owners_losing_verified: nLose } });
   }
 
   if (action === "admin_summary" || action === "sweep") {
@@ -66,6 +117,42 @@ export async function onRequestGet({ request, env }) {
   return j({ ok: false, error: "unknown_action" });
 }
 
-export async function onRequestPost() {
-  return j({ ok: false, error: "unknown_action" });
+export async function onRequestPost({ request, env }) {
+  let b = {};
+  try { b = await request.json(); } catch (e) {}
+  if (b.action !== "set_enforce_date" && b.action !== "remind") return j({ ok: false, error: "unknown_action" });
+  if (!(await verifyAdminToken(env, b.token))) return j({ ok: false, error: "unauthorized" }, 401);
+  const today = istToday();
+
+  if (b.action === "set_enforce_date") {
+    const d = String(b.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(new Date(d + "T00:00:00Z"))) return j({ ok: false, error: "bad_date" }, 400);
+    if (d <= today) return j({ ok: false, error: "must_be_future" }, 400);
+    if (dayDiff(d, today) > 730) return j({ ok: false, error: "too_far" }, 400);
+    await setEnforceDate(env, d);
+    return j({ ok: true, enforce_date: d });
+  }
+
+  /* remind: at most 3 owners per call (keeps each request inside the free-plan limits) */
+  const ids = (Array.isArray(b.partner_ids) ? b.partner_ids : []).map((x) => parseInt(x, 10)).filter((x) => x > 0).slice(0, 3);
+  const ed = await getEnforceDate(env);
+  const future = ed > today, ref = future ? ed : today;
+  const dl = dateLabels(ed);
+  const out = { ok: true, sent: 0, already_today: 0, nothing_to_fix: 0 };
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
+  for (const id of ids) {
+    const p = await env.DB.prepare("SELECT id, business_name, mobile1, mobile2, business_type, verified FROM travel_partners WHERE id=?").bind(id).first();
+    if (!p || !VEH_TYPES.includes(p.business_type)) { out.nothing_to_fix++; continue; }
+    const vs = await vehiclesOf(env, id);
+    const r = riskOf(p, vs, ref, future);
+    if (!r.risky.length && !r.loses) { out.nothing_to_fix++; continue; }
+    const lines = r.risky.map((v) => `${v.vehicle_number || "vehicle"}: ${v.missing.join(", ")}`);
+    if (r.noVehicle) lines.push("No vehicle added yet");
+    const list = lines.slice(0, 6).join("\n");
+    const en = `Reminder from Travel Connect: ${future ? "from " + dl.en : "since " + dl.en}, only vehicles with complete documents stay Verified and get trip alerts.${r.loses ? " Your business will lose its Verified status if this is not completed." : ""} Still missing (Business page > Vehicles):\n${list}`;
+    const ml = `ഓർമ്മപ്പെടുത്തൽ: ${dl.ml} ${future ? "മുതൽ" : "മുതൽ (ഇപ്പോൾ പ്രാബല്യത്തിൽ)"} രേഖകൾ പൂർണ്ണമായ വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ.${r.loses ? " ഇത് പൂർത്തിയാക്കിയില്ലെങ്കിൽ നിങ്ങളുടെ ബിസിനസ്സിന്റെ Verified ഒഴിവാക്കും." : ""} ബാക്കിയുള്ളത് (Business പേജ് > Vehicles):\n${list}`;
+    const sent = await notify(env, `p${id}:preview:${today}`, p, "Complete your vehicle documents", en + "\n\n" + ml);
+    if (sent) out.sent++; else out.already_today++;
+  }
+  return j(out);
 }
