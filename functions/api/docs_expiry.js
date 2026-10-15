@@ -1,11 +1,11 @@
 import { sendWebPush } from "./_webpush.js";
-import { ENFORCE_DATE, istToday, missingDocs, isComplete } from "./trip_class.js";
+import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete } from "./trip_class.js";
 
 /* Daily check of every vehicle's documents (runs by itself once a day, on the first API request of the day).
    1. Permit / Insurance dates: message + phone notification 30, 7 and 1 day before and when expired.
       An expired vehicle loses Verified (the business itself stays).
    2. Missing documents (front/RC/insurance/permit photos, insurance/permit dates): reminders about the
-      ENFORCE_DATE rule (first notice, then 30, 7, 1 day before, and on the day).
+      the deadline (first notice, then 30, 7, 1 day before, and on the day).
    3. From ENFORCE_DATE: vehicles with incomplete documents lose Verified; Auto/Goods owners left with no verified
       vehicle lose Verified too. They get alerts again after uploading and being approved by the admin. */
 
@@ -36,7 +36,7 @@ async function push(env, mobiles, title, body, tag) {
   } catch (e) {}
 }
 /* One message in the owner's Messages box (from "Travel Connect") + a notification. Once per key. */
-async function notify(env, key, p, title, body) {
+export async function notify(env, key, p, title, body) {
   const seen = await env.DB.prepare("SELECT 1 AS x FROM doc_notices WHERE k=?").bind(key).first();
   if (seen) return false;
   try {
@@ -52,6 +52,7 @@ export async function runExpirySweep(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
   const today = istToday();
+  const ENFORCE_DATE = await getEnforceDate(env);
   const enforced = today >= ENFORCE_DATE;
   const { results: vehicles } = await env.DB.prepare(
     "SELECT v.*, p.business_name, p.mobile1, p.mobile2, p.business_type, p.verified AS pverified FROM vehicles v JOIN travel_partners p ON p.id=v.partner_id"
@@ -96,8 +97,9 @@ export async function runExpirySweep(env) {
     if (!vs.length && p.business_type !== "taxi_travel") lines.push("No vehicle added yet");
     if (!lines.length) continue;
     const list = lines.slice(0, 6).join("\n");
-    const when = du > 0 ? `From 1 January 2027` : `Since 1 January 2027`;
-    const body = `${when}, only vehicles with complete documents stay Verified and get trip alerts: Front photo, RC photo, Insurance photo + expiry date, Permit photo + expiry date. Please complete (Business page > Vehicles):\n${list}\n\n2027 ജനുവരി 1 മുതൽ മുൻവശത്തെ ഫോട്ടോ, RC ഫോട്ടോ, ഇൻഷുറൻസ് ഫോട്ടോയും തീയതിയും, പെർമിറ്റ് ഫോട്ടോയും തീയതിയും പൂർണ്ണമായുള്ള വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ. Business പേജിലെ Vehicles-ൽ പൂർത്തിയാക്കുക.`;
+    const dl = dateLabels(ENFORCE_DATE);
+    const when = du > 0 ? `From ${dl.en}` : `Since ${dl.en}`;
+    const body = `${when}, only vehicles with complete documents stay Verified and get trip alerts: Front photo, RC photo, Insurance photo + expiry date, Permit photo + expiry date. Please complete (Business page > Vehicles):\n${list}\n\n${dl.ml} മുതൽ മുൻവശത്തെ ഫോട്ടോ, RC ഫോട്ടോ, ഇൻഷുറൻസ് ഫോട്ടോയും തീയതിയും, പെർമിറ്റ് ഫോട്ടോയും തീയതിയും പൂർണ്ണമായുള്ള വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ. Business പേജിലെ Vehicles-ൽ പൂർത്തിയാക്കുക.`;
     if (await notify(env, `p${p.id}:ready:${rstage}`, p, du > 0 ? "Complete your vehicle documents" : "Vehicle documents incomplete", body)) stats.sent++;
   }
 
