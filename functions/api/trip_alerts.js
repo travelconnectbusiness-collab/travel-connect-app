@@ -21,6 +21,7 @@
 import { sendWebPush } from "./_webpush.js";
 import { verifyAdminToken } from "./_auth_helper.js";
 import { eligiblePartners, partnerMatches, VCLASSES } from "./trip_class.js";
+import { ensureAbuse, checkBroadcast, last10 as last10Digits, abuseGet, abusePost } from "./trip_abuse.js";
 
 const RADIUS_KM = 15; // straight-line pre-filter only, not what's shown
 const ALERT_LIFETIME_MINUTES = 10;
@@ -93,6 +94,7 @@ async function ensure(env) {
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
   }
+  await ensureAbuse(env);
   ready = true;
 }
 
@@ -246,6 +248,9 @@ export async function onRequestPost({ request, env, ctx }) {
     return Response.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
 
+  const adminRes = await abusePost(env, body);
+  if (adminRes) return adminRes;
+
   if (body.action === "broadcast") {
     const businessType = (body.business_type || "").trim();
     const customerName = (body.customer_name || "").trim();
@@ -253,6 +258,13 @@ export async function onRequestPost({ request, env, ctx }) {
     if (!businessType || !customerName || !customerMobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    /* Abuse limits (trip_abuse.js): blocked / too many requests / same request tapped twice */
+    const device = String(body.device || "").slice(0, 80);
+    const ip = request.headers.get("CF-Connecting-IP") || "";
+    const gate = await checkBroadcast(env, { mobile: customerMobile, device, ip, businessType, vclass: VCLASSES.includes(body.vclass) && businessType === "taxi_travel" ? body.vclass : null });
+    if (!gate.ok) return Response.json({ ok: false, error: gate.error, retry_after_min: gate.retry_after_min || null }, { status: gate.status });
+    if (gate.duplicate) return Response.json({ ok: true, alert_id: gate.duplicate.alert_id, notified_count: gate.duplicate.notified_count, duplicate: true });
+
     const lat = body.lat != null && body.lat !== "" ? Number(body.lat) : null;
     const lon = body.lon != null && body.lon !== "" ? Number(body.lon) : null;
     const destinations = Array.isArray(body.destinations) ? body.destinations.map((d) => String(d).trim()).filter(Boolean).slice(0, 8) : [];
@@ -280,8 +292,8 @@ export async function onRequestPost({ request, env, ctx }) {
 
     const result = await env.DB
       .prepare(
-        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at, vclass)
-         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?)`
+        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at, vclass, mobile10, device, ip)
+         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?,?,?,?)`
       )
       .bind(
         businessType,
@@ -295,7 +307,10 @@ export async function onRequestPost({ request, env, ctx }) {
         candidates.length,
         now.toISOString(),
         expiresAt,
-        vclass
+        vclass,
+        last10Digits(customerMobile),
+        device,
+        ip
       )
       .run();
     const alertId = result.meta.last_row_id;
@@ -411,6 +426,9 @@ export async function onRequestGet({ request, env }) {
   await ensure(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
+
+  const adminRes = await abuseGet(env, action, url);
+  if (adminRes) return adminRes;
 
   if (action === "status") {
     const alertId = Number(url.searchParams.get("alert_id"));
