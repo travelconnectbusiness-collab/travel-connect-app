@@ -1,7 +1,7 @@
 /* Travel Connect - GUARD CHECK
    Run from the repo root:  node scripts/guard.js
    1) Every server file (functions/**, worker.js) and every script that index.html loads
-      from /src/ (plus sw.js) must have valid JavaScript syntax.
+      from /src/ or that is named src/tc-*.js (plus sw.js) must have valid JavaScript syntax.
    2) Every "must keep" feature marker below must still exist in its file.
    Exit code 1 (red X / stopped deploy) if anything is wrong or missing.
    RULE: when a must-keep feature is added, add its marker to MARKERS below. */
@@ -38,6 +38,10 @@ const MARKERS = [
   ["functions/api/vehicles.js", "vehicleLive", "Active Vehicles board / owner list use the live rule"],
   ["functions/api/docs_expiry.js", "BUDGET", "Daily sweep stays inside the free-plan query limit"],
   ["src/tc-regdocs.js", "tcAuSetFilter", "All Users: tap a tile to filter"],
+  ["functions/api/trip_abuse.js", "checkBroadcast", "Trip request abuse limits"],
+  ["functions/api/trip_alerts.js", "checkBroadcast", "Abuse limits are applied to trip requests"],
+  ["src/tc-abuse.js", "tcAbuseLoad", "Admin spam check panel"],
+  ["src/tc-regdocs.js", "tc-abuse.js", "tc-regdocs.js loads tc-abuse.js"],
   ["functions/api/trip_alerts.js", "eligiblePartners", "Motor Cab / Carriage / Agency alert targeting"],
   ["functions/api/vehicles.js", "seats_required", "Seat capacity is mandatory"],
   ["functions/api/docs_expiry.js", "doc_notices", "Expiry reminders / sweep"],
@@ -87,6 +91,11 @@ if (exists("index.html")) {
   let m;
   while ((m = re.exec(html))) clientFiles.push(m[1]);
   if (!clientFiles.length) problems.push("index.html loads no /src/ scripts - is index.html the right one?");
+}
+/* extra scripts that other scripts load themselves (e.g. tc-regdocs.js loads tc-abuse.js) */
+for (const f of walk("src")) {
+  const norm = f.split(path.sep).join("/");
+  if (/\/tc-[^/]*\.js$/.test(norm) && !clientFiles.includes(norm)) clientFiles.push(norm);
 }
 for (const f of clientFiles) {
   if (!exists(f)) problems.push("index.html loads " + f + " but the file does not exist");
