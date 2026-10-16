@@ -145,6 +145,7 @@ function renderPartnerRegisterForm(prefilledType){
   <label>Owner name<input id="pOwnerName" value="${esc(user.name)}"></label>
   <label>Mobile 1<input id="pMobile1" value="${esc(user.mobile)}"></label>
   <label>Mobile 2 (optional)<input id="pMobile2"></label>
+  <label>Public contact number (optional)<input id="pPublicPhone" placeholder="Number customers should call"><span class="muted" style="font-size:11.5px">If filled, customers see and call THIS number instead of your login numbers (for example the shop's own phone).</span></label>
   <label>Email (optional)<input id="pEmail"></label>
   <label>Location<div style="display:flex;gap:6px"><input id="pLocation" placeholder="Town / area" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('pLocation','pPin','pLocStatus')" style="white-space:nowrap;padding:0 10px">&#128205; Pin location</button></div></label>
   <label>Pincode<input id="pPincode"></label>
@@ -169,6 +170,7 @@ async function submitPartnerRegister(){
   business_type:businessType,
   business_subtype:document.querySelector("#pSkillType").value.trim(),
   mobile2:document.querySelector("#pMobile2").value.trim(),
+  public_phone:document.querySelector("#pPublicPhone").value.trim(),
   email:document.querySelector("#pEmail").value.trim(),
   location:document.querySelector("#pLocation").value.trim(),
   pincode:document.querySelector("#pPincode").value.trim(),
@@ -183,6 +185,8 @@ async function submitPartnerRegister(){
     errBox.textContent="Your number isn't authorized for this business category yet. Please contact the app owner to get "+esc(tcBizLabel(body.business_type))+" added for your number, then try again.";
    }else if(data.error==="already_registered"){
     errBox.textContent="You've already registered a "+esc(tcBizLabel(body.business_type))+" business with this number.";
+   }else if(data.error==="bad_public_phone"){
+    errBox.textContent="The public contact number is not valid - enter 8 to 15 digits, or leave it empty.";
    }else{
     errBox.textContent="Could not register. Please try again.";
    }
@@ -204,6 +208,7 @@ function tcOpenEditPartnerDetails(partnerId){
    <label>Business name<input id="peBizName" value="${esc(p.business_name)}"></label>
    <label>Owner name<input id="peOwnerName" value="${esc(p.owner_name)}"></label>
    <label>Mobile 2<input id="peMobile2" value="${esc(p.mobile2||"")}"></label>
+   <label>Public contact number (optional)<input id="pePublicPhone" value="${esc(p.public_phone||"")}" placeholder="Number customers should call"><span class="muted" style="font-size:11.5px">If filled, customers see and call THIS number instead of your login numbers. Leave empty to show your own numbers.</span></label>
    <label>Email<input id="peEmail" value="${esc(p.email||"")}"></label>
    <label>Location<div style="display:flex;gap:6px"><input id="peLocation" value="${esc(p.location||"")}" style="flex:1"><button type="button" onclick="tcCapturePartnerLocation('peLocation','pePin','peLocStatus')" style="white-space:nowrap;padding:0 10px">&#128205; Pin location</button></div></label>
    <label>Pincode<input id="pePincode" value="${esc(p.pincode||"")}"></label>
@@ -223,6 +228,7 @@ async function tcSavePartnerDetails(partnerId){
   business_name:document.querySelector("#peBizName").value,
   owner_name:document.querySelector("#peOwnerName").value,
   mobile2:document.querySelector("#peMobile2").value,
+  public_phone:document.querySelector("#pePublicPhone").value.trim(),
   email:document.querySelector("#peEmail").value,
   location:document.querySelector("#peLocation").value,
   pincode:document.querySelector("#pePincode").value,
@@ -232,7 +238,7 @@ async function tcSavePartnerDetails(partnerId){
  try{
   const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await res.json();
-  if(!data.ok){ toast("Could not save ("+(data.error||"unknown")+")"); return; }
+  if(!data.ok){ toast(data.error==="bad_public_phone"?"The public contact number is not valid (8 to 15 digits)":"Could not save ("+(data.error||"unknown")+")"); return; }
   toast("Details updated");
   closeModal();
   partnerView();
@@ -1284,6 +1290,7 @@ function tcOpenAdminEditPartner(id){
    <label>Owner name<input id="aeOwnerName" value="${esc(p.owner_name)}"></label>
    <label>Mobile 1<input id="aeMobile1" value="${esc(p.mobile1)}"></label>
    <label>Mobile 2<input id="aeMobile2" value="${esc(p.mobile2||"")}"></label>
+   <label>Public contact number<input id="aePublicPhone" value="${esc(p.public_phone||"")}" placeholder="shown to customers instead of Mobile 1 / 2"></label>
    <label>Location<input id="aeLocation" value="${esc(p.location||"")}"></label>
    <label>Pincode<input id="aePincode" value="${esc(p.pincode||"")}"></label>
   </div>
@@ -1297,12 +1304,13 @@ async function tcSaveAdminEditPartner(id){
   owner_name:document.querySelector("#aeOwnerName").value,
   mobile1:document.querySelector("#aeMobile1").value,
   mobile2:document.querySelector("#aeMobile2").value,
+  public_phone:document.querySelector("#aePublicPhone").value.trim(),
   location:document.querySelector("#aeLocation").value,
   pincode:document.querySelector("#aePincode").value};
  try{
   const res=await fetch("/api/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await res.json();
-  if(!data.ok){ toast("Could not save - try again."); return; }
+  if(!data.ok){ toast(data.error==="bad_public_phone"?"Public contact number is not valid (8 to 15 digits)":"Could not save - try again."); return; }
   toast("Partner updated"); closeModal(); tcRenderAllPartnersAdmin();
  }catch(e){ toast("Network error"); }
 }
