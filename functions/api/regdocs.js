@@ -175,7 +175,7 @@ export async function onRequestPost({ request, env }) {
     if (r.noVehicle) { linesEn.push("No vehicle added yet"); linesMl.push("വാഹനം ഒന്നും ചേർത്തിട്ടില്ല"); }
     const en = `Reminder from Travel Connect: ${future ? "from " + dl.en : "since " + dl.en}, only vehicles with complete and valid documents stay Verified and get trip alerts.${r.loses ? " Your business will lose its Verified status if this is not completed." : ""}\nWhat needs attention (Business page > Vehicles > Edit):\n${linesEn.slice(0, 6).join("\n")}`;
     const ml = `ഓർമ്മപ്പെടുത്തൽ: ${dl.ml} ${future ? "മുതൽ" : "മുതൽ (ഇപ്പോൾ പ്രാബല്യത്തിൽ)"} രേഖകൾ പൂർണ്ണവും കാലാവധിയുള്ളതുമായ വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ.${r.loses ? " ഇത് പൂർത്തിയാക്കിയില്ലെങ്കിൽ നിങ്ങളുടെ ബിസിനസ്സിന്റെ Verified ഒഴിവാക്കും." : ""}\nശ്രദ്ധിക്കേണ്ടത് (Business പേജ് > Vehicles > Edit):\n${linesMl.slice(0, 6).join("\n")}`;
-    const sent = await notify(env, `p${id}:remind2:${today}`, p, "Complete your vehicle documents", en + "\n\n" + ml);
+    const sent = await notify(env, `p${id}:remind2:${today}`, p, "Complete your vehicle documents", en + "\n\n" + ml, true);
     if (sent) out.sent++; else out.already_today++;
   }
   return j(out);
