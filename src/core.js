@@ -330,6 +330,7 @@ const TC_BUSINESS_TYPES={
  restaurant:"Restaurant / Tea Shop",
  petrol_pump:"Petrol Pump",
  workshop:"Workshop",
+ shop:"Shop / Store",
  hospital:"Hospital",
  homestay:"Homestay / Resort / Hotel",
  skilled_work:"Skilled Work (Plumber, Electrician, Carpenter etc.)"
@@ -376,11 +377,17 @@ function tcBizDisplayLabel(businessType,subtype){
  if(subtype) return tcBizLabelShort(businessType)+" - "+subtype;
  return tcBizLabel(businessType);
 }
+/* The extra "what exactly?" line (business_subtype) is asked for Skilled Work and for Shop / Store only. */
+function tcSubtypeHint(businessType){
+ if(businessType==="skilled_work") return "What kind of work? (e.g. Plumber, Electrician, Tree climbing/spraying, Carpenter)";
+ if(businessType==="shop") return "What does the shop sell? (e.g. Aquarium & Pets, Stationery, Mobile Phones)";
+ return "";
+}
 function tcBizTypeFieldHtml(selectId,otherId,selected,skillId,selectedSkill){
  const isKnown=selected==null||TC_BUSINESS_TYPES.hasOwnProperty(selected);
  const otherValue=isKnown?"":selected;
  const skillPart=skillId?`
-  <input id="${skillId}" placeholder="What kind of work? (e.g. Plumber, Electrician, Tree climbing/spraying, Carpenter)" value="${esc(selectedSkill||"")}" style="${selected==="skilled_work"?"":"display:none;"}margin-top:6px;width:100%;box-sizing:border-box">`:"";
+  <input id="${skillId}" placeholder="${esc(tcSubtypeHint(selected)||tcSubtypeHint("skilled_work"))}" value="${esc(selectedSkill||"")}" style="${tcSubtypeHint(selected)?"":"display:none;"}margin-top:6px;width:100%;box-sizing:border-box">`:"";
  return `<select id="${selectId}" onchange="tcToggleOtherBizType('${selectId}','${otherId}'${skillId?",'"+skillId+"'":""})">${tcBusinessTypeOptions(selected)}</select>
   <input id="${otherId}" placeholder="Enter your business category" value="${esc(otherValue)}" style="${isKnown?"display:none;":""}margin-top:6px;width:100%;box-sizing:border-box">${skillPart}`;
 }
@@ -390,7 +397,11 @@ function tcToggleOtherBizType(selectId,otherId,skillId){
  other.style.display=sel.value==="other"?"":"none";
  if(skillId){
   const skill=document.querySelector("#"+skillId);
-  if(skill) skill.style.display=sel.value==="skilled_work"?"":"none";
+  if(skill){
+   const hint=tcSubtypeHint(sel.value);
+   skill.style.display=hint?"":"none";
+   if(hint) skill.placeholder=hint;
+  }
  }
 }
 /* Returns "" (never a silent "taxi_travel") when the category dropdown
@@ -1067,6 +1078,7 @@ const TC_BUSINESS_TYPES_ML={
  restaurant:"ഹോട്ടൽ / ടീ ഷോപ്പ്",
  petrol_pump:"പെട്രോൾ പമ്പ്",
  workshop:"വർക്ക്ഷോപ്പ്",
+ shop:"ഷോപ്പ് / കട",
  hospital:"ഹോസ്പിറ്റൽ",
  homestay:"ഹോംസ്റ്റേ / റിസോർട്ട് / ഹോട്ടൽ",
  skilled_work:"സ്കിൽഡ് വർക്ക് (പ്ലംബർ, ഇലക്ട്രീഷ്യൻ, കാർപെന്റർ etc.)"
