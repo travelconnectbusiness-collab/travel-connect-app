@@ -65,6 +65,8 @@ const MARKERS = [
   ["src/landing.js", "/privacy.html", "Landing footer links to the Privacy page"],
   ["privacy.html", "Privacy Policy", "Privacy Policy page"],
   ["terms.html", "Terms of Use", "Terms of Use page"],
+  ["src/tc-share.js", "__tcShare", "Menu entries: Share this app, Privacy Policy, Terms of Use"],
+  ["src/tc-regdocs.js", "tc-share.js", "tc-regdocs.js loads tc-share.js"],
   ["functions/api/vehicles.js", "deleteFiles", "Replaced / deleted vehicle photos are removed from storage"],
   ["functions/api/partners.js", "fileKeys", "Deleting a business removes its files from storage"],
   ["functions/api/vehicles.js", "tax_expiry", "Vehicle tax date is saved"],
