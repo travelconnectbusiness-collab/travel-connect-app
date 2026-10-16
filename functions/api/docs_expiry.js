@@ -43,7 +43,64 @@ async function push(env, mobiles, title, body, tag) {
   } catch (e) {}
 }
 /* One message in the owner's Messages box (from "Travel Connect") + a notification. Once per key. */
-export async function notify(env, key, p, title, body) {
+/* ---------- EMAIL COPY of the reminders (Resend free plan: 100 emails/day, 3000/month) ----------
+   Only owners whose email is VERIFIED get one, only when the RESEND_API_KEY secret exists, and never more than
+   MAIL_DAILY per day (default 80, so the verification codes sent from the same Resend account always have room).
+   First notices (30 days before / documents not complete yet) use only 60% of those (48 of 80), so urgent ones
+   (7 days, 1 day, expired, admin "remind" button) are never crowded out. Setting the Cloudflare variable
+   EMAIL_REMINDERS to "off" stops these emails. The in-app message + push are always sent; the email is an extra
+   and a failed or skipped email never affects them. */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+async function emailFor(env, p) {
+  if (!env.RESEND_API_KEY || env.EMAIL_REMINDERS === "off" || env._mailOff) return null;
+  let row = null;
+  if (env._emails) row = env._emails.get(p.id);
+  else { try { row = await env.DB.prepare("SELECT email, email_verified FROM travel_partners WHERE id=?").bind(p.id).first(); } catch (e) { row = null; } }
+  const to = row && row.email_verified ? String(row.email || "").trim() : "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) ? to : null;
+}
+async function mailAllowed(env, urgent) {
+  const cap = Math.min(90, Math.max(0, parseInt(env.MAIL_REMINDER_DAILY, 10) || 80));
+  const limit = urgent ? cap : Math.floor(cap * 0.6);
+  if (!env._mail) {
+    const day = istToday();
+    let n = 0;
+    try {
+      await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_flags (key TEXT PRIMARY KEY, value TEXT)").run();
+      const r = await env.DB.prepare("SELECT value FROM app_flags WHERE key=?").bind("mail_sent:" + day).first();
+      n = r ? parseInt(r.value, 10) || 0 : 0;
+    } catch (e) { return false; }
+    env._mail = { day, n };
+  }
+  return env._mail.n < limit;
+}
+async function sendReminderMail(env, to, title, body) {
+  const from = env.MAIL_FROM || "Travel Connect <no-reply@travelconnect.dev>";
+  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222"><p>${esc(body).replace(/\n/g, "<br>")}</p><hr style="border:none;border-top:1px solid #ddd"><p style="font-size:12px;color:#777">You get this because your email is verified on Travel Connect. Open the app: <a href="https://travelconnect.dev">travelconnect.dev</a><br>നിങ്ങളുടെ ഇമെയിൽ Travel Connect-ൽ verify ചെയ്തതിനാലാണ് ഈ ഇമെയിൽ ലഭിക്കുന്നത്.</p></div>`;
+  if (env._ctr) env._ctr.n++;
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [to], subject: title, html, text: body + "\n\nhttps://travelconnect.dev" }),
+    });
+    if (!r.ok && (r.status === 429 || r.status === 401 || r.status === 403)) env._mailOff = true; /* limit reached / key problem: stop for this run */
+    return r.ok;
+  } catch (e) { return false; }
+}
+async function emailCopy(env, p, title, body, urgent) {
+  try {
+    const to = await emailFor(env, p);
+    if (!to || !(await mailAllowed(env, urgent))) return false;
+    if (!(await sendReminderMail(env, to, title, body))) return false;
+    env._mail.n++;
+    if (env._mailSent != null) env._mailSent++;
+    await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("mail_sent:" + env._mail.day, String(env._mail.n)).run();
+    return true;
+  } catch (e) { return false; }
+}
+
+export async function notify(env, key, p, title, body, urgent) {
   if (env._seen) { if (env._seen.has(key)) return false; }
   else { const seen = await env.DB.prepare("SELECT 1 AS x FROM doc_notices WHERE k=?").bind(key).first(); if (seen) return false; }
   try {
@@ -53,6 +110,7 @@ export async function notify(env, key, p, title, body) {
   await env.DB.prepare("INSERT OR IGNORE INTO doc_notices (k, sent_at) VALUES (?,?)").bind(key, new Date().toISOString()).run();
   if (env._seen) env._seen.add(key);
   await push(env, [p.mobile1, p.mobile2], title, body.split("\n")[0].slice(0, 160), "tc-doc-" + key.replace(/[^a-z0-9]/gi, "-"));
+  await emailCopy(env, p, title, body, !!urgent);
   return true;
 }
 
@@ -63,6 +121,13 @@ export async function runExpirySweep(env0) {
   const full = () => ctr.n >= BUDGET;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
   env._seen = new Set((((await env.DB.prepare("SELECT k FROM doc_notices").all()).results) || []).map((r) => r.k));
+  env._mailSent = 0;
+  if (env.RESEND_API_KEY && env.EMAIL_REMINDERS !== "off") {
+    /* every verified email in ONE query */
+    try {
+      env._emails = new Map((((await env.DB.prepare("SELECT id, email, email_verified FROM travel_partners WHERE email_verified=1 AND email IS NOT NULL AND email<>''").all()).results) || []).map((r) => [r.id, r]));
+    } catch (e) { env._emails = new Map(); }
+  }
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN tax_expiry TEXT").run(); } catch (e) {}
   const today = istToday();
@@ -74,7 +139,7 @@ export async function runExpirySweep(env0) {
   const { results: partners } = await env.DB.prepare(
     "SELECT id, business_name, mobile1, mobile2, business_type, verified FROM travel_partners WHERE business_type IN ('taxi_travel','auto_rickshaw','pickup_goods')"
   ).all();
-  const stats = { vehicles: vehicles.length, sent: 0, vehicles_unverified: 0, partners_unverified: 0, more: false };
+  const stats = { vehicles: vehicles.length, sent: 0, emails: 0, vehicles_unverified: 0, partners_unverified: 0, more: false };
   const byPartner = new Map();
   for (const v of vehicles) { if (!byPartner.has(v.partner_id)) byPartner.set(v.partner_id, []); byPartner.get(v.partner_id).push(v); }
 
@@ -91,6 +156,7 @@ export async function runExpirySweep(env0) {
       if (!date) continue;
       const dl = dayDiff(date, today);
       if (!Number.isFinite(dl)) continue;
+      if (full()) { stats.more = true; break; } /* a vehicle can have many reminders: stop between them, not only between vehicles */
       if (optional) {
         const st = dl < 0 ? 0 : dl <= 1 ? 1 : dl <= 7 ? 7 : dl <= 30 ? 30 : null;
         if (st === null) continue;
@@ -98,7 +164,7 @@ export async function runExpirySweep(env0) {
         const body = st === 0
           ? `${en} of ${no} expired on ${nice}. Please renew it and update the date (Business page > Vehicles > Edit). This does not affect Verified.\n${no} ${ml} ${nice}-ന് കാലാവധി കഴിഞ്ഞു. പുതുക്കി തീയതി മാറ്റുക (Business പേജ് > Vehicles > Edit). ഇത് Verified സ്റ്റാറ്റസിനെ ബാധിക്കില്ല.`
           : `${en} of ${no} expires on ${nice} (${dl <= 0 ? "today" : dl + " day" + (dl === 1 ? "" : "s") + " left"}). Please renew it and update the date (Business page > Vehicles > Edit). This does not affect Verified.\n${no} ${ml} ${nice}-ന് കാലാവധി തീരും (${dl <= 0 ? "ഇന്ന്" : dl + " ദിവസം ബാക്കി"}). പുതുക്കി തീയതി മാറ്റുക (Business പേജ് > Vehicles > Edit). ഇത് Verified സ്റ്റാറ്റസിനെ ബാധിക്കില്ല.`;
-        if (await notify(env, `v${v.id}:${doc}:${date}:${st}`, p, st === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body)) stats.sent++;
+        if (await notify(env, `v${v.id}:${doc}:${date}:${st}`, p, st === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body, st !== 30)) stats.sent++;
         continue;
       }
       const stage = dl < 0 ? 0 : dl <= 1 ? 1 : dl <= 7 ? 7 : dl <= 30 ? 30 : null;
@@ -111,7 +177,7 @@ export async function runExpirySweep(env0) {
       const body = stage === 0
         ? `${en} of ${no} expired on ${date}. This vehicle is no longer Verified and will not get trip alerts. Upload the renewed document (Business page > Vehicles > Edit) and the admin will approve it again.\n${no} ${ml} കാലാവധി ${date}-ന് കഴിഞ്ഞു. ഈ വാഹനം Verified അല്ല, ട്രിപ്പ് അലേർട്ടുകൾ കിട്ടില്ല. പുതുക്കിയ രേഖ Business പേജിലെ Vehicles > Edit-ൽ അപ്‌ലോഡ് ചെയ്യുക, അഡ്മിൻ വീണ്ടും അംഗീകരിക്കും.`
         : `${en} of ${no} expires on ${date} (${dl <= 0 ? "today" : dl + " day" + (dl === 1 ? "" : "s") + " left"}). Upload the renewed document (Business page > Vehicles > Edit) or this vehicle will lose Verified.\n${no} ${ml} ${date}-ന് കാലാവധി തീരും (${dl <= 0 ? "ഇന്ന്" : dl + " ദിവസം ബാക്കി"}). പുതുക്കിയ രേഖ Business പേജിലെ Vehicles > Edit-ൽ നൽകുക, ഇല്ലെങ്കിൽ ഈ വാഹനത്തിന്റെ Verified ഒഴിവാക്കും.`;
-      if (await notify(env, `v${v.id}:${doc}:${date}:${stage}`, p, stage === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body)) stats.sent++;
+      if (await notify(env, `v${v.id}:${doc}:${date}:${stage}`, p, stage === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body, stage !== 30)) stats.sent++;
     }
   }
 
@@ -132,7 +198,7 @@ export async function runExpirySweep(env0) {
     const dl = dateLabels(ENFORCE_DATE);
     const when = du > 0 ? `From ${dl.en}` : `Since ${dl.en}`;
     const body = `${when}, only vehicles with complete documents stay Verified and get trip alerts: Front photo, RC photo, Insurance photo + expiry date, Permit photo + expiry date. Please complete (Business page > Vehicles):\n${list}\n\n${dl.ml} മുതൽ മുൻവശത്തെ ഫോട്ടോ, RC ഫോട്ടോ, ഇൻഷുറൻസ് ഫോട്ടോയും തീയതിയും, പെർമിറ്റ് ഫോട്ടോയും തീയതിയും പൂർണ്ണമായുള്ള വാഹനങ്ങൾക്ക് മാത്രമേ Verified സ്റ്റാറ്റസും ട്രിപ്പ് അലേർട്ടുകളും ലഭിക്കൂ. Business പേജിലെ Vehicles-ൽ പൂർത്തിയാക്കുക.`;
-    if (await notify(env, `p${p.id}:ready:${rstage}`, p, du > 0 ? "Complete your vehicle documents" : "Vehicle documents incomplete", body)) stats.sent++;
+    if (await notify(env, `p${p.id}:ready:${rstage}`, p, du > 0 ? "Complete your vehicle documents" : "Vehicle documents incomplete", body, rstage <= 7)) stats.sent++;
   }
 
   /* 3. enforcement */
@@ -154,6 +220,7 @@ export async function runExpirySweep(env0) {
       }
     }
   }
+  stats.emails = env._mailSent || 0;
   return stats;
 }
 
