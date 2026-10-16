@@ -9,7 +9,7 @@
  window.__tcImgShrink=true;
  var origFetch=window.fetch.bind(window);
  var MIN_BYTES=350*1024;            /* smaller files are left alone */
- var DOC_SIDE=2000, LOGO_SIDE=900;  /* longest side in pixels */
+ var DOC_SIDE=2000, LOGO_SIDE=900, MEDIA_SIDE=1280;  /* longest side in pixels (documents / logo / shop photo + ad posts) */
  var QUALITY=0.8;
 
  function isBig(v){
@@ -25,7 +25,7 @@
   var bmp;
   try{ bmp=await createImageBitmap(file,{imageOrientation:"from-image"}); }
   catch(e){ bmp=await createImageBitmap(file); }
-  var max=/logo/i.test(fieldName)?LOGO_SIDE:DOC_SIDE;
+  var max=/logo/i.test(fieldName)?LOGO_SIDE:/^media_/i.test(fieldName)?MEDIA_SIDE:DOC_SIDE;
   var k=Math.min(1,max/Math.max(bmp.width,bmp.height));
   var w=Math.max(1,Math.round(bmp.width*k)), h=Math.max(1,Math.round(bmp.height*k));
   var c=document.createElement("canvas"); c.width=w; c.height=h;
