@@ -76,8 +76,10 @@ async function loadCard(){
 }
 function thumb(kind,n,has){
  const c=ownerCreds(); if(!c||!has) return "";
- return '<img src="'+imgUrl(c.partner_id,kind,n,st.v)+'" alt="" style="width:100%;max-height:170px;object-fit:cover;border-radius:10px;margin:6px 0;background:#eee">';
+ const box=kind==="photo"?"width:100%;aspect-ratio:16/9":"width:60%;aspect-ratio:1/1";
+ return '<img src="'+imgUrl(c.partner_id,kind,n,st.v)+'" alt="" style="'+box+';object-fit:contain;border-radius:10px;margin:6px 0;background:#f3f3f3;display:block">';
 }
+const hint=(en,ml)=>'<p class="muted" style="font-size:12px;margin:2px 0 4px">&#128207; '+bl(en,ml)+'</p>';
 function render(){
  const box=document.querySelector("#tcMediaCard"); if(!box||!st) return;
  const d=st; let h='<h3>&#128444; '+bl("Shop window","ഷോപ്പ് വിൻഡോ")+'</h3>';
@@ -88,7 +90,7 @@ function render(){
   box.innerHTML=h; return;
  }
  if(d.can_photo){
-  h+='<div style="margin-top:6px"><b>'+bl("Shop photo","ഷോപ്പ് ഫോട്ടോ")+'</b>'+thumb("photo",0,d.photo)
+  h+='<div style="margin-top:6px"><b>'+bl("Shop photo","ഷോപ്പ് ഫോട്ടോ")+'</b>'+hint("Best size: 1280 x 720 px (wide, 16:9), JPG, under 1 MB. Keep the main part in the middle.","ഏറ്റവും നല്ല സൈസ്: 1280 x 720 px (വീതി കൂടിയത്, 16:9), JPG, 1 MB-ൽ താഴെ. പ്രധാന ഭാഗം നടുവിൽ വരുത്തുക.")+thumb("photo",0,d.photo)
    +'<div class="actions"><input type="file" id="tcMdPhoto" accept="image/*" style="display:none" onchange="tcMediaPick(\'photo\')">'
    +'<button class="primary" onclick="document.getElementById(\'tcMdPhoto\').click()">'+(d.photo?bl("Change photo","ഫോട്ടോ മാറ്റുക"):bl("Add shop photo","ഷോപ്പ് ഫോട്ടോ ചേർക്കുക"))+'</button>'
    +(d.photo?'<button onclick="tcMediaRemove(\'photo\')">'+bl("Remove","ഒഴിവാക്കുക")+'</button>':"")+'</div></div>';
@@ -96,7 +98,7 @@ function render(){
   h+='<p class="muted" style="font-size:12.5px">'+bl("Shop photo is available from the Plus plan.","ഷോപ്പ് ഫോട്ടോ പ്ലസ് പ്ലാൻ മുതൽ ലഭ്യമാണ്.")+'</p>';
  }
  if(d.can_extras){
-  h+='<hr><b>'+bl("Ad posts (picture + short text)","പരസ്യ പോസ്റ്റുകൾ (ചിത്രം + ചെറിയ വാചകം)")+'</b>';
+  h+='<hr><b>'+bl("Ad posts (picture + short text)","പരസ്യ പോസ്റ്റുകൾ (ചിത്രം + ചെറിയ വാചകം)")+'</b>'+hint("Best size: 1080 x 1080 px (square), JPG, under 1 MB. Other shapes are shown complete with side margins, nothing is cut. Keep letters big and few.","ഏറ്റവും നല്ല സൈസ്: 1080 x 1080 px (സമചതുരം), JPG, 1 MB-ൽ താഴെ. മറ്റ് ആകൃതികളും മുഴുവനായി കാണിക്കും, വശങ്ങളിൽ ഒഴിവ് വരും, ഒന്നും മുറിയില്ല. അക്ഷരങ്ങൾ വലുതും കുറച്ചും ആക്കുക.");
   d.posts.forEach(p=>{
    const k="post"+p.n;
    h+='<div style="border:1px solid #e3e3e3;border-radius:10px;padding:8px;margin-top:8px"><b>'+bl("Post ","പോസ്റ്റ് ")+p.n+'</b>'+thumb("post",p.n,p.has)
@@ -153,6 +155,11 @@ window.tcMediaSaveLinks=async function(){
    ====================================================================== */
 function safeLink(u){ return /^https:\/\//i.test(u||"")?u:""; }
 window.tcMediaView=function(src){
+ /* the app's own modal() adds a history step, so the phone Back button closes the picture instead of leaving the app */
+ if(typeof modal==="function"&&typeof closeModal==="function"){
+  modal('<img src="'+E(src)+'" alt="" style="display:block;width:100%;max-height:75vh;object-fit:contain;border-radius:8px;background:#f3f3f3"><div class="actions" style="margin-top:8px"><button class="primary" onclick="closeModal()">'+bl("Close","അടയ്ക്കുക")+'</button></div>');
+  return;
+ }
  const o=document.createElement("div");
  o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:10px";
  o.onclick=function(){ o.remove(); };
@@ -162,11 +169,11 @@ window.tcMediaView=function(src){
 function mediaHtml(p){
  const m=p.media; if(!m) return "";
  let h="";
- if(m.photo){ const s=imgUrl(p.id,"photo",0,m.photo); h+='<img src="'+E(s)+'" loading="lazy" alt="" onclick="tcMediaView(this.src)" style="width:100%;max-height:190px;object-fit:cover;border-radius:10px;margin-top:6px;background:#eee">'; }
+ if(m.photo){ const s=imgUrl(p.id,"photo",0,m.photo); h+='<img src="'+E(s)+'" loading="lazy" alt="" onclick="tcMediaView(this.src)" style="width:100%;aspect-ratio:16/9;object-fit:contain;border-radius:10px;margin-top:6px;background:#f3f3f3">'; }
  if(m.posts&&m.posts.length){
-  h+='<div style="display:flex;gap:8px;margin-top:6px">'+m.posts.map(x=>{
+  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">'+m.posts.map(x=>{
    const s=imgUrl(p.id,"post",x.n,x.v);
-   return '<div style="flex:1;min-width:0"><img src="'+E(s)+'" loading="lazy" alt="" onclick="tcMediaView(this.src)" style="width:100%;height:110px;object-fit:cover;border-radius:8px;background:#eee">'
+   return '<div style="width:calc(50% - 4px);min-width:0"><img src="'+E(s)+'" loading="lazy" alt="" onclick="tcMediaView(this.src)" style="width:100%;aspect-ratio:1/1;object-fit:contain;border-radius:8px;background:#f3f3f3">'
     +(x.text?'<div style="font-size:12px;margin-top:2px;color:#333">'+E(x.text)+'</div>':"")+'</div>';
   }).join("")+'</div>';
  }
