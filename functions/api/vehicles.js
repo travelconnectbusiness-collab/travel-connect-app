@@ -11,6 +11,14 @@ const DOC_FIELDS = [
   "driver_license_photo",
 ];
 
+/* Deletes stored files in ONE storage call (a free-plan request may only make 50). Only keys under the given
+   folder are ever touched, and a failure never blocks the real action. */
+async function deleteFiles(env, keys, folder) {
+  const list = (keys || []).filter((k) => k && String(k).startsWith(folder));
+  if (!list.length) return;
+  try { await env.FILES.delete(list); } catch (e) { /* harmless */ }
+}
+
 async function uploadFile(env, file, vehicleId, field) {
   if (!file || typeof file.arrayBuffer !== "function") return null;
   const buf = await file.arrayBuffer();
@@ -159,7 +167,7 @@ export async function onRequestGet({ request, env }) {
     const obj = await env.FILES.get(row.front_photo_key);
     if (!obj) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     return new Response(obj.body, {
-      headers: { "content-type": obj.httpMetadata?.contentType || "application/octet-stream" },
+      headers: { "content-type": obj.httpMetadata?.contentType || "application/octet-stream", "cache-control": "public, max-age=900" },
     });
   }
 
@@ -280,7 +288,7 @@ export async function onRequestPost({ request, env }) {
     }
     const row = await env.DB
       .prepare(
-        `SELECT p.mobile1, p.mobile2 FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
+        `SELECT p.mobile1, p.mobile2, v.* FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
       )
       .bind(vehicle_id)
       .first();
@@ -305,18 +313,22 @@ export async function onRequestPost({ request, env }) {
         bindVals.push(form.get(f).toString());
       }
     }
+    const replacedKeys = [];
     for (const docField of DOC_FIELDS) {
       const file = form.get(docField);
       const key = await uploadFile(env, file, vehicle_id, docField);
       if (key) {
         setParts.push(`${docField}_key=?`);
         bindVals.push(key);
+        if (row[`${docField}_key`]) replacedKeys.push(row[`${docField}_key`]);
       }
     }
     if (setParts.length) {
       bindVals.push(vehicle_id);
       await env.DB.prepare(`UPDATE vehicles SET ${setParts.join(",")} WHERE id=?`).bind(...bindVals).run();
     }
+    /* the replaced photos are no longer used: delete them so old copies do not pile up in the storage */
+    await deleteFiles(env, replacedKeys, "vehicles/");
     return Response.json({ ok: true });
   }
 
@@ -406,7 +418,10 @@ export async function onRequestPost({ request, env }) {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
+    const old = await env.DB.prepare("SELECT * FROM vehicles WHERE id=?").bind(body.vehicle_id).first();
     await env.DB.prepare("DELETE FROM vehicles WHERE id=?").bind(body.vehicle_id).run();
+    /* the vehicle is gone: its document photos are removed from the storage too */
+    if (old) await deleteFiles(env, DOC_FIELDS.map((f) => old[`${f}_key`]), "vehicles/");
     return Response.json({ ok: true });
   }
 
