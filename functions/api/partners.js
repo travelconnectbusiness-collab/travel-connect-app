@@ -1,6 +1,7 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { getFlag } from "./_flags.js";
 import { isComplete, applyLivePartnerVerified } from "./trip_class.js";
+import { mediaGet, mediaPost, attachMedia, mediaPurge } from "./partner_media.js";
 
 /* Must match the keys of TC_BUSINESS_TYPES in core.js exactly - used to
    tell a known, fixed category apart from free-typed "Other" text (see
@@ -65,6 +66,9 @@ export async function onRequestGet({ request, env }) {
   await ensureNewColumns(env);
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
+
+  /* shop photo / Premium ad posts + social links (partner_media.js) */
+  if (action === "media_mine" || action === "media_image") return await mediaGet(env, action, url);
 
   if (action === "mine") {
     const mobile = url.searchParams.get("mobile");
@@ -136,6 +140,7 @@ export async function onRequestGet({ request, env }) {
       if (r.public_phone) { r.mobile1 = r.public_phone; r.mobile2 = ""; r.has_public_phone = 1; }
       delete r.public_phone;
     }
+    await attachMedia(env, results); /* shop photo / ad posts / social links - only what each plan allows */
     return Response.json({ ok: true, partners: results });
   }
 
@@ -167,6 +172,9 @@ export async function onRequestPost({ request, env }) {
   await ensureNewColumns(env);
   const url = new URL(request.url);
   const urlAction = url.searchParams.get("action");
+
+  /* media_upload (multipart) / media_links / media_remove (JSON) - the action is in the address, the body is read inside */
+  if (urlAction === "media_upload" || urlAction === "media_links" || urlAction === "media_remove") return await mediaPost(request, env, urlAction);
 
   if (urlAction === "upload_logo") {
     const form = await request.formData();
@@ -495,6 +503,7 @@ export async function onRequestPost({ request, env }) {
       const { results: vr } = await env.DB.prepare("SELECT doc1_key, doc2_key FROM verify_requests WHERE partner_id=?").bind(body.partner_id).all();
       for (const r of vr || []) { if (r.doc1_key) fileKeys.push(r.doc1_key); if (r.doc2_key) fileKeys.push(r.doc2_key); }
     } catch (e) { /* verify_requests not created yet */ }
+    for (const k of await mediaPurge(env, body.partner_id)) fileKeys.push(k); /* shop photo + ad posts */
     await env.DB.prepare("DELETE FROM vehicles WHERE partner_id=?").bind(body.partner_id).run();
     /* Also clear this business's verification / plan requests (tables exist
        only once upgrade.js has run, so each is wrapped). */
