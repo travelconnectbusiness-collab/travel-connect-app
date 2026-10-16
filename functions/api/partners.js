@@ -146,8 +146,9 @@ export async function onRequestGet({ request, env }) {
     if (!row || !row.logo_key) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     const obj = await env.FILES.get(row.logo_key);
     if (!obj) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+    /* cached by the phone for 15 minutes: the directory shows the same logos again and again, and each uncached view costs a Worker request */
     return new Response(obj.body, {
-      headers: { "content-type": obj.httpMetadata?.contentType || "image/jpeg" },
+      headers: { "content-type": obj.httpMetadata?.contentType || "image/jpeg", "cache-control": "public, max-age=900" },
     });
   }
 
@@ -176,7 +177,7 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
     const row = await env.DB
-      .prepare("SELECT mobile1, mobile2, plan FROM travel_partners WHERE id=?")
+      .prepare("SELECT mobile1, mobile2, plan, logo_key FROM travel_partners WHERE id=?")
       .bind(partner_id)
       .first();
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
@@ -186,6 +187,7 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "not_premium" }, { status: 403 });
     }
     const buf = await file.arrayBuffer();
+    if (buf.byteLength > 8 * 1024 * 1024) return Response.json({ ok: false, error: "too_big" }, { status: 413 });
     const nameParts = (file.name || "").split(".");
     const ext = nameParts.length > 1 ? nameParts.pop() : "jpg";
     const key = `partners/${partner_id}/logo-${Date.now()}.${ext}`;
@@ -193,6 +195,10 @@ export async function onRequestPost({ request, env }) {
       httpMetadata: { contentType: file.type || "image/jpeg" },
     });
     await env.DB.prepare("UPDATE travel_partners SET logo_key=? WHERE id=?").bind(key, partner_id).run();
+    /* the old logo is no longer used: delete it so replaced logos do not pile up in the storage */
+    if (row.logo_key && row.logo_key !== key && String(row.logo_key).startsWith("partners/")) {
+      try { await env.FILES.delete(row.logo_key); } catch (e) { /* harmless */ }
+    }
     return Response.json({ ok: true, logo_key: key });
   }
 
@@ -477,6 +483,18 @@ export async function onRequestPost({ request, env }) {
     if (!body.partner_id) {
       return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
     }
+    /* collect every stored file of this business first (logo, vehicle documents, verification photos) */
+    const fileKeys = [];
+    try {
+      const pr = await env.DB.prepare("SELECT logo_key FROM travel_partners WHERE id=?").bind(body.partner_id).first();
+      if (pr && pr.logo_key) fileKeys.push(pr.logo_key);
+      const { results: vrows } = await env.DB.prepare("SELECT * FROM vehicles WHERE partner_id=?").bind(body.partner_id).all();
+      for (const v of vrows || []) for (const k of Object.keys(v)) if (k.endsWith("_key") && v[k]) fileKeys.push(v[k]);
+    } catch (e) { /* tables/columns may not exist yet */ }
+    try {
+      const { results: vr } = await env.DB.prepare("SELECT doc1_key, doc2_key FROM verify_requests WHERE partner_id=?").bind(body.partner_id).all();
+      for (const r of vr || []) { if (r.doc1_key) fileKeys.push(r.doc1_key); if (r.doc2_key) fileKeys.push(r.doc2_key); }
+    } catch (e) { /* verify_requests not created yet */ }
     await env.DB.prepare("DELETE FROM vehicles WHERE partner_id=?").bind(body.partner_id).run();
     /* Also clear this business's verification / plan requests (tables exist
        only once upgrade.js has run, so each is wrapped). */
@@ -484,6 +502,9 @@ export async function onRequestPost({ request, env }) {
       try { await env.DB.prepare(`DELETE FROM ${t} WHERE partner_id=?`).bind(body.partner_id).run(); } catch (e) { /* table not created yet */ }
     }
     await env.DB.prepare("DELETE FROM travel_partners WHERE id=?").bind(body.partner_id).run();
+    /* the business is gone: its files are removed from the storage too (one call; only our own folders are touched) */
+    const doomed = fileKeys.filter((k) => /^(partners|vehicles|verify)\//.test(String(k)));
+    if (doomed.length) { try { await env.FILES.delete(doomed.slice(0, 1000)); } catch (e) { /* harmless */ } }
     return Response.json({ ok: true });
   }
 
