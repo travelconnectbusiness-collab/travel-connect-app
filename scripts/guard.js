@@ -52,6 +52,8 @@ const MARKERS = [
   ["functions/api/docs_expiry.js", "Fitness certificate", "Fitness / PUC expiry reminders"],
   ["functions/api/docs_expiry.js", "Vehicle tax", "Vehicle tax expiry reminders"],
   ["functions/api/docs_expiry.js", "Driving licence", "RC / Driving licence expiry reminders"],
+  ["functions/api/docs_expiry.js", "api.resend.com", "Reminders are also emailed (verified emails only)"],
+  ["functions/api/docs_expiry.js", "mail_sent", "Daily email cap for reminders"],
   ["functions/api/vehicles.js", "tax_expiry", "Vehicle tax date is saved"],
   ["src/directory.js", "evTaxExp", "Vehicle form: Tax expiry field"],
   ["functions/api/trip_alerts.js", "planTier", "Trip alerts go Premium first, then Plus, then Free"],
