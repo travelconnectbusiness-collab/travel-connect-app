@@ -12,10 +12,22 @@ const FIXED_BUSINESS_TYPES = [
   "restaurant",
   "petrol_pump",
   "workshop",
+  "shop",
   "hospital",
   "homestay",
   "skilled_work",
 ];
+
+/* Public contact number (e.g. a shop's own phone): shown to customers INSTEAD of the login numbers (mobile1/mobile2).
+   undefined = not sent (leave as is) | null = cleared | false = not a valid number | string = digits (+ optional leading +) */
+function cleanPublicPhone(v) {
+  if (v === undefined) return undefined;
+  const raw = String(v || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15) return false;
+  return (raw.startsWith("+") ? "+" : "") + digits;
+}
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -36,6 +48,7 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN current_location_at TEXT",
     "ALTER TABLE travel_partners ADD COLUMN tagline TEXT",
     "ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0",
+    "ALTER TABLE travel_partners ADD COLUMN public_phone TEXT",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
@@ -105,7 +118,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "directory") {
     const { results } = await env.DB
       .prepare(
-        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline, verified, email_verified
+        `SELECT id, business_name, business_type, business_subtype, owner_name, mobile1, mobile2, location, pincode, lat, lon, available, description, business_hours, plan, plan_expires_at, brand_color, brand_font_family, logo_key, tagline, verified, email_verified, public_phone
          FROM travel_partners
          ORDER BY CASE
            WHEN plan='owner_free' THEN 1
@@ -117,6 +130,12 @@ export async function onRequestGet({ request, env }) {
       )
       .all();
     await applyLivePartnerVerified(env, results);
+    /* A business with a public contact number shows ONLY that number to customers: every existing call / WhatsApp /
+       message button reads mobile1/mobile2, so they are replaced here and the owner's login numbers never leave the server. */
+    for (const r of results) {
+      if (r.public_phone) { r.mobile1 = r.public_phone; r.mobile2 = ""; r.has_public_phone = 1; }
+      delete r.public_phone;
+    }
     return Response.json({ ok: true, partners: results });
   }
 
@@ -206,6 +225,8 @@ export async function onRequestPost({ request, env }) {
     if (!business_name || !owner_name || !mobile1 || !business_type) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const publicPhone = cleanPublicPhone(body.public_phone);
+    if (publicPhone === false) return Response.json({ ok: false, error: "bad_public_phone" }, { status: 400 });
     /* A mobile can register MULTIPLE businesses (each its own row/page), but
        never the SAME category twice - that specific combination is what has
        to stay unique now, not the bare mobile number on its own. */
@@ -273,6 +294,7 @@ export async function onRequestPost({ request, env }) {
         now
       )
       .run();
+    if (publicPhone) await env.DB.prepare("UPDATE travel_partners SET public_phone=? WHERE id=?").bind(publicPhone, result.meta.last_row_id).run();
     return Response.json({ ok: true, partner_id: result.meta.last_row_id });
   }
 
@@ -288,6 +310,8 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    const publicPhone = cleanPublicPhone(body.public_phone);
+    if (publicPhone === false) return Response.json({ ok: false, error: "bad_public_phone" }, { status: 400 });
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
     const brandColor = isPremium && body.brand_color ? String(body.brand_color).trim() : null;
     const brandFontSize = isPremium && body.brand_font_size ? String(body.brand_font_size).trim() : null;
@@ -346,6 +370,7 @@ export async function onRequestPost({ request, env }) {
         body.partner_id
       )
       .run();
+    if (publicPhone !== undefined) await env.DB.prepare("UPDATE travel_partners SET public_phone=? WHERE id=?").bind(publicPhone, body.partner_id).run();
     return Response.json({ ok: true });
   }
 
@@ -469,6 +494,8 @@ export async function onRequestPost({ request, env }) {
     if (!body.partner_id) {
       return Response.json({ ok: false, error: "missing_partner_id" }, { status: 400 });
     }
+    const publicPhone = cleanPublicPhone(body.public_phone);
+    if (publicPhone === false) return Response.json({ ok: false, error: "bad_public_phone" }, { status: 400 });
     /* The admin edit form has no email box - if no email was sent, keep the
        one on file (otherwise saving would wipe a verified email). */
     if (body.email === undefined) {
@@ -494,6 +521,7 @@ export async function onRequestPost({ request, env }) {
         body.partner_id
       )
       .run();
+    if (publicPhone !== undefined) await env.DB.prepare("UPDATE travel_partners SET public_phone=? WHERE id=?").bind(publicPhone, body.partner_id).run();
     return Response.json({ ok: true });
   }
 
