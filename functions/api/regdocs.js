@@ -132,6 +132,7 @@ export async function onRequestGet({ request, env }) {
       ok: true,
       vehicles: vs.map((v) => ({
         id: v.id, vehicle_number: v.vehicle_number, category: v.category, seats: seatsOf(v), vclass: vclassOf(v), verified: !!v.verified,
+        rate_cat: v.rate_cat || null, rate_cat_name: v.rate_cat_name || null,
         permit_expiry: v.permit_expiry, insurance_expiry: v.insurance_expiry, rc_expiry: v.rc_expiry,
         keys: { Front: v.front_photo_key, RC: v.rc_photo_key, Insurance: v.insurance_photo_key, Permit: v.permit_photo_key },
         missing: missingDocs(v, today),
