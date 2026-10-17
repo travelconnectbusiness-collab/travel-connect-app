@@ -77,6 +77,7 @@
      vs.forEach(function(v){
       dh+='<div style="margin:4px 0;padding:4px 6px;border:1px solid #dde;border-radius:8px"><b>'+E(v.vehicle_number)+'</b> '+E(v.category||"")+(v.seats&&(p.business_type||'taxi_travel')==='taxi_travel'?' &middot; '+(v.seats-1)+' passengers + driver ('+v.seats+' seats, '+VC[v.vclass]+')':'')+' '+(v.verified?'<span class="ok">Verified</span>':'<span class="muted">pending</span>')+
        '<br>Permit: '+E(v.permit_expiry||"-")+(v.permit_expiry?' ('+dleft(v.permit_expiry)+')':'')+' &middot; Insurance: '+E(v.insurance_expiry||"-")+(v.insurance_expiry?' ('+dleft(v.insurance_expiry)+')':'')+
+       ((p.business_type||'taxi_travel')==='taxi_travel'&&v.seats?'<span class="tcrc-mark" data-vid="'+v.id+'" data-seats="'+E(v.seats)+'" data-cat="'+E(v.rate_cat==null?"":v.rate_cat)+'" data-catn="'+E(v.rate_cat_name||"")+'" style="display:block"></span>':'')+
        (v.missing.length?'<br><span style="color:#a12d2d">Missing: '+E(v.missing.join(", "))+'</span>':'<br><span style="color:#1b7a2f">Documents complete</span>')+
        '<div>'+Object.keys(v.keys).filter(function(k){return v.keys[k];}).map(function(k){ return '<a href="/api/vehicles?action=file&key='+encodeURIComponent(v.keys[k])+'&token='+t+'" target="_blank" style="margin-right:8px">'+k+'</a>'; }).join("")+'</div></div>';
      });
@@ -248,7 +249,7 @@
 /* Extra scripts that are loaded from here, so index.html never has to change (bump ?v= when a file changes).
    guard.js also syntax-checks every src/tc-*.js file. */
 (function(){
- ["/src/tc-img.js?v=20261016b","/src/tc-abuse.js?v=20261015a","/src/tc-trips.js?v=20261015a","/src/tc-media.js?v=20261016b","/src/tc-share.js?v=20261017a","/src/tc-dash.js?v=20261017a","/src/tc-livetrip.js?v=20261017b"].forEach(function(src){
+ ["/src/tc-img.js?v=20261016b","/src/tc-abuse.js?v=20261015a","/src/tc-trips.js?v=20261015a","/src/tc-media.js?v=20261016b","/src/tc-share.js?v=20261017a","/src/tc-dash.js?v=20261017a","/src/tc-livetrip.js?v=20261017b","/src/tc-ratecat.js?v=20261017a"].forEach(function(src){
   try{ var s=document.createElement("script"); s.src=src; s.async=false; document.head.appendChild(s); }catch(e){}
  });
 })();
