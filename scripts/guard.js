@@ -67,6 +67,8 @@ const MARKERS = [
   ["terms.html", "Terms of Use", "Terms of Use page"],
   ["src/tc-share.js", "__tcShare", "Menu entries: Share this app, Privacy Policy, Terms of Use"],
   ["src/tc-regdocs.js", "tc-share.js", "tc-regdocs.js loads tc-share.js"],
+  ["src/tc-dash.js", "__tcDash", "Dashboard: business name/details first + compact Verification card (tc-dash.js)"],
+  ["src/tc-regdocs.js", "tc-dash.js", "tc-regdocs.js loads tc-dash.js"],
   ["functions/api/vehicles.js", "deleteFiles", "Replaced / deleted vehicle photos are removed from storage"],
   ["functions/api/partners.js", "fileKeys", "Deleting a business removes its files from storage"],
   ["functions/api/vehicles.js", "tax_expiry", "Vehicle tax date is saved"],
