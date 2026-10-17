@@ -3,6 +3,9 @@
      agency    - Travel Agency: every verified, Active Taxi/Travel business (with or without vehicles)
      cab       - Motor Cab: businesses that have a verified vehicle with up to 7 seats in total (up to 6 passengers + driver)
      carriage  - Contract Carriage: businesses that have a verified vehicle with 8 or more seats in total (7+ passengers + driver). Seats are stored as passengers + 1 (driver)
+   Rate Master category requests (Motor Cab / Contract Carriage + a category chosen by the customer): only owners with a live-Verified
+   vehicle of THAT category (vehicles.rate_cat), plus old vehicles that have no category yet and suit it by seats (same class,
+   passengers >= the category's passengers and at most one more). See vehicleSuitsRate.
    Auto Rickshaw / Pickup-Goods alerts go to verified, Active owners of that type; from ENFORCE_DATE
    they also need at least one verified vehicle (vehicles lose Verified when their documents are incomplete/expired). */
 
@@ -98,12 +101,58 @@ export async function applyLivePartnerVerified(env, partners) {
 const BASE =
   "SELECT id, business_name, mobile1, mobile2, plan, plan_expires_at, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE business_type=? AND verified=1 AND available=1";
 
+let colsReady = false; /* the column set-up runs once per server instance, not at every request */
 async function ensureSeats(env) {
-  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
+  if (colsReady) return;
+  for (const s of ["ALTER TABLE vehicles ADD COLUMN seats INTEGER", "ALTER TABLE vehicles ADD COLUMN rate_cat TEXT", "ALTER TABLE vehicles ADD COLUMN rate_cat_name TEXT"]) {
+    try { await env.DB.prepare(s).run(); } catch (e) {}
+  }
+  colsReady = true;
 }
 
-/* Partners to alert for a new request. vclass may be null for older app versions (old behaviour). */
-export async function eligiblePartners(env, businessType, vclass) {
+/* ---------- Rate Master category matching ---------- */
+/* passengers (without the driver) of a vehicle, or null when the seat count is unknown */
+export const paxOf = (v) => { const s = seatsOf(v); return s !== null && s >= 2 ? s - 1 : null; };
+/* Does this (live) vehicle suit a request for Rate Master category rateCat whose passenger count is ratePax?
+   - vehicle with a category: the category must be the same
+   - old vehicle without a category: same class (cab / carriage), passengers >= ratePax and at most one more */
+export function vehicleSuitsRate(v, vclass, rateCat, ratePax) {
+  if (v.rate_cat !== undefined && v.rate_cat !== null && v.rate_cat !== "") return String(v.rate_cat) === String(rateCat);
+  const pax = paxOf(v);
+  if (pax === null || !(ratePax >= 1)) return false;
+  return vclassOf(v) === vclass && pax >= ratePax && pax <= ratePax + 1;
+}
+const toRad = (d) => (d * Math.PI) / 180;
+function km(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const a = Math.sin(toRad(lat2 - lat1) / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(toRad(lon2 - lon1) / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+const l10 = (v) => String(v || "").replace(/\D/g, "").slice(-10);
+
+/* How many live-Verified vehicles of each category are available near the customer right now?
+   ONE database query (+ the cached deadline lookup). cats = [[categoryNumber, passengers], ...] */
+export async function rateAvailability(env, { lat, lon, vclass, cats, radiusKm, askerNum }) {
+  await ensureSeats(env);
+  const rows = ((await env.DB.prepare(
+    "SELECT v.*, p.mobile1 AS pm1, p.mobile2 AS pm2, COALESCE(p.current_lat, p.lat) AS plat, COALESCE(p.current_lon, p.lon) AS plon FROM vehicles v JOIN travel_partners p ON p.id=v.partner_id WHERE v.verified=1 AND p.business_type='taxi_travel' AND p.verified=1 AND p.available=1"
+  ).all()).results) || [];
+  const today = istToday(), ed = await getEnforceDate(env);
+  const counts = {};
+  for (const [c] of cats) counts[c] = 0;
+  for (const v of rows) {
+    v.business_type = "taxi_travel";
+    if (!vehicleLive(v, today, ed)) continue;
+    if (askerNum && (l10(v.pm1) === askerNum || l10(v.pm2) === askerNum)) continue;
+    if (lat != null && lon != null) { const d = km(lat, lon, v.plat, v.plon); if (d !== null && d > radiusKm) continue; }
+    for (const [c, pax] of cats) if (vehicleSuitsRate(v, vclass, c, pax)) counts[c]++;
+  }
+  return counts;
+}
+
+/* Partners to alert for a new request. vclass may be null for older app versions (old behaviour).
+   rc = { cat, pax } when the customer chose a Rate Master category (null = any vehicle of the class, as before). */
+export async function eligiblePartners(env, businessType, vclass, rc) {
   const partners = ((await env.DB.prepare(BASE).bind(businessType).all()).results) || [];
   const needVehicles = (businessType === "taxi_travel" && (vclass === "cab" || vclass === "carriage")) ||
     ((businessType === "auto_rickshaw" || businessType === "pickup_goods") && istToday() >= (await getEnforceDate(env)));
@@ -117,14 +166,17 @@ export async function eligiblePartners(env, businessType, vclass) {
   for (const v of vs) {
     v.business_type = businessType;
     if (!vehicleLive(v, today, ed)) continue;
-    if (businessType === "taxi_travel" && vclassOf(v) !== vclass) continue;
+    if (businessType === "taxi_travel") {
+      if (rc && rc.cat != null) { if (!vehicleSuitsRate(v, vclass, rc.cat, rc.pax)) continue; }
+      else if (vclassOf(v) !== vclass) continue;
+    }
     ok.add(v.partner_id);
   }
   return partners.filter((p) => ok.has(p.id));
 }
 
 /* Same rule for one partner (used when the partner opens or accepts an alert). */
-export async function partnerMatches(env, partnerId, businessType, vclass) {
+export async function partnerMatches(env, partnerId, businessType, vclass, rc) {
   if (businessType === "taxi_travel" && (!vclass || vclass === "agency")) return true;
   const needVehicles = (businessType === "taxi_travel") || istToday() >= (await getEnforceDate(env));
   if (!needVehicles) return true;
@@ -133,5 +185,6 @@ export async function partnerMatches(env, partnerId, businessType, vclass) {
   const vs = (((await env.DB.prepare("SELECT * FROM vehicles WHERE verified=1 AND partner_id=?").bind(partnerId).all()).results) || [])
     .map((v) => ({ ...v, business_type: businessType })).filter((v) => vehicleLive(v, today, ed));
   if (businessType !== "taxi_travel") return vs.length > 0;
+  if (rc && rc.cat != null) return vs.some((v) => vehicleSuitsRate(v, vclass, rc.cat, rc.pax));
   return vs.some((v) => vclassOf(v) === vclass);
 }
