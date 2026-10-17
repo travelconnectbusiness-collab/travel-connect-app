@@ -1,5 +1,5 @@
 import { sendWebPush } from "./_webpush.js";
-import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete } from "./trip_class.js";
+import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete, seatsOf } from "./trip_class.js";
 
 /* Daily check of every vehicle's documents (runs by itself once a day, on the first API request of the day).
    1. Permit / Insurance dates: message + phone notification 30, 7 and 1 day before and when expired.
@@ -130,6 +130,7 @@ export async function runExpirySweep(env0) {
   }
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN tax_expiry TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN rate_cat TEXT").run(); } catch (e) {}
   const today = istToday();
   const ENFORCE_DATE = await getEnforceDate(env);
   const enforced = today >= ENFORCE_DATE;
@@ -179,6 +180,18 @@ export async function runExpirySweep(env0) {
         : `${en} of ${no} expires on ${date} (${dl <= 0 ? "today" : dl + " day" + (dl === 1 ? "" : "s") + " left"}). Upload the renewed document (Business page > Vehicles > Edit) or this vehicle will lose Verified.\n${no} ${ml} ${date}-ന് കാലാവധി തീരും (${dl <= 0 ? "ഇന്ന്" : dl + " ദിവസം ബാക്കി"}). പുതുക്കിയ രേഖ Business പേജിലെ Vehicles > Edit-ൽ നൽകുക, ഇല്ലെങ്കിൽ ഈ വാഹനത്തിന്റെ Verified ഒഴിവാക്കും.`;
       if (await notify(env, `v${v.id}:${doc}:${date}:${stage}`, p, stage === 0 ? `${en} expired - ${no}` : `${en} expires soon - ${no}`, body, stage !== 30)) stats.sent++;
     }
+  }
+
+  /* 1b. Rate Master category: ONE reminder per Taxi / Travel vehicle that has no category yet (never repeated; vehicles
+     without a category still get alerts by their seat count) */
+  for (const v of vehicles) {
+    if (v.business_type !== "taxi_travel" || (v.rate_cat !== undefined && v.rate_cat !== null && v.rate_cat !== "") || !(seatsOf(v) >= 2)) continue;
+    const key = `v${v.id}:ratecat`;
+    if (env._seen.has(key)) continue;
+    if (full()) { stats.more = true; break; }
+    const no = v.vehicle_number || "vehicle";
+    const body = `Please choose the Rate Master category for ${no} (Business page > Vehicles > Edit Vehicle). Customers can now choose a vehicle category (for example Innova, Tempo Traveller) when they search, and vehicles with a category get those requests directly.\n${no}-ന് Rate Master കാറ്റഗറി തിരഞ്ഞെടുക്കുക (Business പേജ് > Vehicles > Edit Vehicle). ഇപ്പോൾ കസ്റ്റമർമാർക്ക് ഇന്നോവ, ടെമ്പോ ട്രാവലർ പോലുള്ള വാഹന കാറ്റഗറി തിരഞ്ഞെടുത്ത് തിരയാം; കാറ്റഗറി തിരഞ്ഞെടുത്ത വാഹനങ്ങൾക്ക് ആ റിക്വസ്റ്റുകൾ നേരിട്ട് ലഭിക്കും.`;
+    if (await notify(env, key, { id: v.partner_id, mobile1: v.mobile1, mobile2: v.mobile2 }, `Choose the Rate Master category - ${no}`, body, false)) stats.sent++;
   }
 
   /* 2. missing documents - reminders about the ENFORCE_DATE rule */
