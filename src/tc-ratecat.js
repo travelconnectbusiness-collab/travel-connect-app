@@ -65,21 +65,31 @@
  var tierHtml=function(m){ var t=tierTag(m); return t?'<span style="display:inline-block;background:'+(m.t==="l"?'#4b2a7a':'#b8860b')+';color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;margin-left:4px">'+t+'</span>':""; };
  var paxLine=function(m){ return paxTxt(m)+" "+BL("passengers","യാത്രക്കാർ")+(m.ac===1?" · AC":m.ac===0?" · Non-AC":""); };
 
+
  /* ---------- approximate charge for the trip type (never the Minimum Safety rate) ---------- */
- function rateHtml(c,trip){
+ var rng=function(a,b){ return a===b?mny(a):mny(a)+" - "+mny(b); };
+ function rateHtml(c,trip,days){
   try{
    if(trip==="local"||trip==="drop"){
     var R=c[trip]; if(!R||!(R.rate>0)) return "";
     return '<b>≈ '+mny(R.rate)+'</b> <span class="muted" style="font-size:12px">'+E(BL("up to "+R.incKm+" km / "+R.incHours+" hr, then "+mny(R.addKm)+"/km","ആദ്യ "+R.incKm+" കി.മീ / "+R.incHours+" മണിക്കൂർ വരെ, പിന്നീട് "+mny(R.addKm)+"/കി.മീ"))+'</span>';
    }
+   /* One-day trip = one day of the outstation tariff; Multi-day = the same per-day tariff x the number of days (all from the Rate Master) */
    var st=c.standard, co=c.competitive; if(!st||!co||!(st.rate>0||co.rate>0)) return "";
-   var lo=Math.min(st.rate,co.rate), hi=Math.max(st.rate,co.rate), k1=Math.min(st.addKm,co.addKm), k2=Math.max(st.addKm,co.addKm);
-   var kmTxt=k1===k2?mny(k1):mny(k1)+" - "+mny(k2);
-   return '<b>≈ '+(lo===hi?mny(lo):mny(lo)+" - "+mny(hi))+'</b> '+E(BL("per day","ഒരു ദിവസത്തേക്ക്"))+' <span class="muted" style="font-size:12px">'+E(BL("("+st.incKm+" km / "+st.incHours+" hr a day), extra "+kmTxt+"/km"+(c.driverBata>0?", driver bata "+mny(c.driverBata)+"/day":""),"(ദിവസം "+st.incKm+" കി.മീ / "+st.incHours+" മണിക്കൂർ), അധികം "+kmTxt+"/കി.മീ"+(c.driverBata>0?", ഡ്രൈവർ ബാറ്റ "+mny(c.driverBata)+"/ദിവസം":"")))+'</span>';
+   var n=trip==="multi"?Math.min(30,Math.max(2,parseInt(days,10)||2)):1;
+   var lo=Math.min(st.rate,co.rate)*n, hi=Math.max(st.rate,co.rate)*n, kmTxt=rng(Math.min(st.addKm,co.addKm),Math.max(st.addKm,co.addKm));
+   var bata=c.driverBata>0?c.driverBata:0, km=st.incKm, hr=st.incHours;
+   var en="("+km+" km / "+hr+" hr a day"+(n>1?" - "+(km*n)+" km in all":"")+"), extra "+kmTxt+"/km"+(bata?", plus driver bata "+mny(bata)+"/day"+(n>1?" ("+mny(bata*n)+" for "+n+" days)":""):"");
+   var ml="(ദിവസം "+km+" കി.മീ / "+hr+" മണിക്കൂർ"+(n>1?" - ആകെ "+(km*n)+" കി.മീ":"")+"), അധികം "+kmTxt+"/കി.മീ"+(bata?", കൂടാതെ ഡ്രൈവർ ബാറ്റ "+mny(bata)+"/ദിവസം"+(n>1?" ("+n+" ദിവസത്തേക്ക് "+mny(bata*n)+")":""):"");
+   return '<b>≈ '+rng(lo,hi)+'</b> '+E(n===1?BL("for 1 day","ഒരു ദിവസത്തേക്ക്"):BL("for "+n+" days",n+" ദിവസത്തേക്ക്"))+' <span class="muted" style="font-size:12px">'+E(BL(en,ml))+'</span>';
   }catch(e){ return ""; }
  }
- var TRIPS=[["local","Local","ലോക്കൽ"],["drop","Drop","ഡ്രോപ്പ്"],["outstation","Outstation / multi-day","ഔട്ട്സ്റ്റേഷൻ / മൾട്ടി ഡേ"]];
- var tripName=function(t){ var x=TRIPS.filter(function(a){ return a[0]===t; })[0]||TRIPS[0]; return BL(x[1],x[2]); };
+ var TRIPS=[["local","Local","ലോക്കൽ"],["drop","Drop","ഡ്രോപ്പ്"],["oneday","One-day trip","ഒറ്റ ദിവസ യാത്ര"],["multi","Multi-day","മൾട്ടി ഡേ"]];
+ var TRIP_NAMES=TRIPS.concat([["outstation","Outstation / multi-day","ഔട്ട്സ്റ്റേഷൻ / മൾട്ടി ഡേ"]]); /* "outstation" = what the server stores for one-day and multi-day */
+ var tripName=function(t){ var x=TRIP_NAMES.filter(function(a){ return a[0]===t; })[0]||TRIPS[0]; return BL(x[1],x[2]); };
+ var ssGet=function(k){ try{ return sessionStorage.getItem(k); }catch(e){ return null; } };
+ var ssSet=function(k,v){ try{ sessionStorage.setItem(k,String(v)); }catch(e){} };
+ var tripFull=function(t,days){ return t==="multi"?tripName(t)+" - "+days+BL(" days"," ദിവസം"):tripName(t); };
 
  /* ================= CUSTOMER: category picker ================= */
  var S=null; /* picker state: {vclass, items:[{i,c,m,pax}], avail:{i:n}|null, trip, loc} */
@@ -92,10 +102,13 @@
  };
  window.tcRcAny=function(vclass){ window.__tcRcAny=true; window.tcStartTripBroadcast("taxi_travel",vclass); };
 
+
  window.tcRcOpenPicker=async function(vclass){
+  RET=null;
   var user=(typeof getCurrentUser==="function")?getCurrentUser():null; if(!user) return;
   modal('<div style="text-align:center;padding:12px 0"><div style="font-size:15px;font-weight:700;margin-bottom:10px">'+E(BL("Finding vehicles near you...","നിങ്ങളുടെ അടുത്തുള്ള വാഹനങ്ങൾ നോക്കുന്നു..."))+'</div><div class="spinner" style="margin:0 auto"></div></div>');
-  var trip="local"; try{ trip=sessionStorage.getItem("tc_rc_trip")||"local"; }catch(e){}
+  var trip=ssGet("tc_rc_trip")||"local"; if(trip==="outstation") trip="oneday"; if(!TRIPS.some(function(t){ return t[0]===trip; })) trip="local";
+  var pax=parseInt(ssGet("tc_rc_pax"),10)||0, days=Math.min(30,Math.max(2,parseInt(ssGet("tc_rc_days"),10)||2));
   var loc=null; try{ loc=await tcGetLocation(true); if(loc.error!==undefined) loc=null; }catch(e){ loc=null; }
   try{ if(typeof syncConfigFromServer==="function"&&Date.now()-(window.__tcRcSync||0)>60000){ window.__tcRcSync=Date.now(); await syncConfigFromServer(); } }catch(e){}
   await loadMeta();
@@ -109,31 +122,65 @@
     if(d&&d.ok) avail=d.counts||{};
    }catch(e){ avail=null; }
   }
-  S={vclass:vclass,items:items,avail:avail,trip:trip,loc:loc};
+  S={vclass:vclass,items:items,avail:avail,trip:trip,loc:loc,pax:pax,days:days,showAll:false};
   tcRcRender();
  };
  var isAvail=function(x){ return S.avail?(S.avail[x.i]>0):null; };
- function tcRcRender(){
-  if(!S) return;
-  var sorted=S.items.slice().sort(function(a,b){ var A=isAvail(a)===false?1:0, B=isAvail(b)===false?1:0; return A-B||a.i-b.i; });
-  var h='<h2>&#128663; '+E(BL("Choose your vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</h2><p class="muted" style="margin:0 0 6px">'+E(kindLabel(S.vclass))+'</p>'+
-   '<div style="font-size:12px;font-weight:700;margin:6px 0 4px">'+E(BL("Approximate charge for:","ഏകദേശ നിരക്ക് കാണിക്കേണ്ടത്:"))+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
-   TRIPS.map(function(t){ var on=S.trip===t[0]; return '<button type="button" onclick="tcRcSetTrip(\''+t[0]+'\')" style="padding:7px 11px;font-size:12.5px;border-radius:999px;'+(on?'background:#0b6b78;color:#fff':'')+'">'+E(BL(t[1],t[2]))+'</button>'; }).join("")+'</div>';
+ var TIER_ORDER={o:0,p:1,l:2};
+ /* the vehicle cards (re-drawn alone when the passengers / days change, so the typing box keeps focus) */
+ function listHtml(){
+  var P=S.pax, h="";
+  var banner=function(msg,btn,v){ return '<div style="margin:8px 0;padding:9px 11px;border-radius:10px;background:#eef6f7;border:1px solid #cfe0e3;font-size:12.5px;line-height:1.5">'+E(msg)+'<div class="actions" style="margin-top:6px"><button type="button" onclick="tcRcSwitchClass(\''+v+'\')">'+E(btn)+'</button></div></div>'; };
+  if(P>6&&S.vclass==="cab") return banner(BL(P+" passengers need a Contract Carriage (7 or more passengers).",P+" യാത്രക്കാർക്ക് Contract Carriage (7+ യാത്രക്കാർ) വേണം."),BL("Show Contract Carriage vehicles","Contract Carriage വാഹനങ്ങൾ കാണിക്കുക"),"carriage");
+  if(P>0&&P<=6&&S.vclass==="carriage") h+=banner(BL("For "+P+" passengers a Motor Cab is enough, and usually cheaper.",P+" യാത്രക്കാർക്ക് Motor Cab മതിയാകും, സാധാരണ ചെലവും കുറവാണ്."),BL("Show Motor Cab vehicles","Motor Cab വാഹനങ്ങൾ കാണിക്കുക"),"cab");
+  var fit=function(x){ return !P||x.m.hi>=P; };
+  var arr=S.items.filter(function(x){ return fit(x)||S.showAll; });
+  var hidden=S.items.filter(function(x){ return !fit(x); }).length;
+  arr.sort(function(a,b){
+   var fa=fit(a)?0:1, fb=fit(b)?0:1; if(fa!==fb) return fa-fb;
+   var A=isAvail(a)===false?1:0, B=isAvail(b)===false?1:0; if(A!==B) return A-B;
+   if(P){ if(a.m.hi!==b.m.hi) return a.m.hi-b.m.hi; var ta=TIER_ORDER[a.m.t]||0, tb=TIER_ORDER[b.m.t]||0; if(ta!==tb) return ta-tb; }
+   return a.i-b.i;
+  });
+  var best=P?arr.filter(function(x){ return fit(x)&&isAvail(x)!==false; })[0]:null;
   if(!S.avail&&S.items.length) h+='<p class="muted" style="font-size:11.5px;margin:6px 0 0">'+E(BL("Availability could not be checked right now - you can still choose a vehicle.","ലഭ്യത ഇപ്പോൾ പരിശോധിക്കാൻ കഴിഞ്ഞില്ല - എങ്കിലും വാഹനം തിരഞ്ഞെടുക്കാം."))+'</p>';
   if(!S.items.length) h+='<p class="muted" style="margin:10px 0">'+E(BL("No vehicle categories are listed for this type yet. Please choose Any vehicle.","ഈ വിഭാഗത്തിൽ വാഹന കാറ്റഗറികൾ ഇതുവരെ ചേർത്തിട്ടില്ല. 'Any vehicle' തിരഞ്ഞെടുക്കുക."))+'</p>';
-  sorted.forEach(function(x){
-   var a=isAvail(x), grey=a===false;
-   h+='<div onclick="tcRcTap('+x.i+')" style="cursor:pointer;border:1px solid '+(grey?'#d5d9dc':'#bcd6da')+';border-radius:12px;padding:9px 11px;margin:8px 0;background:'+(grey?'#f1f2f3':'#fff')+(grey?';opacity:.65':'')+'">'+
+  else if(P&&!arr.length) h+='<p class="muted" style="margin:10px 0">'+E(BL("No vehicle in this list seats "+P+" passengers. Please choose Any vehicle.",P+" യാത്രക്കാരെ കൊള്ളുന്ന വാഹനം ഈ പട്ടികയിൽ ഇല്ല. 'Any vehicle' തിരഞ്ഞെടുക്കുക."))+'</p>';
+  arr.forEach(function(x){
+   var a=isAvail(x), grey=a===false, small=P&&x.m.hi<P;
+   h+='<div onclick="tcRcTap('+x.i+')" style="cursor:pointer;border:1px solid '+(x===best?'#2e9d6a':grey?'#d5d9dc':'#bcd6da')+';border-radius:12px;padding:9px 11px;margin:8px 0;background:'+(grey?'#f1f2f3':'#fff')+(grey?';opacity:.65':'')+'">'+
+    (x===best?'<div style="font-size:11.5px;font-weight:800;color:#177044;margin-bottom:2px">&#9733; '+E(BL("Best fit for "+P+" passengers",P+" യാത്രക്കാർക്ക് ഏറ്റവും അനുയോജ്യം"))+'</div>':'')+
     '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="font-weight:800;font-size:14.5px">'+E(x.c.name)+tierHtml(x.m)+'</div>'+
     (a===true?'<span style="font-size:11.5px;font-weight:800;color:#177044;white-space:nowrap">&#9679; '+E(BL("Available nearby","ലഭ്യമാണ്"))+'</span>':a===false?'<span style="font-size:11.5px;font-weight:800;color:#8a6d6d;white-space:nowrap">&#9679; '+E(BL("Not available now","ഇപ്പോൾ ലഭ്യമല്ല"))+'</span>':'')+'</div>'+
-    '<div class="muted" style="font-size:12.5px">'+E(paxLine(x.m))+'</div>'+
-    '<div style="margin-top:3px;font-size:13px">'+(rateHtml(x.c,S.trip)||'<span class="muted">'+E(BL("Rate: ask the driver","നിരക്ക്: ഡ്രൈവറോട് ചോദിക്കുക"))+'</span>')+'</div></div>';
+    '<div class="muted" style="font-size:12.5px">'+E(paxLine(x.m))+(small?' · <b style="color:#a05a00">'+E(BL("may be too small for "+P,P+" പേർക്ക് മതിയാകില്ല"))+'</b>':'')+'</div>'+
+    '<div style="margin-top:3px;font-size:13px">'+(rateHtml(x.c,S.trip,S.days)||'<span class="muted">'+E(BL("Rate: ask the driver","നിരക്ക്: ഡ്രൈവറോട് ചോദിക്കുക"))+'</span>')+'</div></div>';
   });
+  if(hidden>0&&!S.showAll&&P) h+='<p class="muted" style="font-size:12px;margin:6px 0">'+E(BL(hidden+" smaller vehicle"+(hidden===1?"":"s")+" hidden (too small for "+P+" passengers). ",hidden+" ചെറിയ വാഹനം മറച്ചിരിക്കുന്നു ("+P+" യാത്രക്കാർക്ക് മതിയാകില്ല). "))+'<a href="#" onclick="tcRcShowAll();return false" style="color:#0b6b78;font-weight:700">'+E(BL("Show all","എല്ലാം കാണിക്കുക"))+'</a></p>';
+  return h;
+ }
+ function refreshList(){ var el=document.getElementById("tcRcList"); if(el) el.innerHTML=listHtml(); }
+ function tcRcRender(){
+  if(!S) return;
+  var h='<h2>&#128663; '+E(BL("Choose your vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</h2><p class="muted" style="margin:0 0 6px">'+E(kindLabel(S.vclass))+'</p>'+
+   '<label style="display:block;margin:6px 0 2px;font-size:13px;font-weight:700">'+E(BL("How many passengers?","എത്ര യാത്രക്കാർ?"))+' <span class="muted" style="font-weight:400;font-size:12px">'+E(BL("(optional - we show the vehicles that fit)","(വേണമെങ്കിൽ - അനുയോജ്യമായ വാഹനങ്ങൾ കാണിക്കും)"))+'</span>'+
+   '<input id="tcRcPax" type="number" inputmode="numeric" min="1" max="60" placeholder="e.g. 4" style="display:block;width:100%;box-sizing:border-box;margin-top:4px" value="'+(S.pax||"")+'" oninput="tcRcSetPax(this.value)"></label>'+
+   '<div style="font-size:12px;font-weight:700;margin:8px 0 4px">'+E(BL("Type of trip:","യാത്രയുടെ തരം:"))+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+   TRIPS.map(function(t){ var on=S.trip===t[0]; return '<button type="button" onclick="tcRcSetTrip(\''+t[0]+'\')" style="padding:7px 11px;font-size:12.5px;border-radius:999px;'+(on?'background:#0b6b78;color:#fff':'')+'">'+E(BL(t[1],t[2]))+'</button>'; }).join("")+'</div>'+
+   (S.trip==="multi"?'<div style="margin:8px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:12.5px;font-weight:700">'+E(BL("Number of days","എത്ര ദിവസം"))+'</span>'+
+    '<button type="button" onclick="tcRcDays(-1)" style="padding:6px 14px;font-size:16px;border-radius:999px">&minus;</button>'+
+    '<input id="tcRcDaysIn" type="number" inputmode="numeric" min="2" max="30" value="'+S.days+'" oninput="tcRcDaysSet(this.value)" style="width:70px;text-align:center">'+
+    '<button type="button" onclick="tcRcDays(1)" style="padding:6px 14px;font-size:16px;border-radius:999px">+</button></div>':'')+
+   '<div id="tcRcList">'+listHtml()+'</div>';
   h+='<div class="actions"><button class="primary" style="padding:13px" onclick="tcRcAny(\''+S.vclass+'\')">'+E(BL("Any vehicle","ഏത് വാഹനവും"))+' <span style="font-weight:400;font-size:12px">'+E(S.vclass==="carriage"?"(Contract Carriage)":"(Motor Cab)")+'</span></button></div>'+
    discBox(false)+'<div class="actions"><button onclick="closeModal()">'+E(BL("Close","അടയ്ക്കുക"))+'</button></div>';
   modal(h);
  }
- window.tcRcSetTrip=function(t){ if(!S) return; S.trip=t; try{ sessionStorage.setItem("tc_rc_trip",t); }catch(e){} tcRcRender(); };
+ window.tcRcSetTrip=function(t){ if(!S) return; S.trip=t; ssSet("tc_rc_trip",t); tcRcRender(); };
+ window.tcRcSetPax=function(v){ if(!S) return; var n=parseInt(v,10); S.pax=(n>=1&&n<=60)?n:0; S.showAll=false; ssSet("tc_rc_pax",S.pax||""); refreshList(); };
+ window.tcRcDaysSet=function(v){ if(!S) return; var n=parseInt(v,10); if(!(n>=1)) return; S.days=Math.min(30,Math.max(2,n)); ssSet("tc_rc_days",S.days); refreshList(); };
+ window.tcRcDays=function(d){ if(!S) return; S.days=Math.min(30,Math.max(2,S.days+d)); ssSet("tc_rc_days",S.days); var el=document.getElementById("tcRcDaysIn"); if(el) el.value=S.days; refreshList(); };
+ window.tcRcShowAll=function(){ if(S){ S.showAll=true; refreshList(); } };
+ window.tcRcSwitchClass=function(v){ window.tcRcOpenPicker(v); };
  window.tcRcTap=function(i){
   if(!S) return;
   var x=S.items.filter(function(y){ return y.i===i; })[0]; if(!x) return;
@@ -155,10 +202,23 @@
    others.slice(0,8).forEach(function(y){ h+='<div onclick="tcRcPick('+y.i+')" style="cursor:pointer;border:1px solid #bcd6da;border-radius:10px;padding:7px 10px;margin:5px 0;background:#fff"><b>'+E(y.c.name)+'</b>'+tierHtml(y.m)+' <span class="muted" style="font-size:12px">'+E(paxLine(y.m))+'</span></div>'; });
   }
   h+='<div class="actions" style="margin-top:10px"><button class="primary" onclick="tcRcAny(\''+vclass+'\')">'+E(BL("Any vehicle","ഏത് വാഹനവും"))+'</button>'+
-   '<button onclick="closeModal();view(\'activeboard\')">&#128663; '+E(BL("Active Vehicles Board","Active Vehicles Board"))+'</button>'+
-   '<button onclick="closeModal();tcOpenDirectory()">&#128222; '+E(BL("Call from Directory","ഡയറക്ടറിയിൽ നിന്ന് വിളിക്കാം"))+'</button></div>';
+   '<button onclick="tcRcLeave(\'board\')">&#128663; '+E(BL("Active Vehicles Board","Active Vehicles Board"))+'</button>'+
+   '<button onclick="tcRcLeave(\'dir\')">&#128222; '+E(BL("Call from Directory","ഡയറക്ടറിയിൽ നിന്ന് വിളിക്കാം"))+'</button></div>';
   return h;
  }
+
+ /* Directory / Active Vehicles Board opened from the picker: the phone's Back button comes back to the same picker (not the dashboard) */
+ var RET=null;
+ window.tcRcLeave=function(kind){
+  RET={v:S?S.vclass:"cab",hash:location.hash,t:Date.now()};
+  closeModal();
+  if(kind==="board") view("activeboard"); else tcOpenDirectory();
+ };
+ window.addEventListener("popstate",function(){
+  if(!RET) return;
+  var r=RET; if(Date.now()-r.t>20*60000){ RET=null; return; }
+  setTimeout(function(){ if(RET!==r||location.hash!==r.hash) return; RET=null; try{ window.tcRcOpenPicker(r.v); }catch(e){} },160);
+ });
  window.tcRcPick=function(i){ var x=S&&S.items.filter(function(y){ return y.i===i; })[0]; if(x) tcRcBook(x); };
  window.tcRcRender=tcRcRender;
 
@@ -173,9 +233,10 @@
    return;
   }
   var tag=tierTag(x.m);
-  SEL={i:x.i,vclass:S.vclass,trip:S.trip,pax:x.pax,lat:loc.lat,lon:loc.lon,label:(x.c.name+" - "+paxTxt(x.m)+" passengers"+(tag?" ("+tag+")":"")).slice(0,80),name:x.c.name};
+  SEL={i:x.i,vclass:S.vclass,trip:S.trip,days:S.days,cpax:S.pax,pax:x.pax,lat:loc.lat,lon:loc.lon,label:(x.c.name+" - "+paxTxt(x.m)+" passengers"+(tag?" ("+tag+")":"")).slice(0,80),name:x.c.name};
   modal('<h2>&#128663; '+E(BL("Book Your Trip","ട്രിപ്പ് ബുക്ക് ചെയ്യുക"))+'</h2>'+
-   '<div style="padding:9px 11px;border-radius:10px;background:#eef6f7;border:1px solid #cfe0e3"><div style="font-weight:800">'+E(x.c.name)+tierHtml(x.m)+'</div><div class="muted" style="font-size:12.5px">'+E(paxLine(x.m))+' · '+E(tripName(S.trip))+'</div><div style="margin-top:3px;font-size:13px">'+(rateHtml(x.c,S.trip)||"")+'</div></div>'+
+   '<div style="padding:9px 11px;border-radius:10px;background:#eef6f7;border:1px solid #cfe0e3"><div style="font-weight:800">'+E(x.c.name)+tierHtml(x.m)+'</div><div class="muted" style="font-size:12.5px">'+E(paxLine(x.m))+' · '+E(tripFull(S.trip,S.days))+(S.pax?' · '+E(BL(S.pax+" travelling",S.pax+" പേർ യാത്ര ചെയ്യുന്നു")):'')+'</div><div style="margin-top:3px;font-size:13px">'+(rateHtml(x.c,S.trip,S.days)||"")+'</div></div>'+
+   '<div class="muted" style="font-size:11.5px;margin-top:4px">'+E(BL("Your trip type, number of days and passengers are sent to the driver along with your request.","യാത്രയുടെ തരം, ദിവസങ്ങളുടെ എണ്ണം, യാത്രക്കാരുടെ എണ്ണം എന്നിവ റിക്വസ്റ്റിനൊപ്പം ഡ്രൈവർക്ക് ലഭിക്കും."))+'</div>'+
    '<label style="margin-top:8px">'+E(BL("Pickup landmark (optional, helps drivers find you)","പിക്കപ്പ് ലാൻഡ്മാർക്ക് (വേണമെങ്കിൽ, ഡ്രൈവർക്ക് കണ്ടെത്താൻ സഹായിക്കും)"))+'<input id="tripPickupText" placeholder="e.g. Near Nadapuram bus stand"></label>'+
    '<div style="font-weight:650;font-size:13px;margin:8px 0 4px">'+E(BL("Where are you going? (optional, helps a driver decide)","എവിടേക്കാണ് പോകുന്നത്? (വേണമെങ്കിൽ)"))+'</div><div id="tripDestContainer"></div>'+
    '<div class="actions"><button type="button" onclick="tcAddTripDestField()">+ '+E(BL("Add a destination","ഒരു ലക്ഷ്യസ്ഥാനം ചേർക്കുക"))+'</button></div>'+
@@ -188,12 +249,17 @@
   var user=getCurrentUser(); if(!user||!SEL) return;
   var pickupText=(document.querySelector("#tripPickupText")||{value:""}).value.trim();
   var note=(document.querySelector("#tripNote")||{value:""}).value.trim();
+  /* trip type / days / passengers go to the driver in the message (the server stores one-day and multi-day as "outstation") */
+  var det=[]; var tn=TRIP_NAMES.filter(function(a){ return a[0]===SEL.trip; })[0];
+  if(tn) det.push(tn[1]+(SEL.trip==="multi"?", "+SEL.days+" days":"")+" ("+tn[2]+(SEL.trip==="multi"?", "+SEL.days+" ദിവസം":"")+")");
+  if(SEL.cpax) det.push("Passengers: "+SEL.cpax+" (യാത്രക്കാർ: "+SEL.cpax+")");
+  if(det.length) note=det.join(" · ")+(note?"\n"+note:"");
   var destinations=tcCollectTripDestinations();
   var sel=SEL;
   modal('<div style="text-align:center;padding:10px 0"><div class="spinner" style="margin:0 auto"></div></div>');
   try{
    var res=await fetch("/api/trip_alerts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-    action:"broadcast",business_type:"taxi_travel",vclass:sel.vclass,rate_cat:String(sel.i),rate_pax:sel.pax,rate_cat_label:sel.label,rate_trip:sel.trip,
+    action:"broadcast",business_type:"taxi_travel",vclass:sel.vclass,rate_cat:String(sel.i),rate_pax:sel.pax,rate_cat_label:sel.label,rate_trip:(sel.trip==='local'||sel.trip==='drop')?sel.trip:'outstation',
     customer_name:user.name,customer_mobile:user.mobile,device:(typeof getDeviceToken==="function"?getDeviceToken():""),lat:sel.lat,lon:sel.lon,pickup_text:pickupText,destinations:destinations,message:note})});
    var data=await res.json();
    if(!data.ok){
