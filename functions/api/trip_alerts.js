@@ -20,7 +20,7 @@
 
 import { sendWebPush } from "./_webpush.js";
 import { verifyAdminToken } from "./_auth_helper.js";
-import { eligiblePartners, partnerMatches, VCLASSES } from "./trip_class.js";
+import { eligiblePartners, partnerMatches, VCLASSES, rateAvailability } from "./trip_class.js";
 import { ensureAbuse, checkBroadcast, last10 as last10Digits, abuseGet, abusePost } from "./trip_abuse.js";
 import { fallbackGet, fallbackPost } from "./trip_fallback.js";
 
@@ -119,6 +119,25 @@ async function ensure(env) {
     }
     try { await env.DB.prepare("INSERT OR REPLACE INTO app_flags (key, value) VALUES ('trip_alerts_schema', ?)").bind(SCHEMA).run(); } catch (e) {}
   }
+  /* Rate Master category the customer chose (Motor Cab / Contract Carriage only): number of the category, its passengers, a
+     ready-made label for the owner's alert and the trip type (local / drop / outstation). Own small flag, so the first request
+     after this update costs only ~6 database calls (not the whole set-up above again). */
+  let rcDone = false;
+  try {
+    const f = await env.DB.prepare("SELECT value FROM app_flags WHERE key='trip_alerts_rc'").first();
+    rcDone = !!(f && f.value === "1");
+  } catch (e) { rcDone = false; }
+  if (!rcDone) {
+    for (const stmt of [
+      "ALTER TABLE trip_alerts ADD COLUMN rate_cat TEXT",
+      "ALTER TABLE trip_alerts ADD COLUMN rate_pax INTEGER",
+      "ALTER TABLE trip_alerts ADD COLUMN rate_cat_label TEXT",
+      "ALTER TABLE trip_alerts ADD COLUMN rate_trip TEXT",
+    ]) {
+      try { await env.DB.prepare(stmt).run(); } catch (e) { /* already exists */ }
+    }
+    try { await env.DB.prepare("INSERT OR REPLACE INTO app_flags (key, value) VALUES ('trip_alerts_rc', '1')").run(); } catch (e) {}
+  }
   await ensureAbuse(env);
   ready = true;
 }
@@ -192,6 +211,46 @@ function envInt(v, dflt) {
   const n = parseInt(v, 10);
   return Number.isFinite(n) && n >= 0 ? n : dflt;
 }
+/* ---------- RATE MASTER CATEGORY REQUESTS ----------
+   The customer app may add rate_cat (number of the Rate Master category), rate_pax (its passengers), rate_cat_label (text shown
+   to the owner) and rate_trip (local / drop / outstation) to a Motor Cab / Contract Carriage request. Older apps send none of
+   these and work exactly as before. */
+const CAT_RE = /^\d{1,3}$/;
+function rateFromBody(body, businessType, vclass) {
+  if (businessType !== "taxi_travel" || (vclass !== "cab" && vclass !== "carriage")) return null;
+  const cat = String(body.rate_cat == null ? "" : body.rate_cat).trim();
+  const pax = parseInt(body.rate_pax, 10);
+  if (!CAT_RE.test(cat) || !(pax >= 1 && pax <= 60)) return null;
+  const trip = ["local", "drop", "outstation"].includes(body.rate_trip) ? body.rate_trip : null;
+  return { cat, pax, label: String(body.rate_cat_label || "").trim().slice(0, 80), trip };
+}
+/* Details of each Rate Master category for customers (passengers, AC, Premium...), set by the admin in Rate Master >
+   "Customer vehicle details" and kept here (app_flags 'rate_cat_meta'), keyed by the category number. The app fills the gaps from
+   the category names, so this only holds what the admin changed. */
+const META_KEY = "rate_cat_meta";
+function cleanMeta(m) {
+  const out = {};
+  if (!m || typeof m !== "object") return out;
+  for (const k of Object.keys(m).slice(0, 200)) {
+    const x = m[k];
+    if (!CAT_RE.test(k) || !x || typeof x !== "object") continue;
+    const o = {};
+    let lo = parseInt(x.lo, 10), hi = parseInt(x.hi, 10);
+    if (!(lo >= 1 && lo <= 60)) lo = null;
+    if (!(hi >= 1 && hi <= 60)) hi = null;
+    if (lo && !hi) hi = lo;
+    if (hi && !lo) lo = hi;
+    if (lo && hi < lo) hi = lo;
+    if (lo) { o.lo = lo; o.hi = hi; }
+    if (x.ac === 1 || x.ac === 0) o.ac = x.ac;
+    if (x.t === "o" || x.t === "p" || x.t === "l") o.t = x.t;
+    if (x.h === 1) o.h = 1;
+    out[k] = o;
+  }
+  return out;
+}
+const rcOf = (a) => (a && a.rate_cat != null && a.rate_cat !== "" ? { cat: a.rate_cat, pax: a.rate_pax } : null);
+
 /* Premium (not yet expired) or Owner Free. An expired Premium counts as free. */
 function isPremiumPlan(p) {
   if (!p) return false;
@@ -342,7 +401,7 @@ async function notifyBatch(env, alert, opts) {
       type: "trip_alert",
       alert_id: alert.id,
       title: "\ud83d\ude95 New trip request nearby",
-      body: [alert.customer_name, distText, alert.pickup_text].filter(Boolean).join(" \u2022 "),
+      body: [alert.rate_cat_label, alert.customer_name, distText, alert.pickup_text].filter(Boolean).join(" \u2022 "),
       tag: "tc-trip-" + alert.id,
     };
     for (const sub of r._subs) {
@@ -387,7 +446,10 @@ export async function onRequestPost({ request, env, ctx }) {
     /* Abuse limits (trip_abuse.js): blocked / too many requests / same request tapped twice */
     const device = String(body.device || "").slice(0, 80);
     const ip = request.headers.get("CF-Connecting-IP") || "";
-    const gate = await checkBroadcast(env, { mobile: customerMobile, device, ip, businessType, vclass: VCLASSES.includes(body.vclass) && businessType === "taxi_travel" ? body.vclass : null });
+    /* Travel Agency / Motor Cab / Contract Carriage / Auto / Goods - see trip_class.js */
+    const vclass = VCLASSES.includes(body.vclass) && businessType === "taxi_travel" ? body.vclass : null;
+    const rate = rateFromBody(body, businessType, vclass);
+    const gate = await checkBroadcast(env, { mobile: customerMobile, device, ip, businessType, vclass, rateCat: rate ? rate.cat : null });
     if (!gate.ok) return Response.json({ ok: false, error: gate.error, retry_after_min: gate.retry_after_min || null }, { status: gate.status });
     if (gate.duplicate) return Response.json({ ok: true, alert_id: gate.duplicate.alert_id, notified_count: gate.duplicate.notified_count, duplicate: true });
 
@@ -397,9 +459,7 @@ export async function onRequestPost({ request, env, ctx }) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ALERT_LIFETIME_MINUTES * 60000).toISOString();
 
-    /* Travel Agency / Motor Cab / Contract Carriage / Auto / Goods - see trip_class.js */
-    const vclass = VCLASSES.includes(body.vclass) && businessType === "taxi_travel" ? body.vclass : null;
-    const partnersRes = { results: await eligiblePartners(env, businessType, vclass) };
+    const partnersRes = { results: await eligiblePartners(env, businessType, vclass, rate ? { cat: rate.cat, pax: rate.pax } : null) };
     /* The person asking is never alerted about their own request - e.g. a
        business owner who taps "Nearby Vehicles" because they need another
        vehicle must not get the enquiry on their own phone. Compared by the
@@ -418,8 +478,8 @@ export async function onRequestPost({ request, env, ctx }) {
 
     const result = await env.DB
       .prepare(
-        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at, vclass, mobile10, device, ip)
-         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?,?,?,?)`
+        `INSERT INTO trip_alerts (business_type, customer_name, customer_mobile, pickup_lat, pickup_lon, pickup_text, destinations, message, status, notified_count, created_at, expires_at, vclass, mobile10, device, ip, rate_cat, rate_pax, rate_cat_label, rate_trip)
+         VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?,?,?)`
       )
       .bind(
         businessType,
@@ -436,7 +496,11 @@ export async function onRequestPost({ request, env, ctx }) {
         vclass,
         last10Digits(customerMobile),
         device,
-        ip
+        ip,
+        rate ? rate.cat : null,
+        rate ? rate.pax : null,
+        rate ? rate.label : null,
+        rate ? rate.trip : null
       )
       .run();
     const alertId = result.meta.last_row_id;
@@ -478,13 +542,21 @@ export async function onRequestPost({ request, env, ctx }) {
             .run();
         }
       }
-      const first = { id: alertId, created_at: now.toISOString(), customer_name: customerName, pickup_text: (body.pickup_text || "").trim(), pickup_lat: lat, pickup_lon: lon };
+      const first = { id: alertId, created_at: now.toISOString(), customer_name: customerName, pickup_text: (body.pickup_text || "").trim(), pickup_lat: lat, pickup_lon: lon, rate_cat_label: rate ? rate.label : null };
       try {
         await notifyBatch(env, first, { drivers: FIRST_DRIVERS, pushes: FIRST_PUSHES, routes: FIRST_ROUTES });
       } catch (e) { /* the status polls will retry the rest */ }
     }
 
-    return Response.json({ ok: true, alert_id: alertId, notified_count: candidates.length });
+    return Response.json({ ok: true, alert_id: alertId, notified_count: candidates.length, rate_cat: rate ? rate.cat : null });
+  }
+
+  /* admin: save the Rate Master category details shown to customers */
+  if (body.action === "rc_meta_set") {
+    if (!(await verifyAdminToken(env, body.token))) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    const meta = cleanMeta(body.meta);
+    await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(META_KEY, JSON.stringify(meta)).run();
+    return Response.json({ ok: true, count: Object.keys(meta).length });
   }
 
   if (body.action === "accept") {
@@ -504,7 +576,7 @@ export async function onRequestPost({ request, env, ctx }) {
     if (alert.status !== "open") {
       return Response.json({ ok: true, accepted: false, reason: alert.status === "accepted" ? "already_taken" : "expired" });
     }
-    if (alert.vclass && !(await partnerMatches(env, partnerId, alert.business_type, alert.vclass))) {
+    if (alert.vclass && !(await partnerMatches(env, partnerId, alert.business_type, alert.vclass, rcOf(alert)))) {
       return Response.json({ ok: false, error: "not_eligible" }, { status: 403 });
     }
 
@@ -630,7 +702,7 @@ export async function onRequestGet({ request, env }) {
       /* never show a business its own request */
       if (l10(a.customer_mobile) && (l10(a.customer_mobile) === l10(partner.mobile1) || l10(a.customer_mobile) === l10(partner.mobile2))) continue;
       /* Cab / Carriage alerts only for businesses that really have a matching verified vehicle */
-      if (a.vclass && !(await partnerMatches(env, partnerId, a.business_type, a.vclass))) continue;
+      if (a.vclass && !(await partnerMatches(env, partnerId, a.business_type, a.vclass, rcOf(a)))) continue;
       const candidate = await env.DB.prepare("SELECT distance_km, duration_min, notified, rel FROM trip_alert_candidates WHERE alert_id=? AND partner_id=?").bind(a.id, partnerId).first();
       /* Premium -> Plus -> Free: a driver whose turn has not come yet does not see the request in the app either */
       if (candidate && candidate.notified === 0 && candidate.rel > ageSec(a.created_at)) continue;
@@ -660,6 +732,31 @@ export async function onRequestGet({ request, env }) {
      under", for exactly the situation a person scrolling an admin list
      by eye can miss an entry whose category or name isn't what they
      expect to see. */
+  /* Rate Master category details for customers + owners (public, small) */
+  if (action === "rc_meta") {
+    let meta = {};
+    try {
+      const r = await env.DB.prepare("SELECT value FROM app_flags WHERE key=?").bind(META_KEY).first();
+      if (r && r.value) meta = cleanMeta(JSON.parse(r.value));
+    } catch (e) { meta = {}; }
+    return Response.json({ ok: true, meta });
+  }
+
+  /* "Available nearby / Not available now" for each category card: live-Verified vehicles of that category near the customer.
+     cats = "categoryNumber:passengers,..." (max 40). Costs ONE database query, no push, no Google call. */
+  if (action === "rc_avail") {
+    const vclass = url.searchParams.get("vclass");
+    if (vclass !== "cab" && vclass !== "carriage") return Response.json({ ok: false, error: "bad_vclass" }, { status: 400 });
+    const cats = String(url.searchParams.get("cats") || "").split(",").slice(0, 40).map((s) => s.split(":"))
+      .filter(([c, p]) => CAT_RE.test(c || "") && parseInt(p, 10) >= 1 && parseInt(p, 10) <= 60)
+      .map(([c, p]) => [c, parseInt(p, 10)]);
+    const la = url.searchParams.get("lat"), lo = url.searchParams.get("lon");
+    const lat = la != null && la !== "" && isFinite(Number(la)) ? Number(la) : null;
+    const lon = lo != null && lo !== "" && isFinite(Number(lo)) ? Number(lo) : null;
+    const counts = await rateAvailability(env, { lat, lon, vclass, cats, radiusKm: RADIUS_KM, askerNum: last10Digits(url.searchParams.get("mobile") || "") });
+    return Response.json({ ok: true, counts, radius_km: RADIUS_KM });
+  }
+
   /* Admin: how many Google Routes calls this month vs the limits. */
   if (action === "maps_usage") {
     if (!(await verifyAdminToken(env, url.searchParams.get("token")))) {
@@ -739,7 +836,7 @@ export async function onRequestGet({ request, env }) {
     if (!mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     const { results } = await env.DB
       .prepare(
-        `SELECT ta.id, ta.business_type, ta.vclass, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
+        `SELECT ta.id, ta.business_type, ta.vclass, ta.rate_cat_label, ta.rate_trip, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
                 ta.accepted_partner_id, ta.accepted_distance_km, ta.accepted_duration_min, p.business_name AS accepted_business_name, p.mobile1 AS accepted_mobile1
          FROM trip_alerts ta
          LEFT JOIN travel_partners p ON p.id = ta.accepted_partner_id
