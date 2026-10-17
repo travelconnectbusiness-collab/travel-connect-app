@@ -2,6 +2,7 @@ import { verifyAdminToken } from "./_auth_helper.js";
 import { runExpirySweep } from "./docs_expiry.js";
 import { getEnforceDate, setEnforceDate, dateLabels, istToday, missingDocs, vclassOf, seatsOf } from "./trip_class.js";
 import { notify } from "./docs_expiry.js";
+import { sendWebPush } from "./_webpush.js";
 
 /* Vehicle-document status (the documents themselves live on each vehicle record).
    GET ?action=status&partner_id&mobile&device   owner: what is still missing?
@@ -9,7 +10,8 @@ import { notify } from "./docs_expiry.js";
    GET ?action=sweep&token                       admin: run the daily check now
    GET ?action=enforce_preview&token             admin: who will lose Verified on the deadline, and why
    POST {action:"set_enforce_date",date,token}   admin: change the deadline (must be a future date)
-   POST {action:"remind",partner_ids:[..],token} admin: send the "complete your documents" message (max 3 owners per call) */
+   POST {action:"remind",partner_ids:[..],token} admin: send the "complete your documents" message (max 3 owners per call)
+   POST {action:"push_test",partner_id,mobile,device} owner: send ONE test notification to the owner's own phones (max 3 per hour per business, max 3 phones) */
 const j = (o, s) => Response.json(o, s ? { status: s } : undefined);
 
 async function ownerAuth(env, partnerId, mobile, device) {
@@ -32,6 +34,39 @@ async function ownerAuth(env, partnerId, mobile, device) {
 async function vehiclesOf(env, partnerId) {
   try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN seats INTEGER").run(); } catch (e) {}
   return ((await env.DB.prepare("SELECT v.*, (SELECT business_type FROM travel_partners WHERE id=v.partner_id) AS business_type FROM vehicles v WHERE v.partner_id=? ORDER BY v.id").bind(partnerId).all()).results) || [];
+}
+
+/* ---- owner: "Test Notification" button. Sends one harmless notification to the owner's OWN registered phones.
+   Shown by the service worker like a chat message (type "message") so sw.js needs no change. Free-plan cost: about 6 queries + up to 3 pushes. */
+const TEST_PER_HOUR = 3, TEST_MAX_PHONES = 3;
+let testReady = false;
+async function pushTest(env, b) {
+  const p = await ownerAuth(env, b.partner_id, b.mobile, b.device);
+  if (!p) return j({ ok: false, error: "unauthorized" }, 401);
+  if (!testReady) {
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS push_tests (id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER, created_at TEXT)").run();
+    testReady = true;
+  }
+  const numbers = [...new Set([p.mobile1, p.mobile2].filter(Boolean))];
+  if (!numbers.length) return j({ ok: true, devices: 0, sent: 0, failed: 0, removed: 0 });
+  const ph = numbers.map(() => "?").join(",");
+  const subs = ((await env.DB.prepare(`SELECT * FROM push_subscriptions WHERE mobile IN (${ph}) ORDER BY created_at DESC LIMIT ?`).bind(...numbers, TEST_MAX_PHONES).all()).results) || [];
+  /* no registered phone: nothing is sent and it does not count as a test */
+  if (!subs.length) return j({ ok: true, devices: 0, sent: 0, failed: 0, removed: 0 });
+  const now = Date.now(), since = new Date(now - 3600000).toISOString();
+  const c = await env.DB.prepare("SELECT COUNT(*) AS n, MIN(created_at) AS first FROM push_tests WHERE partner_id=? AND created_at>=?").bind(p.id, since).first();
+  if (c && c.n >= TEST_PER_HOUR) {
+    const wait = c.first ? Math.max(1, Math.ceil((new Date(c.first).getTime() + 3600000 - now) / 60000)) : 60;
+    return j({ ok: false, error: "limited", retry_after_min: wait }, 429);
+  }
+  await env.DB.prepare("INSERT INTO push_tests (partner_id, created_at) VALUES (?,?)").bind(p.id, new Date(now).toISOString()).run();
+  if (Math.random() < 0.1) { try { await env.DB.prepare("DELETE FROM push_tests WHERE created_at < ?").bind(new Date(now - 2 * 86400000).toISOString()).run(); } catch (e) {} }
+  const payload = { type: "message", title: "\u2705 Travel Connect test", body: "Notifications are working on this phone. Trip alerts will reach you here.", tag: "tc-test", url: "/" };
+  const res = await Promise.all(subs.map((s) => sendWebPush(env, s, payload).catch(() => ({ ok: false, stale: false }))));
+  const stale = subs.filter((s, i) => res[i] && res[i].stale).map((s) => s.endpoint);
+  if (stale.length) { try { await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint IN (${stale.map(() => "?").join(",")})`).bind(...stale).run(); } catch (e) {} }
+  const sent = res.filter((r) => r && r.ok).length;
+  return j({ ok: true, devices: subs.length, sent, failed: subs.length - sent - stale.length, removed: stale.length });
 }
 
 const VEH_TYPES = ["taxi_travel", "auto_rickshaw", "pickup_goods"];
@@ -145,6 +180,7 @@ export async function onRequestGet({ request, env }) {
 export async function onRequestPost({ request, env }) {
   let b = {};
   try { b = await request.json(); } catch (e) {}
+  if (b.action === "push_test") return pushTest(env, b);
   if (b.action !== "set_enforce_date" && b.action !== "remind") return j({ ok: false, error: "unknown_action" });
   if (!(await verifyAdminToken(env, b.token))) return j({ ok: false, error: "unauthorized" }, 401);
   const today = istToday();
