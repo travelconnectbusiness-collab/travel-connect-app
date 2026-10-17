@@ -39,7 +39,7 @@ async function logAttempt(env, m10, device, ip, why) {
 
 /* Returns { ok:true } to carry on, { ok:true, duplicate:{...} } to reuse the first request,
    or { ok:false, status, error, retry_after_min } to refuse. */
-export async function checkBroadcast(env, { mobile, device, ip, businessType, vclass }) {
+export async function checkBroadcast(env, { mobile, device, ip, businessType, vclass, rateCat }) {
   await ensureAbuse(env);
   const m10 = last10(mobile), now = Date.now();
   device = String(device || "").slice(0, 80); ip = String(ip || "").slice(0, 64);
@@ -55,10 +55,10 @@ export async function checkBroadcast(env, { mobile, device, ip, businessType, vc
     return { ok: false, status: 403, error: "blocked" };
   }
 
-  /* 2. the same request tapped twice -> hand back the first one */
+  /* 2. the same request tapped twice -> hand back the first one (a different Rate Master category is a different request) */
   const dup = await env.DB.prepare(
-    "SELECT id, notified_count FROM trip_alerts WHERE mobile10=? AND business_type=? AND COALESCE(vclass,'')=? AND status='open' AND created_at>=? ORDER BY id DESC LIMIT 1"
-  ).bind(m10, businessType, vclass || "", iso(now - DUP_SECONDS * 1000)).first();
+    "SELECT id, notified_count FROM trip_alerts WHERE mobile10=? AND business_type=? AND COALESCE(vclass,'')=? AND COALESCE(rate_cat,'')=? AND status='open' AND created_at>=? ORDER BY id DESC LIMIT 1"
+  ).bind(m10, businessType, vclass || "", rateCat == null ? "" : String(rateCat), iso(now - DUP_SECONDS * 1000)).first();
   if (dup) return { ok: true, duplicate: { alert_id: dup.id, notified_count: dup.notified_count } };
 
   /* 3. counts */
