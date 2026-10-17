@@ -33,7 +33,16 @@ async function uploadFile(env, file, vehicleId, field) {
 
 /* Adds the business_hours column the first time this runs after the
    update - swallows the "duplicate column" error on later runs. */
+/* Rate Master category of a vehicle (Taxi / Travel only): rate_cat = the category's number in the Rate Master, rate_cat_name = its
+   name when it was chosen (shown in lists). Empty = not chosen yet. */
+const catNum = (x) => { const s = String(x == null ? "" : x).trim(); return /^\d{1,3}$/.test(s) ? s : null; };
+const catName = (x) => String(x == null ? "" : x).trim().slice(0, 80) || null;
+
+let colsDone = false; /* the column set-up below runs once per server instance, not at every request */
 async function ensureNewColumns(env) {
+  if (colsDone) return;
+  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN rate_cat TEXT").run(); } catch (e) { /* already exists */ }
+  try { await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN rate_cat_name TEXT").run(); } catch (e) { /* already exists */ }
   try {
     await env.DB.prepare("ALTER TABLE vehicles ADD COLUMN business_hours TEXT").run();
   } catch (e) { /* already exists */ }
@@ -58,6 +67,7 @@ async function ensureNewColumns(env) {
   try {
     await env.DB.prepare("ALTER TABLE travel_partners ADD COLUMN tagline TEXT").run();
   } catch (e) { /* already exists */ }
+  colsDone = true;
 }
 
 /* GET ?action=list&partner_id=...     - a partner's own vehicles
@@ -95,7 +105,7 @@ export async function onRequestGet({ request, env }) {
                   WHEN p.plan='owner_plus' THEN 2
                   ELSE 3
                 END AS tier,
-                v.id, v.vehicle_number, v.category, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
+                v.id, v.vehicle_number, v.category, v.rate_cat_name, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
                 p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
                 (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified,
                 p.email_verified AS email_verified
@@ -227,8 +237,8 @@ export async function onRequestPost({ request, env }) {
         `INSERT INTO vehicles
           (partner_id, vehicle_number, category, driver_name, driver_mobile1, driver_mobile2,
            driver_license_number, driver_license_expiry, rc_expiry, insurance_expiry, permit_expiry,
-           fitness_expiry, puc_expiry, tax_expiry, seats, verified, active, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?)`
+           fitness_expiry, puc_expiry, tax_expiry, seats, verified, active, created_at, rate_cat, rate_cat_name)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?)`
       )
       .bind(
         partner_id,
@@ -246,7 +256,9 @@ export async function onRequestPost({ request, env }) {
         field("puc_expiry"),
         field("tax_expiry"),
         seatsTotal,
-        now
+        now,
+        pRow && pRow.business_type === "taxi_travel" ? catNum(form.get("rate_cat")) : null,
+        pRow && pRow.business_type === "taxi_travel" && catNum(form.get("rate_cat")) ? catName(form.get("rate_cat_name")) : null
       )
       .run();
 
@@ -306,6 +318,11 @@ export async function onRequestPost({ request, env }) {
       if (ps >= 1 && ps <= 59) tot = ps + 1;
       else if (st >= 2 && st <= 60) tot = st;
       if (tot) { setParts.push("seats=?"); bindVals.push(tot); }
+    }
+    if (form.has("rate_cat")) {
+      const rc = catNum(form.get("rate_cat"));
+      setParts.push("rate_cat=?", "rate_cat_name=?");
+      bindVals.push(rc, rc ? catName(form.get("rate_cat_name")) : null);
     }
     for (const f of dateFields) {
       if (form.has(f)) {
@@ -388,6 +405,22 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     await env.DB.prepare("UPDATE vehicles SET business_hours=? WHERE id=?").bind(business_hours || null, vehicle_id).run();
+    return Response.json({ ok: true });
+  }
+
+  /* admin: set or change the Rate Master category of any vehicle (empty rate_cat clears it) */
+  if (action === "set_rate_cat") {
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    }
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    const rc = catNum(body.rate_cat);
+    await env.DB.prepare("UPDATE vehicles SET rate_cat=?, rate_cat_name=? WHERE id=?").bind(rc, rc ? catName(body.rate_cat_name) : null, body.vehicle_id).run();
     return Response.json({ ok: true });
   }
 
