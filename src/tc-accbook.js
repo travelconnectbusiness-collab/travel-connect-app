@@ -210,7 +210,7 @@
   var out=[];
   (db.trips||[]).slice(0,400).forEach(function(t){
    try{
-    if(!t||t.status!=="completed") return;
+    if(!t||!(t.status==="completed"||t.billNo)) return;
     var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]; if(!q) return;
     var c=db.categories[q.categoryId]; if(!c) return;
     var fin=billFinalAmount(t,q,c).final;
@@ -243,6 +243,7 @@
    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(catLabel(e.cat))+(e.src==="bill"?' <span class="muted" style="font-size:11px;font-weight:600">&#9889; '+E(B("auto","സ്വയം"))+'</span>':'')+'</b><b style="color:'+col+'">'+(isIn?"+":"-")+mny(e.amount)+'</b></div>'+
    '<div class="muted" style="font-size:12px">'+E(sub.join(" · "))+'</div>';
   var acts='';
+  if(canWrite()) acts+='<button onclick="event.stopPropagation();tcAbEdit(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">&#9998; '+E(B("Edit","തിരുത്തുക"))+'</button>';
   if(!vById(e.vehId)&&vehicles().length) acts+='<button onclick="event.stopPropagation();tcAbAssign(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(B("Choose vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</button>';
   if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTripExp(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>';
   if(acts) h+='<div class="actions" style="margin-top:4px">'+acts+'</div>';
@@ -269,7 +270,7 @@
   var pend=pending();
   if(pend.length){
    var tot=pend.reduce(function(a,x){ return a+x.bal; },0);
-   h+='<details style="margin:8px 0;border:1px solid #e3d3a5;border-radius:10px;padding:6px 10px;background:#fffaf0"><summary style="cursor:pointer;font-size:13px"><b>'+E(B("To receive on bills: ","ബില്ലുകളിൽ കിട്ടാനുള്ളത്: "))+mny(tot)+'</b> ('+pend.length+')</summary>'+
+   h+='<details'+(pend.length<=5?' open':'')+' style="margin:8px 0;border:1px solid #e3d3a5;border-radius:10px;padding:6px 10px;background:#fffaf0"><summary style="cursor:pointer;font-size:13px"><b>'+E(B("To receive on bills: ","ബില്ലുകളിൽ കിട്ടാനുള്ളത്: "))+mny(tot)+'</b> ('+pend.length+')</summary>'+
     pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbReceive(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">&#10004; '+E(B("Received","കിട്ടി"))+'</button> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
   }
   h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
@@ -280,6 +281,7 @@
    h+='<div class="actions"><button class="primary" onclick="tcAbVehForm(\'\')">+ '+E(B("Add vehicle","വാഹനം ചേർക്കുക"))+'</button>'+((db.vehicles||[]).length?'<button onclick="tcAbImportVeh()">'+E(B("Add from my vehicles","എന്റെ വാഹനങ്ങളിൽ നിന്ന് ചേർക്കുക"))+'</button>':'')+'</div>';
    h+=vs.map(vehCardHtml).join("")||'<p class="muted">'+E(B("No vehicle in the book yet. Add each vehicle with its purchase details - every income and expense of that vehicle is then counted under it.","വാഹന ബുക്കിൽ ഇതുവരെ വാഹനമില്ല. ഓരോ വാഹനവും വാങ്ങിയ വിവരങ്ങളോടെ ചേർക്കൂ - ആ വാഹനത്തിന്റെ എല്ലാ വരവും ചെലവും അതിന്റെ കീഴിൽ കണക്കാകും."))+'</p>';
   }else{
+   if(list.length&&canWrite()) h+='<p class="muted" style="font-size:12px;margin:6px 0">'+E(B("Tap an entry or its Edit button to change or delete it.","എൻട്രിയിൽ അല്ലെങ്കിൽ അതിലെ 'തിരുത്തുക' ബട്ടണിൽ അമർത്തിയാൽ തിരുത്താം / ഇല്ലാതാക്കാം."))+'</p>';
    h+=list.slice(0,ST.limit).map(entryRowHtml).join("")||'<p class="muted">'+E(B("No entries for this selection. Payments you record in Billing appear here by themselves.","ഈ തിരഞ്ഞെടുപ്പിൽ എൻട്രികളില്ല. ബില്ലിംഗിൽ രേഖപ്പെടുത്തുന്ന പേയ്മെന്റുകൾ ഇവിടെ സ്വയം വരും."))+'</p>';
    if(list.length>ST.limit) h+='<div class="actions"><button onclick="tcAbMore()">'+E(B("Show more","കൂടുതൽ കാണിക്കുക"))+'</button></div>';
   }
