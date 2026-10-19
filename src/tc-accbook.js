@@ -280,6 +280,7 @@
   }
   h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button><button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
   var un=entries().filter(function(e){ return !vById(e.vehId); }).length;
+  if(!vs.length&&un) h+='<div class="muted" style="font-size:12px;margin-top:6px">&#128663; '+E(B("Add your vehicles (Vehicle Book tab, or choose one when editing an entry) to see profit vehicle-wise.","വാഹനം തിരിച്ചുള്ള ലാഭം കാണാൻ നിങ്ങളുടെ വാഹനങ്ങൾ ചേർക്കൂ (വാഹന ബുക്ക് ടാബിൽ, അല്ലെങ്കിൽ എൻട്രി തിരുത്തുമ്പോൾ വാഹനം തിരഞ്ഞെടുത്ത്)."))+'</div>';
   if(vs.length&&un) h+='<div class="muted" style="font-size:12px;margin-top:6px">'+E(B(un+" entries have no vehicle chosen - tap 'Choose vehicle' on them.",un+" എൻട്രികൾക്ക് വാഹനം തിരഞ്ഞെടുത്തിട്ടില്ല - അവയിലെ 'വാഹനം തിരഞ്ഞെടുക്കുക' അമർത്തുക."))+'</div>';
   h+='<div class="actions" style="margin-top:10px"><button class="'+(ST.tab==="entries"?"primary":"")+'" onclick="tcAbSet(\'tab\',\'entries\')">'+E(B("Entries","എൻട്രികൾ"))+' ('+list.length+')</button><button class="'+(ST.tab==="veh"?"primary":"")+'" onclick="tcAbSet(\'tab\',\'veh\')">&#128663; '+E(B("Vehicle Book","വാഹന ബുക്ക്"))+' ('+vs.length+')</button></div>';
   if(ST.tab==="veh"){
@@ -348,9 +349,51 @@
  function litToggle(){
   var s=$("abCat"), r=$("abLitRow"); if(r&&s) r.style.display=(s.value==="Fuel")?"":"none";
  }
+ /* vehicles to offer: the book's own, plus the ones seen in bills / in "my vehicles" that are not in the book yet
+    (choosing one of those adds it to the book when the entry is saved) */
+ var SUG=[];
+ function suggestions(){
+  var out=[], seen={};
+  function add(no,name){
+   name=String(name||"").trim(); no=String(no||"").trim();
+   if(!name&&!no) return;
+   if(matchVehicle(no,name)) return;
+   var k=nv(no)||name.toLowerCase(); if(seen[k]) return; seen[k]=1;
+   out.push({name:name||no,no:no.toUpperCase()});
+  }
+  (db.vehicles||[]).forEach(function(x){ if(x) add(x.no,x.name); });
+  entries().forEach(function(e){ if(!vById(e.vehId)) add(e.vehNo,e.vehName); });
+  return out.slice(0,12);
+ }
  function vehSelectHtml(cur){
+  SUG=suggestions();
   var opts=[["",B("- not chosen -","- തിരഞ്ഞെടുത്തിട്ടില്ല -")]].concat(vehicles().map(function(v){ return [v.id,v.name+(v.no?" ("+v.no+")":"")]; }));
-  return sel("abVeh",opts,cur||"");
+  SUG.forEach(function(x,i){ opts.push(["sug:"+i,"+ "+x.name+(x.no?" ("+x.no+")":"")+" - "+B("add to book","ബുക്കിൽ ചേർക്കുക")]); });
+  opts.push(["__new__","+ "+B("New vehicle (type name / number)","പുതിയ വാഹനം (പേര് / നമ്പർ ടൈപ്പ് ചെയ്യുക)")]);
+  return sel("abVeh",opts,cur||"","tcAbVehChange()");
+ }
+ window.tcAbVehChange=function(){
+  var s=$("abVeh"); if(!s||s.value!=="__new__") return;
+  var nm=(prompt(B("Vehicle name (e.g. Innova Crysta)","വാഹനത്തിന്റെ പേര് (ഉദാ: Innova Crysta)"))||"").trim().slice(0,40);
+  var no=(prompt(B("Vehicle number (e.g. KL 18 X 1234)","വാഹന നമ്പർ (ഉദാ: KL 18 X 1234)"))||"").trim().slice(0,20);
+  var id="";
+  if(nm||no){
+   var ex=matchVehicle(no,nm);
+   if(ex) id=ex.id; else { id=uid(); VL().push({id:id,name:nm||no,no:no.toUpperCase(),purchaseDate:"",price:"",down:"",loan:"",emi:"",emiDay:"",loanEnd:"",note:"",created:nowIso()}); persist(); }
+  }
+  var host=s.parentNode; if(host) host.innerHTML=E(B("Vehicle","വാഹനം"))+vehSelectHtml(id);
+ };
+ /* the chosen vehicle's id; a suggested vehicle is added to the book now */
+ function vehVal(){
+  var v=val("abVeh");
+  if(v==="__new__") return "";
+  if(v.indexOf("sug:")===0){
+   var x=SUG[+v.slice(4)]; if(!x) return "";
+   var ex=matchVehicle(x.no,x.name); if(ex) return ex.id;
+   var id=uid(); VL().push({id:id,name:x.name,no:x.no,purchaseDate:"",price:"",down:"",loan:"",emi:"",emiDay:"",loanEnd:"",note:"",created:nowIso()});
+   return id;
+  }
+  return v;
  }
  function entryForm(e,type,vehId){
   var isNew=!e, t=e?e.type:type, cur=e?e.cat:((PRE&&PRE.cat)||catList(t)[0]);
@@ -382,14 +425,14 @@
  window.tcAbTip=function(fromId){
   if(!canWrite()){ locked(); return; }
   var e=fromId?eById(fromId):null;
-  TIPSRC=e?{customer:e.customer||"",route:e.route||"",tripId:e.tripId||"",date:e.date,vehId:e.vehId||"",vehNo:e.vehNo||"",vehName:e.vehName||""}:null;
+  TIPSRC=e?{amt:+e.amount||0,customer:e.customer||"",route:e.route||"",tripId:e.tripId||"",date:e.date,vehId:e.vehId||"",vehNo:e.vehNo||"",vehName:e.vehName||""}:null;
   var vid=e?e.vehId:(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""));
   modal('<h2>&#127873; '+E(B("Tip received","ടിപ്പ് കിട്ടി"))+'</h2>'+
    (e?'<p class="muted" style="font-size:12.5px">'+E([e.customer,e.route&&e.route.length>70?e.route.slice(0,70)+"…":e.route].filter(Boolean).join(" · "))+'</p>':'')+
    '<p class="muted" style="font-size:12px">'+E(B("Extra money the customer gave over the bill. It is NOT added to the bill.","ബില്ലിനേക്കാൾ കൂടുതലായി കസ്റ്റമർ തന്ന പണം. ഇത് ബില്ലിൽ ചേർക്കില്ല."))+'</p>'+
    '<div class="grid">'+
    '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("abTipDate",e?e.date:todayIso())+'</label>'+
-   '<label>'+E(B("Tip amount","ടിപ്പ് തുക"))+'<input id="abTipAmt" type="number" inputmode="decimal" min="0"></label>'+
+   '<label>'+E(B("Tip amount - only the EXTRA money (e.g. 200)","ടിപ്പ് തുക - കൂടുതൽ തന്ന തുക മാത്രം (ഉദാ: 200)"))+'<input id="abTipAmt" type="number" inputmode="decimal" min="0"></label>'+
    '<label>'+E(B("Tip is for","ടിപ്പ് ആർക്ക്"))+sel("abTipFor",[["veh",B("The vehicle (my income)","വാഹനത്തിന് (എന്റെ വരവ്)")],["drv",B("The driver (his money)","ഡ്രൈവർക്ക് (ഡ്രൈവറുടെ പണം)")]],"veh")+'</label>'+
    '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(vid||"")+'</label>'+
    '<label>'+E(B("Received by","എങ്ങനെ കിട്ടി"))+sel("abMode",[["",B("- not noted -","- രേഖപ്പെടുത്തിയിട്ടില്ല -")]].concat(MODES.map(function(m){ return [m,m]; })),"")+'</label>'+
@@ -404,8 +447,11 @@
   var d=tcReadDateInput("abTipDate");
   if(d===null){ say(B("Enter the date as DD-MM-YYYY","തീയതി DD-MM-YYYY ആയി നൽകുക")); return; }
   if(!d) d=todayIso();
+  if(TIPSRC&&TIPSRC.amt>0&&amt>=TIPSRC.amt){
+   if(!confirm(B("This tip ("+mny(amt)+") is as big as the trip payment ("+mny(TIPSRC.amt)+"). The trip payment is already in the book - enter ONLY the extra money given over the bill. Save anyway?","ഈ ടിപ്പ് ("+mny(amt)+") ട്രിപ്പ് തുകയ്ക്ക് ("+mny(TIPSRC.amt)+") തുല്യമോ കൂടുതലോ ആണ്. ട്രിപ്പ് തുക ബുക്കിൽ ഇതിനകം ഉണ്ട് - ബില്ലിന് പുറമെ കൂടുതൽ തന്ന തുക മാത്രം നൽകുക. എന്നാലും സേവ് ചെയ്യട്ടേ?"))) return;
+  }
   var o={id:uid(),type:"in",src:"manual",created:nowIso(),date:d,amount:Math.round(amt*100)/100,cat:val("abTipFor")==="drv"?"Tip (driver)":"Tip",
-   vehId:val("abVeh"),mode:val("abMode"),note:val("abNote")};
+   vehId:vehVal(),mode:val("abMode"),note:val("abNote")};
   if(TIPSRC){ o.customer=TIPSRC.customer; o.route=TIPSRC.route; o.tripId=TIPSRC.tripId; if(!o.vehId){ o.vehNo=TIPSRC.vehNo; o.vehName=TIPSRC.vehName; } }
   EL().push(o); TIPSRC=null; persist(); closeModal(); say(B("Tip saved","ടിപ്പ് സേവ് ചെയ്തു")); renderBook();
  };
@@ -423,7 +469,7 @@
   if(!d) d=todayIso();
   var cat=val("abCat"); if(!cat||cat==="__new__") cat=catList(type)[0];
   var lit=parseFloat(val("abLit"));
-  var o={date:d,amount:Math.round(amt*100)/100,cat:cat,vehId:val("abVeh"),mode:val("abMode"),note:val("abNote"),litres:(cat==="Fuel"&&lit>0)?lit:""};
+  var o={date:d,amount:Math.round(amt*100)/100,cat:cat,vehId:vehVal(),mode:val("abMode"),note:val("abNote"),litres:(cat==="Fuel"&&lit>0)?lit:""};
   var e=id?eById(id):null, others=0, key="";
   if(e){
    key=e.vehNo||e.vehName||"";
@@ -458,7 +504,7 @@
   modal(h);
  };
  window.tcAbAssignSave=function(id){
-  var e=eById(id), v=val("abVeh"); if(!e||!v){ say(B("Choose a vehicle","വാഹനം തിരഞ്ഞെടുക്കുക")); return; }
+  var e=eById(id), v=vehVal(); if(!e||!v){ say(B("Choose a vehicle","വാഹനം തിരഞ്ഞെടുക്കുക")); return; }
   var key=e.vehNo||e.vehName||"";
   e.vehId=v; if(e.src==="bill") e.edited=true;
   var others=key?entries().filter(function(x){ return x.id!==e.id&&!x.vehId&&(x.vehNo||x.vehName)===key; }):[];
