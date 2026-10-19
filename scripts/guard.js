@@ -115,9 +115,14 @@ const MARKERS = [
   ["src/tc-accbook.js", "tcAbCsv", "Accounts CSV export (always allowed, also after the free period)"],
   ["src/tc-accbook.js", "tcAbReceive", "Accounts: money received later is added to the bill AND the book"],
   ["src/tc-accbook.js", "tcAbTripExp", "Accounts: expense (diesel etc.) of a trip from its income entry"],
+  ["src/tc-accbook.js", "tcAbTipSave", "Accounts: tip for the vehicle (income) or the driver (not counted)"],
   ["src/tc-accbook.js", "accEntries", "Accounts entries are kept in db.accEntries (never lost until deleted)"],
   ["src/tc-regdocs.js", "tc-accbook.js", "tc-regdocs.js loads tc-accbook.js"],
   ["functions/api/backup.js", "accEntries", "Cloud Backup counts the accounts book"],
+  ["src/tc-bills.js", "__tcBills", "My Bills list on the Billing page (all plans)"],
+  ["src/tc-bills.js", "tcBlRecvSave", "Bills: money received later (UPI / Cash / Other) saved in the bill's payments"],
+  ["src/tc-bills.js", "tcBlPrint", "Bills: print / PDF / image of an old bill again"],
+  ["src/tc-regdocs.js", "tc-bills.js", "tc-regdocs.js loads tc-bills.js"],
 ];
 
 /* ---------- helpers ---------- */
