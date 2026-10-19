@@ -60,6 +60,7 @@
   return base.concat(customCats(type).filter(function(c){ return base.indexOf(c)<0; }));
  }
  var MODES=["Cash","UPI","Bank","Credit"];
+ var PRE=null;   /* details carried into a new expense made from a trip's income entry */
 
  /* ---------- plan: Premium unlimited, others 60 days from the first opening ---------- */
  function premium(){ try{ return typeof tcBkEligible==="function"&&!!tcBkEligible(); }catch(e){ return false; } }
@@ -241,7 +242,10 @@
   var h='<div class="listitem" onclick="tcAbEdit(\''+e.id+'\')" style="cursor:pointer">'+
    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(catLabel(e.cat))+(e.src==="bill"?' <span class="muted" style="font-size:11px;font-weight:600">&#9889; '+E(B("auto","സ്വയം"))+'</span>':'')+'</b><b style="color:'+col+'">'+(isIn?"+":"-")+mny(e.amount)+'</b></div>'+
    '<div class="muted" style="font-size:12px">'+E(sub.join(" · "))+'</div>';
-  if(!vById(e.vehId)&&vehicles().length) h+='<div class="actions" style="margin-top:4px"><button onclick="event.stopPropagation();tcAbAssign(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(B("Choose vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</button></div>';
+  var acts='';
+  if(!vById(e.vehId)&&vehicles().length) acts+='<button onclick="event.stopPropagation();tcAbAssign(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(B("Choose vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</button>';
+  if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTripExp(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>';
+  if(acts) h+='<div class="actions" style="margin-top:4px">'+acts+'</div>';
   return h+'</div>';
  }
  function vehCardHtml(v){
@@ -266,7 +270,7 @@
   if(pend.length){
    var tot=pend.reduce(function(a,x){ return a+x.bal; },0);
    h+='<details style="margin:8px 0;border:1px solid #e3d3a5;border-radius:10px;padding:6px 10px;background:#fffaf0"><summary style="cursor:pointer;font-size:13px"><b>'+E(B("To receive on bills: ","ബില്ലുകളിൽ കിട്ടാനുള്ളത്: "))+mny(tot)+'</b> ('+pend.length+')</summary>'+
-    pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Open bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
+    pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbReceive(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">&#10004; '+E(B("Received","കിട്ടി"))+'</button> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
   }
   h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
   var un=entries().filter(function(e){ return !vById(e.vehId); }).length;
@@ -291,6 +295,27 @@
  window.accounts=function(){ try{ renderBook(); }catch(e){ app().innerHTML=card("Trip & Accounts","<p class='muted'>Could not open: "+E(e&&e.message)+"</p>"); } };
  window.tcAbSet=function(k,v){ ST[k]=v; if(k!=="tab"&&k!=="limit") ST.limit=40; renderBook(); };
  window.tcAbMore=function(){ ST.limit+=40; renderBook(); };
+ /* money received later for a bill: added to the bill's own payments, so Billing and the book always agree */
+ window.tcAbReceive=function(tripId){
+  var row=pending().filter(function(x){ return x.id===tripId; })[0]; if(!row) return;
+  if(!canWrite()){ locked(); return; }
+  modal('<h2>'+E(B("Money received","പണം കിട്ടി"))+'</h2><p class="muted" style="font-size:13px">'+E(row.customer)+' &middot; '+E(B("Balance due","ബാക്കി"))+' <b>'+mny(row.bal)+'</b></p>'+
+   '<div class="grid"><label>'+E(B("Amount received","കിട്ടിയ തുക"))+'<input id="abRecAmt" type="number" inputmode="decimal" min="0" value="'+row.bal+'"></label>'+
+   '<label>'+E(B("Paid by","പേയ്മെന്റ് രീതി"))+sel("abRecMode",[["UPI","UPI"],["Cash","Cash"],["Other","Other"]],"UPI")+'</label></div>'+
+   '<p class="muted" style="font-size:12px">'+E(B("This is also recorded as a payment on the bill.","ഇത് ബില്ലിലും പേയ്മെന്റായി രേഖപ്പെടുത്തും."))+'</p>'+
+   '<div class="actions"><button class="primary" onclick="tcAbReceiveSave(\''+tripId+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>');
+ };
+ window.tcAbReceiveSave=function(tripId){
+  var row=pending().filter(function(x){ return x.id===tripId; })[0];
+  var t=(db.trips||[]).filter(function(x){ return x.id===tripId; })[0];
+  var amt=parseFloat(val("abRecAmt"));
+  if(!row||!t) return;
+  if(!(amt>0)){ say(B("Enter the amount","തുക നൽകുക")); return; }
+  if(amt>row.bal+0.5){ say(B("More than the balance due ("+mny(row.bal)+")","ബാക്കി തുകയേക്കാൾ കൂടുതൽ ("+mny(row.bal)+")")); return; }
+  t.payments=t.payments||[];
+  t.payments.push({amount:amt,method:val("abRecMode")||"UPI",at:nowIso()});
+  persist(); syncAuto(); closeModal(); say(B("Saved - added to the bill and the book","സേവ് ചെയ്തു - ബില്ലിലും ബുക്കിലും ചേർത്തു")); renderBook();
+ };
  window.tcAbOpenBill=function(tripId){
   view("billing");
   setTimeout(function(){ var bt=document.querySelector("#billTrip"); if(bt){ bt.value=tripId; try{ loadBill(); }catch(e){} } },0);
@@ -321,22 +346,29 @@
   return sel("abVeh",opts,cur||"");
  }
  function entryForm(e,type,vehId){
-  var isNew=!e, t=e?e.type:type, cur=e?e.cat:catList(t)[0];
+  var isNew=!e, t=e?e.type:type, cur=e?e.cat:((PRE&&PRE.cat)||catList(t)[0]);
   var h='<h2>'+(isNew?(t==="in"?E(B("Add income","വരവ് ചേർക്കുക")):E(B("Add expense","ചെലവ് ചേർക്കുക"))):E(B("Edit entry","എൻട്രി തിരുത്തുക")))+'</h2>';
   if(e&&e.src==="bill") h+='<p class="muted" style="font-size:12px">&#9889; '+E(B("Made automatically from a bill. You can still change it.","ബില്ലിൽ നിന്ന് സ്വയം ഉണ്ടായത്. നിങ്ങൾക്ക് തിരുത്താം."))+'</p>';
-  if(e&&(e.customer||e.route)) h+='<p class="muted" style="font-size:12.5px">'+E([e.customer,e.route].filter(Boolean).join(" · "))+'</p>';
+  var info=e?e:(PRE||null);
+  if(info&&(info.customer||info.route)) h+='<p class="muted" style="font-size:12.5px">'+(isNew?E(B("Expense of the trip: ","ട്രിപ്പിന്റെ ചെലവ്: ")):'')+E([info.customer,info.route].filter(Boolean).join(" · "))+'</p>';
   h+='<div class="grid">'+
-   '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("abDate",e?e.date:todayIso())+'</label>'+
+   '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("abDate",e?e.date:((PRE&&PRE.date)||todayIso()))+'</label>'+
    '<label>'+E(B("Amount","തുക"))+'<input id="abAmt" type="number" inputmode="decimal" min="0" value="'+E(e?e.amount:"")+'"></label>'+
    '<label>'+E(B("Category","വിഭാഗം"))+catSelectHtml(t,cur)+'</label>'+
    '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(e?e.vehId:(vehId||(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""))))+'</label>'+
    '<label>'+E(B("Paid by","പേയ്മെന്റ് രീതി"))+sel("abMode",[["",B("- not noted -","- രേഖപ്പെടുത്തിയിട്ടില്ല -")]].concat(MODES.map(function(m){ return [m,m]; })),e?e.mode:"")+'</label>'+
    '<label id="abLitRow" style="display:'+(cur==="Fuel"?"":"none")+'">'+E(B("Fuel litres (optional)","ഇന്ധനം ലിറ്റർ (ഓപ്ഷണൽ)"))+'<input id="abLit" type="number" inputmode="decimal" min="0" value="'+E(e&&e.litres?e.litres:"")+'"></label>'+
    '<label>'+E(B("Note","കുറിപ്പ്"))+'<input id="abNote" value="'+E(e?e.note:"")+'"></label></div>'+
-   '<div class="actions"><button class="primary" onclick="tcAbSave(\''+(e?e.id:"")+'\',\''+t+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button>'+(e?'<button class="danger" onclick="tcAbDel(\''+e.id+'\')">'+E(B("Delete","ഇല്ലാതാക്കുക"))+'</button>':'')+'<button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>';
+   '<div class="actions"><button class="primary" onclick="tcAbSave(\''+(e?e.id:"")+'\',\''+t+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button>'+(e&&e.type==="in"&&e.src==="bill"?'<button onclick="tcAbTripExp(\''+e.id+'\')">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>':'')+(e?'<button class="danger" onclick="tcAbDel(\''+e.id+'\')">'+E(B("Delete","ഇല്ലാതാക്കുക"))+'</button>':'')+'<button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>';
   modal(h);
  }
- window.tcAbAdd=function(type,vehId){ if(!canWrite()){ locked(); return; } entryForm(null,type,vehId); };
+ window.tcAbAdd=function(type,vehId){ if(!canWrite()){ locked(); return; } PRE=null; entryForm(null,type,vehId); };
+ window.tcAbTripExp=function(id){
+  var e=eById(id); if(!e) return;
+  if(!canWrite()){ locked(); return; }
+  PRE={customer:e.customer||"",route:e.route||"",tripId:e.tripId||"",date:e.date,cat:"Fuel"};
+  entryForm(null,"out",e.vehId||"-");   /* "-" = the trip's vehicle is not chosen: leave it empty (do not guess) */
+ };
  window.tcAbEdit=function(id){
   var e=eById(id); if(!e) return;
   if(!canWrite()){ locked(); return; }
@@ -366,9 +398,10 @@
    }
   }else{
    o.id=uid(); o.type=type; o.src="manual"; o.created=nowIso();
+   if(PRE){ o.customer=PRE.customer; o.route=PRE.route; o.tripId=PRE.tripId; }
    EL().push(o);
   }
-  persist(); closeModal(); say(B("Saved","സേവ് ചെയ്തു")); renderBook();
+  PRE=null; persist(); closeModal(); say(B("Saved","സേവ് ചെയ്തു")); renderBook();
  };
  window.tcAbDel=function(id){
   var e=eById(id); if(!e) return;
