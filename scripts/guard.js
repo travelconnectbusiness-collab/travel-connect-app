@@ -109,6 +109,13 @@ const MARKERS = [
   ["worker.js", "maybeRunExpirySweep", "Daily expiry sweep is called"],
   ["sw.js", "tc-icon-192.png", "New notification icon"],
   ["manifest.webmanifest", "tc-icon-192.png", "New app icon"],
+  ["src/tc-accbook.js", "__tcAccBook", "Trip & Accounts book (vehicle-wise income and expense)"],
+  ["src/tc-accbook.js", "syncAuto", "Bill payments and quotation advances fill the book automatically"],
+  ["src/tc-accbook.js", "tcAbVehSave", "Vehicle book: purchase price, down payment, loan, EMI"],
+  ["src/tc-accbook.js", "tcAbCsv", "Accounts CSV export (always allowed, also after the free period)"],
+  ["src/tc-accbook.js", "accEntries", "Accounts entries are kept in db.accEntries (never lost until deleted)"],
+  ["src/tc-regdocs.js", "tc-accbook.js", "tc-regdocs.js loads tc-accbook.js"],
+  ["functions/api/backup.js", "accEntries", "Cloud Backup counts the accounts book"],
 ];
 
 /* ---------- helpers ---------- */
