@@ -15,9 +15,9 @@
    empty app can never wipe a good backup by accident. The previous backup
    is always kept as prev.json. */
 
-/* The phone adds more lists to the backup (tc-livetrip.js: liveTrips; tc-accbook.js: accVehicles, accEntries).
+/* The phone adds more lists to the backup (tc-livetrip.js: liveTrips; tc-accbook.js: accVehicles, accEntries; tc-enq.js: bookings).
    They are saved as sent; listing them here also counts them, so a smaller backup can never wipe a bigger one. */
-const LIST_KEYS = ["vehicles", "drivers", "customers", "enquiries", "quotes", "trips", "bills", "expenses", "liveTrips", "accVehicles", "accEntries"];
+const LIST_KEYS = ["vehicles", "drivers", "customers", "enquiries", "quotes", "trips", "bills", "expenses", "liveTrips", "accVehicles", "accEntries", "bookings"];
 const MAX_BYTES = 8 * 1024 * 1024;
 
 async function authUser(env, mobile, device) {
