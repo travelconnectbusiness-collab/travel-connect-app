@@ -122,6 +122,10 @@ const MARKERS = [
   ["src/tc-bills.js", "__tcBills", "My Bills list on the Billing page (all plans)"],
   ["src/tc-bills.js", "tcBlRecvSave", "Bills: money received later (UPI / Cash / Other) saved in the bill's payments"],
   ["src/tc-bills.js", "tcBlPrint", "Bills: print / PDF / image of an old bill again"],
+  ["src/tc-bills.js", "tcBlTip", "Bills: extra money received over the bill is asked about (vehicle tip / driver tip)"],
+  ["src/tc-accbook.js", "tcAbDrill", "Accounts: tap Income / Expense / Profit to see categories and dated entries"],
+  ["src/tc-accbook.js", "tcAbDrvPaid", "Accounts: driver tips still to give / given"],
+  ["src/tc-accbook.js", "catGuess", "Accounts: a typed new category is matched to the closest existing one"],
   ["src/tc-regdocs.js", "tc-bills.js", "tc-regdocs.js loads tc-bills.js"],
 ];
 
