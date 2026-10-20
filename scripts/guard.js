@@ -127,6 +127,10 @@ const MARKERS = [
   ["src/tc-accbook.js", "tcAbDrvPaid", "Accounts: driver tips still to give / given"],
   ["src/tc-accbook.js", "catGuess", "Accounts: a typed new category is matched to the closest existing one"],
   ["src/tc-regdocs.js", "tc-bills.js", "tc-regdocs.js loads tc-bills.js"],
+  ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
+  ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
+  ["src/tc-nav.js", "cleanStale", "Navigation: a closed pop-up leaves no extra Back step"],
+  ["src/tc-regdocs.js", "tc-nav.js", "tc-regdocs.js loads tc-nav.js"],
 ];
 
 /* ---------- helpers ---------- */
