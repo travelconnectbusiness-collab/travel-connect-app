@@ -251,7 +251,7 @@
   if(e.note) sub.push(e.note);
   if(isDrv(e)){
    if(e.driver) sub.splice(1,0,B("Driver: ","ഡ്രൈവർ: ")+e.driver);
-   sub.push(e.drvPaid?B("✅ given to driver "+tcFormatDate(e.drvPaid),"✅ ഡ്രൈവർക്ക് കൊടുത്തു "+tcFormatDate(e.drvPaid)):B("🔴 to give to the driver","🔴 ഡ്രൈവർക്ക് കൊടുക്കാനുണ്ട്"));
+   sub.push(e.direct?B("✅ customer gave it to the driver directly (info only)","✅ കസ്റ്റമർ ഡ്രൈവർക്ക് നേരിട്ട് കൊടുത്തു (അറിയാൻ മാത്രം)"):e.drvPaid?B("✅ given to driver "+tcFormatDate(e.drvPaid),"✅ ഡ്രൈവർക്ക് കൊടുത്തു "+tcFormatDate(e.drvPaid)):B("🔴 to give to the driver","🔴 ഡ്രൈവർക്ക് കൊടുക്കാനുണ്ട്"));
   }
   var h='<div class="listitem" onclick="tcAbEdit(\''+e.id+'\')" style="cursor:pointer">'+
    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(catLabel(e.cat))+(e.src==="bill"?' <span class="muted" style="font-size:11px;font-weight:600">&#9889; '+E(B("from bill","ബില്ലിൽ നിന്ന്"))+'</span>':'')+'</b><b style="color:'+col+'">'+(isIn?"+":"-")+mny(e.amount)+'</b></div>'+
@@ -260,7 +260,7 @@
   if(canWrite()) acts+='<button onclick="event.stopPropagation();tcAbEdit(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">&#9998; '+E(B("Edit","തിരുത്തുക"))+'</button>';
   if(!vById(e.vehId)&&vehicles().length) acts+='<button onclick="event.stopPropagation();tcAbAssign(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(B("Choose vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</button>';
   if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTripExp(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>';
-  if(isDrv(e)&&canWrite()) acts+='<button onclick="event.stopPropagation();tcAbDrvPaid(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(e.drvPaid?B("Undo 'given'","'കൊടുത്തു' റദ്ദാക്കുക"):B("Given to driver","ഡ്രൈവർക്ക് കൊടുത്തു"))+'</button>';
+  if(isDrv(e)&&!e.direct&&canWrite()) acts+='<button onclick="event.stopPropagation();tcAbDrvPaid(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(e.drvPaid?B("Undo 'given'","'കൊടുത്തു' റദ്ദാക്കുക"):B("Given to driver","ഡ്രൈവർക്ക് കൊടുത്തു"))+'</button>';
   if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTip(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">&#127873; '+E(B("+ Tip","+ ടിപ്പ്"))+'</button>';
   if(acts) h+='<div class="actions" style="margin-top:4px">'+acts+'</div>';
   return h+'</div>';
@@ -292,7 +292,7 @@
    h+='<details'+(pend.length<=5?' open':'')+' style="margin:8px 0;border:1px solid #e3d3a5;border-radius:10px;padding:6px 10px;background:#fffaf0"><summary style="cursor:pointer;font-size:13px"><b>'+E(B("To receive on bills: ","ബില്ലുകളിൽ കിട്ടാനുള്ളത്: "))+mny(tot)+'</b> ('+pend.length+')</summary>'+
     pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+(x.due?' <span class="muted" style="font-size:11px">'+(x.due<todayIso()?'&#128308; ':'')+E(B("promised ","തരാമെന്ന് പറഞ്ഞത് ")+tcFormatDate(x.due))+'</span>':'')+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbReceive(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">&#10004; '+E(B("Received","കിട്ടി"))+'</button> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
   }
-  h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button><button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
+  h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button>'+(entries().some(isDrv)?'<button onclick="tcAbDrvTips()">&#128100; '+E(B("Driver tips","ഡ്രൈവർ ടിപ്പ്"))+'</button>':'')+'<button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
   var un=entries().filter(function(e){ return !vById(e.vehId); }).length;
   if(!vs.length&&un) h+='<div class="muted" style="font-size:12px;margin-top:6px">&#128663; '+E(B("Add your vehicles (Vehicle Book tab, or choose one when editing an entry) to see profit vehicle-wise.","വാഹനം തിരിച്ചുള്ള ലാഭം കാണാൻ നിങ്ങളുടെ വാഹനങ്ങൾ ചേർക്കൂ (വാഹന ബുക്ക് ടാബിൽ, അല്ലെങ്കിൽ എൻട്രി തിരുത്തുമ്പോൾ വാഹനം തിരഞ്ഞെടുത്ത്)."))+'</div>';
   if(vs.length&&un) h+='<div class="muted" style="font-size:12px;margin-top:6px">'+E(B(un+" entries have no vehicle chosen - tap 'Choose vehicle' on them.",un+" എൻട്രികൾക്ക് വാഹനം തിരഞ്ഞെടുത്തിട്ടില്ല - അവയിലെ 'വാഹനം തിരഞ്ഞെടുക്കുക' അമർത്തുക."))+'</div>';
@@ -346,8 +346,10 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   var t=(db.trips||[]).filter(function(x){ return x.id===o.tripId; })[0]; if(!t) return false;
   var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]||{};
   var v=matchVehicle(q.vehicleNo,q.vehicle);
-  EL().push({id:uid(),type:"in",src:"manual",created:nowIso(),date:o.date||todayIso(),amount:Math.round(+o.amount*100)/100,cat:o.forDriver?"Tip (driver)":"Tip",
-   vehId:v?v.id:"",vehNo:q.vehicleNo||"",vehName:q.vehicle||"",mode:o.mode||"",note:o.note||"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,driver:t.driverName||""});
+  var ne={id:uid(),type:"in",src:"manual",created:nowIso(),date:o.date||todayIso(),amount:Math.round(+o.amount*100)/100,cat:(o.forDriver||o.direct)?"Tip (driver)":"Tip",
+   vehId:v?v.id:"",vehNo:q.vehicleNo||"",vehName:q.vehicle||"",mode:o.mode||"",note:o.note||"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,driver:t.driverName||""};
+  if(o.direct){ ne.direct=true; ne.drvPaid=ne.date; }
+  EL().push(ne);
   persist(); return true;
  };
  window.tcAbDrvPaid=function(id){
@@ -356,6 +358,68 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   if(e.drvPaid){ if(!confirm(B("Mark this tip as NOT given to the driver yet?","ഈ ടിപ്പ് ഡ്രൈവർക്ക് ഇതുവരെ കൊടുത്തിട്ടില്ല എന്ന് മാറ്റട്ടേ?"))) return; e.drvPaid=""; }
   else e.drvPaid=todayIso();
   persist(); renderBook();
+ };
+
+ /* ---------- driver tips: by driver, this week / this month / all (direct tips are info only) ---------- */
+ var DT={per:"month"};
+ function driverNames(){
+  var m={};
+  entries().forEach(function(e){ if(isDrv(e)&&e.driver) m[e.driver]=1; });
+  (db.trips||[]).forEach(function(t){ if(t&&t.driverName) m[t.driverName]=1; });
+  return Object.keys(m).sort();
+ }
+ function weekStartIso(){ var d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return ymd(d); }
+ function dtFrom(){
+  if(DT.per==="week") return weekStartIso();
+  if(DT.per==="month") return todayIso().slice(0,8)+"01";
+  return "";
+ }
+ window.tcAbDrvTips=function(per){
+  if(per) DT.per=per;
+  var from=dtFrom(), by={};
+  entries().filter(function(e){ return isDrv(e)&&(!from||e.date>=from); }).forEach(function(e){
+   var n=e.driver||"";
+   var r=by[n]||(by[n]={name:n,toGive:0,given:0,direct:0,list:[]});
+   var a=+e.amount||0;
+   if(e.direct) r.direct+=a; else if(e.drvPaid) r.given+=a; else r.toGive+=a;
+   r.list.push(e);
+  });
+  var rows=Object.keys(by).map(function(k){ return by[k]; }).sort(function(a,b){ return b.toGive-a.toGive||(b.given+b.direct)-(a.given+a.direct); });
+  var T={toGive:0,given:0,direct:0};
+  rows.forEach(function(r){ T.toGive+=r.toGive; T.given+=r.given; T.direct+=r.direct; });
+  var pers=[["week",B("This week","ഈ ആഴ്ച")],["month",B("This month","ഈ മാസം")],["all",B("All time","എല്ലാ കാലവും")]];
+  var h='<h2>&#128100; '+E(B("Driver tips","ഡ്രൈവർ ടിപ്പ്"))+'</h2>'+
+   '<div class="actions" style="margin-bottom:6px">'+pers.map(function(p){ return '<button class="'+(DT.per===p[0]?'primary':'')+'" onclick="tcAbDrvTips(\''+p[0]+'\')">'+E(p[1])+'</button>'; }).join("")+'</div>'+
+   '<div style="font-size:13px;margin-bottom:6px">'+E(B("To give: ","കൊടുക്കാനുള്ളത്: "))+'<b style="color:'+(T.toGive>0?'#b3261e':'#1c6b2c')+'">'+mny(T.toGive)+'</b> &middot; '+E(B("Given by me: ","ഞാൻ കൊടുത്തത്: "))+'<b>'+mny(T.given)+'</b> &middot; '+E(B("Customer gave directly: ","കസ്റ്റമർ നേരിട്ട് കൊടുത്തത്: "))+'<b>'+mny(T.direct)+'</b></div>'+
+   '<p class="muted" style="font-size:11.5px;margin:0 0 6px">'+E(B("Driver tips are not part of your income or profit.","ഡ്രൈവർ ടിപ്പ് നിങ്ങളുടെ വരവിലോ ലാഭത്തിലോ ഉൾപ്പെടില്ല."))+'</p>';
+  if(!rows.length) h+='<p class="muted">'+E(B("No driver tips in this period.","ഈ കാലയളവിൽ ഡ്രൈവർ ടിപ്പ് ഇല്ല."))+'</p>';
+  rows.forEach(function(r){
+   h+='<details style="border:1px solid #d6dfe6;border-radius:10px;padding:6px 10px;margin:6px 0"'+(r.toGive>0?' open':'')+'><summary style="cursor:pointer;font-size:13.5px"><b>'+E(r.name||B("Driver not named","ഡ്രൈവറുടെ പേര് ഇല്ല"))+'</b> &middot; '+E(B("to give ","കൊടുക്കാനുള്ളത് "))+'<b style="color:'+(r.toGive>0?'#b3261e':'#1c6b2c')+'">'+mny(r.toGive)+'</b></summary>'+
+    '<div class="muted" style="font-size:12px;margin:3px 0">'+E(B("Given by me ","ഞാൻ കൊടുത്തത് "))+mny(r.given)+' &middot; '+E(B("direct from customer ","കസ്റ്റമർ നേരിട്ട് "))+mny(r.direct)+'</div>'+
+    r.list.sort(function(a,b){ return a.date<b.date?1:-1; }).map(function(e){
+     var st=e.direct?B("direct","നേരിട്ട്"):e.drvPaid?B("given "+tcFormatDate(e.drvPaid),"കൊടുത്തു "+tcFormatDate(e.drvPaid)):B("to give","കൊടുക്കണം");
+     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;font-size:12.5px"><span>'+E(tcFormatDate(e.date)+(e.customer?" · "+e.customer:""))+' <span class="muted">('+E(st)+')</span></span><span><b>'+mny(e.amount)+'</b>'+(!e.direct&&canWrite()?' <button style="font-size:11px;padding:2px 8px" onclick="tcAbDrvTipFlip(\''+e.id+'\')">'+E(e.drvPaid?B("Undo","റദ്ദാക്കുക"):B("Given","കൊടുത്തു"))+'</button>':'')+'</span></div>';
+    }).join("")+
+    (r.toGive>0&&canWrite()?'<div class="actions" style="margin-top:4px"><button class="primary" style="font-size:12px" onclick="tcAbDrvAllGiven('+JSON.stringify(r.name).replace(/"/g,"&quot;")+')">'+E(B("All given to him","എല്ലാം കൊടുത്തു"))+'</button></div>':'')+
+    '</details>';
+  });
+  h+='<div class="actions"><button onclick="closeModal()">'+E(B("Close","അടയ്ക്കുക"))+'</button></div>';
+  modal(h);
+ };
+ window.tcAbDrvTipFlip=function(id){
+  var e=eById(id); if(!e||e.direct) return;
+  if(!canWrite()){ locked(); return; }
+  e.drvPaid=e.drvPaid?"":todayIso(); persist(); renderBook(); window.tcAbDrvTips();
+ };
+ window.tcAbDrvAllGiven=function(name){
+  if(!canWrite()){ locked(); return; }
+  var from=dtFrom(), n=0, tot=0;
+  entries().forEach(function(e){ if(isDrv(e)&&!e.direct&&!e.drvPaid&&(e.driver||"")===(name||"")&&(!from||e.date>=from)){ n++; tot+=(+e.amount||0); } });
+  if(!n) return;
+  if(!confirm(B("Mark "+n+" tip(s), "+mny(tot)+", as given to "+(name||"the driver")+"?","ഡ്രൈവർക്ക് "+n+" ടിപ്പ് ("+mny(tot)+") കൊടുത്തു എന്ന് രേഖപ്പെടുത്തട്ടേ?"))) return;
+  var t=todayIso();
+  entries().forEach(function(e){ if(isDrv(e)&&!e.direct&&!e.drvPaid&&(e.driver||"")===(name||"")&&(!from||e.date>=from)) e.drvPaid=t; });
+  persist(); renderBook(); window.tcAbDrvTips();
  };
  window.tcAbOpenBill=function(tripId){
   view("billing");
@@ -537,7 +601,8 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    '<div class="grid">'+
    '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("abTipDate",e?e.date:todayIso())+'</label>'+
    '<label>'+E(B("Tip amount - only the EXTRA money (e.g. 200)","ടിപ്പ് തുക - കൂടുതൽ തന്ന തുക മാത്രം (ഉദാ: 200)"))+'<input id="abTipAmt" type="number" inputmode="decimal" min="0"></label>'+
-   '<label>'+E(B("Tip is for","ടിപ്പ് ആർക്ക്"))+sel("abTipFor",[["veh",B("The vehicle (my income)","വാഹനത്തിന് (എന്റെ വരവ്)")],["drv",B("The driver (his money)","ഡ്രൈവർക്ക് (ഡ്രൈവറുടെ പണം)")]],"veh")+'</label>'+
+   '<label>'+E(B("Tip is for","ടിപ്പ് ആർക്ക്"))+sel("abTipFor",[["veh",B("The vehicle (my income)","വാഹനത്തിന് (എന്റെ വരവ്)")],["drv",B("The driver - given to me, I give it to him","ഡ്രൈവർക്ക് - എനിക്ക് തന്നു, ഞാൻ കൊടുക്കണം")],["drvd",B("The driver - customer gave him directly (info only)","ഡ്രൈവർക്ക് - കസ്റ്റമർ നേരിട്ട് കൊടുത്തു (അറിയാൻ മാത്രം)")]],"veh")+'</label>'+
+   '<label>'+E(B("Driver name (for driver tips)","ഡ്രൈവറുടെ പേര് (ഡ്രൈവർ ടിപ്പിന്)"))+'<input id="abTipDrv" list="abDrvNames" value="'+E(e?(TIPSRC&&TIPSRC.driver)||"":"")+'"><datalist id="abDrvNames">'+driverNames().map(function(n){ return '<option value="'+E(n)+'">'; }).join("")+'</datalist></label>'+
    '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(vid||"")+'</label>'+
    '<label>'+E(B("Received by","എങ്ങനെ കിട്ടി"))+sel("abMode",[["",B("- not noted -","- രേഖപ്പെടുത്തിയിട്ടില്ല -")]].concat(MODES.map(function(m){ return [m,m]; })),"")+'</label>'+
    '<label>'+E(B("Note","കുറിപ്പ്"))+'<input id="abNote"></label></div>'+
@@ -554,9 +619,12 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   if(TIPSRC&&TIPSRC.amt>0&&amt>=TIPSRC.amt){
    if(!confirm(B("This tip ("+mny(amt)+") is as big as the trip payment ("+mny(TIPSRC.amt)+"). The trip payment is already in the book - enter ONLY the extra money given over the bill. Save anyway?","ഈ ടിപ്പ് ("+mny(amt)+") ട്രിപ്പ് തുകയ്ക്ക് ("+mny(TIPSRC.amt)+") തുല്യമോ കൂടുതലോ ആണ്. ട്രിപ്പ് തുക ബുക്കിൽ ഇതിനകം ഉണ്ട് - ബില്ലിന് പുറമെ കൂടുതൽ തന്ന തുക മാത്രം നൽകുക. എന്നാലും സേവ് ചെയ്യട്ടേ?"))) return;
   }
-  var o={id:uid(),type:"in",src:"manual",created:nowIso(),date:d,amount:Math.round(amt*100)/100,cat:val("abTipFor")==="drv"?"Tip (driver)":"Tip",
+  var tf=val("abTipFor");
+  var o={id:uid(),type:"in",src:"manual",created:nowIso(),date:d,amount:Math.round(amt*100)/100,cat:(tf==="drv"||tf==="drvd")?"Tip (driver)":"Tip",
    vehId:vehVal(),mode:val("abMode"),note:val("abNote")};
+  if(tf==="drvd"){ o.direct=true; o.drvPaid=d; }
   if(TIPSRC){ o.customer=TIPSRC.customer; o.route=TIPSRC.route; o.tripId=TIPSRC.tripId; if(TIPSRC.driver) o.driver=TIPSRC.driver; if(!o.vehId){ o.vehNo=TIPSRC.vehNo; o.vehName=TIPSRC.vehName; } }
+  var dn=String(val("abTipDrv")||"").trim(); if(dn&&(tf==="drv"||tf==="drvd")) o.driver=dn;
   EL().push(o); TIPSRC=null; persist(); closeModal(); say(B("Tip saved","ടിപ്പ് സേവ് ചെയ്തു")); renderBook();
  };
  window.tcAbEdit=function(id){
