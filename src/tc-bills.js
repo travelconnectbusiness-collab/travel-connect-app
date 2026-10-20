@@ -208,6 +208,15 @@
   window.loadBill=function(){
    var r=origLoad.apply(this,arguments);
    try{
+    /* 'Record Payment': the first choice used to be 'Advance', so money received after the trip was saved as an advance by mistake.
+       Default = Cash, 'Advance' moved to the end with a clear name (an advance is normally added in the Quotation, before the trip). */
+    var pm=$("payMethod");
+    if(pm){
+     for(var k=0;k<pm.options.length;k++){
+      if(pm.options[k].value==="Advance"){ pm.options[k].textContent=B("Advance (taken BEFORE the trip)","അഡ്വാൻസ് (ട്രിപ്പിന് മുമ്പ് വാങ്ങിയത്)"); pm.appendChild(pm.options[k]); break; }
+     }
+     pm.value="Cash";
+    }
     var bt=$("billTrip"), qr=$("billQR");
     var t=bt&&tripOf(bt.value), i=t&&info(t);
     if(i&&i.bal>0&&qr&&!$("tcBlRecvBox")){
