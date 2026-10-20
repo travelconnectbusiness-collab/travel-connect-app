@@ -134,7 +134,7 @@
    if(!t) return;
    var q=quotes[t.quoteId]||{};
    (t.payments||[]).forEach(function(p){
-    if(!p||!(+p.amount>0)) return;
+    if(!p||!(+p.amount>0)||p.method==="Discount") return;
     var isAdv=!!(q.advanceReceived&&q.advanceReceivedAt&&p.at===q.advanceReceivedAt);
     var key=isAdv?"adv:"+q.id:"pay:"+t.id+":"+p.at+":"+p.amount;
     add(key,{type:"in",date:localDate(p.at),amount:+p.amount,cat:(isAdv||p.method==="Advance")?"Advance":"Trip income",
@@ -188,6 +188,7 @@
  }
  /* a tip given to the driver is the driver's money: shown, but not counted in income / profit */
  function isDrv(e){ return e.type==="in"&&e.cat==="Tip (driver)"; }
+ function drvOwed(){ return entries().filter(function(e){ return isDrv(e)&&!e.drvPaid; }).reduce(function(a,e){ return a+(+e.amount||0); },0); }
  function sums(list){
   var i=0,o=0,d=0;
   list.forEach(function(e){ if(isDrv(e)){ d+=(+e.amount||0); return; } if(e.type==="in") i+=(+e.amount||0); else o+=(+e.amount||0); });
@@ -242,6 +243,10 @@
   if(e.customer) sub.push(e.customer);
   if(e.route) sub.push(e.route.length>70?e.route.slice(0,70)+"…":e.route);
   if(e.note) sub.push(e.note);
+  if(isDrv(e)){
+   if(e.driver) sub.splice(1,0,B("Driver: ","ഡ്രൈവർ: ")+e.driver);
+   sub.push(e.drvPaid?B("✅ given to driver "+tcFormatDate(e.drvPaid),"✅ ഡ്രൈവർക്ക് കൊടുത്തു "+tcFormatDate(e.drvPaid)):B("🔴 to give to the driver","🔴 ഡ്രൈവർക്ക് കൊടുക്കാനുണ്ട്"));
+  }
   var h='<div class="listitem" onclick="tcAbEdit(\''+e.id+'\')" style="cursor:pointer">'+
    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(catLabel(e.cat))+(e.src==="bill"?' <span class="muted" style="font-size:11px;font-weight:600">&#9889; '+E(B("from bill","ബില്ലിൽ നിന്ന്"))+'</span>':'')+'</b><b style="color:'+col+'">'+(isIn?"+":"-")+mny(e.amount)+'</b></div>'+
    '<div class="muted" style="font-size:12px">'+E(sub.join(" · "))+'</div>';
@@ -249,6 +254,7 @@
   if(canWrite()) acts+='<button onclick="event.stopPropagation();tcAbEdit(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">&#9998; '+E(B("Edit","തിരുത്തുക"))+'</button>';
   if(!vById(e.vehId)&&vehicles().length) acts+='<button onclick="event.stopPropagation();tcAbAssign(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(B("Choose vehicle","വാഹനം തിരഞ്ഞെടുക്കുക"))+'</button>';
   if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTripExp(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>';
+  if(isDrv(e)&&canWrite()) acts+='<button onclick="event.stopPropagation();tcAbDrvPaid(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">'+E(e.drvPaid?B("Undo 'given'","'കൊടുത്തു' റദ്ദാക്കുക"):B("Given to driver","ഡ്രൈവർക്ക് കൊടുത്തു"))+'</button>';
   if(e.type==="in"&&e.src==="bill") acts+='<button onclick="event.stopPropagation();tcAbTip(\''+e.id+'\')" style="font-size:12px;padding:4px 10px">&#127873; '+E(B("+ Tip","+ ടിപ്പ്"))+'</button>';
   if(acts) h+='<div class="actions" style="margin-top:4px">'+acts+'</div>';
   return h+'</div>';
@@ -269,9 +275,11 @@
   if(entries().some(function(e){ return !vById(e.vehId); })) vopts.push(["none",B("No vehicle chosen","വാഹനം തിരഞ്ഞെടുത്തിട്ടില്ല")]);
   var popts=[["month",B("This month","ഈ മാസം")],["last",B("Last month","കഴിഞ്ഞ മാസം")],["year",B("This year","ഈ വർഷം")],["all",B("All time","എല്ലാ കാലവും")]];
   var h=bannerHtml();
-  h+='<div class="grid"><div class="metric">'+E(B("Income","വരവ്"))+'<b style="color:#1c6b2c">'+mny(t.inc)+'</b></div><div class="metric">'+E(B("Expense","ചെലവ്"))+'<b style="color:#a12d2d">'+mny(t.out)+'</b></div><div class="metric">'+E(B("Profit","ലാഭം"))+'<b style="color:'+(t.net>=0?'#1c6b2c':'#a12d2d')+'">'+mny(t.net)+'</b></div></div>';
+  h+='<div class="grid"><div class="metric" onclick="tcAbDrill(\'in\')" style="cursor:pointer">'+E(B("Income","വരവ്"))+'<b style="color:#1c6b2c">'+mny(t.inc)+'</b></div><div class="metric" onclick="tcAbDrill(\'out\')" style="cursor:pointer">'+E(B("Expense","ചെലവ്"))+'<b style="color:#a12d2d">'+mny(t.out)+'</b></div><div class="metric" onclick="tcAbDrill(\'net\')" style="cursor:pointer">'+E(B("Profit","ലാഭം"))+'<b style="color:'+(t.net>=0?'#1c6b2c':'#a12d2d')+'">'+mny(t.net)+'</b></div></div>';
   h+='<div class="grid" style="margin-top:8px"><label>'+E(B("Period","കാലയളവ്"))+sel("abPeriod",popts,ST.period,"tcAbSet('period',this.value)")+'</label><label>'+E(B("Vehicle","വാഹനം"))+sel("abVehF",vopts,ST.veh,"tcAbSet('veh',this.value)")+'</label></div>';
-  if(t.drv>0) h+='<div class="muted" style="font-size:12px;margin-top:6px">&#127873; '+E(B("Tips given to drivers (not counted in income): ","ഡ്രൈവർക്ക് കിട്ടിയ ടിപ്പ് (വരവിൽ കൂട്ടിയിട്ടില്ല): "))+'<b>'+mny(t.drv)+'</b></div>';
+  h+='<div class="muted" style="font-size:11.5px;margin-top:4px">&#128073; '+E(B("Tap Income, Expense or Profit to see where it came from, with dates.","വരവ്, ചെലവ്, ലാഭം എന്നിവയിൽ തൊട്ടാൽ എവിടെ നിന്നാണെന്ന് തീയതി സഹിതം കാണാം."))+'</div>';
+  var owed=drvOwed();
+  if(t.drv>0||owed>0) h+='<div class="muted" style="font-size:12px;margin-top:6px">&#127873; '+E(B("Driver tips (not counted in income): ","ഡ്രൈവർ ടിപ്പ് (വരവിൽ കൂട്ടിയിട്ടില്ല): "))+(t.drv>0?E(B("this period ","ഈ കാലയളവിൽ "))+'<b>'+mny(t.drv)+'</b> ':'')+(owed>0?'&middot; <b style="color:#b3261e">'+E(B("still to give the driver: ","ഡ്രൈവർക്ക് കൊടുക്കാനുള്ളത്: "))+mny(owed)+'</b>':'')+'</div>';
   var pend=pending();
   if(pend.length){
    var tot=pend.reduce(function(a,x){ return a+x.bal; },0);
@@ -305,6 +313,7 @@
  window.tcAbMore=function(){ ST.limit+=40; renderBook(); };
  /* money received later for a bill: added to the bill's own payments, so Billing and the book always agree */
  window.tcAbReceive=function(tripId){
+  if(typeof window.tcBlRecv==="function"){ window.tcBlRecv(tripId); return; }   /* the shared 'Money received' screen (tc-bills.js) */
   var row=pending().filter(function(x){ return x.id===tripId; })[0]; if(!row) return;
   if(!canWrite()){ locked(); return; }
   modal('<h2>'+E(B("Money received","പണം കിട്ടി"))+'</h2><p class="muted" style="font-size:13px">'+E(row.customer)+' &middot; '+E(B("Balance due","ബാക്കി"))+' <b>'+mny(row.bal)+'</b></p>'+
@@ -324,9 +333,69 @@
   t.payments.push({amount:amt,method:val("abRecMode")||"UPI",at:nowIso()});
   persist(); syncAuto(); closeModal(); say(B("Saved - added to the bill and the book","സേവ് ചെയ്തു - ബില്ലിലും ബുക്കിലും ചേർത്തു")); renderBook();
  };
+window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} };
+ /* a tip made while marking money received on a bill (called from tc-bills.js); false when the book is not writable */
+ window.tcAbAddTip=function(o){
+  if(!canWrite()||!o||!(+o.amount>0)) return false;
+  var t=(db.trips||[]).filter(function(x){ return x.id===o.tripId; })[0]; if(!t) return false;
+  var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]||{};
+  var v=matchVehicle(q.vehicleNo,q.vehicle);
+  EL().push({id:uid(),type:"in",src:"manual",created:nowIso(),date:o.date||todayIso(),amount:Math.round(+o.amount*100)/100,cat:o.forDriver?"Tip (driver)":"Tip",
+   vehId:v?v.id:"",vehNo:q.vehicleNo||"",vehName:q.vehicle||"",mode:o.mode||"",note:o.note||"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,driver:t.driverName||""});
+  persist(); return true;
+ };
+ window.tcAbDrvPaid=function(id){
+  var e=eById(id); if(!e) return;
+  if(!canWrite()){ locked(); return; }
+  if(e.drvPaid){ if(!confirm(B("Mark this tip as NOT given to the driver yet?","ഈ ടിപ്പ് ഡ്രൈവർക്ക് ഇതുവരെ കൊടുത്തിട്ടില്ല എന്ന് മാറ്റട്ടേ?"))) return; e.drvPaid=""; }
+  else e.drvPaid=todayIso();
+  persist(); renderBook();
+ };
  window.tcAbOpenBill=function(tripId){
   view("billing");
   setTimeout(function(){ var bt=document.querySelector("#billTrip"); if(bt){ bt.value=tripId; try{ loadBill(); }catch(e){} } },0);
+ };
+
+
+ /* ---------- tap Income / Expense / Profit: where it came from, with dates ---------- */
+ function drvShort(r){ r=String(r||""); return r.length>40?r.slice(0,40)+"…":r; }
+ function groupsOf(list){
+  var m={}, a=[];
+  list.forEach(function(e){ var g=m[e.cat]; if(!g){ g=m[e.cat]={cat:e.cat,sum:0,items:[]}; a.push(g); } g.sum+=(+e.amount||0); g.items.push(e); });
+  return a.sort(function(x,y){ return y.sum-x.sum; });
+ }
+ function drillGroupsHtml(groups,total,col){
+  if(!groups.length) return '<p class="muted" style="font-size:13px">'+E(B("Nothing in this period.","ഈ കാലയളവിൽ ഒന്നുമില്ല."))+'</p>';
+  return groups.map(function(g){
+   var rows=g.items.slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; }).map(function(e){
+    var who=[e.customer,vehLabel(e),drvShort(e.route)].filter(Boolean).join(" · ");
+    return '<div onclick="closeModal();tcAbEdit(\''+e.id+'\')" style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #eee;font-size:12.5px;cursor:pointer"><span><b>'+E(tcFormatDate(e.date))+'</b>'+(who?' &middot; '+E(who):'')+(e.mode?' &middot; '+E(e.mode):'')+(e.note?'<br><span class="muted">'+E(e.note)+'</span>':'')+'</span><b style="color:'+col+';white-space:nowrap">'+mny(e.amount)+'</b></div>';
+   }).join("");
+   return '<details style="border:1px solid #e1e1e1;border-radius:10px;padding:6px 10px;margin:6px 0"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:14px"><span><b>'+E(catLabel(g.cat))+'</b> <span class="muted">('+g.items.length+')</span></span><span><b style="color:'+col+'">'+mny(g.sum)+'</b> <span class="muted" style="font-size:12px">'+(total>0?Math.round(g.sum*100/total):0)+'%</span></span></summary>'+rows+'</details>';
+  }).join("");
+ }
+ window.tcAbDrill=function(kind){
+  var list=filtered().filter(function(e){ return !isDrv(e); });
+  var ins=list.filter(function(e){ return e.type==="in"; }), outs=list.filter(function(e){ return e.type!=="in"; });
+  var ti=sums(list), perLabel=({month:B("This month","ഈ മാസം"),last:B("Last month","കഴിഞ്ഞ മാസം"),year:B("This year","ഈ വർഷം"),all:B("All time","എല്ലാ കാലവും")})[ST.period];
+  var head=function(t){ return '<h2>'+t+'</h2><p class="muted" style="font-size:12px;margin:0 0 6px">'+E(perLabel)+(ST.veh!=="all"?' &middot; '+E(ST.veh==="none"?B("No vehicle chosen","വാഹനം തിരഞ്ഞെടുത്തിട്ടില്ല"):(vById(ST.veh)?vById(ST.veh).name:"")):'')+' &middot; '+E(B("Tap a line to edit it.","ഒരു വരിയിൽ തൊട്ടാൽ തിരുത്താം."))+'</p>'; };
+  var h;
+  if(kind==="in") h=head(E(B("Income","വരവ്"))+': <span style="color:#1c6b2c">'+mny(ti.inc)+'</span>')+drillGroupsHtml(groupsOf(ins),ti.inc,"#1c6b2c");
+  else if(kind==="out") h=head(E(B("Expense","ചെലവ്"))+': <span style="color:#a12d2d">'+mny(ti.out)+'</span>')+drillGroupsHtml(groupsOf(outs),ti.out,"#a12d2d");
+  else{
+   h=head(E(B("Profit","ലാഭം"))+': <span style="color:'+(ti.net>=0?'#1c6b2c':'#a12d2d')+'">'+mny(ti.net)+'</span>')+
+    '<h3 style="margin:8px 0 2px;font-size:15px">'+E(B("Income","വരവ്"))+' '+mny(ti.inc)+'</h3>'+drillGroupsHtml(groupsOf(ins),ti.inc,"#1c6b2c")+
+    '<h3 style="margin:10px 0 2px;font-size:15px">'+E(B("Expense","ചെലവ്"))+' '+mny(ti.out)+'</h3>'+drillGroupsHtml(groupsOf(outs),ti.out,"#a12d2d")+
+    '<div style="margin-top:10px;font-size:15px"><b>'+E(B("Profit","ലാഭം"))+' = '+mny(ti.inc)+' - '+mny(ti.out)+' = <span style="color:'+(ti.net>=0?'#1c6b2c':'#a12d2d')+'">'+mny(ti.net)+'</span></b></div>';
+   if(ST.veh==="all"&&vehicles().length>1){
+    h+='<h3 style="margin:10px 0 2px;font-size:15px">'+E(B("By vehicle","വാഹനം തിരിച്ച്"))+'</h3>'+vehicles().map(function(v){
+     var s2=sums(list.filter(function(e){ return e.vehId===v.id; }));
+     return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>'+E(v.name+(v.no?" ("+v.no+")":""))+'</span><b style="color:'+(s2.net>=0?'#1c6b2c':'#a12d2d')+'">'+mny(s2.net)+'</b></div>';
+    }).join("");
+   }
+   var pd=pending(); if(pd.length) h+='<p class="muted" style="font-size:12px;margin-top:8px">'+E(B("Not counted yet: still to receive on bills ","ഇതിൽ കൂട്ടിയിട്ടില്ല: ബില്ലുകളിൽ കിട്ടാനുള്ളത് "))+'<b>'+mny(pd.reduce(function(a,x){ return a+x.bal; },0))+'</b></p>';
+  }
+  modal(h+'<div class="actions"><button onclick="closeModal()">'+E(B("Close","അടയ്ക്കുക"))+'</button></div>');
  };
 
  /* ---------- add / edit an entry ---------- */
@@ -336,13 +405,42 @@
   opts.push(["__new__","+ "+B("New category","പുതിയ വിഭാഗം")]);
   return sel("abCat",opts,cur||opts[0][0],"tcAbCatChange('"+type+"')");
  }
+/* a typed "new category" that is really a note (e.g. "left tyre air filling at mobile") is matched to the closest existing category */
+ var CAT_RULES={
+  out:[[/tyre|tire|puncture|air fill|nitrogen|ടയർ/i,"Tyre"],[/fuel|diesel|petrol|ഡീസൽ|ഇന്ധനം/i,"Fuel"],[/toll|ടോൾ/i,"Toll"],[/parking|പാർക്കിംഗ്/i,"Parking"],
+   [/puc|pollution|fitness|ഫിറ്റ്നസ്/i,"Fitness / PUC"],[/insur|ഇൻഷുറൻസ്/i,"Insurance"],[/permit|tax|പെർമിറ്റ്/i,"Permit / Tax"],[/\bemi\b|loan/i,"EMI"],
+   [/service|repair|garage|workshop|oil|സർവീസ്|റിപ്പയർ/i,"Service / Repair"],[/wash|കഴുക/i,"Washing"],[/bata|wage|salary|ബത്ത|കൂലി/i,"Driver wages / bata"],
+   [/recharge|internet|mobile bill/i,"Mobile / Internet"],[/commission|കമ്മീഷൻ/i,"Commission paid"]],
+  in:[[/tip|ടിപ്പ്/i,"Tip"],[/advance|അഡ്വാൻസ്/i,"Advance"],[/commission|കമ്മീഷൻ/i,"Commission received"],[/trip|ട്രിപ്പ്/i,"Trip income"]]
+ };
+ function catGuess(type,text){
+  var low=text.toLowerCase(), list=catList(type), i;
+  for(i=0;i<list.length;i++){ if(list[i].toLowerCase()===low||catLabel(list[i]).toLowerCase()===low) return {cat:list[i],note:""}; }
+  var rules=CAT_RULES[type]||[];
+  for(i=0;i<rules.length;i++){
+   if(rules[i][0].test(text)&&list.indexOf(rules[i][1])>=0){
+    var c=rules[i][1];
+    if(confirm(B('"'+text+'" looks like the category "'+c+'". OK = use "'+c+'" (your words go into the Note). Cancel = make it a new category.','"'+text+'" എന്നത് "'+catLabel(c)+'" വിഭാഗമാണോ? OK = "'+catLabel(c)+'" ഉപയോഗിക്കും (നിങ്ങൾ എഴുതിയത് കുറിപ്പിൽ വരും). Cancel = പുതിയ വിഭാഗമായി ചേർക്കും.')))
+     return {cat:c,note:text};
+    return null;
+   }
+  }
+  if(text.length>24){
+   var o=type==="in"?"Other income":"Other";
+   if(confirm(B('That looks like a note, not a category name. OK = category "'+o+'" and your words in the Note. Cancel = keep it as a new category.','ഇത് വിഭാഗത്തിന്റെ പേരിനേക്കാൾ ഒരു കുറിപ്പാണെന്ന് തോന്നുന്നു. OK = വിഭാഗം "'+catLabel(o)+'", നിങ്ങൾ എഴുതിയത് കുറിപ്പിൽ. Cancel = പുതിയ വിഭാഗമായി നിലനിർത്തും.'))) return {cat:o,note:text};
+  }
+  return null;
+ }
  window.tcAbCatChange=function(type){
   var s=$("abCat"); if(!s) return;
   if(s.value==="__new__"){
-   var n=(prompt(B("Name of the new category","പുതിയ വിഭാഗത്തിന്റെ പേര്"))||"").trim().slice(0,40);
+   var n=(prompt(B("Name of the new category","പുതിയ വിഭാഗത്തിന്റെ പേര്"))||"").trim().slice(0,100), noteAdd="";
+   if(n){ var gs=catGuess(type,n); if(gs){ n=gs.cat; noteAdd=gs.note; } }
+   n=n.slice(0,40);
    if(n){ var l=customCats(type); if(l.indexOf(n)<0&&catList(type).indexOf(n)<0){ l.push(n); persist(); } }
    var cur=n||catList(type)[0];
    var host=s.parentNode; if(host){ host.innerHTML=E(B("Category","വിഭാഗം"))+catSelectHtml(type,cur); }
+   if(noteAdd){ var nt=$("abNote"); if(nt&&!nt.value) nt.value=noteAdd; }
   }
   litToggle();
  };
@@ -425,7 +523,7 @@
  window.tcAbTip=function(fromId){
   if(!canWrite()){ locked(); return; }
   var e=fromId?eById(fromId):null;
-  TIPSRC=e?{amt:+e.amount||0,customer:e.customer||"",route:e.route||"",tripId:e.tripId||"",date:e.date,vehId:e.vehId||"",vehNo:e.vehNo||"",vehName:e.vehName||""}:null;
+  TIPSRC=e?{amt:+e.amount||0,driver:((db.trips||[]).filter(function(x){ return x.id===e.tripId; })[0]||{}).driverName||"",customer:e.customer||"",route:e.route||"",tripId:e.tripId||"",date:e.date,vehId:e.vehId||"",vehNo:e.vehNo||"",vehName:e.vehName||""}:null;
   var vid=e?e.vehId:(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""));
   modal('<h2>&#127873; '+E(B("Tip received","ടിപ്പ് കിട്ടി"))+'</h2>'+
    (e?'<p class="muted" style="font-size:12.5px">'+E([e.customer,e.route&&e.route.length>70?e.route.slice(0,70)+"…":e.route].filter(Boolean).join(" · "))+'</p>':'')+
@@ -452,7 +550,7 @@
   }
   var o={id:uid(),type:"in",src:"manual",created:nowIso(),date:d,amount:Math.round(amt*100)/100,cat:val("abTipFor")==="drv"?"Tip (driver)":"Tip",
    vehId:vehVal(),mode:val("abMode"),note:val("abNote")};
-  if(TIPSRC){ o.customer=TIPSRC.customer; o.route=TIPSRC.route; o.tripId=TIPSRC.tripId; if(!o.vehId){ o.vehNo=TIPSRC.vehNo; o.vehName=TIPSRC.vehName; } }
+  if(TIPSRC){ o.customer=TIPSRC.customer; o.route=TIPSRC.route; o.tripId=TIPSRC.tripId; if(TIPSRC.driver) o.driver=TIPSRC.driver; if(!o.vehId){ o.vehNo=TIPSRC.vehNo; o.vehName=TIPSRC.vehName; } }
   EL().push(o); TIPSRC=null; persist(); closeModal(); say(B("Tip saved","ടിപ്പ് സേവ് ചെയ്തു")); renderBook();
  };
  window.tcAbEdit=function(id){
