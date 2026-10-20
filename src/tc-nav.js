@@ -41,13 +41,20 @@
  function baseUrl(){ return location.pathname+location.search+"#dashboard"; }
 
  history.pushState=function(st,t,u){
+  var keepMenu=false;
   if(st&&st.tcPage&&st.d===undefined){
    var c=below();
-   st=Object.assign({},st,{d:c.k==="base"?1:(c.k==="page"&&c.d>0?c.d+1:0)});
+   /* A page opened from the Menu keeps the Menu's own entry underneath it: Back from the page lands
+      on that entry and the Menu is just shown again - NO new entry is pushed inside the Back
+      handler (Chrome marks the Dashboard entry 'skippable' if that happens, and the next Back then
+      jumps out of the app - seen on the phone 2026-10-20). */
+   if(stale&&st.fromMenu&&c.k==="base"){ keepMenu=true; st=Object.assign({},st,{d:2}); }
+   else st=Object.assign({},st,{d:c.k==="base"?1:(c.k==="page"&&c.d>0?c.d+1:0)});
   }
   if(stale&&st&&(st.tcPage||st.tcBase)){
-   /* a pop-up was just closed: reuse its leftover entry instead of stacking a new one */
    stale=false; clearTimeout(staleTimer);
+   if(keepMenu){ var r0=origPush(st,t,u); topState=history.state; return r0; }
+   /* a pop-up was just closed: reuse its leftover entry instead of stacking a new one */
    return history.replaceState(st,t,u);
   }
   var r=origPush(st,t,u); topState=history.state; return r;
@@ -63,6 +70,10 @@
  /* ---- pop-ups ---- */
  window.modal=function(html){
   if(stale){ stale=false; clearTimeout(staleTimer); tcModalHistoryPushed=true; } /* reuse the leftover entry */
+  else if(!tcModalHistoryPushed&&history.state&&history.state.tcModal){
+   /* we are standing on a kept Menu entry (Back from a Menu page): show the Menu on it, push nothing */
+   tcModalHistoryPushed=true; tcPreModalState={tcBase:true}; tcPreModalUrl=location.href;
+  }
   return origModal.apply(this,arguments);
  };
  window.closeModal=function(){
@@ -131,6 +142,9 @@
   if(ghost){
    tcCurrentIsFromMenu=!!(prev&&prev.fromMenu);
    history.go(-history.state.d);
+  }else if(history.state&&history.state.tcModal&&!tcModalHistoryPushed&&!stale){
+   /* landed on a kept Menu entry but the Menu was not wanted (page had been switched by a tab) -> skip it */
+   history.back();
   }
  });
 
