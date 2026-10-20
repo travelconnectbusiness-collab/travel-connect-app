@@ -94,8 +94,9 @@
   h+=list.slice(0,shown).map(function(x){
    var q=x.q;
    return '<div class="listitem" onclick="tcTrOpen(\''+x.t.id+'\')" style="cursor:pointer">'+
-    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(x.t.customer||q.customer||"-")+'</b><b style="color:'+(x.profit>=0?'#1c6b2c':'#a12d2d')+'">'+mny(x.profit)+'</b></div>'+
+    '<div style="display:flex;justify-content:space-between;gap:8px"><b>'+E(x.t.customer||q.customer||"-")+'</b><span style="text-align:right;white-space:nowrap"><span class="muted" style="display:block;font-size:10.5px;line-height:1.1">'+E(B("Profit","ലാഭം"))+'</span><b style="color:'+(x.profit>=0?'#1c6b2c':'#a12d2d')+'">'+mny(x.profit)+'</b></span></div>'+
     '<div class="muted" style="font-size:12px">'+E([dd(x.date),shortRoute(x.t,q)].filter(Boolean).join(" · "))+'</div>'+
+    '<div style="font-size:12.5px;margin-top:2px">'+E(B("Received ","കിട്ടിയത് "))+'<b style="color:#1c6b2c">'+mny(x.inc)+'</b> &middot; '+E(B("Expense ","ചെലവ് "))+'<b style="color:#a12d2d">'+mny(x.out)+'</b></div>'+
     '<div style="margin-top:4px">'+chip(x)+'</div></div>';
   }).join("")||'<p class="muted">'+E(B("No trips for this selection.","ഈ തിരഞ്ഞെടുപ്പിൽ ട്രിപ്പുകളില്ല."))+'</p>';
   if(list.length>shown) h+='<div class="actions"><button onclick="tcTrMore()">'+E(B("Show more","കൂടുതൽ കാണിക്കുക"))+'</button></div>';
