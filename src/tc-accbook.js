@@ -42,7 +42,7 @@
  function S0(){ if(!db.settings) db.settings={}; return db.settings; }
 
  var IN_CATS=[
-  ["Trip income","ട്രിപ്പ് വരുമാനം"],["Advance","അഡ്വാൻസ്"],["Tip","ടിപ്പ് (വാഹനത്തിന്)"],["Tip (driver)","ടിപ്പ് (ഡ്രൈവർക്ക്)"],["Commission received","കമ്മീഷൻ കിട്ടിയത്"],
+  ["Trip income","ട്രിപ്പ് വരുമാനം"],["Trip balance","ട്രിപ്പ് ബാലൻസ് വരവ്"],["Advance","അഡ്വാൻസ്"],["Tip","ടിപ്പ് (വാഹനത്തിന്)"],["Tip (driver)","ടിപ്പ് (ഡ്രൈവർക്ക്)"],["Commission received","കമ്മീഷൻ കിട്ടിയത്"],
   ["Partner margin","പാർട്ണർ മാർജിൻ"],["Other income","മറ്റ് വരവ്"]
  ];
  var OUT_CATS=[
@@ -124,7 +124,12 @@
   function add(key,o){
    seen[key]=1;
    var old=by[key];
-   if(old){ if(old.removedBySource&&old.deleted){ old.deleted=false; old.removedBySource=false; changed=true; } return; }
+   if(old){
+    if(old.removedBySource&&old.deleted){ old.deleted=false; old.removedBySource=false; changed=true; }
+    /* an unedited automatic entry follows its payment: first payment = Trip income, later ones = Trip balance */
+    if(!old.edited&&o.cat&&old.cat!==o.cat&&(old.cat==="Trip income"||old.cat==="Trip balance")&&(o.cat==="Trip income"||o.cat==="Trip balance")){ old.cat=o.cat; changed=true; }
+    return;
+   }
    var v=matchVehicle(o.vehNo,o.vehName);
    var rec={id:uid(),key:key,src:"bill",created:nowIso(),vehId:v?v.id:""};
    for(var k in o) rec[k]=o[k];
@@ -133,11 +138,12 @@
   (db.trips||[]).forEach(function(t){
    if(!t) return;
    var q=quotes[t.quoteId]||{};
-   (t.payments||[]).forEach(function(p){
+   var seq=(t.payments||[]).filter(function(p){ return p&&+p.amount>0&&p.method!=="Discount"; }).sort(function(a,b){ return String(a.at).localeCompare(String(b.at)); });
+   seq.forEach(function(p,pi){
     if(!p||!(+p.amount>0)||p.method==="Discount") return;
     var isAdv=!!(q.advanceReceived&&q.advanceReceivedAt&&p.at===q.advanceReceivedAt);
     var key=isAdv?"adv:"+q.id:"pay:"+t.id+":"+p.at+":"+p.amount;
-    add(key,{type:"in",date:localDate(p.at),amount:+p.amount,cat:(isAdv||p.method==="Advance")?"Advance":"Trip income",
+    add(key,{type:"in",date:localDate(p.at),amount:+p.amount,cat:(isAdv||p.method==="Advance")?"Advance":(pi>0?"Trip balance":"Trip income"),
      mode:(p.method==="Cash"||p.method==="UPI"||p.method==="Bank")?p.method:"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,
      vehNo:q.vehicleNo||"",vehName:q.vehicle||""});
    });
