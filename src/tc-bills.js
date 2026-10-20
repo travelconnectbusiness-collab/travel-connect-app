@@ -29,8 +29,9 @@
    var c=db.categories[q.categoryId];
    var total=billFinalAmount(t,q,c).final;
    var paid=(t.payments||[]).reduce(function(a,p){ return a+(+p.amount||0); },0);
+   var disc=(t.payments||[]).reduce(function(a,p){ return a+(p&&p.method==="Discount"?(+p.amount||0):0); },0);
    var bal=Math.max(0,total-paid);
-   return {t:t,q:q,total:total,paid:paid,bal:bal>0.5?bal:0};
+   return {t:t,q:q,total:total,paid:paid,disc:disc,cash:paid-disc,bal:bal>0.5?bal:0};
   }catch(e){ return null; }
  }
  function rows(){
@@ -46,6 +47,7 @@
 
  /* ---------- the list on the Billing page ---------- */
  function chip(i){
+  if(i.bal<=0&&i.disc>0) return '<span style="background:#e6f7e9;color:#1c6b2c;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap">&#9989; '+E(B("Settled (discount ","തീർന്നു (ഡിസ്കൗണ്ട് "))+mny(i.disc)+')</span>';
   return i.bal>0
    ? '<span style="background:#fdeaea;color:#b3261e;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap">'+E(B("Pending","ബാക്കി"))+' '+mny(i.bal)+'</span>'
    : '<span style="background:#e6f7e9;color:#1c6b2c;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap">&#9989; '+E(B("Paid","പൂർണ്ണം"))+'</span>';
@@ -60,7 +62,7 @@
   return '<div style="border:1px solid #d9d9d9;border-radius:10px;padding:8px 10px;margin:7px 0;background:#fff">'+
    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>'+E(i.t.customer||i.q.customer||"-")+'</b>'+chip(i)+'</div>'+
    '<div class="muted" style="font-size:12px">'+[i.t.billNo?E(i.t.billNo):"",dateOf(i)?E(dd(dateOf(i))):""].filter(Boolean).join(" &middot; ")+'</div>'+
-   '<div style="font-size:13px;margin-top:3px">'+E(B("Total","ആകെ"))+' <b>'+mny(i.total)+'</b> &middot; '+E(B("Received","കിട്ടിയത്"))+' <b>'+mny(i.paid)+'</b></div>'+
+   '<div style="font-size:13px;margin-top:3px">'+E(B("Total","ആകെ"))+' <b>'+mny(i.total)+'</b> &middot; '+E(B("Received","കിട്ടിയത്"))+' <b>'+mny(i.cash)+'</b>'+(i.disc>0?' &middot; '+E(B("Discount","ഡിസ്കൗണ്ട്"))+' <b>'+mny(i.disc)+'</b>':'')+'</div>'+
    hist+
    '<div class="actions" style="margin-top:6px;flex-wrap:wrap">'+
    '<button onclick="tcBlOpen(\''+id+'\')" style="'+btn+'">'+E(B("Open","തുറക്കുക"))+'</button>'+
@@ -128,38 +130,68 @@
  };
 
  /* ---------- money received ---------- */
+ var RC=null;   /* the extra money waiting for "what is it?" */
+ function todayStr(){ var t0=new Date(); return t0.getFullYear()+"-"+String(t0.getMonth()+1).padStart(2,"0")+"-"+String(t0.getDate()).padStart(2,"0"); }
  window.tcBlRecv=function(id){
   var t=tripOf(id), i=t&&info(t); if(!i) return;
   if(!(i.bal>0)){ say(B("This bill is fully paid","ഈ ബില്ല് പൂർണ്ണമായി അടച്ചു")); return; }
-  var today=new Date(); var iso=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
   modal('<h2>'+E(B("Money received","പണം കിട്ടി"))+'</h2>'+
    '<p class="muted" style="font-size:13px">'+E(i.t.customer||i.q.customer||"")+' &middot; '+E(B("Balance due","ബാക്കി"))+' <b>'+mny(i.bal)+'</b></p>'+
    '<div class="grid">'+
    '<label>'+E(B("Amount received","കിട്ടിയ തുക"))+'<input id="blAmt" type="number" inputmode="decimal" min="0" value="'+i.bal+'"></label>'+
    '<label>'+E(B("Received by","എങ്ങനെ കിട്ടി"))+'<select id="blMode"><option value="UPI">UPI</option><option value="Cash">Cash</option><option value="Other">'+E(B("Other (bank / cheque...)","മറ്റ് (ബാങ്ക് / ചെക്ക്...)"))+'</option></select></label>'+
-   '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("blDate",iso)+'</label>'+
+   '<label>'+E(B("Date received","പണം കിട്ടിയ തീയതി"))+tcDateInputHtml("blDate",todayStr())+'</label>'+
+   '<label>'+E(B("If less than the balance","ബാക്കിയേക്കാൾ കുറവാണെങ്കിൽ"))+'<select id="blLess"><option value="pend">'+E(B("Rest is still to receive","ബാക്കി കിട്ടാനുണ്ട് (ബില്ലിൽ തുടരും)"))+'</option><option value="disc">'+E(B("Close the bill - rest is a discount","ബാക്കി ഡിസ്കൗണ്ട് ആയി ബിൽ അവസാനിപ്പിക്കുക"))+'</option></select></label>'+
    '<label>'+E(B("Note (optional)","കുറിപ്പ് (ഓപ്ഷണൽ)"))+'<input id="blNote" placeholder="'+E(B("e.g. bank transfer","ഉദാ: ബാങ്ക് ട്രാൻസ്ഫർ"))+'"></label>'+
    '</div>'+
+   '<p class="muted" style="font-size:12px">'+E(B("If the customer gave MORE than the balance, you can type the full amount - you will be asked what the extra is (tip).","കസ്റ്റമർ ബാക്കിയേക്കാൾ കൂടുതൽ തന്നെങ്കിൽ മുഴുവൻ തുകയും ടൈപ്പ് ചെയ്യാം - അധികം എന്താണെന്ന് (ടിപ്പ്) ചോദിക്കും."))+'</p>'+
    '<div class="actions"><button class="primary" onclick="tcBlRecvSave(\''+id+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>');
  };
+ function afterRecv(id){
+  var bt=$("billTrip");
+  if(bt&&bt.value===id&&$("billBox")&&$("billBox").innerHTML){ try{ loadBill(); }catch(e){} }
+  paintRows();
+  try{ if(typeof window.tcAbRefresh==="function") window.tcAbRefresh(); }catch(e){}
+ }
  window.tcBlRecvSave=function(id){
   var t=tripOf(id), i=t&&info(t); if(!i) return;
   var amt=parseFloat(($("blAmt")||{}).value);
   if(!(amt>0)){ say(B("Enter the amount","തുക നൽകുക")); return; }
-  if(amt>i.bal+0.5){ say(B("More than the balance due ("+mny(i.bal)+")","ബാക്കി തുകയേക്കാൾ കൂടുതൽ ("+mny(i.bal)+")")); return; }
   var d=tcReadDateInput("blDate");
   if(d===null){ say(B("Enter the date as DD-MM-YYYY","തീയതി DD-MM-YYYY ആയി നൽകുക")); return; }
   var at=new Date().toISOString();
-  var t0=new Date(), todayIso=t0.getFullYear()+"-"+String(t0.getMonth()+1).padStart(2,"0")+"-"+String(t0.getDate()).padStart(2,"0");
-  if(d&&d!==todayIso){ var x=new Date(d+"T12:00:00"); if(!isNaN(x)) at=x.toISOString(); }
-  var pay={amount:Math.round(amt*100)/100,method:($("blMode")||{}).value||"UPI",at:at};
-  var note=String(($("blNote")||{}).value||"").trim(); if(note) pay.note=note;
+  if(d&&d!==todayStr()){ var x=new Date(d+"T12:00:00"); if(!isNaN(x)) at=x.toISOString(); }
+  var mode=($("blMode")||{}).value||"UPI", note=String(($("blNote")||{}).value||"").trim(), less=($("blLess")||{}).value;
+  var extra=amt>i.bal+0.5?Math.round((amt-i.bal)*100)/100:0;
+  var payAmt=extra>0?i.bal:Math.round(amt*100)/100;
+  var pay={amount:payAmt,method:mode,at:at}; if(note) pay.note=note;
   t.payments=t.payments||[]; t.payments.push(pay);
+  var rest=Math.round((i.bal-payAmt)*100)/100;
+  if(rest>0.5&&less==="disc") t.payments.push({amount:rest,method:"Discount",at:at,note:"Discount"});
   save(); closeModal();
+  if(extra>0){
+   RC={id:id,extra:extra,date:d||todayStr(),mode:mode,note:note};
+   modal('<h2>&#127873; '+E(B("Extra money received","അധികം പണം കിട്ടി"))+': '+mny(extra)+'</h2>'+
+    '<p class="muted" style="font-size:13px">'+E(B("The bill amount is saved. What is the extra "+mny(extra)+"?","ബിൽ തുക സേവ് ചെയ്തു. അധികം കിട്ടിയ "+mny(extra)+" എന്താണ്?"))+'</p>'+
+    '<div class="actions" style="flex-direction:column;align-items:stretch">'+
+    '<button class="primary" onclick="tcBlTip(\'veh\')">'+E(B("Vehicle tip - my income","വാഹന ടിപ്പ് - എന്റെ വരവ്"))+'</button>'+
+    '<button onclick="tcBlTip(\'drv\')">'+E(B("Driver tip - money to give the driver","ഡ്രൈവർ ടിപ്പ് - ഡ്രൈവർക്ക് കൊടുക്കാനുള്ള പണം"))+'</button>'+
+    '<button onclick="tcBlTip(\'no\')">'+E(B("Not a tip - do not record","ടിപ്പ് അല്ല - രേഖപ്പെടുത്തേണ്ട"))+'</button></div>');
+   afterRecv(id);
+   return;
+  }
   say(B("Saved - payment added to the bill","സേവ് ചെയ്തു - ബില്ലിൽ ചേർത്തു"));
-  var bt=$("billTrip");
-  if(bt&&bt.value===id&&$("billBox")&&$("billBox").innerHTML){ try{ loadBill(); }catch(e){} }
-  paintRows();
+  afterRecv(id);
+ };
+ window.tcBlTip=function(kind){
+  var c=RC; RC=null; if(!c){ closeModal(); return; }
+  var ok=true;
+  if(kind!=="no"){
+   try{ ok=typeof window.tcAbAddTip==="function"&&window.tcAbAddTip({tripId:c.id,amount:c.extra,forDriver:kind==="drv",date:c.date,mode:c.mode,note:c.note}); }catch(e){ ok=false; }
+  }
+  closeModal();
+  say(kind==="no"?B("Saved","സേവ് ചെയ്തു"):ok?B("Tip saved in Trip & Accounts","ടിപ്പ് ട്രിപ്പ് & അക്കൗണ്ട്സിൽ സേവ് ചെയ്തു"):B("The tip could not be saved (Trip & Accounts needs Premium / the free trial)","ടിപ്പ് സേവ് ചെയ്യാനായില്ല (ട്രിപ്പ് & അക്കൗണ്ട്സിന് Premium / സൗജന്യ കാലയളവ് വേണം)"));
+  afterRecv(c.id);
  };
 
  /* ---------- hook into the existing Billing page ---------- */
