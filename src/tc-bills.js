@@ -63,6 +63,7 @@
    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>'+E(i.t.customer||i.q.customer||"-")+'</b>'+chip(i)+'</div>'+
    '<div class="muted" style="font-size:12px">'+[i.t.billNo?E(i.t.billNo):"",dateOf(i)?E(dd(dateOf(i))):""].filter(Boolean).join(" &middot; ")+'</div>'+
    '<div style="font-size:13px;margin-top:3px">'+E(B("Total","ആകെ"))+' <b>'+mny(i.total)+'</b> &middot; '+E(B("Received","കിട്ടിയത്"))+' <b>'+mny(i.cash)+'</b>'+(i.disc>0?' &middot; '+E(B("Discount","ഡിസ്കൗണ്ട്"))+' <b>'+mny(i.disc)+'</b>':'')+'</div>'+
+   (i.bal>0&&i.t.dueDate?'<div style="font-size:12px;margin-top:2px;color:'+(i.t.dueDate<todayStr()?'#b3261e':'#555')+'">'+(i.t.dueDate<todayStr()?'&#128308; ':'')+E(B("Rest promised on ","ബാക്കി തരാമെന്ന് പറഞ്ഞത് "))+E(dd(i.t.dueDate))+'</div>':'')+
    hist+
    '<div class="actions" style="margin-top:6px;flex-wrap:wrap">'+
    '<button onclick="tcBlOpen(\''+id+'\')" style="'+btn+'">'+E(B("Open","തുറക്കുക"))+'</button>'+
@@ -139,9 +140,10 @@
    '<p class="muted" style="font-size:13px">'+E(i.t.customer||i.q.customer||"")+' &middot; '+E(B("Balance due","ബാക്കി"))+' <b>'+mny(i.bal)+'</b></p>'+
    '<div class="grid">'+
    '<label>'+E(B("Amount received","കിട്ടിയ തുക"))+'<input id="blAmt" type="number" inputmode="decimal" min="0" value="'+i.bal+'"></label>'+
-   '<label>'+E(B("Received by","എങ്ങനെ കിട്ടി"))+'<select id="blMode"><option value="UPI">UPI</option><option value="Cash">Cash</option><option value="Other">'+E(B("Other (bank / cheque...)","മറ്റ് (ബാങ്ക് / ചെക്ക്...)"))+'</option></select></label>'+
+   '<label>'+E(B("Received by","എങ്ങനെ കിട്ടി"))+'<select id="blMode"><option value="UPI">UPI</option><option value="Cash">Cash</option><option value="Bank">'+E(B("Bank transfer","ബാങ്ക് ട്രാൻസ്ഫർ"))+'</option><option value="Other">'+E(B("Other (cheque...)","മറ്റ് (ചെക്ക്...)"))+'</option></select></label>'+
    '<label>'+E(B("Date received","പണം കിട്ടിയ തീയതി"))+tcDateInputHtml("blDate",todayStr())+'</label>'+
    '<label>'+E(B("If less than the balance","ബാക്കിയേക്കാൾ കുറവാണെങ്കിൽ"))+'<select id="blLess"><option value="pend">'+E(B("Rest is still to receive","ബാക്കി കിട്ടാനുണ്ട് (ബില്ലിൽ തുടരും)"))+'</option><option value="disc">'+E(B("Close the bill - rest is a discount","ബാക്കി ഡിസ്കൗണ്ട് ആയി ബിൽ അവസാനിപ്പിക്കുക"))+'</option></select></label>'+
+   '<label>'+E(B("If the rest is still to receive: date promised (optional)","ബാക്കി കിട്ടാനുണ്ടെങ്കിൽ: തരാമെന്ന് പറഞ്ഞ തീയതി (ഓപ്ഷണൽ)"))+tcDateInputHtml("blDue",(info(t)||{}).t&&t.dueDate?t.dueDate:"")+'</label>'+
    '<label>'+E(B("Note (optional)","കുറിപ്പ് (ഓപ്ഷണൽ)"))+'<input id="blNote" placeholder="'+E(B("e.g. bank transfer","ഉദാ: ബാങ്ക് ട്രാൻസ്ഫർ"))+'"></label>'+
    '</div>'+
    '<p class="muted" style="font-size:12px">'+E(B("If the customer gave MORE than the balance, you can type the full amount - you will be asked what the extra is (tip).","കസ്റ്റമർ ബാക്കിയേക്കാൾ കൂടുതൽ തന്നെങ്കിൽ മുഴുവൻ തുകയും ടൈപ്പ് ചെയ്യാം - അധികം എന്താണെന്ന് (ടിപ്പ്) ചോദിക്കും."))+'</p>'+
@@ -158,7 +160,7 @@
   var amt=parseFloat(($("blAmt")||{}).value);
   if(!(amt>0)){ say(B("Enter the amount","തുക നൽകുക")); return; }
   var d=tcReadDateInput("blDate");
-  if(d===null){ say(B("Enter the date as DD-MM-YYYY","തീയതി DD-MM-YYYY ആയി നൽകുക")); return; }
+  if(d===null||tcReadDateInput("blDue")===null){ say(B("Enter the date as DD-MM-YYYY","തീയതി DD-MM-YYYY ആയി നൽകുക")); return; }
   var at=new Date().toISOString();
   if(d&&d!==todayStr()){ var x=new Date(d+"T12:00:00"); if(!isNaN(x)) at=x.toISOString(); }
   var mode=($("blMode")||{}).value||"UPI", note=String(($("blNote")||{}).value||"").trim(), less=($("blLess")||{}).value;
@@ -168,6 +170,8 @@
   t.payments=t.payments||[]; t.payments.push(pay);
   var rest=Math.round((i.bal-payAmt)*100)/100;
   if(rest>0.5&&less==="disc") t.payments.push({amount:rest,method:"Discount",at:at,note:"Discount"});
+  var due=tcReadDateInput("blDue");
+  if(rest>0.5&&less!=="disc"){ if(due) t.dueDate=due; } else delete t.dueDate;
   save(); closeModal();
   if(extra>0){
    RC={id:id,extra:extra,date:d||todayStr(),mode:mode,note:note};
@@ -215,6 +219,7 @@
      for(var k=0;k<pm.options.length;k++){
       if(pm.options[k].value==="Advance"){ pm.options[k].textContent=B("Advance (taken BEFORE the trip)","അഡ്വാൻസ് (ട്രിപ്പിന് മുമ്പ് വാങ്ങിയത്)"); pm.appendChild(pm.options[k]); break; }
      }
+     if(!pm.querySelector('option[value="Bank"]')){ var bo=document.createElement("option"); bo.value="Bank"; bo.textContent=B("Bank transfer","ബാങ്ക് ട്രാൻസ്ഫർ"); var up=pm.querySelector('option[value="UPI"]'); pm.insertBefore(bo,up?up.nextSibling:null); }
      pm.value="Cash";
     }
     var bt=$("billTrip"), qr=$("billQR");
