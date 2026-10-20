@@ -138,7 +138,7 @@
     var isAdv=!!(q.advanceReceived&&q.advanceReceivedAt&&p.at===q.advanceReceivedAt);
     var key=isAdv?"adv:"+q.id:"pay:"+t.id+":"+p.at+":"+p.amount;
     add(key,{type:"in",date:localDate(p.at),amount:+p.amount,cat:(isAdv||p.method==="Advance")?"Advance":"Trip income",
-     mode:(p.method==="Cash"||p.method==="UPI")?p.method:"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,
+     mode:(p.method==="Cash"||p.method==="UPI"||p.method==="Bank")?p.method:"",customer:t.customer||q.customer||"",route:routeOf(t,q),tripId:t.id,
      vehNo:q.vehicleNo||"",vehName:q.vehicle||""});
    });
   });
@@ -220,7 +220,7 @@
     var fin=billFinalAmount(t,q,c).final;
     var paid=(t.payments||[]).reduce(function(a,p){ return a+(+p.amount||0); },0);
     var bal=Math.round((fin-paid)*100)/100;
-    if(bal>0.5) out.push({id:t.id,customer:t.customer||q.customer||"",bal:bal});
+    if(bal>0.5) out.push({id:t.id,customer:t.customer||q.customer||"",bal:bal,due:t.dueDate||""});
    }catch(e){}
   });
   return out;
@@ -284,7 +284,7 @@
   if(pend.length){
    var tot=pend.reduce(function(a,x){ return a+x.bal; },0);
    h+='<details'+(pend.length<=5?' open':'')+' style="margin:8px 0;border:1px solid #e3d3a5;border-radius:10px;padding:6px 10px;background:#fffaf0"><summary style="cursor:pointer;font-size:13px"><b>'+E(B("To receive on bills: ","ബില്ലുകളിൽ കിട്ടാനുള്ളത്: "))+mny(tot)+'</b> ('+pend.length+')</summary>'+
-    pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbReceive(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">&#10004; '+E(B("Received","കിട്ടി"))+'</button> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
+    pend.slice(0,30).map(function(x){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px"><span>'+E(x.customer)+(x.due?' <span class="muted" style="font-size:11px">'+(x.due<todayIso()?'&#128308; ':'')+E(B("promised ","തരാമെന്ന് പറഞ്ഞത് ")+tcFormatDate(x.due))+'</span>':'')+'</span><span><b>'+mny(x.bal)+'</b> <button onclick="tcAbReceive(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">&#10004; '+E(B("Received","കിട്ടി"))+'</button> <button onclick="tcAbOpenBill(\''+x.id+'\')" style="font-size:12px;padding:3px 8px">'+E(B("Bill","ബിൽ"))+'</button></span></div>'; }).join("")+'</details>';
   }
   h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button><button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
   var un=entries().filter(function(e){ return !vById(e.vehId); }).length;
