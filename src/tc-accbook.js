@@ -159,7 +159,7 @@
     if(e.edited){ e.src="manual"; e.key=""; e.note=(e.note?e.note+" · ":"")+B("bill payment was removed","ബിൽ പേയ്മെന്റ് നീക്കം ചെയ്തു"); }
     else { e.deleted=true; e.removedBySource=true; }
     changed=true;
-   } else if(!e.vehId&&!e.edited&&(e.vehNo||e.vehName)){
+   } else if(!vById(e.vehId)&&(e.vehNo||e.vehName)){
     var v=matchVehicle(e.vehNo,e.vehName);
     if(v){ e.vehId=v.id; changed=true; }
    }
@@ -503,7 +503,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    '<label>'+E(B("Date","തീയതി"))+tcDateInputHtml("abDate",e?e.date:((PRE&&PRE.date)||todayIso()))+'</label>'+
    '<label>'+E(B("Amount","തുക"))+'<input id="abAmt" type="number" inputmode="decimal" min="0" value="'+E(e?e.amount:"")+'"></label>'+
    '<label>'+E(B("Category","വിഭാഗം"))+catSelectHtml(t,cur)+'</label>'+
-   '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(e?e.vehId:(vehId||(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""))))+'</label>'+
+   '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(e?(vById(e.vehId)?e.vehId:((matchVehicle(e.vehNo,e.vehName)||{}).id||"")):(vehId||(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""))))+'</label>'+
    '<label>'+E(B("Paid by","പേയ്മെന്റ് രീതി"))+sel("abMode",[["",B("- not noted -","- രേഖപ്പെടുത്തിയിട്ടില്ല -")]].concat(MODES.map(function(m){ return [m,m]; })),e?e.mode:"")+'</label>'+
    '<label id="abLitRow" style="display:'+(cur==="Fuel"?"":"none")+'">'+E(B("Fuel litres (optional)","ഇന്ധനം ലിറ്റർ (ഓപ്ഷണൽ)"))+'<input id="abLit" type="number" inputmode="decimal" min="0" value="'+E(e&&e.litres?e.litres:"")+'"></label>'+
    '<label>'+E(B("Note","കുറിപ്പ്"))+'<input id="abNote" value="'+E(e?e.note:"")+'"></label></div>'+
@@ -567,7 +567,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   if(!d) d=todayIso();
   var cat=val("abCat"); if(!cat||cat==="__new__") cat=catList(type)[0];
   var lit=parseFloat(val("abLit"));
-  var o={date:d,amount:Math.round(amt*100)/100,cat:cat,vehId:vehVal(),mode:val("abMode"),note:val("abNote"),litres:(cat==="Fuel"&&lit>0)?lit:""};
+  var o={date:d,amount:Math.round(amt*100)/100,cat:cat,vehId:vehVal()||((id&&eById(id)&&matchVehicle(eById(id).vehNo,eById(id).vehName))||{}).id||"",mode:val("abMode"),note:val("abNote"),litres:(cat==="Fuel"&&lit>0)?lit:""};
   var e=id?eById(id):null, others=0, key="";
   if(e){
    key=e.vehNo||e.vehName||"";
