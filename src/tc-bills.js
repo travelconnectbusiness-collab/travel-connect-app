@@ -180,6 +180,7 @@
     '<div class="actions" style="flex-direction:column;align-items:stretch">'+
     '<button class="primary" onclick="tcBlTip(\'veh\')">'+E(B("Vehicle tip - my income","വാഹന ടിപ്പ് - എന്റെ വരവ്"))+'</button>'+
     '<button onclick="tcBlTip(\'drv\')">'+E(B("Driver tip - money to give the driver","ഡ്രൈവർ ടിപ്പ് - ഡ്രൈവർക്ക് കൊടുക്കാനുള്ള പണം"))+'</button>'+
+    '<button onclick="tcBlTip(\'drvd\')">'+E(B("Driver tip - customer gave it to the driver directly (info only)","ഡ്രൈവർ ടിപ്പ് - കസ്റ്റമർ ഡ്രൈവർക്ക് നേരിട്ട് കൊടുത്തു (അറിയാൻ മാത്രം)"))+'</button>'+
     '<button onclick="tcBlTip(\'no\')">'+E(B("Not a tip - do not record","ടിപ്പ് അല്ല - രേഖപ്പെടുത്തേണ്ട"))+'</button></div>');
    afterRecv(id);
    return;
@@ -191,7 +192,7 @@
   var c=RC; RC=null; if(!c){ closeModal(); return; }
   var ok=true;
   if(kind!=="no"){
-   try{ ok=typeof window.tcAbAddTip==="function"&&window.tcAbAddTip({tripId:c.id,amount:c.extra,forDriver:kind==="drv",date:c.date,mode:c.mode,note:c.note}); }catch(e){ ok=false; }
+   try{ ok=typeof window.tcAbAddTip==="function"&&window.tcAbAddTip({tripId:c.id,amount:c.extra,forDriver:kind==="drv",direct:kind==="drvd",date:c.date,mode:c.mode,note:c.note}); }catch(e){ ok=false; }
   }
   closeModal();
   say(kind==="no"?B("Saved","സേവ് ചെയ്തു"):ok?B("Tip saved in Trip & Accounts","ടിപ്പ് ട്രിപ്പ് & അക്കൗണ്ട്സിൽ സേവ് ചെയ്തു"):B("The tip could not be saved (Trip & Accounts needs Premium / the free trial)","ടിപ്പ് സേവ് ചെയ്യാനായില്ല (ട്രിപ്പ് & അക്കൗണ്ട്സിന് Premium / സൗജന്യ കാലയളവ് വേണം)"));
