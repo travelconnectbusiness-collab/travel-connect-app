@@ -484,6 +484,7 @@
    var paid=commPaidSum(b);
    h+='<div class="muted" style="font-size:12.5px">👤 '+E(B("Commission to ","കമ്മീഷൻ ")+(b.viaName||""))+': <b>'+E(commLabel(b))+'</b>'+(paid>0?' · '+E(B("paid ","കൊടുത്തത് "))+E(M(paid)):'')+'</div>';
   }
+  if(!cn&&typeof window.tcBkFlowHtml==="function") h+=window.tcBkFlowHtml(b);   /* next step: start trip / bill (tc-bkflow.js) */
   h+='<div class="actions" style="margin-top:4px">';
   if(!cn){
    h+='<button onclick="tcEnqBookEdit(\''+b.id+'\')">'+E(B("Edit","തിരുത്തുക"))+'</button>';
@@ -693,5 +694,5 @@
   var bs=BL().filter(function(b){ return b.status!=="cancelled"&&b.date===iso&&b.own===true; });
   return vs.every(function(v){ return bs.some(function(b){ return sameVeh(v,b); }); });
  }
- window.__tcEnqApi={bookings:BL,upcoming:upcoming,oldCust:oldCust,today:today,allBusyOn:allBusyOn};
+ window.__tcEnqApi={bookings:BL,upcoming:upcoming,oldCust:oldCust,today:today,allBusyOn:allBusyOn,refresh:schedRefresh};
 })();
