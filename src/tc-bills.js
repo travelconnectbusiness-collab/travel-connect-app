@@ -71,6 +71,7 @@
    '<button onclick="tcBlPrint(\''+id+'\',\'print\')" style="'+btn+'">'+E(B("Print","പ്രിന്റ്"))+'</button>'+
    '<button onclick="tcBlPrint(\''+id+'\',\'pdf\')" style="'+btn+'">PDF</button>'+
    '<button onclick="tcBlPrint(\''+id+'\',\'img\')" style="'+btn+'">'+E(B("Image","ഇമേജ്"))+'</button>'+
+   '<button onclick="tcBlDelete(\''+id+'\')" style="'+btn+';color:#b3261e;border-color:#e3b4b4">&#128465; '+E(B("Delete","ഡിലീറ്റ്"))+'</button>'+
    '</div></div>';
  }
  function paintRows(){
@@ -114,6 +115,34 @@
  }
 
  /* ---------- open / print ---------- */
+ /* Delete a bill (e.g. made twice by mistake). The bill (trip) goes; its automatic money entries leave Trip & Accounts;
+    typed expenses of that trip stay in the book. A copy is kept in db.deletedBills (last 30) so nothing is lost for good. */
+ window.tcBlDelete=function(id){
+  var t=tripOf(id); if(!t) return;
+  var i=info(t), q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]||null;
+  var nm=t.customer||(q&&q.customer)||"-";
+  var msg=B("Delete this bill?\n\n"+nm+(t.billNo?" - "+t.billNo:"")+(i?" - total "+Math.round(i.total):"")+(i&&i.cash>0?"\nPayments recorded on it ("+Math.round(i.cash)+") will also be removed from Trip & Accounts.":"")+"\n\nUse this only for a bill made by mistake or twice.",
+   "ഈ ബിൽ ഡിലീറ്റ് ചെയ്യട്ടേ?\n\n"+nm+(t.billNo?" - "+t.billNo:"")+(i?" - ആകെ "+Math.round(i.total):"")+(i&&i.cash>0?"\nഇതിൽ രേഖപ്പെടുത്തിയ പേയ്മെന്റ് ("+Math.round(i.cash)+") ട്രിപ്പ് & അക്കൗണ്ട്സിൽ നിന്നും നീക്കം ചെയ്യും.":"")+"\n\nതെറ്റായി / രണ്ടു തവണ ഉണ്ടാക്കിയ ബില്ലിന് മാത്രം ഇത് ഉപയോഗിക്കുക.");
+  if(!confirm(msg)) return;
+  var others=(db.trips||[]).filter(function(x){ return x.id!==id&&x.quoteId===t.quoteId; }).length;
+  var dropQuote=!!(q&&q.status==="billed"&&!others);
+  try{
+   var keep=db.deletedBills||(db.deletedBills=[]);
+   keep.unshift({at:new Date().toISOString(),trip:JSON.parse(JSON.stringify(t)),quote:(dropQuote&&q)?JSON.parse(JSON.stringify(q)):null});
+   if(keep.length>30) keep.length=30;
+  }catch(e){}
+  (db.accEntries||[]).forEach(function(e){ if(e&&e.tripId===id&&e.src==="bill"&&!e.edited&&!e.deleted){ e.deleted=true; e.removedBySource=true; } });
+  db.trips=(db.trips||[]).filter(function(x){ return x.id!==id; });
+  if(q){
+   if(dropQuote) db.quotes=(db.quotes||[]).filter(function(x){ return x.id!==q.id; });
+   else if(!others&&q.status==="confirmed") q.status="quoted";
+  }
+  (db.bookings||[]).forEach(function(b){ if(b&&b.tripId===id){ b.tripId=""; if(dropQuote&&b.quoteId===(q&&q.id)) b.quoteId=""; } });
+  (db.liveTrips||[]).forEach(function(l){ if(l&&l.tripId===id){ l.tripId=""; if(l.status==="billed") l.status="ended"; } });
+  try{ save(); }catch(e){}
+  try{ toast(B("Bill deleted","ബിൽ ഡിലീറ്റ് ചെയ്തു")); }catch(e){}
+  try{ if(typeof window.billing==="function") window.billing(); }catch(e){}
+ };
  window.tcBlOpen=function(id){
   var bt=$("billTrip"); if(!bt) return;
   bt.value=id;
