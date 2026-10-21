@@ -673,6 +673,25 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   if(!canWrite()){ locked(); return; }
   entryForm(e,e.type);
  };
+ /* A typed entry on a day when this vehicle had a trip: ask once whether it belongs to that trip (so it shows in the trip report) */
+ function tripAsk(o){
+  try{
+   var hits=(db.trips||[]).filter(function(t){
+    var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]; if(!q) return false;
+    var v=matchVehicle(q.vehicleNo,q.vehicle); if(!v||v.id!==o.vehId) return false;
+    var d0=String(t.startDate||q.startDate||"").slice(0,10); if(!d0) return false;
+    var n=Math.max(1,parseInt(t.days||q.days||1,10)||1), d1=new Date(d0+"T12:00:00"); d1.setDate(d1.getDate()+n-1);
+    var e1=d1.getFullYear()+"-"+String(d1.getMonth()+1).padStart(2,"0")+"-"+String(d1.getDate()).padStart(2,"0");
+    return o.date>=d0&&o.date<=e1;
+   });
+   for(var i=0;i<hits.length&&i<2;i++){
+    var t=hits[i], q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0], nm=t.customer||q.customer||"";
+    if(confirm(B("Add this to the trip of "+nm+" ("+routeOf(t,q)+")?\nOK = add to that trip, Cancel = keep it separate.","ഇത് "+nm+" ന്റെ ട്രിപ്പിൽ ("+routeOf(t,q)+") ചേർക്കട്ടേ?\nOK = ആ ട്രിപ്പിൽ ചേർക്കുക, Cancel = വേറെ ആയി നിൽക്കട്ടെ."))){
+     o.tripId=t.id; o.customer=nm; o.route=routeOf(t,q); return;
+    }
+   }
+  }catch(e){}
+ }
  window.tcAbSave=function(id,type){
   if(!canWrite()){ locked(); return; }
   var amt=parseFloat(val("abAmt"));
@@ -698,6 +717,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   }else{
    o.id=uid(); o.type=type; o.src="manual"; o.created=nowIso();
    if(PRE){ o.customer=PRE.customer; o.route=PRE.route; o.tripId=PRE.tripId; }
+   if(!o.tripId&&o.vehId) tripAsk(o);   /* same day + same vehicle as a trip -> offer to add it to that trip */
    EL().push(o);
   }
   PRE=null; persist(); closeModal(); say(B("Saved","സേവ് ചെയ്തു")); renderBook();
