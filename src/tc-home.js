@@ -30,11 +30,22 @@
   if(b.own===false) return "🤝 "+((b.partner&&b.partner.name)||B("Partner","പാർട്ണർ"));
   return "⚠ "+B("vehicle not set","വാഹനം തീരുമാനിച്ചിട്ടില്ല");
  }
+ function stateTxt(b){
+  try{
+   var st=typeof window.tcBkFlowState==="function"?window.tcBkFlowState(b):"";
+   var m={billed:B("✅ billed","✅ ബില്ല് ചെയ്തു"),road:B("🚗 on trip","🚗 ട്രിപ്പിൽ"),ended:B("🏁 bill pending","🏁 ബില്ല് ബാക്കി"),done:B("✔ done - bill pending","✔ കഴിഞ്ഞു - ബില്ല് ബാക്കി")};
+   return m[st]?' · '+m[st]:'';
+  }catch(e){ return ""; }
+ }
+ function openPast(t){
+  if(typeof window.tcBkFlowState!=="function") return 0;
+  return (db.bookings||[]).filter(function(b){ return b.status!=="cancelled"&&b.date&&b.date<t&&b.date>=shift(t,-30)&&["new","road","ended"].indexOf(window.tcBkFlowState(b))>=0; }).length;
+ }
  function row(b,color){
   var place=short([b.pickup,b.dest].filter(Boolean).join(" → "),38);
   return '<div onclick="tcSchedule()" style="cursor:pointer;border-left:4px solid '+color+';background:#fff;border-radius:8px;padding:6px 8px;margin:4px 0;border-top:1px solid #e6ebee;border-right:1px solid #e6ebee;border-bottom:1px solid #e6ebee">'+
    '<div style="font-weight:800;font-size:14px">'+(b.time?E(tF(b.time))+' · ':'')+E(b.name)+' <span style="font-weight:400;font-size:12px" class="muted">'+E(b.mobile||"")+'</span></div>'+
-   '<div class="muted" style="font-size:12.5px;word-break:break-word">'+E(place)+(place?' · ':'')+E(who(b))+'</div></div>';
+   '<div class="muted" style="font-size:12.5px;word-break:break-word">'+E(place)+(place?' · ':'')+E(who(b))+stateTxt(b)+'</div></div>';
  }
  function openEnquiries(){
   var bk=(db.bookings||[]).filter(function(b){ return b.status!=="cancelled"; });
@@ -48,9 +59,11 @@
   var bk=(db.bookings||[]).filter(function(b){ return b.status!=="cancelled"; });
   function on(d){ return bk.filter(function(b){ return b.date===d; }).sort(function(a,b){ return String(a.time||"").localeCompare(String(b.time||"")); }); }
   var td=on(t), nx=on(tm);
+  var np=openPast(t);
   var later=bk.filter(function(b){ return b.date>tm&&b.date<=wk; }).length;
   var h='<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><h3 style="margin:0">📅 '+E(B("Bookings & follow-ups","ബുക്കിംഗുകൾ & ഫോളോ-അപ്പ്"))+'</h3>'+
    '<button onclick="tcSchedule()" style="padding:5px 10px;font-size:12px">'+E(B("Schedule","ഷെഡ്യൂൾ"))+' ›</button></div>';
+  if(np>0) h+='<div onclick="tcSchedule()" style="cursor:pointer;background:#fdecec;border:1px solid #e3b4b4;border-radius:8px;padding:6px 8px;margin-top:6px;font-size:12.5px"><b>⚠ '+np+'</b> '+E(B("past booking(s) not billed yet - tap to close them (trip done / make bill)","കഴിഞ്ഞ ബുക്കിംഗ് ബില്ല് ചെയ്തിട്ടില്ല - അമർത്തി ട്രിപ്പ് കഴിഞ്ഞു / ബില്ല് ഉണ്ടാക്കുക"))+' ›</div>';
   h+='<div style="font-weight:800;font-size:13px;color:#a12d2d;margin-top:6px">'+E(B("Today","ഇന്ന്"))+' ('+td.length+')</div>';
   h+=td.map(function(b){ return row(b,"#c0392b"); }).join("")||'<div class="muted" style="font-size:12.5px">'+E(B("No bookings today.","ഇന്ന് ബുക്കിംഗ് ഇല്ല."))+'</div>';
   h+='<div style="font-weight:800;font-size:13px;color:#8a5a00;margin-top:6px">'+E(B("Tomorrow","നാളെ"))+' ('+nx.length+')</div>';
