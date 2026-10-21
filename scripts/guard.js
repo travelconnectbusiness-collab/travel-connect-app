@@ -159,6 +159,7 @@ const MARKERS = [
   ["src/tc-accbook.js", "tcAbXlsx()", "Trip & Accounts shows the Excel button next to CSV"],
   ["src/tc-tripcards.js", "__tcTrApi", "Trip report data shared with the Excel export"],
   ["src/tc-regdocs.js", "tc-xlsx.js", "tc-regdocs.js loads tc-xlsx.js"],
+  ["src/tc-accbook.js", "tripAsk", "Typed entry on the same day + vehicle as a trip asks: add this to that trip?"],
   ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
   ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
   ["src/tc-nav.js", "cleanStale", "Navigation: a closed pop-up leaves no extra Back step"],
