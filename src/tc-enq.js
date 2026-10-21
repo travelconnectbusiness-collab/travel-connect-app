@@ -117,7 +117,7 @@
   var b2=a.querySelector('button[onclick="saveQuickAsEnquiry()"]');
   if(b2&&b2.parentNode) b2.parentNode.insertAdjacentHTML("beforebegin",extraHtml("eqx",false));
   var h=a.querySelector("h2");
-  var top='<div class="actions" style="margin:6px 0"><button class="primary" onclick="tcSchedule()">📅 '+E(B("Booking Schedule","ബുക്കിംഗ് ഷെഡ്യൂൾ"))+' ('+upcoming().length+')</button></div>';
+  var top='<div class="actions" style="margin:6px 0"><button class="primary" onclick="tcSchedule()">📅 '+E(B("Booking Schedule","ബുക്കിംഗ് ഷെഡ്യൂൾ"))+' ('+upcoming().length+')</button>'+(typeof window.tcDemand==="function"?'<button onclick="tcDemand()">📊 '+E(B("Demand report","ഡിമാൻഡ് റിപ്പോർട്ട്"))+'</button>':'')+'</div>';
   if(h) h.insertAdjacentHTML("afterend",top);
   var l=$("enqList"); if(l) l.innerHTML=enqListHtml();
  }
@@ -430,7 +430,7 @@
   return wd+" · "+dF(d);
  }
  function schedPage(){
-  app().innerHTML=card(B("Booking Schedule","ബുക്കിംഗ് ഷെഡ്യൂൾ"),'<div id="bkSchedBox">'+schedHtml()+'</div>');
+  app().innerHTML=card(B("Booking Schedule","ബുക്കിംഗ് ഷെഡ്യൂൾ"),(typeof window.tcDemand==="function"?'<div class="actions" style="margin:4px 0"><button onclick="tcDemand()">📊 '+E(B("Demand report","ഡിമാൻഡ് റിപ്പോർട്ട്"))+'</button></div>':'')+'<div id="bkSchedBox">'+schedHtml()+'</div>');
  }
  function schedRefresh(){ var b=$("bkSchedBox"); if(b) b.innerHTML=schedHtml(); else if(location.hash==="#schedule") schedPage(); }
  window.tcSchedTab=function(t){ SC.tab=t; schedRefresh(); };
@@ -489,6 +489,7 @@
    h+='<button onclick="tcEnqBookEdit(\''+b.id+'\')">'+E(B("Edit","തിരുത്തുക"))+'</button>';
    if(!b.quoteId) h+='<button onclick="tcEnqBookQuote(\''+b.id+'\')">'+E(B("Quotation","ക്വട്ടേഷൻ"))+'</button>';
    if(b.own===false&&(b.partner||{}).margin>0) h+='<button onclick="tcEnqMargin(\''+b.id+'\')">💰 '+E(B("Margin received","മാർജിൻ കിട്ടി"))+'</button>';
+   if(b.own===false) h+='<button onclick="tcEnqPartnerPaid(\''+b.id+'\')">💸 '+E(B("Paid to partner","പാർട്ണർക്ക് കൊടുത്തു"))+'</button>';
    if(b.source==="via"&&(b.commAmount>0||b.commPct>0)) h+='<button onclick="tcEnqCommPaid(\''+b.id+'\')">💸 '+E(B("Commission paid","കമ്മീഷൻ കൊടുത്തു"))+'</button>';
    if(wa&&(b.date||"")>=today()) h+='<button onclick="tcEnqRemind(\''+b.id+'\')">🔔 '+E(B("Remind","ഓർമ്മപ്പെടുത്തുക"))+'</button>';
    else if(wa) h+='<button onclick="window.open(\'https://wa.me/'+wa+'\',\'_blank\')">WhatsApp</button>';
@@ -624,24 +625,73 @@
  ["input","change"].forEach(function(ev){
   document.addEventListener(ev,function(e){ var t=e.target; if(t&&t.id&&CL[t.id]) setTimeout(function(){ try{ showClash(t.id); }catch(er){} },0); },true);
  });
- /* ---------- WhatsApp reminder to the customer ---------- */
- window.tcEnqRemind=function(id){
-  var b=bById(id); if(!b) return;
-  var wa=typeof tcWaNumber==="function"?tcWaNumber(b.mobile):""; if(!wa){ say(B("No mobile number","മൊബൈൽ നമ്പർ ഇല്ല")); return; }
+ /* ---------- WhatsApp reminder to the customer (preview + edit before sending) ---------- */
+ function nice(t){ t=String(t||"").trim(); return (t&&t===t.toLowerCase())?t.replace(/\b([a-z])/g,function(m){ return m.toUpperCase(); }):t; }
+ function mlWhen(b){
+  var t=today(), day=b.date===t?"ഇന്ന് ("+dF(b.date)+")":b.date===shift(t,1)?"നാളെ ("+dF(b.date)+")":dF(b.date);
+  if(!b.time) return day;
+  var h=parseInt(String(b.time).split(":")[0],10), part=h<6?"പുലർച്ചെ":h<12?"രാവിലെ":h<15?"ഉച്ചയ്ക്ക്":h<19?"വൈകുന്നേരം":"രാത്രി";
+  return day+" "+part+" "+tF(b.time)+"-ന്";
+ }
+ function remindText(b){
   var biz=(db.business&&db.business.name)||"", ph=[db.business&&db.business.phone,db.business&&db.business.phone2].filter(Boolean).join(" / ");
-  var veh=b.own===true?((b.vehName||"")+" "+(b.vehNo||"")).trim():(b.own===false&&b.partner?(b.partner.vehNo||""):"");
-  var L=[];
-  L.push("Hello "+b.name+",");
-  L.push("This is a reminder of your trip booking"+(biz?" with "+biz:"")+":");
+  var ttl=b.title==="madam"?" Madam":b.title==="sir"?" Sir":"", mt=b.title==="madam"?" മാഡം":b.title==="sir"?" സാർ":"";
+  var veh=b.own===true?((b.vehName||"").trim()+(b.vehNo?" ("+b.vehNo+")":"")):(b.own===false&&b.partner&&b.partner.vehNo?"("+b.partner.vehNo+")":"");
+  var pick=nice(b.pickup), dest=nice(b.dest), L=[];
+  L.push("Dear "+b.name+ttl+",");
+  L.push("Greetings"+(biz?" from "+biz:"")+" 🙏");
+  L.push("This is a gentle reminder of your trip booking:");
+  L.push("");
   L.push("📅 "+dF(b.date)+(b.time?", "+tF(b.time):""));
-  if(b.pickup) L.push("📍 Pickup: "+b.pickup);
-  if(b.dest) L.push("🏁 Destination: "+b.dest);
-  if(veh) L.push("🚖 Vehicle: "+veh);
+  if(pick) L.push("📍 Pickup: "+pick);
+  if(dest) L.push("🏁 Destination: "+dest);
+  if(veh.trim()) L.push("🚖 Vehicle: "+veh.trim());
   if(b.own===true&&b.driver) L.push("👤 Driver: "+b.driver);
   if(ph) L.push("📞 "+ph);
   L.push("");
-  L.push("നമസ്കാരം "+b.name+", നിങ്ങളുടെ യാത്രാ ബുക്കിംഗ് ഓർമ്മപ്പെടുത്തൽ: "+dF(b.date)+(b.time?", "+tF(b.time):"")+".");
-  window.open("https://wa.me/"+wa+"?text="+encodeURIComponent(L.join("\n")),"_blank");
+  L.push("ബഹുമാനപ്പെട്ട "+b.name+mt+", "+mlWhen(b)+" നിങ്ങളുടെ യാത്ര"+((pick||dest)?" ("+[pick,dest].filter(Boolean).join(" → ")+")":"")+" ഓർമ്മപ്പെടുത്തുന്നു.");
+  L.push("");
+  L.push("Thank you for choosing us. Wishing you a safe and pleasant journey! 😊");
+  if(biz) L.push("– "+biz);
+  return L.join("\n");
+ }
+ window.tcEnqRemind=function(id){
+  var b=bById(id); if(!b) return;
+  var wa=typeof tcWaNumber==="function"?tcWaNumber(b.mobile):""; if(!wa){ say(B("No mobile number","മൊബൈൽ നമ്പർ ഇല്ല")); return; }
+  var chip=function(k,l){ return '<button type="button" onclick="tcEnqRemindTitle(\''+id+'\',\''+k+'\')" style="padding:5px 12px;font-size:12.5px;'+((b.title||"")===k?'background:#0b6b7a;color:#fff;border-color:#0b6b7a':'')+'">'+E(l)+'</button>'; };
+  modal('<h2>🔔 '+E(B("Reminder to the customer","കസ്റ്റമർക്കുള്ള ഓർമ്മപ്പെടുത്തൽ"))+'</h2><div style="display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap"><span class="muted" style="font-size:12.5px">'+E(B("Address as:","സംബോധന:"))+'</span>'+chip("sir","Sir")+chip("madam","Madam")+chip("",B("Name only","പേര് മാത്രം"))+'</div>'+
+   '<textarea id="rmText" rows="14" style="width:100%;font-size:13px;line-height:1.4">'+E(remindText(b))+'</textarea>'+
+   '<p class="muted" style="font-size:12px;margin:3px 0">'+E(B("You can edit the message before sending.","അയക്കുന്നതിന് മുൻപ് സന്ദേശം തിരുത്താം."))+'</p>'+
+   '<div class="actions"><button class="primary" onclick="tcEnqRemindSend(\''+id+'\')">WhatsApp ›</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>');
  };
- window.__tcEnqApi={bookings:BL,upcoming:upcoming,oldCust:oldCust,today:today};
+ window.tcEnqRemindTitle=function(id,k){
+  var b=bById(id); if(!b) return; b.title=k; persist();
+  var ta=$("rmText"); if(ta) ta.value=remindText(b);
+  document.querySelectorAll('#modal button[onclick^="tcEnqRemindTitle"]').forEach(function(x){
+   var on=x.getAttribute("onclick").indexOf("'"+k+"')")>0; x.style.background=on?"#0b6b7a":""; x.style.color=on?"#fff":""; x.style.borderColor=on?"#0b6b7a":"";
+  });
+ };
+ window.tcEnqRemindSend=function(id){
+  var b=bById(id); if(!b) return;
+  var wa=tcWaNumber(b.mobile), t=$("rmText")?$("rmText").value:remindText(b);
+  window.open("https://wa.me/"+wa+"?text="+encodeURIComponent(t),"_blank");
+  closeModal();
+ };
+ window.tcEnqPartnerPaid=function(id){
+  var b=bById(id); if(!b||!b.partner) return; if(!bookOk()) return;
+  var q=b.quoteId?qById(b.quoteId):null, amt=(q&&q.quotedAmount&&b.partner.margin>=0)?Math.max(0,q.quotedAmount-(b.partner.margin||0)):"";
+  moneyForm(B("Paid to partner","പാർട്ണർക്ക് കൊടുത്തു"),(b.partner.name||"")+" · "+b.name+" · "+dF(b.date)+" — "+B("use this when the customer paid YOU the full fare","കസ്റ്റമർ മുഴുവൻ തുകയും നിങ്ങൾക്കാണ് തന്നതെങ്കിൽ ഇത് ഉപയോഗിക്കുക"),amt,B("Add to book","ബുക്കിൽ ചേർക്കുക"),"tcEnqPartnerPaidSave('"+id+"')");
+ };
+ window.tcEnqPartnerPaidSave=function(id){
+  var b=bById(id), m=readMoney(); if(!b||!m) return;
+  var en=addEntry({type:"out",date:m.date,amount:m.amount,cat:"Other",mode:m.mode,customer:b.name,route:[b.pickup,b.dest].filter(Boolean).join(" → "),note:B("Paid to partner ","പാർട്ണർക്ക് കൊടുത്തത്: ")+(b.partner.name||""),bookingId:b.id,tripId:b.tripId||undefined});
+  (b.partner.paid=b.partner.paid||[]).push({date:m.date,amount:m.amount,mode:m.mode,entryId:en.id});
+  persist(); closeModal(); say(B("Added to the book as an expense","ബുക്കിൽ ചെലവായി ചേർത്തു")); schedRefresh();
+ };
+ function allBusyOn(iso){
+  var vs=ownVehicles(); if(!vs.length||!iso) return false;
+  var bs=BL().filter(function(b){ return b.status!=="cancelled"&&b.date===iso&&b.own===true; });
+  return vs.every(function(v){ return bs.some(function(b){ return sameVeh(v,b); }); });
+ }
+ window.__tcEnqApi={bookings:BL,upcoming:upcoming,oldCust:oldCust,today:today,allBusyOn:allBusyOn};
 })();
