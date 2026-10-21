@@ -296,7 +296,7 @@
   }
   return h; }
   function actionsHtml(){ var h='';
-  h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button>'+(entries().some(isDrv)?'<button onclick="tcAbDrvTips()">&#128100; '+E(B("Driver tips","ഡ്രൈവർ ടിപ്പ്"))+'</button>':'')+'<button onclick="tcAbCsv()">&#128190; CSV ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button></div>';
+  h+='<div class="actions" style="margin-top:8px"><button class="primary" style="background:#1c6b2c;border-color:#1c6b2c" onclick="tcAbAdd(\'in\')">+ '+E(B("Income","വരവ്"))+'</button><button class="primary" style="background:#a12d2d;border-color:#a12d2d" onclick="tcAbAdd(\'out\')">- '+E(B("Expense","ചെലവ്"))+'</button><button onclick="tcAbTip()">&#127873; '+E(B("Tip","ടിപ്പ്"))+'</button>'+(entries().some(isDrv)?'<button onclick="tcAbDrvTips()">&#128100; '+E(B("Driver tips","ഡ്രൈവർ ടിപ്പ്"))+'</button>':'')+'<button class="primary" style="background:#1d6f42;border-color:#1d6f42" onclick="tcAbXlsx()">&#128202; Excel ('+E(popts.filter(function(o){ return o[0]===ST.period; })[0][1])+')</button><button onclick="tcAbCsv()">&#128190; '+E(B("CSV for other software","CSV (മറ്റ് സോഫ്റ്റ്‌വെയറിന്)"))+'</button></div>';
   return h; }
   function hintsHtml(){ var h='';
   var un=entries().filter(function(e){ return !vById(e.vehId); }).length;
@@ -459,7 +459,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   entryForm(null,"out",v?v.id:"-");
  };
  /* read-only helpers for tc-tripcards.js */
- window.__tcAbApi={entries:entries,ST:ST,periodRange:periodRange,vById:vById,matchVehicle:matchVehicle,isDrv:isDrv,catLabel:catLabel,canWrite:canWrite,routeOf:routeOf,todayIso:todayIso};
+ window.__tcAbApi={filtered:filtered,sums:sums,popts:function(){ return [["month",B("This month","ഈ മാസം")],["last",B("Last month","കഴിഞ്ഞ മാസം")],["year",B("This year","ഈ വർഷം")],["all",B("All time","എല്ലാ കാലവും")]]; },entries:entries,ST:ST,periodRange:periodRange,vById:vById,matchVehicle:matchVehicle,isDrv:isDrv,catLabel:catLabel,canWrite:canWrite,routeOf:routeOf,todayIso:todayIso};
  /* new entry for a chosen day (used by the Day Book) */
  window.tcAbAddOn=function(type,day){ if(!canWrite()){ locked(); return; } PRE={date:day||todayIso()}; entryForm(null,type); };
  window.tcAbOpenBill=function(tripId){
@@ -813,10 +813,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    var v=vById(e.vehId);
    rows.push([e.date,e.type==="in"?"Income":"Expense",e.cat,e.amount,v?v.name:(e.vehName||""),v?v.no:(e.vehNo||""),e.customer||"",e.route||"",e.mode||"",e.litres||"",e.note||"",e.src==="bill"?"Bill":e.src==="old"?"Old Accounts":"Typed"]);
   });
-  rows.push([]);
-  var t=sums(list);
-  rows.push(["Total income","","",t.inc]); rows.push(["Total expense","","",t.out]); rows.push(["Profit","","",t.net]); if(t.drv>0) rows.push(["Tips given to drivers (not counted above)","","",t.drv]);
-  rows.push([]); rows.push(["For personal record keeping only - not GST/tax filing."]);
+  /* data rows only (no totals rows) so other software can read it as a clean table; totals are in the Excel file */
   var text="﻿"+rows.map(function(r){ return r.map(csvCell).join(","); }).join("\r\n");
   var name="TravelConnect_Accounts_"+todayIso()+".csv";
   try{
