@@ -142,6 +142,8 @@ const MARKERS = [
   ["src/tc-enq.js", "tcEnqConfirm", "Enquiry Confirm makes a booking in the schedule"],
   ["src/tc-enq.js", "tcEnqMarginSave", "Partner margin is booked as income only when received (cash basis)"],
   ["src/tc-enq.js", "tcEnqLostSave", "Enquiry outcome: Lost with reason"],
+  ["src/tc-enq.js", "clashHtml", "Trip-date boxes show the bookings already on that day, free / busy vehicles, partner suggestion"],
+  ["src/tc-enq.js", "tcEnqRemind", "Booking: WhatsApp reminder text to the customer"],
   ["src/tc-regdocs.js", "tc-enq.js", "tc-regdocs.js loads tc-enq.js"],
   ["src/tc-home.js", "__tcHome", "Dashboard: Bookings & follow-ups card; rarely used boxes moved into the closed 'More' box"],
   ["src/tc-home.js", "tcBkCard", "Dashboard shows today's / tomorrow's bookings and open enquiries"],
