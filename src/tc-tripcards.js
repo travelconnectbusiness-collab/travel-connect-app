@@ -198,4 +198,6 @@
   url+="?text="+encodeURIComponent(txt);
   try{ window.open(url,"_blank"); }catch(e){ location.href=url; }
  };
+ /* read-only helpers for tc-xlsx.js */
+ window.__tcTrApi={allTrips:allTrips,dests:dests};
 })();
