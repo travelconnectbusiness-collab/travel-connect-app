@@ -84,6 +84,7 @@
   return '<div id="'+p+'Extra" style="border:1px dashed #9db4c0;border-radius:10px;padding:8px;margin:8px 0;background:#f7fbfd">'+
    '<b style="font-size:13px">'+E(B("Booking details","ബുക്കിംഗ് വിവരങ്ങൾ"))+'</b>'+
    '<div class="grid">'+
+   (p==="eqx"?'<label>'+E(B("Trip date","യാത്രാ തീയതി"))+tcDateInputHtml("eqxDate","")+'</label>':'')+
    '<label>'+E(B("Pickup time","പിക്കപ്പ് സമയം"))+'<input id="'+p+'Time" type="time"></label>'+
    (withCat?'<label>'+E(B("Vehicle category","വാഹന വിഭാഗം"))+'<select id="'+p+'Cat">'+tcCategoryOptions()+'</select></label>':'')+
    '<label>'+E(B("Passengers","യാത്രക്കാർ"))+'<input id="'+p+'Pax" type="number" min="1" inputmode="numeric"></label>'+
@@ -97,6 +98,7 @@
    viaName:src==="via"?V(p+"Via"):"",viaMobile:src==="via"?V(p+"ViaMob"):"",
    commAmount:src==="via"?c.amount:0,commPct:src==="via"?c.pct:0,commText:src==="via"?c.text:""};
   var cat=V(p+"Cat"); if(cat!=="") o.categoryId=+cat;
+  if($(p+"Date")){ var dd=tcReadDateInput(p+"Date"); if(dd) o.date=dd; }
   return o;
  }
 
@@ -232,6 +234,7 @@
    '<label>'+E(B("Note","കുറിപ്പ്"))+'<input id="xeNote" value="'+E(e.note||"")+'"></label>'+
    '<div class="actions"><button class="primary" onclick="tcEnqEditSave(\''+id+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>');
   if(e.categoryId!=null&&$("xeCat")) $("xeCat").value=String(e.categoryId);
+  showClash("xeDate");
  };
  window.tcEnqEditSave=function(id){
   var e=eById(id); if(!e) return;
@@ -292,6 +295,7 @@
    '<div class="actions"><button class="primary" onclick="tcEnqBookSave()">'+E(isNew?B("Confirm booking","ബുക്കിംഗ് കൺഫേം"):B("Save","സേവ് ചെയ്യുക"))+'</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>';
   modal(h);
   if(d.categoryId!=null&&$("bkCat")) $("bkCat").value=String(d.categoryId);
+  showClash("bkDate");
  }
  window.tcEnqOwnToggle=function(){ var v=V("bkOwn"); if($("bkOwnBox")) $("bkOwnBox").style.display=v==="yes"?"":"none"; if($("bkPartBox")) $("bkPartBox").style.display=v==="no"?"":"none"; };
  function draftFromEnq(e){
@@ -310,6 +314,14 @@
   var x=readExtras("bk"), own=V("bkOwn");
   if(x.source==="via"&&!x.viaName){ say(B("Enter the name of the person it came through","ആര് വഴി വന്നു എന്ന പേര് നൽകുക")); return; }
   if(own==="no"&&!V("bkPName")){ say(B("Enter the partner's name","പാർട്ണറുടെ പേര് നൽകുക")); return; }
+  if(own==="yes"){
+   var cv=V("bkVeh"), cvs=ownVehicles().filter(function(z){ return z.key===cv; })[0], cno=cvs?cvs.no:V("bkVehNo"), cid=cvs?cvs.id:"", cdr=V("bkDrv").toLowerCase();
+   var other=BL().filter(function(z){ return z.id!==d.id&&z.status!=="cancelled"&&z.date===dt&&z.own===true; });
+   var sameV=other.filter(function(z){ return (cid&&z.vehId===cid)||(cno&&z.vehNo===cno); })[0];
+   var sameD=cdr?other.filter(function(z){ return (z.driver||"").toLowerCase()===cdr; })[0]:null;
+   if(sameV&&!confirm(B("This vehicle is already booked that day ("+(sameV.time?tF(sameV.time)+", ":"")+sameV.name+"). Save anyway?","ഈ വാഹനം ആ ദിവസം ഇതിനകം ബുക്ക് ചെയ്തിട്ടുണ്ട് ("+(sameV.time?tF(sameV.time)+", ":"")+sameV.name+"). എന്നാലും സേവ് ചെയ്യട്ടേ?"))) return;
+   if(sameD&&!sameV&&!confirm(B("This driver is already on another booking that day ("+(sameD.time?tF(sameD.time)+", ":"")+sameD.name+"). Save anyway?","ഈ ഡ്രൈവർ ആ ദിവസം മറ്റൊരു ബുക്കിംഗിൽ ഉണ്ട് ("+(sameD.time?tF(sameD.time)+", ":"")+sameD.name+"). എന്നാലും സേവ് ചെയ്യട്ടേ?"))) return;
+  }
   d.name=V("bkName"); d.mobile=V("bkMob"); d.date=dt; d.time=V("bkTime"); d.pickup=V("bkPick"); d.dest=V("bkDest");
   d.categoryId=V("bkCat")===""?undefined:+V("bkCat"); d.pax=parseInt(V("bkPax"),10)||0; d.note=V("bkNote");
   d.source=x.source; d.viaName=x.viaName; d.viaMobile=x.viaMobile; d.commAmount=x.commAmount; d.commPct=x.commPct; d.commText=x.commText;
@@ -340,6 +352,7 @@
    try{
     var e=eById(id); if(!e) return;
     if(e.time&&$("qStartTime")&&!$("qStartTime").value) $("qStartTime").value=e.time;
+    showClash("qStart");
     var b=BL().filter(function(z){ return z.enquiryId===id&&z.status!=="cancelled"; })[0];
     if(b&&b.own&&(b.vehNo||b.vehName)){
      if($("qVehicleNo")&&!$("qVehicleNo").value) $("qVehicleNo").value=b.vehNo||"";
@@ -477,7 +490,8 @@
    if(!b.quoteId) h+='<button onclick="tcEnqBookQuote(\''+b.id+'\')">'+E(B("Quotation","ക്വട്ടേഷൻ"))+'</button>';
    if(b.own===false&&(b.partner||{}).margin>0) h+='<button onclick="tcEnqMargin(\''+b.id+'\')">💰 '+E(B("Margin received","മാർജിൻ കിട്ടി"))+'</button>';
    if(b.source==="via"&&(b.commAmount>0||b.commPct>0)) h+='<button onclick="tcEnqCommPaid(\''+b.id+'\')">💸 '+E(B("Commission paid","കമ്മീഷൻ കൊടുത്തു"))+'</button>';
-   if(wa) h+='<button onclick="window.open(\'https://wa.me/'+wa+'\',\'_blank\')">WhatsApp</button>';
+   if(wa&&(b.date||"")>=today()) h+='<button onclick="tcEnqRemind(\''+b.id+'\')">🔔 '+E(B("Remind","ഓർമ്മപ്പെടുത്തുക"))+'</button>';
+   else if(wa) h+='<button onclick="window.open(\'https://wa.me/'+wa+'\',\'_blank\')">WhatsApp</button>';
    h+='<button class="danger" onclick="tcEnqCancel(\''+b.id+'\')">'+E(B("Cancel booking","റദ്ദാക്കുക"))+'</button>';
   }else{
    h+='<button onclick="tcEnqRestore(\''+b.id+'\')">↩ '+E(B("Restore","തിരികെ കൊണ്ടുവരിക"))+'</button>';
@@ -507,11 +521,20 @@
   b.status="cancelled"; b.cancelReason=V("cnR"); b.advRefunded=a==="yes"?true:a==="no"?false:null; b.cancelledAt=new Date().toISOString();
   var e=b.enquiryId?eById(b.enquiryId):null;
   if(e){ e.outcome="lost"; e.lostReason="cancel"; e.lostAt=b.cancelledAt; }
-  persist(); closeModal(); say(B("Booking cancelled","ബുക്കിംഗ് റദ്ദാക്കി")); schedRefresh();
+  var refunded="";
+  try{
+   var rq=b.quoteId?qById(b.quoteId):null;
+   if(a==="yes"&&rq&&rq.advanceReceived&&+rq.advanceAmount>0&&!b.refundEntryId&&window.__tcAbApi&&window.__tcAbApi.canWrite()){
+    var re=addEntry({type:"out",date:today(),amount:+rq.advanceAmount,cat:"Other",mode:(rq.advanceMethod==="Cash"||rq.advanceMethod==="UPI"||rq.advanceMethod==="Bank")?rq.advanceMethod:"",customer:b.name,route:[b.pickup,b.dest].filter(Boolean).join(" → "),note:B("Advance refund (booking cancelled)","അഡ്വാൻസ് തിരികെ കൊടുത്തു (ബുക്കിംഗ് റദ്ദാക്കി)"),bookingId:b.id,vehId:b.own&&b.vehId?b.vehId:""});
+    b.refundEntryId=re.id; refunded=" · "+B("advance refund added to the book","അഡ്വാൻസ് റീഫണ്ട് ബുക്കിൽ ചേർത്തു");
+   }
+  }catch(er){}
+  persist(); closeModal(); say(B("Booking cancelled","ബുക്കിംഗ് റദ്ദാക്കി")+refunded); schedRefresh();
  };
  window.tcEnqRestore=function(id){
   var b=bById(id); if(!b) return;
   b.status="booked"; b.cancelReason=""; b.advRefunded=null;
+  if(b.refundEntryId){ (db.accEntries||[]).forEach(function(x){ if(x.id===b.refundEntryId){ x.deleted=true; x.edited=true; } }); b.refundEntryId=""; }
   var e=b.enquiryId?eById(b.enquiryId):null; if(e){ e.outcome="booked"; e.lostReason=""; }
   persist(); schedRefresh();
  };
@@ -560,6 +583,65 @@
   var en=addEntry({type:"out",date:m.date,amount:m.amount,cat:"Commission paid",mode:m.mode,customer:b.name,route:[b.pickup,b.dest].filter(Boolean).join(" → "),note:B("Commission to ","കമ്മീഷൻ: ")+(b.viaName||""),bookingId:b.id,vehId:b.own&&b.vehId?b.vehId:""});
   (b.commPaid=b.commPaid||[]).push({date:m.date,amount:m.amount,mode:m.mode,entryId:en.id});
   persist(); closeModal(); say(B("Added to the book as Commission paid","ബുക്കിൽ Commission paid ആയി ചേർത്തു")); schedRefresh();
+ };
+ /* ---------- same-day clash panel (shown under every trip-date box) ---------- */
+ function sameVeh(v,b){ return (v.id&&b.vehId===v.id)||(v.no&&b.vehNo===v.no); }
+ function clashHtml(iso,selfId){
+  var bs=BL().filter(function(b){ return b.status!=="cancelled"&&b.date===iso&&b.id!==selfId; });
+  bs.sort(function(a,b){ return String(a.time||"").localeCompare(String(b.time||"")); });
+  var vs=ownVehicles();
+  var h='<div style="grid-column:1/-1;border-radius:10px;padding:7px 9px;margin:4px 0;font-size:12.5px;'+(bs.length?'background:#fff8e6;border:1px solid #e0a526':'background:#eef8ef;border:1px solid #9fcba6')+'">';
+  if(!bs.length){
+   return h+'✅ '+E(B("No bookings on "+dF(iso)+" - all vehicles free.","ബുക്കിംഗ് ഇല്ല "+dF(iso)+" - എല്ലാ വാഹനങ്ങളും ഒഴിവ്."))+'</div>';
+  }
+  h+='<b>📅 '+E(B("Already booked on "+dF(iso)+": "+bs.length,dF(iso)+"-ന് ഇതിനകം ബുക്ക് ചെയ്തത്: "+bs.length))+'</b>';
+  bs.forEach(function(b){
+   h+='<div style="margin-top:2px">• '+(b.time?'<b>'+E(tF(b.time))+'</b> ':'')+E(b.name)+' · '+E(short([b.pickup,b.dest].filter(Boolean).join(" → "),32))+' · '+E(b.own===true?"🚖 "+((b.vehName||"")+" "+(b.vehNo||"")).trim():b.own===false?"🤝 "+((b.partner&&b.partner.name)||""):"⚠ "+B("vehicle not set","വാഹനം തീരുമാനിച്ചിട്ടില്ല"))+'</div>';
+  });
+  if(vs.length){
+   var free=0, chips="";
+   vs.forEach(function(v){
+    var busy=bs.some(function(b){ return b.own===true&&sameVeh(v,b); });
+    if(!busy) free++;
+    chips+='<span style="display:inline-block;margin:3px 4px 0 0;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:700;background:'+(busy?'#fdecec':'#e8f4ea')+';color:'+(busy?'#a12d2d':'#1c6b2c')+'">'+(busy?'⛔ ':'✅ ')+E(vehLabel(v))+' '+E(busy?B("booked","ബുക്ക്ഡ്"):B("free","ഒഴിവ്"))+'</span>';
+   });
+   h+='<div>'+chips+'</div>';
+   if(!free) h+='<div style="margin-top:4px;color:#a12d2d;font-weight:800">🚫 '+E(B("All your vehicles are booked that day - consider giving this trip to a partner.","നിങ്ങളുടെ എല്ലാ വാഹനങ്ങളും ആ ദിവസം ബുക്ക് ആണ് - ഈ ട്രിപ്പ് ഒരു പാർട്ണർക്ക് കൊടുക്കുന്നത് ആലോചിക്കുക."))+'</div>';
+  }
+  var un=bs.filter(function(b){ return b.own!==true&&b.own!==false; }).length;
+  if(un) h+='<div class="muted" style="margin-top:3px">⚠ '+E(B(un+" booking(s) have no vehicle decided yet.",un+" ബുക്കിംഗിൽ വാഹനം തീരുമാനിച്ചിട്ടില്ല."))+'</div>';
+  return h+'</div>';
+ }
+ var CL={enqDate:1,eqxDate:1,xeDate:1,bkDate:1,qStart:1};
+ function showClash(id){
+  var el=$(id); if(!el) return;
+  var iso=tcReadDateInput(id), bid="tcClash_"+id, box=$(bid);
+  if(!iso){ if(box) box.remove(); return; }
+  var host=el.closest("label")||el.parentNode;
+  if(!box){ box=document.createElement("div"); box.id=bid; box.style.gridColumn="1/-1"; host.parentNode.insertBefore(box,host.nextSibling); }
+  box.innerHTML=clashHtml(iso,(id==="bkDate"&&BF)?BF.draft.id:"");
+ }
+ ["input","change"].forEach(function(ev){
+  document.addEventListener(ev,function(e){ var t=e.target; if(t&&t.id&&CL[t.id]) setTimeout(function(){ try{ showClash(t.id); }catch(er){} },0); },true);
+ });
+ /* ---------- WhatsApp reminder to the customer ---------- */
+ window.tcEnqRemind=function(id){
+  var b=bById(id); if(!b) return;
+  var wa=typeof tcWaNumber==="function"?tcWaNumber(b.mobile):""; if(!wa){ say(B("No mobile number","മൊബൈൽ നമ്പർ ഇല്ല")); return; }
+  var biz=(db.business&&db.business.name)||"", ph=[db.business&&db.business.phone,db.business&&db.business.phone2].filter(Boolean).join(" / ");
+  var veh=b.own===true?((b.vehName||"")+" "+(b.vehNo||"")).trim():(b.own===false&&b.partner?(b.partner.vehNo||""):"");
+  var L=[];
+  L.push("Hello "+b.name+",");
+  L.push("This is a reminder of your trip booking"+(biz?" with "+biz:"")+":");
+  L.push("📅 "+dF(b.date)+(b.time?", "+tF(b.time):""));
+  if(b.pickup) L.push("📍 Pickup: "+b.pickup);
+  if(b.dest) L.push("🏁 Destination: "+b.dest);
+  if(veh) L.push("🚖 Vehicle: "+veh);
+  if(b.own===true&&b.driver) L.push("👤 Driver: "+b.driver);
+  if(ph) L.push("📞 "+ph);
+  L.push("");
+  L.push("നമസ്കാരം "+b.name+", നിങ്ങളുടെ യാത്രാ ബുക്കിംഗ് ഓർമ്മപ്പെടുത്തൽ: "+dF(b.date)+(b.time?", "+tF(b.time):"")+".");
+  window.open("https://wa.me/"+wa+"?text="+encodeURIComponent(L.join("\n")),"_blank");
  };
  window.__tcEnqApi={bookings:BL,upcoming:upcoming,oldCust:oldCust,today:today};
 })();
