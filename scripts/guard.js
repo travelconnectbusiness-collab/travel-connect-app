@@ -172,6 +172,8 @@ const MARKERS = [
   ["src/tc-bkflow.js", "tcBkStart", "Booking -> Live Trip form pre-filled; the trip log remembers the booking"],
   ["src/tc-enq.js", "tcBkFlowHtml", "Booking Schedule cards show the next step (tc-bkflow.js)"],
   ["src/tc-regdocs.js", "tc-bkflow.js", "tc-regdocs.js loads tc-bkflow.js"],
+  ["src/tc-dropbill.js", "__tcDropBill", "Quick Bill: trip type Drop/Local selects the Drop/Local rate; Drop bills are not compared with the Standard day package"],
+  ["src/tc-regdocs.js", "tc-dropbill.js", "tc-regdocs.js loads tc-dropbill.js"],
   ["src/tc-bills.js", "tcBlDelete", "My Bills: Delete a bill made by mistake (copy kept in deletedBills, money entries removed, booking unlinked)"],
   ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
   ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
