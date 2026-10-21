@@ -161,6 +161,8 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-xlsx.js", "tc-regdocs.js loads tc-xlsx.js"],
   ["src/tc-accbook.js", "tripAsk", "Typed entry on the same day + vehicle as a trip asks: add this to that trip?"],
   ["src/tc-accbook.js", "catNear", "New category that is a typo / near copy of an existing one offers the existing category"],
+  ["src/tc-sharecard.js", "__tcShareCard", "Green 'Share Travel Connect' card on every home page (customer, partner, owner), not only in the Menu"],
+  ["src/tc-regdocs.js", "tc-sharecard.js", "tc-regdocs.js loads tc-sharecard.js"],
   ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
   ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
   ["src/tc-nav.js", "cleanStale", "Navigation: a closed pop-up leaves no extra Back step"],
