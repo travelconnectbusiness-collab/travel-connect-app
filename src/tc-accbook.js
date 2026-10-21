@@ -524,6 +524,22 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    [/recharge|internet|mobile bill/i,"Mobile / Internet"],[/commission|കമ്മീഷൻ/i,"Commission paid"]],
   in:[[/tip|ടിപ്പ്/i,"Tip"],[/advance|അഡ്വാൻസ്/i,"Advance"],[/commission|കമ്മീഷൻ/i,"Commission received"],[/trip|ട്രിപ്പ്/i,"Trip income"]]
  };
+ function lev(a,b){
+  var m=a.length,n=b.length,d=[],i,j; for(i=0;i<=m;i++){ d[i]=[i]; } for(j=0;j<=n;j++) d[0][j]=j;
+  for(i=1;i<=m;i++) for(j=1;j<=n;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+  return d[m][n];
+ }
+ function catNear(low,list){
+  low=low.replace(/[^a-z0-9\u0d00-\u0d7f]/g,""); if(low.length<4) return "";
+  var best="",bd=9;
+  list.forEach(function(c){
+   var w=c.toLowerCase().replace(/[^a-z0-9\u0d00-\u0d7f]/g,""); if(w.length<4) return;
+   var dist=lev(low,w), lim=w.length>=7?2:1;
+   if(dist<=lim&&dist<bd){ bd=dist; best=c; }
+   else if(bd>1&&(w.indexOf(low)===0||low.indexOf(w)===0)&&Math.abs(w.length-low.length)<=2){ bd=1; best=c; }
+  });
+  return best;
+ }
  function catGuess(type,text){
   var low=text.toLowerCase(), list=catList(type), i;
   for(i=0;i<list.length;i++){ if(list[i].toLowerCase()===low||catLabel(list[i]).toLowerCase()===low) return {cat:list[i],note:""}; }
@@ -535,6 +551,13 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
      return {cat:c,note:text};
     return null;
    }
+  }
+  /* a typo or a near copy of an existing category (e.g. "Tyres", "Parkng", "Fuell") -> offer the existing one */
+  var near=catNear(low,list);
+  if(near){
+   if(confirm(B('Did you mean the existing category "'+near+'"? OK = use "'+near+'". Cancel = make "'+text+'" a new category.','നിലവിലുള്ള "'+catLabel(near)+'" വിഭാഗമാണോ ഉദ്ദേശിച്ചത്? OK = "'+catLabel(near)+'" ഉപയോഗിക്കുക. Cancel = "'+text+'" പുതിയ വിഭാഗമാക്കുക.')))
+    return {cat:near,note:""};
+   return null;
   }
   if(text.length>24){
    var o=type==="in"?"Other income":"Other";
