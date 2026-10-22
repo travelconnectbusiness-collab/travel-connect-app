@@ -96,6 +96,8 @@
   var h2=app.querySelector(".card>h2");
   if(!h2||!/Travel Connect Dashboard|ഡാഷ്ബോർഡ്/i.test(h2.textContent)){ return; }
   var anchor=profileBox(h2)||h2;
+  /* the licence-expiry alert (tc-home.js) sits straight after the profile box: stay behind it, otherwise the two keep moving each other */
+  var lic=$("tcLicCard"); if(lic&&lic.parentNode===anchor.parentNode&&lic.previousElementSibling===anchor) anchor=lic;
   var c=$("tcLiveCard");
   if(!c){
    c=document.createElement("div"); c.className="card"; c.id="tcLiveCard";
