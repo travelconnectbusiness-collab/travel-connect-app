@@ -894,7 +894,12 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    c.innerHTML=cardHtml();
   }
   var live=$("tcLiveCard");
-  if(live){ if(live.nextElementSibling!==c) live.parentNode.insertBefore(c,live.nextSibling); }
+  if(live){
+   /* tc-home.js may put the phone-backup reminder (#tcFbCard) between the Live Trip Log and this card: stay behind it, or the two flip every second */
+   var anchor=live, fb=$("tcFbCard");
+   if(fb&&fb.parentNode===live.parentNode&&fb.previousElementSibling===live) anchor=fb;
+   if(anchor.nextElementSibling!==c) anchor.parentNode.insertBefore(c,anchor.nextSibling);
+  }
   else if(!c.parentNode) h2.parentNode.insertBefore(c,h2.nextSibling);
  }
  var t0=null;
