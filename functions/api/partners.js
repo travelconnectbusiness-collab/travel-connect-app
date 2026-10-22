@@ -1,5 +1,6 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { getFlag } from "./_flags.js";
+import { deviceCheck } from "./_devauth.js";
 import { isComplete, applyLivePartnerVerified } from "./trip_class.js";
 import { mediaGet, mediaPost, attachMedia, mediaPurge } from "./partner_media.js";
 
@@ -68,11 +69,12 @@ export async function onRequestGet({ request, env }) {
   const action = url.searchParams.get("action");
 
   /* shop photo / Premium ad posts + social links (partner_media.js) */
-  if (action === "media_mine" || action === "media_image") return await mediaGet(env, action, url);
+  if (action === "media_mine" || action === "media_image") return await mediaGet(env, action, url, request);
 
   if (action === "mine") {
     const mobile = url.searchParams.get("mobile");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
+    { const deny = await deviceCheck(env, request, "partners.mine", [mobile]); if (deny) return deny; }
     const row = await env.DB
       .prepare("SELECT * FROM travel_partners WHERE (mobile1=? OR mobile2=?) ORDER BY created_at ASC LIMIT 1")
       .bind(mobile, mobile)
@@ -93,6 +95,7 @@ export async function onRequestGet({ request, env }) {
   if (action === "mine_list") {
     const mobile = url.searchParams.get("mobile");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" });
+    { const deny = await deviceCheck(env, request, "partners.mine_list", [mobile]); if (deny) return deny; }
     const { results } = await env.DB
       .prepare("SELECT * FROM travel_partners WHERE (mobile1=? OR mobile2=?) ORDER BY created_at ASC")
       .bind(mobile, mobile)
@@ -324,6 +327,7 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    { const deny = await deviceCheck(env, request, "partners.update", [mobile]); if (deny) return deny; }
     const publicPhone = cleanPublicPhone(body.public_phone);
     if (publicPhone === false) return Response.json({ ok: false, error: "bad_public_phone" }, { status: 400 });
     const isPremium = row.plan === "premium" || row.plan === "owner_free";
@@ -400,6 +404,7 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    { const deny = await deviceCheck(env, request, "partners.set_available", [mobile]); if (deny) return deny; }
     /* Turning Active ON is also the moment most likely to mean "I am
        wherever I actually am right now, not necessarily my registered
        home/office/stand" - a lat/lon sent along with it (best-effort from
@@ -442,6 +447,7 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    { const deny = await deviceCheck(env, request, "partners.update_location", [mobile]); if (deny) return deny; }
     await env.DB
       .prepare("UPDATE travel_partners SET current_lat=?, current_lon=?, current_location_at=? WHERE id=?")
       .bind(lat, lon, new Date().toISOString(), body.partner_id)
@@ -568,6 +574,7 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    { const deny = await deviceCheck(env, request, "partners.set_password", [mobile]); if (deny) return deny; }
     const hash = await sha256Hex(password);
     await env.DB
       .prepare("UPDATE travel_partners SET portal_password_hash=? WHERE id=?")
