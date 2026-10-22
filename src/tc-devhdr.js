@@ -65,8 +65,24 @@
    '<div style="max-height:200px;overflow:auto;margin-bottom:8px">'+table+'</div>'+
    '<button class="primary" onclick="tcDevSecSet('+(j.enforce?'false':'true')+')" style="width:100%;margin-bottom:6px">'+(j.enforce?'Switch OFF (back to soft mode)':'Switch ON')+'</button>'+
    '<div class="muted" style="font-size:11.5px;margin-bottom:6px">Switch ON only when the "no header" number has stayed at 0 for a few days, i.e. everybody has updated the app. If something stops working, switch OFF here.</div>'+
+   otpBox(j)+
    '<button onclick="closeModal()" style="width:100%">Close</button>');
  }
+ /* second switch: a NEW phone on an account with a verified e-mail needs an e-mailed code (server: _loginotp.js) */
+ function otpBox(j){
+  var on=!!j.otp_enforce, ev={}; (j.otp||[]).forEach(function(r){ ev[r.event]=r.n; });
+  return '<div style="border-top:1px solid #ddd;margin:10px 0 8px;padding-top:10px"><b>New-phone e-mail code</b>'+
+   '<div style="padding:8px 10px;border-radius:10px;border:2px solid '+(on?'#2e8b57':'#e0a526')+';background:'+(on?'#eaf7f0':'#fff6e0')+';margin:6px 0">'+(on?'ON - a new phone needs the code e-mailed to the owner':'OFF (soft mode) - new phones still log in, only counted')+'</div>'+
+   '<div class="muted" style="font-size:12.5px;margin-bottom:6px">Last 3 days: new phone on a protected account <b>'+(ev.would_require_code||0)+'</b> (soft) / <b>'+(ev.login_needs_code||0)+'</b> (refused) &middot; codes sent <b>'+(ev.code_sent||0)+'</b> &middot; wrong codes <b>'+(ev.code_wrong||0)+'</b> &middot; phones trusted <b>'+(ev.device_trusted||0)+'</b> &middot; send failed <b>'+(ev.code_send_failed||0)+'</b></div>'+
+   '<button class="primary" onclick="tcDevOtpSet('+(on?'false':'true')+')" style="width:100%;margin-bottom:6px">'+(on?'Switch OFF':'Switch ON')+'</button>'+
+   '<div class="muted" style="font-size:11.5px;margin-bottom:8px">Applies only to owners whose e-mail is verified. Switch ON after everybody has this app version. If "send failed" is not 0, the e-mail service (RESEND_API_KEY) is not working - those owners could not log in on a new phone, so keep it OFF until a test code arrives.</div></div>';
+ }
+ window.tcDevOtpSet=function(on){
+  if(on&&!confirm("Switch ON the e-mail code for new phones? Owners with a verified e-mail will get a code mail when they log in on a new phone.")) return;
+  of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_devotp",token:token(),on:!!on})}).then(function(r){ return r.json(); }).then(function(j){
+   if(j&&j.ok){ say(on?"New-phone code is ON":"New-phone code is OFF"); window.tcDevSecOpen(); } else say("Could not change");
+  }).catch(function(){ say("No connection"); });
+ };
  window.tcDevSecSet=function(on){
   if(on&&!confirm("Switch the device check ON? Anybody whose app is old (does not send the device headers) will be refused until they update.")) return;
   of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_devauth",token:token(),on:!!on})}).then(function(r){ return r.json(); }).then(function(j){
