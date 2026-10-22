@@ -1,6 +1,7 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 import { getFlag, setFlag } from "./_flags.js";
 import { softStats, forgetFlagCache } from "./_devauth.js";
+import { loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats } from "./_loginotp.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -159,7 +160,7 @@ export async function onRequestGet({ request, env }) {
     if (!(await verifyAdminToken(env, token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    return Response.json({ ok: true, enforce: await getFlag(env, "enforce_device_auth", false), soft: await softStats(env) });
+    return Response.json({ ok: true, enforce: await getFlag(env, "enforce_device_auth", false), soft: await softStats(env), otp_enforce: await otpEnforcing(env), otp: await otpStats(env) });
   }
 
   if (action === "check") {
@@ -278,6 +279,25 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, enforce: !!body.on });
   }
 
+  /* admin: switch "new phone needs an e-mailed code" (enforce_device_otp) ON / OFF */
+  if (action === "set_devotp") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    await setFlag(env, "enforce_device_otp", !!body.on);
+    forgetOtpFlagCache();
+    return Response.json({ ok: true, otp_enforce: !!body.on });
+  }
+
+  /* new phone on a protected account: e-mailed code (see _loginotp.js) */
+  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others") {
+    const r = action === "login_otp_send" ? await sendLoginCode(env, body)
+      : action === "login_otp_verify" ? await verifyLoginCode(env, body)
+      : action === "security_info" ? await securityInfo(env, body)
+      : await revokeOthers(env, body);
+    return Response.json(r.json, { status: r.status });
+  }
+
   if (action === "login") {
     const name = (body.name || "").trim();
     const mobile = (body.mobile || "").trim();
@@ -317,12 +337,28 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "blocked" }, { status: 403 });
     }
 
+    /* A protected account (verified e-mail) lets a NEW phone in only with the e-mailed code. Soft mode (default) only counts it. */
+    const gate = await loginGate(env, mobile, deviceToken);
+    if (gate.need) {
+      if (await otpEnforcing(env)) {
+        await secLog(env, mobile, "login_needs_code", "");
+        return Response.json({ ok: false, error: "otp_required", hint: gate.hint }, { status: 403 });
+      }
+      await secLog(env, mobile, "would_require_code", "");
+    }
+
     const now = new Date().toISOString();
     const email = (body.email || "").trim();
     const location = (body.location || "").trim();
     const pincode = (body.pincode || "").trim();
     const lat = (body.lat != null && body.lat !== "") ? Number(body.lat) : null;
     const lon = (body.lon != null && body.lon !== "") ? Number(body.lon) : null;
+    /* the phone that was the account's main one keeps its trust when another phone logs in (its token is replaced below) */
+    if (existing && existing.device_token && deviceToken && existing.device_token !== deviceToken) {
+      try {
+        await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(mobile, existing.device_token, now).run();
+      } catch (e) {}
+    }
     if (existing) {
       await env.DB
         .prepare(
