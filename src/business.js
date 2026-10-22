@@ -575,7 +575,7 @@ function printQuoteObj(q,asImage){
     <div style="font-size:12px;color:#7a5a1e">${q.advanceReceived?"&#9989; Received":"Please pay in advance to confirm this trip"}</div>
    </div>
    ${!q.advanceReceived&&qrImg?`<div style="text-align:center"><b style="font-size:11px">SCAN &amp; PAY ADVANCE</b><br>${qrImg}</div>`:""}
-  </div>`;
+  </div>`+((!q.advanceReceived&&typeof window.tcBankHtml==="function")?window.tcBankHtml():"");
  }
 
  printContent("Quotation "+q.no,`
@@ -760,6 +760,7 @@ function printBill(tripId,asImage){
   </div>
   ${qrHtml}
  </div>
+ ${(balance>0&&typeof window.tcBankHtml==="function")?window.tcBankHtml():""}
  ${(t.payments||[]).length?`<h3 style="margin:10px 0 4px;font-size:16px;color:#143c5a">Payments Received</h3><table>${t.payments.map(p=>row(p.method+" ("+tcFormatDate(p.at)+")",money(p.amount))).join("")}${row("Total Paid",money(paid),true)}</table>`:""}
  <div style="background:#f2f2f2;border-radius:6px;padding:10px;margin-top:10px;font-size:11px;color:#555">
   ${extraChargesHtml(r.extraCharges)}
@@ -962,6 +963,7 @@ async function downloadQuotePDFObj(q){
    if(qrData){doc.setFontSize(7.5);doc.text("SCAN & PAY",170,y+6,{align:"center"});doc.addImage(qrData,"PNG",151,y+8,30,30);}
   }
   y+=boxH+6;
+  if(!q.advanceReceived&&typeof window.tcBankPdf==="function") y=window.tcBankPdf(doc,y,font);
  }
 
  doc.setFont(font,"normal");doc.setFontSize(8);doc.setTextColor(90);
@@ -1126,6 +1128,7 @@ async function downloadBillPDF(tripId){
   }
  }
  y=boxTop+boxHeight+6;
+ if(balance>0&&typeof window.tcBankPdf==="function") y=window.tcBankPdf(doc,y,font);
 
  if((t.payments||[]).length){
   if(y>265){doc.addPage();y=18;}
