@@ -151,6 +151,13 @@
     lc.style.cssText="cursor:pointer;padding:8px 12px;margin:0 0 10px;border-radius:12px;border:2px solid "+(red?"#d9534f":"#e0a526")+";background:"+(red?"#fdecec":"#fff6e0");
    }
   }else if(lc){ lc.remove(); lc=null; }
+  /* Backup-file reminder (tc-filebk.js): no backup file for 30 days */
+  var fc=$("tcFbCard"), fh="";
+  try{ fh=typeof window.tcFbReminderHtml==="function"?window.tcFbReminderHtml():""; }catch(e){ fh=""; }
+  if(fh){
+   if(!fc){ fc=document.createElement("div"); fc.id="tcFbCard"; fc.style.cssText="padding:8px 12px;margin:0 0 10px;border-radius:12px;border:2px solid #4a8fc2;background:#eef6fc"; host.appendChild(fc); }
+   if(fc.getAttribute("data-sig")!==fh){ fc.setAttribute("data-sig",fh); fc.innerHTML=fh; }
+  }else if(fc){ fc.remove(); fc=null; }
   /* More box */
   var more=$("tcMore");
   if(!more){
@@ -168,7 +175,7 @@
   }
   items.forEach(function(el){ if(el&&el.parentNode!==body&&body) body.appendChild(el); });
   /* order of what stays on top */
-  var seq=[profile(host,h2),$("tcLicCard"),$("tcLiveCard"),$("tcAbCard"),bc,act(host,"button[onclick*=\"view('enquiries')\"]"),$("tcMsgCard"),
+  var seq=[profile(host,h2),$("tcLicCard"),$("tcLiveCard"),$("tcFbCard"),$("tcAbCard"),bc,act(host,"button[onclick*=\"view('enquiries')\"]"),$("tcMsgCard"),
    act(host,"button[onclick*=\"view('activeboard')\"]"),act(host,"button[onclick*=\"tcOpenDirectory\"]"),act(host,"button[onclick*=\"tcShowPartnerTripHistory\"]")];
   var prev=h2;
   seq.forEach(function(el){
