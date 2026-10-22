@@ -5,6 +5,8 @@
    page, and (customer-safety.js) lets a customer see their own call
    history. Requires the D1 table below to be created once. */
 
+import { deviceCheck } from "./_devauth.js";
+
 const createTableSql = `CREATE TABLE IF NOT EXISTS call_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   caller_name TEXT,
@@ -25,6 +27,9 @@ export async function onRequestPost({ request, env }) {
   if (!caller_mobile || !callee_mobile) {
     return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
   }
+  /* only the phone that is logged in as the caller may write the caller's log (see _devauth.js) */
+  const deny = await deviceCheck(env, request, "calls.post", [String(caller_mobile)]);
+  if (deny) return deny;
   await env.DB.prepare(
     `INSERT INTO call_logs (caller_name, caller_mobile, callee_mobile, target_type, target_id, target_label, lat, lon, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -51,6 +56,9 @@ export async function onRequestGet({ request, env }) {
     if (!partner) return Response.json({ ok: true, calls: [] });
     const numbers = [partner.mobile1, partner.mobile2].filter(Boolean);
     if (!numbers.length) return Response.json({ ok: true, calls: [] });
+    /* who called a business is private: only that business's own logged-in numbers may read it */
+    const deny = await deviceCheck(env, request, "calls.received", numbers);
+    if (deny) return deny;
     const placeholders = numbers.map(() => "?").join(",");
     const { results } = await env.DB.prepare(
       `SELECT * FROM call_logs WHERE callee_mobile IN (${placeholders}) ORDER BY created_at DESC LIMIT 50`
@@ -62,6 +70,8 @@ export async function onRequestGet({ request, env }) {
     // Calls a customer/owner has made FROM this app - their own history.
     const mobile = url.searchParams.get("mobile");
     if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
+    const deny = await deviceCheck(env, request, "calls.made", [mobile]);
+    if (deny) return deny;
     const { results } = await env.DB.prepare(
       `SELECT * FROM call_logs WHERE caller_mobile = ? ORDER BY created_at DESC LIMIT 50`
     ).bind(mobile).all();
