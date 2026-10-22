@@ -1,3 +1,5 @@
+import { deviceCheck } from "./_devauth.js";
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
@@ -21,6 +23,11 @@ export async function onRequestPost({ request, env }) {
     const sub = body.subscription;
     if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
       return Response.json({ ok: false, error: "invalid_subscription" }, { status: 400 });
+    }
+    /* a phone may only attach its notifications to the number it is logged in with - otherwise anybody could receive somebody else's alerts */
+    if (body.mobile) {
+      const deny = await deviceCheck(env, request, "push.subscribe", [String(body.mobile)]);
+      if (deny) return deny;
     }
     try {
       /* One row per device: remove any existing row for this endpoint first, so
