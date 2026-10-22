@@ -185,6 +185,7 @@ const MARKERS = [
   ["src/tc-profit.js", "tcPrXlsx", "Profit report Excel export"],
   ["src/tc-accbook.js", "tcPrOpen", "Accounts page has the Profit report button"],
   ["src/tc-regdocs.js", "tc-profit.js", "tc-regdocs.js loads tc-profit.js"],
+  ["src/tc-home.js", "tcLicCard", "Dashboard: driver licence expiry alert (expired / within 30 days)"],
   ["src/tc-bills.js", "tcBlDelete", "My Bills: Delete a bill made by mistake (copy kept in deletedBills, money entries removed, booking unlinked)"],
   ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
   ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
