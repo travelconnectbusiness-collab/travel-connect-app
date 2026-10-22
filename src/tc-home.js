@@ -8,6 +8,9 @@
       and at the very bottom ONE closed box "More" holding the things that are set once and rarely
       touched: Verification & Plan, Shop window (ad posts + social links), Test Notification, Blood Donors,
       the counters, Business workflow, Useful Places, Emergency Contacts.
+   3) Driver licence alert (added 2026-10-22): a red / amber strip right under the business box when a driver's licence
+      (Drivers list in Trip & Accounts) is expired or ends within 30 days. Tap -> the Drivers list. It disappears by itself
+      when the expiry date is updated. Reads db.drivers through window.__tcDrvApi (tc-drivers.js).
    Nothing is deleted - boxes are only moved. Scripts that add boxes next to #tcUpCard keep working
    because #tcUpCard moves into "More" together with them. */
 (function(){
@@ -86,6 +89,31 @@
   return h;
  }
 
+ /* ---------- driver licence alert ---------- */
+ function licHtml(){
+  var api=window.__tcDrvApi; if(!api) return "";
+  var bad=[], t0=today();
+  try{
+   api.records().forEach(function(r){
+    if(!r.exp) return;
+    var days=Math.round((new Date(r.exp+"T12:00:00")-new Date(t0+"T12:00:00"))/86400000);
+    if(!isNaN(days)&&days<=30) bad.push({n:r.name||r.mobile||"",exp:r.exp,days:days});
+   });
+  }catch(e){ return ""; }
+  if(!bad.length) return "";
+  bad.sort(function(a,b){ return a.days-b.days; });
+  var red=bad[0].days<0;
+  var h='<div style="font-weight:800;font-size:14px;color:'+(red?"#b3261e":"#8a5a00")+'">&#9888; '+E(B("Driver licence alert","ഡ്രൈവർ ലൈസൻസ് മുന്നറിയിപ്പ്"))+'</div>';
+  bad.slice(0,3).forEach(function(x){
+   h+='<div style="font-size:13px;margin-top:2px"><b>'+E(x.n)+'</b> &middot; '+(x.days<0
+    ?'<span style="color:#b3261e;font-weight:700">'+E(B("licence EXPIRED ","ലൈസൻസ് കഴിഞ്ഞു "))+E(dF(x.exp))+'</span>'
+    :'<span style="color:#8a5a00;font-weight:700">'+E(B("licence ends "+dF(x.exp)+" ("+x.days+" days)","ലൈസൻസ് "+dF(x.exp)+" ന് തീരും ("+x.days+" ദിവസം)"))+'</span>')+'</div>';
+  });
+  if(bad.length>3) h+='<div class="muted" style="font-size:12.5px;margin-top:2px">+'+(bad.length-3)+' '+E(B("more","കൂടി"))+'</div>';
+  h+='<div class="muted" style="font-size:12px;margin-top:3px">&#128073; '+E(B("Tap to open the Drivers list","ഡ്രൈവർ ലിസ്റ്റ് തുറക്കാൻ തൊടുക"))+'</div>';
+  return '<div data-red="'+(red?1:0)+'">'+h+'</div>';
+ }
+
  /* ---------- arrange ---------- */
  function act(host,sel){
   var a=host.children;
@@ -112,6 +140,17 @@
   if(!bc){ bc=document.createElement("div"); bc.className="card"; bc.id="tcBkCard"; bc.style.cssText="padding:10px 12px;margin:0 0 10px;border-radius:12px;border:2px solid #0b6b7a;background:#f4fbfc"; host.appendChild(bc); }
   var html=cardHtml();
   if(bc.getAttribute("data-sig")!==html){ bc.setAttribute("data-sig",html); bc.innerHTML=html; }
+  /* Driver licence alert (only when there is something to warn about) */
+  var lc=$("tcLicCard"), lh="";
+  try{ lh=typeof window.tcDrvList==="function"?licHtml():""; }catch(e){ lh=""; }
+  if(lh){
+   if(!lc){ lc=document.createElement("div"); lc.id="tcLicCard"; lc.onclick=function(){ try{ window.tcDrvList(); }catch(e){} }; host.appendChild(lc); }
+   if(lc.getAttribute("data-sig")!==lh){
+    lc.setAttribute("data-sig",lh); lc.innerHTML=lh;
+    var red=lh.indexOf('data-red="1"')>=0;
+    lc.style.cssText="cursor:pointer;padding:8px 12px;margin:0 0 10px;border-radius:12px;border:2px solid "+(red?"#d9534f":"#e0a526")+";background:"+(red?"#fdecec":"#fff6e0");
+   }
+  }else if(lc){ lc.remove(); lc=null; }
   /* More box */
   var more=$("tcMore");
   if(!more){
@@ -129,7 +168,7 @@
   }
   items.forEach(function(el){ if(el&&el.parentNode!==body&&body) body.appendChild(el); });
   /* order of what stays on top */
-  var seq=[profile(host,h2),$("tcLiveCard"),$("tcAbCard"),bc,act(host,"button[onclick*=\"view('enquiries')\"]"),$("tcMsgCard"),
+  var seq=[profile(host,h2),$("tcLicCard"),$("tcLiveCard"),$("tcAbCard"),bc,act(host,"button[onclick*=\"view('enquiries')\"]"),$("tcMsgCard"),
    act(host,"button[onclick*=\"view('activeboard')\"]"),act(host,"button[onclick*=\"tcOpenDirectory\"]"),act(host,"button[onclick*=\"tcShowPartnerTripHistory\"]")];
   var prev=h2;
   seq.forEach(function(el){
