@@ -5,9 +5,8 @@
    (the Quotation form already switched it by itself).
    1) Quick Bill: choosing Trip type Drop / Local now selects the Drop / Local rate by itself (any other type puts a Drop / Local rate
       back to Competitive). The Rate box can still be changed by hand afterwards.
-   2) A bill made on the Drop rate is no longer compared with the Standard day package (it said "Standard Rs.2,800 vs Offer"
-      and counted the difference as the customer's "savings", which is not true for a drop). Standard = Offer = the Drop fare;
-      only a real discount you give is shown as savings.
+   (A later idea to show no Standard comparison on Drop bills was dropped on 2026-10-22: a Drop bill shows "Standard vs Offer" and the
+   saving like every other trip, Standard = the Standard rate for the same KM / hours.)
    Nothing else about the fare calculation changes. */
 (function(){
  if(window.__tcDropBill) return;
@@ -21,16 +20,4 @@
   else if((rt.value==="drop"||rt.value==="local")&&has("competitive")) rt.value="competitive";
  }
  document.addEventListener("change",function(e){ try{ if(e.target&&e.target.id==="qbType") sync(); }catch(x){} },true);
- var orig=window.billBreakdown;
- if(typeof orig==="function") window.billBreakdown=function(t,q,c){
-  var bd=orig.apply(this,arguments);
-  try{
-   if(q&&q.ratePlan==="drop"&&bd&&bd.r){
-    var days=t.days||q.days||1, rest=t.restHours!=null?t.restHours:(q.restHours||0);
-    var sr=calcFare(c,"drop",bd.km,bd.h,days,rest,{addKm:q.overrideAddKm,addHour:q.overrideAddHour});
-    if(sr&&!sr.invalid){ bd.standardRaw=sr; bd.rateSaving=0; bd.totalSavings=(bd.quoteDiscount||0)+(bd.manualDiscount||0); }
-   }
-  }catch(e){}
-  return bd;
- };
 })();
