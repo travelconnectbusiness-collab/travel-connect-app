@@ -63,9 +63,14 @@
    var x=ctxOf(q);
    if(x&&bd&&bd.r){
     bd.km=(Number(bd.km)||0)+x.ret;
-    if(!bd.r.invalid){
-     /* a Drop bill is not compared with the Standard day package: Standard = Offer */
-     bd.standardRaw=Object.assign({},bd.r); bd.rateSaving=0; bd.totalSavings=(bd.quoteDiscount||0)+(bd.manualDiscount||0);
+    if(x.ret>0&&!bd.r.invalid){
+     /* Trip KM + Return KM: the Standard rate is worked out on the same total KM, so the comparison is like for like */
+     var days=t.days||q.days||1, rest=t.restHours!=null?t.restHours:(q.restHours||0);
+     var sr=calcFare(c,"standard",bd.km,bd.h,days,rest);
+     if(sr&&!sr.invalid){
+      bd.standardRaw=sr; bd.rateSaving=Math.max(0,sr.total-bd.offerFareTotal);
+      bd.totalSavings=bd.rateSaving+(bd.quoteDiscount||0)+(bd.manualDiscount||0);
+     }
     }
     var n=note(t,q,c,bd), base=q.tripName||"";
     if(n){ q.service=base?base+" - "+n:n; q.svcAuto=1; }
