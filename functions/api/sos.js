@@ -1,4 +1,5 @@
 import { sendWebPush } from "./_webpush.js";
+import { deviceCheck } from "./_devauth.js";
 
 /* GET ?action=latest&since=<ISO timestamp> — returns any SOS alerts created after
    the given time, for other logged-in devices to poll and show an in-app alert for.
@@ -7,6 +8,12 @@ import { sendWebPush } from "./_webpush.js";
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
+
+  /* SOS alerts carry a name, a mobile number and a LOCATION - only a logged-in phone may read them (see _devauth.js) */
+  if (action === "latest" || action === "history") {
+    const deny = await deviceCheck(env, request, "sos.get", null);
+    if (deny) return deny;
+  }
 
   if (action === "latest") {
     const since = url.searchParams.get("since") || "1970-01-01T00:00:00.000Z";
@@ -59,9 +66,27 @@ export async function onRequestPost({ request, env }) {
     if (!body.mobile || alert.sender_mobile !== body.mobile) {
       return Response.json({ ok: false, error: "not_owner" }, { status: 403 });
     }
+    const denyR = await deviceCheck(env, request, "sos.resolve", [String(body.mobile)]);
+    if (denyR) return denyR;
     await env.DB.prepare("UPDATE sos_alerts SET resolved=1 WHERE id=?").bind(body.id).run();
     return Response.json({ ok: true });
   }
+
+  /* only the phone logged in as the sender may raise an SOS in that name */
+  if (body.sender_mobile) {
+    const denyS = await deviceCheck(env, request, "sos.post", [String(body.sender_mobile)]);
+    if (denyS) return denyS;
+  }
+  /* flood guard (always on): one sender max 5 alerts per hour, the whole app max 30 per hour - an SOS pushes a notification to every business owner */
+  try {
+    const hourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+    const all = await env.DB.prepare("SELECT COUNT(*) AS c FROM sos_alerts WHERE created_at > ?").bind(hourAgo).first();
+    if (all && all.c >= 30) return Response.json({ ok: false, error: "too_many_alerts" }, { status: 429 });
+    if (body.sender_mobile) {
+      const mine = await env.DB.prepare("SELECT COUNT(*) AS c FROM sos_alerts WHERE sender_mobile=? AND created_at > ?").bind(String(body.sender_mobile), hourAgo).first();
+      if (mine && mine.c >= 5) return Response.json({ ok: false, error: "too_many_alerts" }, { status: 429 });
+    }
+  } catch (e) { /* the guard must never stop a real SOS */ }
 
   const now = new Date().toISOString();
   const result = await env.DB
