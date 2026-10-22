@@ -649,6 +649,7 @@ function printBill(tripId,asImage){
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
  const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const tcHideCmp=(q.ratePlan==="drop"); /* a Drop bill has one charge: no Standard vs Offer table */
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
@@ -744,10 +745,10 @@ function printBill(tripId,asImage){
  <hr>
  <h3 style="margin:6px 0;font-size:16px;color:#143c5a">1. Usage Details</h3>
  <table>${usageRows}</table>
- <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">2. Standard vs Offer Rate</h3>
- ${compareTable}
+ ${tcHideCmp?"":`<h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">2. Standard vs Offer Rate</h3>
+ ${compareTable}`}
  ${savingsHtml}
- <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">3. Final Payment Summary</h3>
+ <h3 style="margin:12px 0 4px;font-size:16px;color:#143c5a">${tcHideCmp?"2":"3"}. Final Payment Summary</h3>
  <table>${summaryRows}</table>
  <div style="page-break-inside:avoid;background:#0f5a55;border-radius:8px;padding:14px;text-align:center;margin:12px 0">
   <div style="font-size:14px;color:#eafaf8">FINAL BILL AMOUNT</div>
@@ -982,6 +983,7 @@ async function downloadBillPDF(tripId){
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
  const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const tcHideCmp=(q.ratePlan==="drop"); /* a Drop bill has one charge: no Standard vs Offer table */
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0), balance=Math.max(0,r.final-paid);
  const driver=findDriverForVehicleNo(q.vehicleNo);
  const dests=q.destinations&&q.destinations.length?q.destinations:[q.destination];
@@ -1043,6 +1045,8 @@ async function downloadBillPDF(tripId){
   y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
  }
 
+ if(tcHideCmp&&totalSavings>0) y=pdfDivider(doc,y);
+ if(!tcHideCmp){
  y=pdfDivider(doc,y);
  doc.setFont(font,"bold");doc.text("2. Standard vs Offer Rate",15,y);y+=6;
  doc.setFontSize(8);doc.setTextColor(120);
@@ -1065,6 +1069,7 @@ async function downloadBillPDF(tripId){
  doc.setFont(font,"bold");
  doc.text("Total",15,y);doc.text(pdfMoney(stdTotal),140,y,{align:"right"});doc.text(pdfMoney(offTotal),195,y,{align:"right"});y+=6;
  doc.setFont(font,"normal");
+ }
 
  if(totalSavings>0){
   if(y+16+8>282){doc.addPage();y=18;}
@@ -1083,7 +1088,7 @@ async function downloadBillPDF(tripId){
 
  y=pdfDivider(doc,y);
  doc.setFontSize(8.5);
- doc.setFont(font,"bold");doc.text("3. Final Payment Summary",15,y);y+=6;doc.setFont(font,"normal");
+ doc.setFont(font,"bold");doc.text((tcHideCmp?"2":"3")+". Final Payment Summary",15,y);y+=6;doc.setFont(font,"normal");
  y=pdfRow(doc,y,"Base Rate",pdfMoney(r.base));
  y=pdfRow(doc,y,"Additional Charge (higher of KM/Hour)",pdfMoney(r.extra||0));
  if(r.driverBata) y=pdfRow(doc,y,"Driver Bata",pdfMoney(r.driverBata));
@@ -1755,6 +1760,7 @@ function loadBill(){
  const q=db.quotes.find(x=>x.id===t.quoteId),c=db.categories[q.categoryId];
  const bd=billBreakdown(t,q,c);
  const {km,h,standardRaw,r,rateSaving,manualDiscount,manualAddition,totalSavings}=bd;
+ const tcHideCmp=(q.ratePlan==="drop"); /* a Drop bill has one charge: no Standard vs Offer table */
  const final=r.final;
  const paid=(t.payments||[]).reduce((a,p)=>a+p.amount,0);
  const balance=Math.max(0,final-paid);
@@ -1769,19 +1775,19 @@ function loadBill(){
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
   <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
 
-  <h3>2. Standard vs Offer Rate</h3>
+  ${tcHideCmp?"":`  <h3>2. Standard vs Offer Rate</h3>
   <table style="width:100%;border-collapse:collapse;font-size:14px">
    <tr style="color:#666"><td></td><td style="text-align:right;padding:2px 4px">Standard Rate</td><td style="text-align:right;padding:2px 4px">Offer Rate</td></tr>
    <tr><td>Base Rate</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.base)}</td><td style="text-align:right;padding:2px 4px">${money(r.base)}</td></tr>
    <tr><td>Additional Charge</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.extra)}</td><td style="text-align:right;padding:2px 4px">${money(r.extra||0)}</td></tr>
    <tr style="border-top:1px solid #ccc;font-weight:bold"><td>Total</td><td style="text-align:right;padding:2px 4px">${money(standardRaw.invalid?0:standardRaw.total)}</td><td style="text-align:right;padding:2px 4px">${money(r.base+(r.extra||0))}</td></tr>
-  </table>
+  </table>`}
 
   ${totalSavings>0?`<div style="background:#e6f7e9;border:1px solid #2e9e44;border-radius:8px;padding:10px;margin:10px 0;color:#1c6b2c">
    <div style="font-weight:bold;font-size:16px">&#127881; Your Total Savings: ${money(totalSavings)}</div>
    <div style="font-size:12px">${rateSaving?`Offer discount ${money(rateSaving)}`:""}${manualDiscount?`${rateSaving?" + ":""}Additional discount ${money(manualDiscount)}`:""}</div></div>`:""}
 
-  <h3>3. Final Payment Summary</h3>
+  <h3>${tcHideCmp?"2":"3"}. Final Payment Summary</h3>
   <div>Base Rate: ${money(r.base)}</div>
   <div>Additional Charge (higher of KM/Hour): ${money(r.extra||0)}</div>
   ${r.driverBata?`<div>Driver Bata: ${money(r.driverBata)}</div>`:""}
