@@ -1,5 +1,6 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
-import { getFlag } from "./_flags.js";
+import { getFlag, setFlag } from "./_flags.js";
+import { softStats, forgetFlagCache } from "./_devauth.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -67,6 +68,56 @@ async function recordAppMode(env, mobile, mode) {
   } catch (e) {}
 }
 
+/* ---------- ADMIN PASSWORD (hashed, with a limit on wrong attempts) ----------
+   Before: a password changed inside the app was stored as plain text in D1, any length of 4+ letters was accepted and wrong guesses
+   were never limited. Now:
+   - a changed password is stored only as a salted PBKDF2-SHA256 hash (table admin_password_hash); the old plain-text row is deleted
+     the first time the old password is used (it is converted automatically), so nothing readable stays in the database;
+   - at least 8 characters;
+   - 5 wrong tries from one address (or 40 from all addresses together) -> locked for 15 minutes (table admin_login_fail);
+   - expired admin sessions are cleaned out at every successful login.
+   Order of checks: hashed password -> old plain-text override (converted) -> the Cloudflare secret ADMIN_PASSWORD. */
+const ADMIN_ITER = 100000; /* the most Cloudflare Workers allow */
+const ADMIN_LOCK_MS = 15 * 60 * 1000;
+const b64 = (buf) => { let s = ""; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); };
+const unb64 = (t) => { const s = atob(t), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
+function sameText(a, b) {
+  a = String(a == null ? "" : a); b = String(b == null ? "" : b);
+  let d = a.length ^ b.length;
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return d === 0;
+}
+async function hashPw(pw, saltBytes, iter) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: saltBytes, iterations: iter, hash: "SHA-256" }, base, 256);
+  return b64(bits);
+}
+async function ensureAdminTables(env) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_password_hash (id INTEGER PRIMARY KEY CHECK (id=1), salt TEXT NOT NULL, hash TEXT NOT NULL, iter INTEGER NOT NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_login_fail (ip TEXT, at INTEGER)").run();
+}
+async function storeAdminHash(env, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await hashPw(pw, salt, ADMIN_ITER);
+  await env.DB.prepare(
+    "INSERT INTO admin_password_hash (id, salt, hash, iter) VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET salt=excluded.salt, hash=excluded.hash, iter=excluded.iter"
+  ).bind(b64(salt), hash, ADMIN_ITER).run();
+}
+async function adminPasswordOk(env, pw) {
+  if (typeof pw !== "string" || !pw) return false;
+  const row = await env.DB.prepare("SELECT salt, hash, iter FROM admin_password_hash WHERE id=1").first().catch(() => null);
+  if (row) return sameText(await hashPw(pw, unb64(row.salt), row.iter || ADMIN_ITER), row.hash);
+  const old = await env.DB.prepare("SELECT password FROM admin_password_override WHERE id=1").first().catch(() => null);
+  if (old && old.password) {
+    if (!sameText(pw, old.password)) return false;
+    /* convert: keep only the hash from now on */
+    try { await storeAdminHash(env, pw); await env.DB.prepare("DELETE FROM admin_password_override WHERE id=1").run(); } catch (e) {}
+    return true;
+  }
+  return typeof env.ADMIN_PASSWORD === "string" && env.ADMIN_PASSWORD !== "" && sameText(pw, env.ADMIN_PASSWORD);
+}
+
 /* OPEN REGISTRATION: when false, nobody needs to be on the "Authorized
    Users" allowlist any more - anyone can log in and register a business.
    Admin verification still decides the "Verified" badge customers see, and
@@ -100,6 +151,15 @@ export async function onRequestGet({ request, env }) {
       )
       .all();
     return Response.json({ ok: true, users: results });
+  }
+
+  /* admin: is the device check ON, and what did soft mode see lately? */
+  if (action === "devauth_status") {
+    const token = url.searchParams.get("token");
+    if (!(await verifyAdminToken(env, token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    return Response.json({ ok: true, enforce: await getFlag(env, "enforce_device_auth", false), soft: await softStats(env) });
   }
 
   if (action === "check") {
@@ -175,37 +235,47 @@ export async function onRequestPost({ request, env }) {
   const action = body.action;
 
   if (action === "admin_login") {
-    const override = await env.DB.prepare(
-      "SELECT password FROM admin_password_override WHERE id=1"
-    ).first().catch(() => null);
-    const currentPassword = override ? override.password : env.ADMIN_PASSWORD;
-    if (body.password !== currentPassword) {
+    await ensureAdminTables(env);
+    const ip = (request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 64);
+    const now = Date.now();
+    await env.DB.prepare("DELETE FROM admin_login_fail WHERE at<?").bind(now - ADMIN_LOCK_MS).run().catch(() => {});
+    const mine = await env.DB.prepare("SELECT COUNT(*) AS c FROM admin_login_fail WHERE ip=?").bind(ip).first();
+    const all = await env.DB.prepare("SELECT COUNT(*) AS c FROM admin_login_fail").first();
+    if ((mine && mine.c >= 5) || (all && all.c >= 40)) {
+      return Response.json({ ok: false, error: "too_many_attempts", retry_minutes: 15 }, { status: 429 });
+    }
+    if (!(await adminPasswordOk(env, body.password))) {
+      await env.DB.prepare("INSERT INTO admin_login_fail (ip, at) VALUES (?,?)").bind(ip, now).run().catch(() => {});
       return Response.json({ ok: false, error: "wrong_password" }, { status: 401 });
     }
+    await env.DB.prepare("DELETE FROM admin_login_fail WHERE ip=?").bind(ip).run().catch(() => {});
+    await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<?").bind(new Date().toISOString()).run().catch(() => {});
     const token = await createAdminSession(env);
     return Response.json({ ok: true, token });
   }
 
-  /* Owner-only: lets the owner change the admin password from within the app
-     instead of only via the Cloudflare dashboard secret. Stores it the same
-     way — as a Cloudflare Secret would be checked — but since Workers can't
-     rewrite their own secrets from inside a request, this instead stores an
-     override in D1 that admin_login checks FIRST, falling back to the
-     env.ADMIN_PASSWORD secret if no override row exists. */
+  /* Owner-only: lets the owner change the admin password from within the app. It is stored only as a salted hash (see above). */
   if (action === "admin_change_password") {
     if (!(await verifyAdminToken(env, body.token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    if (!body.new_password || body.new_password.length < 4) {
+    if (typeof body.new_password !== "string" || body.new_password.length < 8) {
       return Response.json({ ok: false, error: "password_too_short" }, { status: 400 });
     }
-    await env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS admin_password_override (id INTEGER PRIMARY KEY CHECK (id=1), password TEXT NOT NULL)"
-    ).run();
-    await env.DB.prepare(
-      "INSERT INTO admin_password_override (id, password) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET password=excluded.password"
-    ).bind(body.new_password).run();
+    await ensureAdminTables(env);
+    await storeAdminHash(env, body.new_password);
+    await env.DB.prepare("DELETE FROM admin_password_override WHERE id=1").run().catch(() => {});
     return Response.json({ ok: true });
+  }
+
+  /* admin: switch the device check (enforce_device_auth) ON / OFF */
+  if (action === "set_devauth") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    await setFlag(env, "enforce_device_auth", !!body.on);
+    forgetFlagCache();
+    return Response.json({ ok: true, enforce: !!body.on });
   }
 
   if (action === "login") {
