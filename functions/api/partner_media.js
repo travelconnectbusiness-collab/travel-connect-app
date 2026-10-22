@@ -9,6 +9,8 @@
    with a long browser cache (the address changes when the picture changes).
    Plan rule is checked on every save AND every view, so a lapsed plan simply hides the extras (nothing is lost). */
 
+import { deviceCheck } from "./_devauth.js";
+
 const MAX_BYTES = 3 * 1024 * 1024;
 const MAX_CAPTION = 120;
 const KINDS = ["photo", "post1", "post2"];
@@ -85,13 +87,14 @@ async function dropFiles(env, keys) {
 const stamp = (r) => (r && r.updated_at ? Date.parse(r.updated_at) || 0 : 0);
 
 /* ---------- GET: media_mine (owner) and media_image (public) ---------- */
-export async function mediaGet(env, action, url) {
+export async function mediaGet(env, action, url, request) {
   if (action !== "media_mine" && action !== "media_image") return null;
   await ensure(env);
   if (action === "media_mine") {
     const partnerId = Number(url.searchParams.get("partner_id"));
     const p = await owner(env, partnerId, (url.searchParams.get("mobile") || "").trim());
     if (!p) return j({ ok: false, error: "unauthorized" }, 403);
+    if (request) { const deny = await deviceCheck(env, request, "media.mine", [(url.searchParams.get("mobile") || "").trim()]); if (deny) return deny; }
     const m = await rowOf(env, partnerId);
     return j({
       ok: true,
@@ -138,6 +141,7 @@ export async function mediaPost(request, env, urlAction) {
     if (!KINDS.includes(kind)) return j({ ok: false, error: "bad_kind" }, 400);
     const p = await owner(env, partnerId, String(form.get("mobile") || "").trim());
     if (!p) return j({ ok: false, error: "unauthorized" }, 403);
+    { const deny = await deviceCheck(env, request, "media.upload", [String(form.get("mobile") || "").trim()]); if (deny) return deny; }
     if (kind === "photo" ? !canPhoto(p) : !canExtras(p)) return j({ ok: false, error: kind === "photo" ? "not_plus" : "not_premium" }, 403);
     const old = await rowOf(env, partnerId);
     const fields = {};
@@ -168,6 +172,7 @@ export async function mediaPost(request, env, urlAction) {
   const partnerId = Number(body.partner_id);
   const p = await owner(env, partnerId, String(body.mobile || "").trim());
   if (!p) return j({ ok: false, error: "unauthorized" }, 403);
+  { const deny = await deviceCheck(env, request, "media.edit", [String(body.mobile || "").trim()]); if (deny) return deny; }
 
   if (urlAction === "media_links") {
     if (!canExtras(p)) return j({ ok: false, error: "not_premium" }, 403);
