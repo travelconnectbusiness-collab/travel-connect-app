@@ -317,3 +317,42 @@ if (problems.length) {
   process.exit(1);
 }
 console.log("OK - nothing missing.");
+
+/* ---------- 3) CLEAN-UP REPORT (information only, never fails the check) ----------
+   Lists files that no other file mentions by name: candidates for deleting old, unused files.
+   A file is "mentioned" when its file name appears in index.html, sw.js, worker.js, manifest, a workflow, or any other script.
+   Always double-check before deleting - a file can also be loaded by a name built in code. */
+try {
+  const skipDirs = new Set([".git", "node_modules", "android", ".wrangler"]);
+  const allFiles = [];
+  (function scan(dir) {
+    for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+      if (skipDirs.has(e.name)) continue;
+      const rel = dir ? dir + "/" + e.name : e.name;
+      if (e.isDirectory()) scan(rel); else allFiles.push(rel);
+    }
+  })("");
+  const textExt = /\.(js|html|json|toml|yml|yaml|css|md|sql|txt|webmanifest)$/i;
+  const texts = {};
+  for (const f of allFiles) {
+    if (f === "scripts/guard.js" || f === "guard.js" || f === "FEATURES.md") continue; /* the guard / notes mention every file */
+    if (textExt.test(f)) { try { texts[f] = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch (e) {} }
+  }
+  const mentioned = (f) => {
+    const base = f.split("/").pop();
+    for (const k in texts) { if (k !== f && texts[k].includes(base)) return true; }
+    return false;
+  };
+  const cands = allFiles.filter((f) =>
+    /^(src\/[^/]+\.js|functions\/[^/]+\/[^/]+\.js|[^/]+\.(js|html|css|sql|png|jpg|svg|ico|txt|json|webmanifest))$/i.test(f) &&
+    !["index.html", "sw.js", "worker.js", "package.json", "wrangler.toml"].includes(f) && !mentioned(f));
+  console.log("\nCLEAN-UP REPORT (files no other file mentions by name - " + cands.length + "):");
+  if (!cands.length) console.log("  none");
+  cands.forEach((f) => {
+    let n = ""; try { n = " (" + fs.readFileSync(path.join(ROOT, f), "utf8").split("\n").length + " lines)"; } catch (e) { n = " (binary)"; }
+    console.log("  - " + f + n);
+  });
+  const old = allFiles.filter((f) => /^src\/app-updates[^/]*\.js$/.test(f));
+  console.log("OLD-STYLE FILES src/app-updates*.js: " + (old.length ? old.join(", ") : "none"));
+  console.log("All files in repo (for the record): " + allFiles.length);
+} catch (e) { console.log("(clean-up report skipped: " + e.message + ")"); }
