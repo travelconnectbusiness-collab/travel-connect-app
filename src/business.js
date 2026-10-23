@@ -603,7 +603,7 @@ function printQuoteObj(q,asImage){
   ${q.itinerary.map((d,i)=>`<div style="margin-bottom:8px"><b style="color:#1f4e6b">Day ${i+1}</b><div style="white-space:pre-wrap;font-size:13.5px;margin-top:2px">${esc(d)}</div></div>`).join("")}
  </div>`:""}
  <table>
-  ${row("Trip Type",q.type,true)}
+  ${row("Trip Type",tcTypeLabel(q.type),true)}
   ${q.days>1?row("Number of days",q.days+" days",true):""}
   ${q.restHours>0?row("Overnight rest hours (excluded)",q.restHours+" hrs"):""}
   ${row("Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs",true)}
@@ -665,7 +665,7 @@ function printBill(tripId,asImage){
  let detailRows="";
  detailRows+=row("Customer",t.customer||q.customer);
  detailRows+=row("Customer Mobile",q.mobile||"-");
- detailRows+=row("Trip Type",q.type||"-");
+ detailRows+=row("Trip Type",tcTypeLabel(q.type)||"-");
  detailRows+=row("Vehicle Category",q.category||"-");
  detailRows+=row("Vehicle",q.vehicle||"Not specified");
  detailRows+=row("Vehicle Number",q.vehicleNo||"Not specified");
@@ -882,7 +882,7 @@ async function downloadQuotePDFObj(q){
  y=pdfRow(doc,y,"Pickup",q.pickup);
  dests.forEach((d,i)=>{y=pdfRow(doc,y,"Destination "+(i+1),d);});
  if(q.returnPoint) y=pdfRow(doc,y,"Return point",q.returnPoint);
- y=pdfRow(doc,y,"Trip type",q.type+" / "+q.ratePlan);
+ y=pdfRow(doc,y,"Trip type",tcTypeLabel(q.type)+" / "+String(q.ratePlan||"").replace(/^./,c=>c.toUpperCase()));
  if(q.days>1) y=pdfRow(doc,y,"Number of days",q.days+" days");
  if(q.restHours>0) y=pdfRow(doc,y,"Overnight rest hours (excluded)",q.restHours+" hrs");
  y=pdfRow(doc,y,"Estimated KM / Hours",q.estimatedKm+" KM / "+q.estimatedHours+" hrs");
@@ -998,7 +998,7 @@ async function downloadBillPDF(tripId){
 
  const billDriverName=t.driverName||(driver?driver.name:"")||"";
  const billDriverMobile=t.driverMobile||(driver?driver.mobile:"")||"";
- const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",q.type||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
+ const detailRows=[["Customer",t.customer||q.customer],["Customer Mobile",q.mobile||"-"],["Trip Type",tcTypeLabel(q.type)||"-"],["Vehicle Category",q.category||"-"],["Vehicle",q.vehicle||"Not specified"],["Vehicle Number",q.vehicleNo||"Not specified"]];
  if(billDriverName) detailRows.push(["Driver",billDriverName]);
  if(billDriverMobile) detailRows.push(["Driver Mobile",billDriverMobile]);
  if(q.service) detailRows.push(["Service",q.service]);
@@ -1641,12 +1641,32 @@ function billing(){
  <label>Bill print date (optional, defaults to today)${tcDateInputHtml("billDateInput","")}</label>
  <div class="actions"><button class="primary" onclick="loadBill()">Calculate Final Bill</button></div><div id="billBox"></div>`);
 }
+/* printed name of a trip type: older quotes / bills keep the code ("drop", "local", "one_day"...), newer ones may already hold the name */
+function tcTypeLabel(v){
+ const m={local:"Local Trip",one_day:"One Day",round:"Round Trip",outstation:"Outstation",drop:"Drop"};
+ v=String(v==null?"":v);
+ return m[v]||v;
+}
+/* Quick Bill starts with NO trip type chosen (so the Local rate is never applied by accident). Called by Preview / Create Bill:
+   when still empty -> warning, scroll to the box, red border until a type is chosen. Returns true when the type is missing. */
+function tcQbNeedType(){
+ const el=document.querySelector("#qbType");
+ if(!el||el.value) return false;
+ try{ toast(tcBl("Select the Trip type first","ആദ്യം ട്രിപ്പ് ടൈപ്പ് തിരഞ്ഞെടുക്കുക")); }catch(e){}
+ el.style.border="2px solid #c0392b"; el.style.background="#fdeceb";
+ try{ el.scrollIntoView({behavior:"smooth",block:"center"}); }catch(e){}
+ setTimeout(()=>{ try{ el.focus(); }catch(e){} },350);
+ const clear=()=>{ el.style.border=""; el.style.background=""; el.removeEventListener("change",clear); };
+ el.addEventListener("change",clear);
+ return true;
+}
 function openQuickBillForm(){
  const cat=tcCategoryOptions();
  modal(`<h2>Quick Bill</h2>
  <div class="grid">
   <label>Customer name<input id="qbName"></label><label>Customer mobile<input id="qbMobile"></label>
   <label>Trip type<select id="qbType">
+    <option value="" selected>${tcBl("-- Select trip type --","-- ട്രിപ്പ് ടൈപ്പ് തിരഞ്ഞെടുക്കുക --")}</option>
     <option value="local">Local Trip</option><option value="one_day">One Day</option>
     <option value="round">Round Trip</option><option value="outstation">Outstation</option><option value="drop">Drop</option>
   </select></label>
@@ -1692,6 +1712,7 @@ function collectQuickBillDestinations(){
 function calcQuickBillPreview(){
  const catEl=document.querySelector("#qbCat");
  const box=document.querySelector("#qbResult");
+ if(tcQbNeedType()){ box.innerHTML=`<div class="danger"><b>&#11014; ${tcBl("Please select the Trip type first","ആദ്യം ട്രിപ്പ് ടൈപ്പ് തിരഞ്ഞെടുക്കുക")}</b></div>`; return; }
  if(catEl.value===""){ box.innerHTML=`<div class="danger"><b>&#11014; Please select a Vehicle Category first</b></div>`; return; }
  const c=db.categories[+catEl.value];
  const plan=document.querySelector("#qbRate").value;
@@ -1711,6 +1732,7 @@ function calcQuickBillPreview(){
 function saveQuickBill(){
  const name=document.querySelector("#qbName").value, mobile=document.querySelector("#qbMobile").value;
  if(!name||!mobile){toast("Enter the customer's name and mobile number");return}
+ if(tcQbNeedType()) return;
  if(document.querySelector("#qbCat").value===""){toast("Select a Vehicle Category first");return}
  const c=db.categories[+document.querySelector("#qbCat").value];
  const km=+document.querySelector("#qbKm").value||0, h=+document.querySelector("#qbHours").value||0;
