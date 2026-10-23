@@ -302,6 +302,8 @@
  };
 
  /* ------------------------------------------------------------------ keep everything hooked as pages and windows are drawn */
+ /* read-only helper for the profit check (tc-cost.js): the real average km/L of the vehicle with this number */
+ window.__tcOdoApi={ avgFor:function(no){ try{ var v=vByNo(no); if(!v) return 0; var m=mileage(v); return m.avg>0?m.avg:0; }catch(e){ return 0; } } };
  var t0=null;
  function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ decorateCards(); entryHook(); startHook(); endHook(); }catch(e){} },90); }
  function start(){
