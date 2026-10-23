@@ -15,6 +15,7 @@ import { onRequestGet as tripAlertsGet, onRequestPost as tripAlertsPost } from "
 import { onRequestPost as backupPost } from "./functions/api/backup.js";
 import { onRequestGet as upgradeGet, onRequestPost as upgradePost } from "./functions/api/upgrade.js";
 import { onRequestGet as regdocsGet, onRequestPost as regdocsPost } from "./functions/api/regdocs.js";
+import { allowed as rlAllowed } from "./functions/api/_ratelimit.js";
 import { maybeRunExpirySweep } from "./functions/api/docs_expiry.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
@@ -59,7 +60,13 @@ async function handleApi(request, env, url, ctx) {
 
   if (url.pathname === "/api/feedback") {
     if (request.method === "GET") return feedbackGet({ request, env });
-    if (request.method === "POST") return feedbackPost({ request, env });
+    if (request.method === "POST") {
+      /* feedback is open to everybody, so it is limited: 5 per hour per IP, and no huge bodies */
+      if (Number(request.headers.get("content-length") || 0) > 20000) return Response.json({ ok: false, error: "too_large" }, { status: 413 });
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      if (!(await rlAllowed(env, "fb:" + ip, 5, 3600))) return Response.json({ ok: false, error: "too_many" }, { status: 429 });
+      return feedbackPost({ request, env });
+    }
   }
 
   if (url.pathname === "/api/partner_plan") {
