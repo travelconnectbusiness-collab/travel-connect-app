@@ -23,6 +23,7 @@ import { verifyAdminToken } from "./_auth_helper.js";
 import { eligiblePartners, partnerMatches, VCLASSES, rateAvailability } from "./trip_class.js";
 import { ensureAbuse, checkBroadcast, last10 as last10Digits, abuseGet, abusePost } from "./trip_abuse.js";
 import { fallbackGet, fallbackPost } from "./trip_fallback.js";
+import { deviceCheck } from "./_devauth.js";
 
 const RADIUS_KM = 15; // straight-line pre-filter only, not what's shown
 const ALERT_LIFETIME_MINUTES = 10;
@@ -443,6 +444,8 @@ export async function onRequestPost({ request, env, ctx }) {
     if (!businessType || !customerName || !customerMobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const devDeny = await deviceCheck(env, request, "trip_alerts.broadcast", [customerMobile]);
+    if (devDeny) return devDeny;
     /* Abuse limits (trip_abuse.js): blocked / too many requests / same request tapped twice */
     const device = String(body.device || "").slice(0, 80);
     const ip = request.headers.get("CF-Connecting-IP") || "";
@@ -564,6 +567,8 @@ export async function onRequestPost({ request, env, ctx }) {
     const partnerId = Number(body.partner_id);
     const mobile = (body.mobile || "").trim();
     if (!alertId || !partnerId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.accept", [mobile]);
+    if (devDeny) return devDeny;
 
     const partner = await env.DB.prepare("SELECT id, business_name, mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
     if (!partner || (partner.mobile1 !== mobile && partner.mobile2 !== mobile)) {
@@ -627,6 +632,8 @@ export async function onRequestPost({ request, env, ctx }) {
     const alertId = Number(body.alert_id);
     const mobile = (body.mobile || "").trim();
     if (!alertId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.cancel", [mobile]);
+    if (devDeny) return devDeny;
     const alert = await env.DB.prepare("SELECT customer_mobile, status FROM trip_alerts WHERE id=?").bind(alertId).first();
     if (!alert) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     if (alert.customer_mobile !== mobile) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
@@ -649,6 +656,8 @@ export async function onRequestGet({ request, env }) {
     const alertId = Number(url.searchParams.get("alert_id"));
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!alertId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.status", [mobile]);
+    if (devDeny) return devDeny;
     let alert = await env.DB
       .prepare("SELECT a.*, (SELECT COUNT(*) FROM trip_alert_candidates c WHERE c.alert_id=a.id AND c.notified=0) AS waiting_push FROM trip_alerts a WHERE a.id=?")
       .bind(alertId)
@@ -683,6 +692,8 @@ export async function onRequestGet({ request, env }) {
     const partnerId = Number(url.searchParams.get("partner_id"));
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!partnerId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.pending_for_partner", [mobile]);
+    if (devDeny) return devDeny;
     const partner = await env.DB.prepare("SELECT id, business_type, mobile1, mobile2, COALESCE(current_lat, lat) AS lat, COALESCE(current_lon, lon) AS lon FROM travel_partners WHERE id=?").bind(partnerId).first();
     if (!partner || (partner.mobile1 !== mobile && partner.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
@@ -834,6 +845,8 @@ export async function onRequestGet({ request, env }) {
   if (action === "my_history") {
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.my_history", [mobile]);
+    if (devDeny) return devDeny;
     const { results } = await env.DB
       .prepare(
         `SELECT ta.id, ta.business_type, ta.vclass, ta.rate_cat_label, ta.rate_trip, ta.customer_name, ta.pickup_text, ta.destinations, ta.status, ta.notified_count, ta.created_at,
@@ -863,6 +876,8 @@ export async function onRequestGet({ request, env }) {
     const partnerId = Number(url.searchParams.get("partner_id"));
     const mobile = (url.searchParams.get("mobile") || "").trim();
     if (!partnerId || !mobile) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+    const devDeny = await deviceCheck(env, request, "trip_alerts.partner_history", [mobile]);
+    if (devDeny) return devDeny;
     const partner = await env.DB.prepare("SELECT id, mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
     if (!partner || (partner.mobile1 !== mobile && partner.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
