@@ -9,6 +9,10 @@
       with [Verify e-mail] and [Later] (hidden for 3 days). It is placed just above the dashboard box (a sibling of it, not inside it), so it never fights the
       order of the dashboard boxes.
    4) MENU > "My account security": e-mail state, how many phones are signed in, [Verify e-mail], [Sign out all other phones].
+   5) E-MAIL FOR EVERY ACCOUNT (owners AND customers): box "Verify your e-mail" (e-mail -> 6-digit code -> verified, stored on the account by the
+      server). A NEW account (server flag must_verify) gets the box right after login and cannot close it without verifying or ticking
+      "I accept the risk" (kept on the server with the time). Older accounts only get the bar (owner dashboard / customer home) and, if the
+      admin sends it, a reminder notification. Changing a verified e-mail needs a code sent to the NEW address.
    Nothing is stored except a 6-hour copy of the server's answer (localStorage tc_sec_info) and the "Later" time (tc_sec_snooze). */
 (function(){
  if(window.__tcAcctSec) return;
@@ -38,8 +42,8 @@
   var d=document.createElement("div"); d.id="tcLoginWarn";
   d.style.cssText="text-align:left;font-size:12px;line-height:1.45;color:#5c4400;background:#fff6e0;border:1px solid #e0a526;border-radius:10px;padding:8px 10px;margin:8px 0 2px";
   d.innerHTML="&#128274; <b>"+E(B("Privacy notice","സ്വകാര്യത"))+"</b><br>"+
-   E(B("Your data is fully protected only after you verify your e-mail (Dashboard > More > Verification & Plan). With a verified e-mail, a new phone can log in to your account only with a code sent to that e-mail. Without it, anybody who knows your mobile number can log in as you on another phone.",
-       "ഇമെയിൽ വെരിഫൈ ചെയ്താൽ മാത്രമേ നിങ്ങളുടെ വിവരങ്ങൾ പൂർണ്ണമായും സുരക്ഷിതമാകൂ (ഡാഷ്ബോർഡ് > More > Verification & Plan). വെരിഫൈ ചെയ്ത അക്കൗണ്ടിൽ പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ ആ ഇമെയിലിൽ വരുന്ന കോഡ് വേണം. അല്ലെങ്കിൽ നിങ്ങളുടെ മൊബൈൽ നമ്പർ അറിയുന്ന ആർക്കും മറ്റൊരു ഫോണിൽ നിങ്ങളായി ലോഗിൻ ചെയ്യാം."));
+   E(B("Your data is fully protected only after you verify your e-mail (Dashboard > More > Verification & Plan). With a verified e-mail, a new phone can log in to your account only with a code sent to that e-mail. Without it, anybody who knows your mobile number can log in as you on another phone. New users must verify an e-mail after logging in.",
+       "ഇമെയിൽ വെരിഫൈ ചെയ്താൽ മാത്രമേ നിങ്ങളുടെ വിവരങ്ങൾ പൂർണ്ണമായും സുരക്ഷിതമാകൂ (ഡാഷ്ബോർഡ് > More > Verification & Plan). വെരിഫൈ ചെയ്ത അക്കൗണ്ടിൽ പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ ആ ഇമെയിലിൽ വരുന്ന കോഡ് വേണം. അല്ലെങ്കിൽ നിങ്ങളുടെ മൊബൈൽ നമ്പർ അറിയുന്ന ആർക്കും മറ്റൊരു ഫോണിൽ നിങ്ങളായി ലോഗിൻ ചെയ്യാം. പുതിയ ഉപയോക്താക്കൾ ലോഗിൻ ചെയ്ത ശേഷം ഇമെയിൽ വെരിഫൈ ചെയ്യണം."));
   err.parentNode.insertBefore(d,err);
  }
 
@@ -118,6 +122,7 @@
   if(!lo) return p;
   var self=this;
   return p.then(function(res){
+   if(res.status===200&&$("loginName")){ setTimeout(function(){ LS.set("tc_sec_info",""); forcedDone=false; later(); },900); return res; }
    if(res.status!==403) return res;
    return res.clone().json().then(function(j){
     if(!j||j.error!=="otp_required"||!$("loginName")) return res;
@@ -141,44 +146,115 @@
   if(!force&&c&&Date.now()-c.at<6*3600*1000) return Promise.resolve(c);
   return api("security_info",{mobile:u.mobile,device_token:dev()}).then(function(j){
    if(!j.ok) return c;
-   var o={at:Date.now(),mobile:u.mobile,verified:!!j.email_verified,hint:j.email_hint||"",devices:j.devices||1,enforce:!!j.enforce};
+   var o={at:Date.now(),mobile:u.mobile,verified:!!j.email_verified,hint:j.email_hint||"",devices:j.devices||1,enforce:!!j.enforce,must:!!j.must_verify,typed:j.email_typed||"",risk:!!j.risk_accepted};
    LS.set("tc_sec_info",JSON.stringify(o)); return o;
   }).catch(function(){ return c; });
  }
- function hasListing(){ try{ return !!(db&&db.settings&&db.settings.myPartnerId); }catch(e){ return false; } }
  function goVerify(){
   try{ if(typeof closeModal==="function") closeModal(); }catch(e){}
-  if(typeof window.tcUpOpenEmail==="function"){ window.tcUpOpenEmail(); return; }
-  say(B("Open Dashboard > More > Verification & Plan and tap Verify e-mail","ഡാഷ്ബോർഡ് > More > Verification & Plan തുറന്ന് Verify e-mail അമർത്തുക"));
+  window.tcEmailOpen(false,false);
  }
  window.tcSecVerify=goVerify;
+
+ /* ------------------------------------------------------------------ e-mail verification box */
+ window.tcEmailOpen=function(forced,change){
+  var u=user(); if(!u||!u.mobile) return;
+  if($("tcEmailAsk")) return;
+  var info=cachedInfo()||{};
+  var d=document.createElement("div"); d.id="tcEmailAsk";
+  d.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto";
+  d.innerHTML='<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:20px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3)">'+
+   '<div style="font-weight:800;font-size:16px;color:#082b49;margin-bottom:6px">&#9993; '+E(change?B("Change your e-mail","ഇമെയിൽ മാറ്റുക"):B("Verify your e-mail","ഇമെയിൽ വെരിഫൈ ചെയ്യുക"))+'</div>'+
+   '<div class="muted" style="font-size:13px;margin-bottom:10px">'+E(B("We send a 6-digit code to this e-mail. Once it is verified, a new phone can log in to your account only with a code sent here - nobody can use just your mobile number.","ഈ ഇമെയിലിലേക്ക് 6 അക്ക കോഡ് അയയ്ക്കും. വെരിഫൈ ചെയ്താൽ പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ ഇവിടെ വരുന്ന കോഡ് വേണം - മൊബൈൽ നമ്പർ മാത്രം വച്ച് ആർക്കും കഴിയില്ല."))+'</div>'+
+   '<input id="tcEmEmail" type="email" autocomplete="email" placeholder="name@example.com" value="'+E(info.typed||"")+'" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px;border-radius:10px;border:1px solid #c9d4dc;margin-bottom:8px">'+
+   '<button id="tcEmSend" class="primary" style="width:100%;padding:10px;border-radius:10px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:14px;margin-bottom:8px">'+E(B("Send code","കോഡ് അയയ്ക്കുക"))+'</button>'+
+   '<div id="tcEmStep2" style="display:none"><input id="tcEmCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="------" style="width:100%;box-sizing:border-box;font-size:22px;text-align:center;letter-spacing:8px;padding:9px;border-radius:10px;border:1px solid #c9d4dc;margin-bottom:8px">'+
+   '<button id="tcEmGo" class="primary" style="width:100%;padding:10px;border-radius:10px;border:none;background:#0b6b78;color:#fff;font-weight:700;font-size:14px;margin-bottom:8px">'+E(B("Verify","വെരിഫൈ ചെയ്യുക"))+'</button></div>'+
+   '<div id="tcEmMsg" style="min-height:18px;font-size:12.5px;color:#a12d2d;margin-bottom:8px"></div>'+
+   (forced?'<div style="border-top:1px solid #eee;padding-top:10px;margin-top:2px"><label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.4;color:#5c4400"><input id="tcEmRisk" type="checkbox" style="width:auto;margin-top:2px"> <span>'+E(B("I do not want to verify an e-mail now. I understand my account is then NOT protected - anybody who knows my mobile number can log in as me on another phone - and I accept this risk myself.","ഇപ്പോൾ ഇമെയിൽ വെരിഫൈ ചെയ്യുന്നില്ല. അതോടെ എന്റെ അക്കൗണ്ട് സംരക്ഷിതമല്ലെന്നും, എന്റെ മൊബൈൽ നമ്പർ അറിയുന്ന ആർക്കും മറ്റൊരു ഫോണിൽ എന്നായി ലോഗിൻ ചെയ്യാമെന്നും ഞാൻ മനസ്സിലാക്കുന്നു; ഈ റിസ്ക് എന്റെ സ്വന്തം ഉത്തരവാദിത്വമാണ്."))+'</span></label>'+
+    '<button id="tcEmSkip" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:1px solid #c9d4dc;background:#f5f8fa">'+E(B("Continue without e-mail","ഇമെയിൽ ഇല്ലാതെ തുടരുക"))+'</button></div>'
+         :'<button id="tcEmClose" style="width:100%;padding:9px;border-radius:10px;border:1px solid #c9d4dc;background:#f5f8fa">'+E(B("Close","അടയ്ക്കുക"))+'</button>')+'</div>';
+  document.body.appendChild(d);
+  var msg=function(t,good){ var m=$("tcEmMsg"); if(m){ m.textContent=t||""; m.style.color=good?"#1c6b2c":"#a12d2d"; } };
+  var done=function(){ var x=$("tcEmailAsk"); if(x) x.remove(); LS.set("tc_sec_info",""); var bb=$("tcSecBar"); if(bb) bb.remove(); later(); };
+  var NO=B("No connection. Check the internet and try again.","കണക്ഷൻ ഇല്ല. ഇന്റർനെറ്റ് നോക്കി വീണ്ടും ശ്രമിക്കുക.");
+  $("tcEmSend").onclick=function(){
+   var em=($("tcEmEmail").value||"").trim().toLowerCase();
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){ msg(B("Enter a valid e-mail address.","ശരിയായ ഇമെയിൽ വിലാസം നൽകുക.")); return; }
+   $("tcEmSend").disabled=true; msg("");
+   api("email_otp_send",{mobile:u.mobile,device_token:dev(),email:em}).then(function(j){
+    $("tcEmSend")&&($("tcEmSend").disabled=false);
+    if(j.ok){ $("tcEmStep2").style.display=""; msg(B("Code sent. Check your e-mail (also the spam folder).","കോഡ് അയച്ചു. ഇമെയിൽ നോക്കുക (സ്പാം ഫോൾഡറും)."),true); return; }
+    if(j.error==="wait"){ $("tcEmStep2").style.display=""; msg(B("A code was sent a moment ago - use it, or wait a minute.","കോഡ് ഇപ്പോൾ അയച്ചിട്ടുണ്ട് - അത് ഉപയോഗിക്കുക, അല്ലെങ്കിൽ ഒരു മിനിറ്റ് കാത്തിരിക്കുക."),true); return; }
+    if(j.error==="too_many"){ msg(B("Too many codes were asked for. Try again after an hour.","ഒരുപാട് കോഡുകൾ ചോദിച്ചു. ഒരു മണിക്കൂറിന് ശേഷം ശ്രമിക്കുക.")); return; }
+    if(j.error==="bad_email"){ msg(B("Enter a valid e-mail address.","ശരിയായ ഇമെയിൽ വിലാസം നൽകുക.")); return; }
+    if(j.error==="unauthorized"){ msg(B("Please log in again.","വീണ്ടും ലോഗിൻ ചെയ്യുക.")); return; }
+    msg(B("The code could not be sent now. Try again later.","കോഡ് ഇപ്പോൾ അയയ്ക്കാനായില്ല. പിന്നീട് ശ്രമിക്കുക."));
+   }).catch(function(){ $("tcEmSend")&&($("tcEmSend").disabled=false); msg(NO); });
+  };
+  $("tcEmGo").onclick=function(){
+   var em=($("tcEmEmail").value||"").trim().toLowerCase(), code=($("tcEmCode").value||"").replace(/\D/g,"");
+   if(code.length!==6){ msg(B("Enter the 6-digit code.","6 അക്ക കോഡ് നൽകുക.")); return; }
+   $("tcEmGo").disabled=true;
+   api("email_otp_verify",{mobile:u.mobile,device_token:dev(),email:em,code:code}).then(function(j){
+    if(j.ok){ say(B("E-mail verified. Your account is protected.","ഇമെയിൽ വെരിഫൈ ആയി. അക്കൗണ്ട് സംരക്ഷിതമാണ്.")); done(); return; }
+    $("tcEmGo")&&($("tcEmGo").disabled=false);
+    if(j.error==="wrong_code") msg(B("Wrong code. Tries left: ","കോഡ് തെറ്റാണ്. ശ്രമങ്ങൾ ബാക്കി: ")+(j.attempts_left==null?"":j.attempts_left));
+    else if(j.error==="expired") msg(B("The code has expired. Send a new one.","കോഡിന്റെ സമയം കഴിഞ്ഞു. പുതിയത് അയയ്ക്കുക."));
+    else if(j.error==="too_many_attempts") msg(B("Too many wrong tries. Send a new code.","ഒരുപാട് തെറ്റായ ശ്രമങ്ങൾ. പുതിയ കോഡ് അയയ്ക്കുക."));
+    else if(j.error==="no_code") msg(B("Send a code to this e-mail first.","ആദ്യം ഈ ഇമെയിലിലേക്ക് കോഡ് അയയ്ക്കുക."));
+    else msg(B("Could not check the code. Try again.","കോഡ് പരിശോധിക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക."));
+   }).catch(function(){ $("tcEmGo")&&($("tcEmGo").disabled=false); msg(NO); });
+  };
+  if($("tcEmClose")) $("tcEmClose").onclick=function(){ var x=$("tcEmailAsk"); if(x) x.remove(); };
+  if($("tcEmSkip")) $("tcEmSkip").onclick=function(){
+   if(!$("tcEmRisk").checked){ msg(B("Tick the box to continue without an e-mail.","ഇമെയിൽ ഇല്ലാതെ തുടരാൻ ബോക്സ് ടിക്ക് ചെയ്യുക.")); return; }
+   api("accept_email_risk",{mobile:u.mobile,device_token:dev()}).then(function(j){ if(j.ok) done(); else msg(B("Could not save. Try again.","സേവ് ചെയ്യാനായില്ല. വീണ്ടും ശ്രമിക്കുക.")); }).catch(function(){ msg(NO); });
+  };
+ };
+
+ /* new accounts must decide (verify or accept the risk) - asked once per page load, never over the PIN screen or the login page */
+ var forcedDone=false;
+ function forcedCheck(){
+  if(forcedDone||!user()||$("loginName")||$("tcPinOverlay")||$("tcEmailAsk")||$("tcOtpAsk")) return;
+  forcedDone=true;
+  loadInfo(false).then(function(info){ if(info&&info.must&&!info.verified) window.tcEmailOpen(true,false); });
+ }
 
  /* ------------------------------------------------------------------ 3) dashboard bar */
  function snoozed(){ var t=parseInt(LS.get("tc_sec_snooze")||"0",10); return t&&Date.now()-t<3*86400000; }
  window.tcSecLater=function(){ LS.set("tc_sec_snooze",String(Date.now())); var b=$("tcSecBar"); if(b) b.remove(); };
  var busy=false;
+ function homeHost(){
+  var a=$("app"); if(!a) return null;
+  var h2=a.querySelector(".card>h2");
+  if(h2&&/Travel Connect Dashboard|ഡാഷ്ബോർഡ്/i.test(h2.textContent)) return h2.parentNode;
+  var c=$("cCat"); if(c){ var k=c.closest?c.closest(".card"):null; if(k) return k; }
+  return null;
+ }
  function bar(){
   var a=$("app"); if(!a) return;
-  var u=user(), h2=a.querySelector(".card>h2"), cur=$("tcSecBar");
-  var onDash=h2&&/Travel Connect Dashboard|ഡാഷ്ബോർഡ്/i.test(h2.textContent);
-  if(!u||u.role!=="owner"||!onDash||!hasListing()||snoozed()){ if(cur) cur.remove(); return; }
+  var u=user(), host=homeHost(), cur=$("tcSecBar");
+  if(!u||!u.mobile||!host||!host.parentNode||$("loginName")){ if(cur) cur.remove(); return; }
   if(cur||busy) return;
   busy=true;
   loadInfo(false).then(function(info){
    busy=false;
    if(!info||info.verified||$("tcSecBar")) return;
-   var host=a.querySelector(".card>h2"); host=host&&host.parentNode; if(!host||!host.parentNode) return;
+   var gap=info.risk?14*86400000:3*86400000, t=parseInt(LS.get("tc_sec_snooze")||"0",10);
+   if(t&&Date.now()-t<gap) return;
+   var host2=homeHost(); if(!host2||!host2.parentNode) return;
    var d=document.createElement("div"); d.id="tcSecBar";
    d.style.cssText="padding:8px 12px;margin:0 0 10px;border-radius:12px;border:2px solid #e0a526;background:#fff6e0;color:#5c4400;font-size:12.5px;line-height:1.4";
    d.innerHTML='<b>&#128274; '+E(B("Your account is not fully protected","നിങ്ങളുടെ അക്കൗണ്ട് പൂർണ്ണമായി സംരക്ഷിതമല്ല"))+'</b><br>'+
-    E(B("Verify your e-mail. Then a new phone can log in as you only with a code sent to your e-mail - nobody can use just your mobile number.","ഇമെയിൽ വെരിഫൈ ചെയ്യുക. അതിനുശേഷം പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ ഇമെയിലിൽ വരുന്ന കോഡ് വേണം - മൊബൈൽ നമ്പർ മാത്രം വച്ച് ആർക്കും കഴിയില്ല."))+
+    E(B("Add and verify your e-mail. Then a new phone can log in as you only with a code sent to your e-mail - nobody can use just your mobile number.","ഇമെയിൽ ചേർത്ത് വെരിഫൈ ചെയ്യുക. അതിനുശേഷം പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ ഇമെയിലിൽ വരുന്ന കോഡ് വേണം - മൊബൈൽ നമ്പർ മാത്രം വച്ച് ആർക്കും കഴിയില്ല."))+
     '<div style="display:flex;gap:6px;margin-top:6px"><button class="primary" onclick="tcSecVerify()" style="padding:6px 11px;font-size:12px;border-radius:9px">&#9993; '+E(B("Verify e-mail","ഇമെയിൽ വെരിഫൈ ചെയ്യുക"))+'</button>'+
     '<button onclick="tcSecLater()" style="padding:6px 11px;font-size:12px;border-radius:9px">'+E(B("Later","പിന്നീട്"))+'</button></div>';
-   host.parentNode.insertBefore(d,host);
+   host2.parentNode.insertBefore(d,host2);
   }).catch(function(){ busy=false; });
  }
  var t0=null;
- function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ loginNotice(); bar(); }catch(e){} },160); }
+ function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ loginNotice(); bar(); forcedCheck(); }catch(e){} },160); }
  function start(){
   var a=$("app"); if(!a||!window.MutationObserver) return;
   new MutationObserver(later).observe(a,{childList:true});
@@ -200,7 +276,7 @@
          :'<b>&#9888; '+E(B("Not fully protected","പൂർണ്ണമായി സംരക്ഷിതമല്ല"))+'</b><br>'+E(B("Your e-mail is not verified. Anybody who knows your mobile number can log in as you on another phone. Verify your e-mail to protect the account.","നിങ്ങളുടെ ഇമെയിൽ വെരിഫൈ ചെയ്തിട്ടില്ല. മൊബൈൽ നമ്പർ അറിയുന്ന ആർക്കും മറ്റൊരു ഫോണിൽ നിങ്ങളായി ലോഗിൻ ചെയ്യാം. അക്കൗണ്ട് സംരക്ഷിക്കാൻ ഇമെയിൽ വെരിഫൈ ചെയ്യുക.")))+
     '</div>'+
     '<div style="font-size:13px;margin-bottom:8px">'+E(B("Phones signed in to this account: ","ഈ അക്കൗണ്ടിൽ ലോഗിൻ ചെയ്ത ഫോണുകൾ: "))+'<b>'+E(info.devices)+'</b></div>'+
-    (good?'':'<button class="primary" onclick="tcSecVerify()" style="width:100%;margin-bottom:6px">&#9993; '+E(B("Verify e-mail","ഇമെയിൽ വെരിഫൈ ചെയ്യുക"))+'</button>')+
+    (good?'<button onclick="closeModal();tcEmailOpen(false,true)" style="width:100%;margin-bottom:6px">&#9993; '+E(B("Change e-mail","ഇമെയിൽ മാറ്റുക"))+'</button>':'<button class="primary" onclick="tcSecVerify()" style="width:100%;margin-bottom:6px">&#9993; '+E(B("Verify e-mail","ഇമെയിൽ വെരിഫൈ ചെയ്യുക"))+'</button>')+
     '<button onclick="tcSecSignOutOthers()" style="width:100%;margin-bottom:6px"'+(info.devices>1?'':' disabled')+'>'+E(B("Sign out all other phones","മറ്റെല്ലാ ഫോണുകളും സൈൻ ഔട്ട് ചെയ്യുക"))+'</button>'+
     '<div class="muted" style="font-size:11.5px;margin-bottom:8px">'+E(B("Use this if you lost a phone or somebody else logged in as you. The other phones will have to log in again"+(good?" with the e-mailed code.":"."),"ഫോൺ നഷ്ടപ്പെടുകയോ മറ്റൊരാൾ നിങ്ങളായി ലോഗിൻ ചെയ്യുകയോ ചെയ്താൽ ഇത് ഉപയോഗിക്കുക. മറ്റ് ഫോണുകൾ വീണ്ടും ലോഗിൻ ചെയ്യേണ്ടി വരും"+(good?" (ഇമെയിൽ കോഡ് വേണം).":".")))+'</div>'+
     '<button onclick="closeModal()" style="width:100%">'+E(B("Close","അടയ്ക്കുക"))+'</button>');
