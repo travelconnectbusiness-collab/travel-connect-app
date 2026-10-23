@@ -7,6 +7,7 @@
       back to Competitive). The Rate box can still be changed by hand afterwards.
    (A later idea to show no Standard comparison on Drop bills was dropped on 2026-10-22: a Drop bill shows "Standard vs Offer" and the
    saving like every other trip, Standard = the Standard rate for the same KM / hours.)
+   2) (2026-10-24) The form opens with Trip type Local Trip already chosen: the Rate box is now set to Local at once, not only after the type is changed.
    Nothing else about the fare calculation changes. */
 (function(){
  if(window.__tcDropBill) return;
@@ -19,5 +20,8 @@
   else if(ty.value==="local"&&has("local")) rt.value="local";
   else if((rt.value==="drop"||rt.value==="local")&&has("competitive")) rt.value="competitive";
  }
+ /* the form opens with Trip type "Local Trip" already chosen - bring the Rate box in line at once (before, it stayed on Competitive until the type was changed) */
+ var origOpen=window.openQuickBillForm;
+ if(typeof origOpen==="function") window.openQuickBillForm=function(){ var r=origOpen.apply(this,arguments); try{ sync(); }catch(x){} return r; };
  document.addEventListener("change",function(e){ try{ if(e.target&&e.target.id==="qbType") sync(); }catch(x){} },true);
 })();
