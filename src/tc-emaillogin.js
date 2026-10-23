@@ -141,7 +141,8 @@
     }
     setVal("loginName",j.name||""); setVal("loginMobile",j.mobile||"");
     var mo=$("loginMobile"); if(mo) mo.readOnly=true;
-    try{ if(typeof tcLookupReturningUser==="function") tcLookupReturningUser(); }catch(e){}
+    if(j.location) setVal("loginLocation",j.location);
+    if(j.pincode) setVal("loginPincode",j.pincode);
    }else{
     var mo2=$("loginMobile"); if(mo2) mo2.readOnly=false;
    }
