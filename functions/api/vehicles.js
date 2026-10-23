@@ -1,5 +1,6 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { istToday, getEnforceDate, vehicleLive } from "./trip_class.js";
+import { deviceCheck } from "./_devauth.js";
 
 const DOC_FIELDS = [
   "front_photo",
@@ -200,6 +201,9 @@ export async function onRequestPost({ request, env }) {
     if (!partner_id || !vehicle_number) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const ownerRow = await env.DB.prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partner_id).first();
+    const devDeny = await deviceCheck(env, request, "vehicles.register", ownerRow ? [ownerRow.mobile1, ownerRow.mobile2] : []);
+    if (devDeny) return devDeny;
     /* Every new vehicle needs the 4 photos and the Insurance + Permit expiry dates. */
     for (const f of ["front_photo", "rc_photo", "insurance_photo", "permit_photo"]) {
       const file = form.get(f);
@@ -298,6 +302,8 @@ export async function onRequestPost({ request, env }) {
     if (!vehicle_id || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const devDeny = await deviceCheck(env, request, "vehicles.update", [mobile]);
+    if (devDeny) return devDeny;
     const row = await env.DB
       .prepare(
         `SELECT p.mobile1, p.mobile2, v.* FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?`
@@ -360,6 +366,8 @@ export async function onRequestPost({ request, env }) {
     if (!vehicle_id || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const devDeny = await deviceCheck(env, request, "vehicles.toggle_active", [mobile]);
+    if (devDeny) return devDeny;
     const row = await env.DB
       .prepare(
         `SELECT v.id, p.mobile1, p.mobile2 FROM vehicles v
@@ -393,6 +401,8 @@ export async function onRequestPost({ request, env }) {
     if (!vehicle_id || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const devDeny = await deviceCheck(env, request, "vehicles.set_hours", [mobile]);
+    if (devDeny) return devDeny;
     const row = await env.DB
       .prepare(
         `SELECT v.id, p.mobile1, p.mobile2 FROM vehicles v
