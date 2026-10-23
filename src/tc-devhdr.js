@@ -65,7 +65,7 @@
    '<div style="max-height:200px;overflow:auto;margin-bottom:8px">'+table+'</div>'+
    '<button class="primary" onclick="tcDevSecSet('+(j.enforce?'false':'true')+')" style="width:100%;margin-bottom:6px">'+(j.enforce?'Switch OFF (back to soft mode)':'Switch ON')+'</button>'+
    '<div class="muted" style="font-size:11.5px;margin-bottom:6px">Switch ON only when the "no header" number has stayed at 0 for a few days, i.e. everybody has updated the app. If something stops working, switch OFF here.</div>'+
-   otpBox(j)+
+   otpBox(j)+remBox(j)+
    '<button onclick="closeModal()" style="width:100%">Close</button>');
  }
  /* second switch: a NEW phone on an account with a verified e-mail needs an e-mailed code (server: _loginotp.js) */
@@ -77,6 +77,24 @@
    '<button class="primary" onclick="tcDevOtpSet('+(on?'false':'true')+')" style="width:100%;margin-bottom:6px">'+(on?'Switch OFF':'Switch ON')+'</button>'+
    '<div class="muted" style="font-size:11.5px;margin-bottom:8px">Applies only to owners whose e-mail is verified. Switch ON after everybody has this app version. If "send failed" is not 0, the e-mail service (RESEND_API_KEY) is not working - those owners could not log in on a new phone, so keep it OFF until a test code arrives.</div></div>';
  }
+
+ /* reminder notification to accounts without a verified e-mail (server: email_reminder, max once per 20 hours) */
+ function remBox(j){
+  var r=j.reminder||{}, last=r.last?new Date(r.last).toLocaleString():"never";
+  return '<div style="border-top:1px solid #ddd;margin:10px 0 8px;padding-top:10px"><b>E-mail reminder notification</b>'+
+   '<div class="muted" style="font-size:12.5px;margin:6px 0">Accounts without a verified e-mail: <b>'+(r.unverified_accounts||0)+'</b> &middot; can get a notification (notifications ON, not accepted the risk): <b>'+(r.people||0)+'</b> people / '+(r.phones||0)+' phones &middot; last sent: '+E(last)+'</div>'+
+   '<button onclick="tcDevRemind()" style="width:100%;margin-bottom:6px"'+(r.push_ready&&r.people?'':' disabled')+'>Send reminder to '+(r.people||0)+' people</button>'+
+   '<div class="muted" style="font-size:11.5px;margin-bottom:8px">Message: "Protect your Travel Connect account - add and verify your e-mail". Once per 20 hours. People without notifications see the yellow bar in the app instead.</div></div>';
+ }
+ window.tcDevRemind=function(){
+  if(!confirm("Send the e-mail reminder notification now?")) return;
+  of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"email_reminder",token:token()})}).then(function(r){ return r.json(); }).then(function(j){
+   if(j&&j.ok){ say("Sent to "+j.sent+" phones"+(j.failed?(", "+j.failed+" failed"):"")); window.tcDevSecOpen(); }
+   else if(j&&j.error==="too_soon") say("Already sent - wait "+j.retry_minutes+" min");
+   else if(j&&j.error==="push_not_configured") say("Notifications are not set up on the server");
+   else say("Could not send");
+  }).catch(function(){ say("No connection"); });
+ };
  window.tcDevOtpSet=function(on){
   if(on&&!confirm("Switch ON the e-mail code for new phones? Owners with a verified e-mail will get a code mail when they log in on a new phone.")) return;
   of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_devotp",token:token(),on:!!on})}).then(function(r){ return r.json(); }).then(function(j){
