@@ -1,7 +1,7 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 import { getFlag, setFlag } from "./_flags.js";
 import { softStats, forgetFlagCache } from "./_devauth.js";
-import { loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats } from "./_loginotp.js";
+import { loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -160,7 +160,7 @@ export async function onRequestGet({ request, env }) {
     if (!(await verifyAdminToken(env, token))) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    return Response.json({ ok: true, enforce: await getFlag(env, "enforce_device_auth", false), soft: await softStats(env), otp_enforce: await otpEnforcing(env), otp: await otpStats(env) });
+    return Response.json({ ok: true, enforce: await getFlag(env, "enforce_device_auth", false), soft: await softStats(env), otp_enforce: await otpEnforcing(env), otp: await otpStats(env), reminder: await reminderStats(env) });
   }
 
   if (action === "check") {
@@ -289,11 +289,23 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, otp_enforce: !!body.on });
   }
 
+  /* admin: one reminder notification to every phone whose account has no verified e-mail yet (max once per 20 hours) */
+  if (action === "email_reminder") {
+    if (!(await verifyAdminToken(env, body.token))) {
+      return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    const r = await sendEmailReminder(env);
+    return Response.json(r.json, { status: r.status });
+  }
+
   /* new phone on a protected account: e-mailed code (see _loginotp.js) */
-  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others") {
+  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others" || action === "email_otp_send" || action === "email_otp_verify" || action === "accept_email_risk") {
     const r = action === "login_otp_send" ? await sendLoginCode(env, body)
       : action === "login_otp_verify" ? await verifyLoginCode(env, body)
       : action === "security_info" ? await securityInfo(env, body)
+      : action === "email_otp_send" ? await sendEmailCode(env, body)
+      : action === "email_otp_verify" ? await verifyEmailCode(env, body)
+      : action === "accept_email_risk" ? await acceptEmailRisk(env, body)
       : await revokeOthers(env, body);
     return Response.json(r.json, { status: r.status });
   }
@@ -328,6 +340,7 @@ export async function onRequestPost({ request, env }) {
       }
     }
 
+    await ensureEmailColumns(env);
     const existing = await env.DB
       .prepare("SELECT * FROM app_users WHERE mobile=?")
       .bind(mobile)
@@ -362,14 +375,14 @@ export async function onRequestPost({ request, env }) {
     if (existing) {
       await env.DB
         .prepare(
-          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=?, email=COALESCE(NULLIF(?,''),email), location=COALESCE(NULLIF(?,''),location), pincode=COALESCE(NULLIF(?,''),pincode), lat=COALESCE(?,lat), lon=COALESCE(?,lon) WHERE mobile=?"
+          "UPDATE app_users SET name=?, last_login_at=?, login_count=login_count+1, device_token=?, email=CASE WHEN COALESCE(email_verified,0)=1 THEN email ELSE COALESCE(NULLIF(?,''),email) END, location=COALESCE(NULLIF(?,''),location), pincode=COALESCE(NULLIF(?,''),pincode), lat=COALESCE(?,lat), lon=COALESCE(?,lon) WHERE mobile=?"
         )
         .bind(name, now, deviceToken || existing.device_token || null, email, location, pincode, lat, lon, mobile)
         .run();
     } else {
       await env.DB
         .prepare(
-          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode,lat,lon,role) VALUES (?,?,?,?,?,1,0,?,?,?,?,?,?,?)"
+          "INSERT INTO app_users (name,mobile,invite_token,first_login_at,last_login_at,login_count,blocked,device_token,email,location,pincode,lat,lon,role,email_required) VALUES (?,?,?,?,?,1,0,?,?,?,?,?,?,?,1)"
         )
         .bind(name, mobile, body.invite_token || null, now, now, deviceToken || null, email, location, pincode, lat, lon, role)
         .run();
@@ -400,7 +413,7 @@ export async function onRequestPost({ request, env }) {
       }
     }
 
-    return Response.json({ ok: true, name, mobile, isOwner });
+    return Response.json({ ok: true, name, mobile, isOwner, new_account: !existing });
   }
 
   if (action === "block" || action === "unblock") {
