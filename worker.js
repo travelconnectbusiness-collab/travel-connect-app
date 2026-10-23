@@ -16,7 +16,8 @@ import { onRequestPost as backupPost } from "./functions/api/backup.js";
 import { onRequestGet as upgradeGet, onRequestPost as upgradePost } from "./functions/api/upgrade.js";
 import { onRequestGet as regdocsGet, onRequestPost as regdocsPost } from "./functions/api/regdocs.js";
 import { allowed as rlAllowed } from "./functions/api/_ratelimit.js";
-import { maybeRunExpirySweep } from "./functions/api/docs_expiry.js";
+import { maybeRunExpirySweep, maybeRunDigestEvening } from "./functions/api/docs_expiry.js";
+import { onRequestPost as ownerDigestPost } from "./functions/api/owner_digest.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -108,6 +109,10 @@ async function handleApi(request, env, url, ctx) {
     if (request.method === "POST") return upgradePost({ request, env });
   }
 
+  if (url.pathname === "/api/owner_digest") {
+    if (request.method === "POST") return ownerDigestPost({ request, env });
+  }
+
   if (url.pathname === "/api/backup") {
     if (request.method === "POST") return backupPost({ request, env });
   }
@@ -143,7 +148,7 @@ export default {
           },
         });
       }
-      if (ctx && ctx.waitUntil) ctx.waitUntil(maybeRunExpirySweep(env)); /* daily permit/insurance date check */
+      if (ctx && ctx.waitUntil) { ctx.waitUntil(maybeRunExpirySweep(env)); /* daily permit/insurance date check */ ctx.waitUntil(maybeRunDigestEvening(env)); /* evening: tomorrow's bookings */ }
       const apiRes = await handleApi(request, env, url, ctx);
       if (apiRes) {
         const withCors = new Response(apiRes.body, apiRes);
