@@ -51,8 +51,45 @@
   var best=null; readings(v,skipEntryId).forEach(function(r){ if(!best||r.odo>best.odo) best=r; });
   return best;
  }
- /* full-tank mileage */
+ /* KM of the bills (and ended, not yet billed live trips) of this vehicle (matched by number) with date after d0 and up to d1 */
+ function tripKm(v,d0,d1){
+  var key=nv(v.no); if(!key) return 0;
+  var sum=0, qOf={}; (db.quotes||[]).forEach(function(q){ if(q) qOf[q.id]=q; });
+  (db.trips||[]).forEach(function(t){
+   if(!t||t.deleted) return;
+   var q=qOf[t.quoteId]||{}; if(nv(q.vehicleNo)!==key) return;
+   var d=String(t.startDate||q.startDate||t.entryDate||t.created||"").slice(0,10);
+   if(d>d0&&d<=d1) sum+=(+t.actualKm||0);
+  });
+  (db.liveTrips||[]).forEach(function(t){
+   if(!t||t.tripId||t.status!=="ended"||nv(t.vehicleNo)!==key) return;
+   var d=localDate(t.startAt||t.created);
+   if(d>d0&&d<=d1) sum+=(+t.totalKm||0);
+  });
+  return sum;
+ }
+ /* full-tank mileage, the trip meter way: between two FULL-tank fuel entries the KM of the trips in between (no odometer needed) */
+ function mileageTrip(v){
+  var fills=EL().filter(function(e){ return e.vehId===v.id&&e.cat==="Fuel"&&+e.litres>0; }).sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:String(a.created||"")<String(b.created||"")?-1:1; });
+  var anchor=null, acc=0, amt=0, pairs=[];
+  fills.forEach(function(f){
+   if(anchor==null){ if(f.full){ anchor=f.date; acc=0; amt=0; } return; }
+   acc+=(+f.litres); amt+=(+f.amount||0);
+   if(f.full){
+    var km=tripKm(v,anchor,f.date);
+    if(km>0&&acc>0&&km/acc>=1.5&&km/acc<=40){ pairs.push({km:km,lit:acc,amt:amt,kmpl:km/acc,date:f.date}); anchor=f.date; acc=0; amt=0; }
+    else if(km>0){ anchor=f.date; acc=0; amt=0; }   /* absurd figure (a partial fill ticked as full): start again from here */
+   }
+  });
+  var tk=0,tl=0,ta=0; pairs.forEach(function(p){ tk+=p.km; tl+=p.lit; ta+=p.amt; });
+  return {pairs:pairs,avg:tl>0?tk/tl:0,last:pairs.length?pairs[pairs.length-1].kmpl:0,perKm:tk>0?ta/tk:0,km:tk,fills:fills.length,src:"trip"};
+ }
  function mileage(v){
+  var m=mileageOdo(v); if(m.pairs.length) return m;
+  var t=mileageTrip(v); return t.pairs.length?t:m;
+ }
+ /* full-tank mileage, the odometer way */
+ function mileageOdo(v){
   var fills=EL().filter(function(e){ return e.vehId===v.id&&e.cat==="Fuel"&&+e.odo>0&&+e.litres>0; }).sort(function(a,b){ return (+a.odo)-(+b.odo); });
   var anchor=null, acc=0, amt=0, pairs=[];
   fills.forEach(function(f){
@@ -65,7 +102,7 @@
    }
   });
   var tk=0,tl=0,ta=0; pairs.forEach(function(p){ tk+=p.km; tl+=p.lit; ta+=p.amt; });
-  return {pairs:pairs,avg:tl>0?tk/tl:0,last:pairs.length?pairs[pairs.length-1].kmpl:0,perKm:tk>0?ta/tk:0,km:tk,fills:fills.length};
+  return {pairs:pairs,avg:tl>0?tk/tl:0,last:pairs.length?pairs[pairs.length-1].kmpl:0,perKm:tk>0?ta/tk:0,km:tk,fills:fills.length,src:"odo"};
  }
  function service(v){
   var every=+v.svcEvery>0?+v.svcEvery:0; if(!every) return null;
@@ -121,10 +158,11 @@
    (cur?'<div class="muted" style="font-size:11.5px;margin:-2px 0 4px">'+E(B("last noted ","അവസാനം രേഖപ്പെടുത്തിയത് "))+E(tcFormatDate?tcFormatDate(cur.date):cur.date)+'</div>':"")+
    (mk!=null?row(B("Run this month","ഈ മാസത്തെ ഓട്ടം"),num(mk)+" km"):"")+
    row(B("Average mileage","ശരാശരി മൈലേജ്"),m.avg>0?num(m.avg,1)+" km/L ("+m.pairs.length+")":"-")+
+   (m.avg>0&&m.src==="trip"?'<div class="muted" style="font-size:11.5px;margin:-2px 0 4px">'+E(B("worked out from the trip KM of your bills","ബില്ലുകളിലെ ട്രിപ്പ് KM വെച്ച് കണക്കാക്കിയത്"))+'</div>':"")+
    row(B("Last mileage","അവസാന മൈലേജ്"),m.last>0?num(m.last,1)+" km/L":"-")+
    row(B("Fuel cost per km","ഒരു KM-ന് ഡീസൽ ചെലവ്"),m.perKm>0?rs(m.perKm):"-")+
    '</div>'+
-   (m.avg>0?"":'<p class="muted" style="font-size:12px">'+E(B("Mileage appears after two FULL-tank Fuel entries that have the litres and the meter reading (Trip & Accounts > + Expense > Fuel).","ലിറ്ററും മീറ്റർ റീഡിങ്ങും ഉള്ള രണ്ട് ഫുൾ-ടാങ്ക് ഡീസൽ എൻട്രി ആയാൽ മൈലേജ് കാണാം (Trip & Accounts > + ചെലവ് > Fuel)."))+'</p>')+
+   (m.avg>0?"":'<p class="muted" style="font-size:12px">'+E(B("Mileage appears after two FULL-tank Fuel entries (with litres) that have trips in between - the bills' trip KM is used, or the meter reading if you note it (Trip & Accounts > + Expense > Fuel).","ലിറ്റർ ഉള്ള രണ്ട് ഫുൾ-ടാങ്ക് ഡീസൽ എൻട്രിയും അതിനിടയിൽ ട്രിപ്പുകളും ആയാൽ മൈലേജ് കാണാം - ബില്ലുകളിലെ ട്രിപ്പ് KM ആണ് എടുക്കുക, മീറ്റർ റീഡിങ് നൽകിയാൽ അതും ഉപയോഗിക്കാം (Trip & Accounts > + ചെലവ് > Fuel)."))+'</p>')+
    svcLine(v)+
    '<h3 style="margin:12px 0 4px;font-size:14px">'+E(B("Add a meter reading","മീറ്റർ റീഡിങ് ചേർക്കുക"))+'</h3>'+
    '<div class="grid"><label>'+E(B("Date","തീയതി"))+tcDateInputHtml("odDate",todayIso())+'</label>'+
@@ -192,7 +230,7 @@
   var lit=$("abLitRow"); if(!lit||$("tcOdoRow")) return;
   var id=editingId(), e=id?(Array.isArray(db.accEntries)?db.accEntries.filter(function(x){ return x.id===id; })[0]:null):null;
   var h='<label id="tcOdoRow" style="display:none">'+E(B("Odometer (km) (optional)","ഓഡോമീറ്റർ (km) (ഓപ്ഷണൽ)"))+'<input id="tcOdoIn" type="number" inputmode="decimal" min="0" value="'+E(e&&+e.odo>0?e.odo:"")+'"><span id="tcOdoHint" class="muted" style="font-size:11.5px"></span></label>'+
-   '<label id="tcOdoFullRow" style="display:none;flex-direction:row;align-items:center;gap:8px"><input id="tcOdoFull" type="checkbox" style="width:auto"'+((!e||e.full)?' checked':'')+'> '+E(B("Tank filled full","ടാങ്ക് ഫുൾ ആക്കി"))+'</label>';
+   '<label id="tcOdoFullRow" style="display:none;flex-direction:row;align-items:center;gap:8px"><input id="tcOdoFull" type="checkbox" style="width:auto"'+((!e||e.full)?' checked':'')+'> '+E(B("Tank filled full (untick if only part was filled)","ടാങ്ക് ഫുൾ ആക്കി (കുറച്ച് മാത്രം ആണെങ്കിൽ ടിക്ക് മാറ്റുക)"))+'</label>';
   lit.insertAdjacentHTML("afterend",h);
   entrySync();
  }
@@ -215,8 +253,11 @@
    if(id) e=list.filter(function(x){ return x.id===id; })[0]||null;
    else if(list.length>before) e=list[list.length-1];
    if(e){
-    if(odo>0&&(e.cat==="Fuel"||e.cat==="Service / Repair")){ e.odo=odo; if(e.cat==="Fuel") e.full=full; else delete e.full; }
-    else if(id&&visible){ delete e.odo; delete e.full; }
+    var isF=e.cat==="Fuel", isS=e.cat==="Service / Repair";
+    if(visible&&(isF||isS)){
+     if(odo>0) e.odo=odo; else delete e.odo;
+     if(isF) e.full=full; else delete e.full;
+    }else if(id){ delete e.odo; delete e.full; }
     persist(); setTimeout(refresh,150);
    }
   }catch(x){}
@@ -303,7 +344,11 @@
 
  /* ------------------------------------------------------------------ keep everything hooked as pages and windows are drawn */
  /* read-only helper for the profit check (tc-cost.js): the real average km/L of the vehicle with this number */
- window.__tcOdoApi={ avgFor:function(no){ try{ var v=vByNo(no); if(!v) return 0; var m=mileage(v); return m.avg>0?m.avg:0; }catch(e){ return 0; } } };
+ window.__tcOdoApi={
+  avgFor:function(no){ try{ var v=vByNo(no); if(!v) return 0; var m=mileage(v); return m.avg>0?m.avg:0; }catch(e){ return 0; } },
+  /* real diesel figures of a vehicle (by number or book id): {perKm: Rs per KM, avg: km/L, src: "odo"|"trip", pairs} or null */
+  fuel:function(key){ try{ var v=vById(key)||vByNo(key); if(!v) return null; var m=mileage(v); return m.perKm>0?{perKm:m.perKm,avg:m.avg,src:m.src,pairs:m.pairs.length}:null; }catch(e){ return null; } }
+ };
  var t0=null;
  function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ decorateCards(); entryHook(); startHook(); endHook(); }catch(e){} },90); }
  function start(){
