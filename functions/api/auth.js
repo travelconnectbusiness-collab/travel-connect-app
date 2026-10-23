@@ -1,6 +1,6 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 import { getFlag, setFlag } from "./_flags.js";
-import { softStats, forgetFlagCache } from "./_devauth.js";
+import { softStats, forgetFlagCache, callerOf } from "./_devauth.js";
 import { verifiedEmailOf, loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, emailLoginSend, emailLoginVerify, hasEmailProof, useEmailProof, accountByEmail, pinResetSend, pinResetVerify, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
 
 
@@ -137,7 +137,10 @@ export async function onRequestGet({ request, env }) {
       .bind(mobile)
       .first();
     if (!row) return Response.json({ ok: true, found: false });
-    return Response.json({ ok: true, found: true, name: row.name, location: row.location, pincode: row.pincode });
+    /* name / place / pincode only for the person who is logged in with this number on a known phone; everybody else just learns "has an account" */
+    const who = await callerOf(env, request);
+    if (who.valid && who.mobile === mobile) return Response.json({ ok: true, found: true, name: row.name, location: row.location, pincode: row.pincode });
+    return Response.json({ ok: true, found: true });
   }
 
   if (action === "users") {
