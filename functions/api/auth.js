@@ -1,7 +1,7 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 import { getFlag, setFlag } from "./_flags.js";
 import { softStats, forgetFlagCache } from "./_devauth.js";
-import { loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
+import { verifiedEmailOf, loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, emailLoginSend, emailLoginVerify, hasEmailProof, useEmailProof, accountByEmail, pinResetSend, pinResetVerify, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -299,10 +299,14 @@ export async function onRequestPost({ request, env }) {
   }
 
   /* new phone on a protected account: e-mailed code (see _loginotp.js) */
-  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others" || action === "email_otp_send" || action === "email_otp_verify" || action === "accept_email_risk") {
+  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others" || action === "email_login_send" || action === "email_login_verify" || action === "pin_reset_send" || action === "pin_reset_verify" || action === "email_otp_send" || action === "email_otp_verify" || action === "accept_email_risk") {
     const r = action === "login_otp_send" ? await sendLoginCode(env, body)
       : action === "login_otp_verify" ? await verifyLoginCode(env, body)
       : action === "security_info" ? await securityInfo(env, body)
+      : action === "email_login_send" ? await emailLoginSend(env, body)
+      : action === "email_login_verify" ? await emailLoginVerify(env, body)
+      : action === "pin_reset_send" ? await pinResetSend(env, body)
+      : action === "pin_reset_verify" ? await pinResetVerify(env, body)
       : action === "email_otp_send" ? await sendEmailCode(env, body)
       : action === "email_otp_verify" ? await verifyEmailCode(env, body)
       : action === "accept_email_risk" ? await acceptEmailRisk(env, body)
@@ -350,8 +354,28 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: "blocked" }, { status: 403 });
     }
 
+    /* Registered with a verified e-mail (email_login_verify gave this phone a proof): the mobile must not belong to an account
+       that is verified with ANOTHER e-mail, and the e-mail must not already be verified on another mobile. */
+    const proofEmail = (body.email_proof || "").toString().trim().toLowerCase();
+    let proven = false;
+    if (proofEmail) {
+      if (!(await hasEmailProof(env, proofEmail, deviceToken))) {
+        return Response.json({ ok: false, error: "proof_expired" }, { status: 403 });
+      }
+      const held = await verifiedEmailOf(env, mobile);
+      if (held && held.email !== proofEmail) {
+        await secLog(env, mobile, "number_taken", "");
+        return Response.json({ ok: false, error: "number_taken" }, { status: 409 });
+      }
+      const other = await accountByEmail(env, proofEmail);
+      if (other && other.mobile !== mobile) {
+        return Response.json({ ok: false, error: "email_taken" }, { status: 409 });
+      }
+      proven = true;
+    }
+
     /* A protected account (verified e-mail) lets a NEW phone in only with the e-mailed code. Soft mode (default) only counts it. */
-    const gate = await loginGate(env, mobile, deviceToken);
+    const gate = proven ? { need: false } : await loginGate(env, mobile, deviceToken);
     if (gate.need) {
       if (await otpEnforcing(env)) {
         await secLog(env, mobile, "login_needs_code", "");
@@ -399,6 +423,8 @@ export async function onRequestPost({ request, env }) {
           .run();
       } catch (e) {}
     }
+
+    if (proven) await useEmailProof(env, proofEmail, deviceToken, mobile);
 
     if (body.invite_token) {
       const invite = await env.DB
