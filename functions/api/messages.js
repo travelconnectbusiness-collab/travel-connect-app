@@ -13,6 +13,7 @@
    to a number of messages per hour. */
 
 import { sendWebPush } from "./_webpush.js";
+import { deviceCheck } from "./_devauth.js";
 
 /* Sends a push notification (works with the app closed / phone locked) to
    every device registered under the given mobile numbers. Uses the same
@@ -162,6 +163,8 @@ export async function onRequestPost({ request, env, ctx }) {
     if (!partnerId || !customerMobile || !viewer || !mobile) {
       return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
+    const devDeny = await deviceCheck(env, request, "messages.hide", [mobile]);
+    if (devDeny) return devDeny;
     const partner = await env.DB.prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
     if (!partner) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     if (viewer === "partner" && !isPartnerNumber(partner, mobile)) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
@@ -190,6 +193,8 @@ export async function onRequestPost({ request, env, ctx }) {
     return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
   }
   if (body.length > MAX_LEN) return Response.json({ ok: false, error: "too_long" }, { status: 400 });
+  const devDeny = await deviceCheck(env, request, "messages.send", [senderMobile]);
+  if (devDeny) return devDeny;
 
   const partner = await env.DB
     .prepare("SELECT id, business_name, mobile1, mobile2, verified FROM travel_partners WHERE id=?")
@@ -272,6 +277,8 @@ export async function onRequestGet({ request, env }) {
   const action = url.searchParams.get("action");
   const mobile = (url.searchParams.get("mobile") || "").trim();
   if (!mobile) return Response.json({ ok: false, error: "missing_mobile" }, { status: 400 });
+  const devDeny = await deviceCheck(env, request, "messages." + (action || "get"), [mobile]);
+  if (devDeny) return devDeny;
 
   /* Counts for the badge: new messages waiting for this mobile, both as a
      business owner (customers writing to them) and as a customer (replies). */
