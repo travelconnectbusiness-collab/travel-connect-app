@@ -241,6 +241,8 @@ const MARKERS = [
   ["functions/api/_ratelimit.js", "rate_limits", "Small per-key rate limiter (feedback 5 per hour per IP)"],
   ["worker.js", "rlAllowed", "Feedback POST is rate limited"],
   ["functions/api/auth.js", "callerOf", "lookup shows name / place / pincode only to the owner's own known phone"],
+  ["src/business.js", "tcTypeLabel", "Printed quotation / bill / PDFs show the trip type name (Drop, Local Trip...), not the code"],
+  ["src/tc-dropbill.js", "origOpen", "Quick Bill opens with the Rate box matching the Trip type (Local)"],
   ["src/tc-devhdr.js", "tcDevRemind", "Security screen: send the e-mail reminder notification"],
   ["src/tc-bills.js", "tcBlDelete", "My Bills: Delete a bill made by mistake (copy kept in deletedBills, money entries removed, booking unlinked)"],
   ["src/tc-nav.js", "__tcNav", "Navigation: phone Back goes page -> Dashboard -> leaves app; no extra history steps"],
