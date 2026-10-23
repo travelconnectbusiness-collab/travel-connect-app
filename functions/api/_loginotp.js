@@ -11,6 +11,12 @@
         enforce ON  (flag enforce_device_otp, switched in Menu > Security): login answers 403 {error:"otp_required", hint:"k***@gmail.com"}
      the phone then calls login_otp_send (e-mails a 6-digit code, 10 minutes, 5 tries, 1 per minute, 5 per hour) and
      login_otp_verify (right code -> this phone is added to user_devices) and repeats the login, which now passes.
+   E-MAIL-FIRST LOGIN (step 5): the login page asks for an e-mail first. email_login_send mails a 6-digit code (to a registered address = login code,
+     to a new address = registration code); email_login_verify: for a registered address the phone becomes trusted for that account and the account's
+     name / mobile / role are returned (the app fills its form; the normal login then passes); for a new address a 30-minute PROOF is stored and the
+     normal login (with email_proof) creates the account with that e-mail already VERIFIED. A mobile that already belongs to an account verified with
+     ANOTHER e-mail is refused (number_taken) - the mobile is only a contact number. pin_reset_send / pin_reset_verify: a forgotten app PIN is reset
+     only with a code mailed to the verified address (the phone stays logged in).
    E-MAIL FOR EVERY ACCOUNT (step 4): owners AND customers verify an e-mail with a code (email_otp_send / email_otp_verify); it is stored on
      app_users (email, email_verified). A brand-new account is created with email_required=1: the app then insists on verification, or on
      the person ticking "I accept the risk" (accept_email_risk, stored with its time in app_users.risk_accepted_at). Older accounts get a warning only.
@@ -40,6 +46,12 @@ async function ensureTables(env) {
   ).run();
   await env.DB.prepare(
     "CREATE TABLE IF NOT EXISTS email_verify_otps (mobile TEXT PRIMARY KEY, email TEXT NOT NULL, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_sent_at INTEGER NOT NULL, window_start INTEGER NOT NULL, sends_in_window INTEGER NOT NULL DEFAULT 1)"
+  ).run();
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS code_challenges (ckey TEXT PRIMARY KEY, device_token TEXT NOT NULL, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_sent_at INTEGER NOT NULL, window_start INTEGER NOT NULL, sends_in_window INTEGER NOT NULL DEFAULT 1)"
+  ).run();
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS email_proofs (email TEXT NOT NULL, device_token TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (email, device_token))"
   ).run();
   for (const c of ["email_verified INTEGER DEFAULT 0", "email_verified_at TEXT", "email_required INTEGER DEFAULT 0", "risk_accepted_at TEXT"]) {
     try { await env.DB.prepare("ALTER TABLE app_users ADD COLUMN " + c).run(); } catch (e) { /* already there */ }
@@ -371,4 +383,150 @@ export async function sendEmailReminder(env) {
   }
   await secLog(env, "", "reminder_sent", "sent " + sent + ", failed " + failed);
   return { status: 200, json: { ok: true, sent, failed, people: st.people } };
+}
+
+/* ====================== step 5: e-mail-first login, registration proof, PIN reset ====================== */
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <= 120;
+
+/* the account whose VERIFIED e-mail this is (account's own, or a business e-mail verified earlier) */
+export async function accountByEmail(env, email) {
+  email = clean(email, 120).toLowerCase();
+  if (!email) return null;
+  await ensureTables(env);
+  const u = await env.DB.prepare("SELECT mobile, name, role, blocked FROM app_users WHERE email_verified=1 AND LOWER(email)=? LIMIT 1").bind(email).first();
+  if (u) return u;
+  try {
+    const p = await env.DB.prepare("SELECT mobile1 FROM travel_partners WHERE email_verified=1 AND LOWER(email)=? AND COALESCE(mobile1,'')<>'' LIMIT 1").bind(email).first();
+    if (p) return await env.DB.prepare("SELECT mobile, name, role, blocked FROM app_users WHERE mobile=?").bind(p.mobile1).first();
+  } catch (e) {}
+  return null;
+}
+
+/* sends a code (rate limited) - returns null when sent, otherwise {status, json} to answer with */
+async function issueCode(env, ckey, device, to, mk) {
+  const now = Date.now();
+  const row = await env.DB.prepare("SELECT * FROM code_challenges WHERE ckey=?").bind(ckey).first();
+  let windowStart = now, sends = 1;
+  if (row) {
+    if (now - row.last_sent_at < OTP_COOLDOWN_MS) return { status: 429, json: { ok: false, error: "wait", retry_in: Math.ceil((OTP_COOLDOWN_MS - (now - row.last_sent_at)) / 1000) } };
+    if (now - row.window_start < 3600000) {
+      if (row.sends_in_window >= OTP_MAX_SENDS_PER_HOUR) return { status: 429, json: { ok: false, error: "too_many" } };
+      windowStart = row.window_start; sends = row.sends_in_window + 1;
+    }
+  }
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+  const hash = await sha256Hex(`${ckey}:${device}:${code}`);
+  await env.DB.prepare("INSERT OR REPLACE INTO code_challenges (ckey, device_token, code_hash, expires_at, attempts, last_sent_at, window_start, sends_in_window) VALUES (?,?,?,?,0,?,?,?)")
+    .bind(ckey, device, hash, now + OTP_TTL_MS, now, windowStart, sends).run();
+  const m = mk(code);
+  const mail = await sendMail(env, to, m.subject, m.html, m.text);
+  if (!mail.ok) {
+    await env.DB.prepare("DELETE FROM code_challenges WHERE ckey=?").bind(ckey).run();
+    return { status: mail.error === "email_not_configured" ? 503 : 502, json: { ok: false, error: mail.error } };
+  }
+  return null;
+}
+
+/* right code -> null (and the code is used up); otherwise {status, json} */
+async function checkCode(env, ckey, device, code, logMobile, logPrefix) {
+  const row = await env.DB.prepare("SELECT * FROM code_challenges WHERE ckey=?").bind(ckey).first();
+  if (!row || row.device_token !== device) return { status: 400, json: { ok: false, error: "no_code" } };
+  if (Date.now() > row.expires_at) { await env.DB.prepare("DELETE FROM code_challenges WHERE ckey=?").bind(ckey).run(); return { status: 400, json: { ok: false, error: "expired" } }; }
+  if (row.attempts >= OTP_MAX_ATTEMPTS) {
+    await env.DB.prepare("DELETE FROM code_challenges WHERE ckey=?").bind(ckey).run();
+    await secLog(env, logMobile, logPrefix + "_locked", "");
+    return { status: 429, json: { ok: false, error: "too_many_attempts" } };
+  }
+  const hash = await sha256Hex(`${ckey}:${device}:${clean(code, 10)}`);
+  if (hash !== row.code_hash) {
+    await env.DB.prepare("UPDATE code_challenges SET attempts=attempts+1 WHERE ckey=?").bind(ckey).run();
+    await secLog(env, logMobile, logPrefix + "_wrong", "");
+    return { status: 400, json: { ok: false, error: "wrong_code", attempts_left: OTP_MAX_ATTEMPTS - row.attempts - 1 } };
+  }
+  await env.DB.prepare("DELETE FROM code_challenges WHERE ckey=?").bind(ckey).run();
+  return null;
+}
+
+const mailBox = (lead, code, ml) => `<div style="font-family:Arial,sans-serif;font-size:15px;color:#222"><p>${lead}</p><p style="font-size:30px;letter-spacing:6px;font-weight:700;margin:12px 0">${code}</p><p>It is valid for 10 minutes. <b>If this was not you, do not share this code.</b></p><p style="color:#666">${ml} ${code} (10 \u0d2e\u0d3f\u0d28\u0d3f\u0d31\u0d4d\u0d31\u0d4d).</p></div>`;
+
+/* POST email_login_send {email, device_token} */
+export async function emailLoginSend(env, body) {
+  await ensureTables(env);
+  const email = clean(body.email, 120).toLowerCase(), device = clean(body.device_token, 80);
+  if (!device) return { status: 400, json: { ok: false, error: "bad_request" } };
+  if (!validEmail(email)) return { status: 400, json: { ok: false, error: "bad_email" } };
+  const acc = await accountByEmail(env, email);
+  if (acc && acc.blocked) return { status: 403, json: { ok: false, error: "blocked" } };
+  const denied = await issueCode(env, "el:" + email, device, email, (code) => ({
+    subject: "Travel Connect code " + code,
+    html: mailBox(acc ? "Your <b>Travel Connect</b> login code is:" : "Your <b>Travel Connect</b> registration code is:", code, "Travel Connect code:"),
+    text: `Your Travel Connect ${acc ? "login" : "registration"} code is ${code}. Valid for 10 minutes. If this was not you, do not share it.`,
+  }));
+  if (denied) { if (denied.json.error === "email_not_configured" || denied.json.error === "email_send_failed") await secLog(env, acc ? acc.mobile : "", "el_send_failed", denied.json.error); return denied; }
+  await secLog(env, acc ? acc.mobile : "", "el_code_sent", acc ? "login" : "register");
+  return { status: 200, json: { ok: true, exists: !!acc } };
+}
+
+/* POST email_login_verify {email, device_token, code} */
+export async function emailLoginVerify(env, body) {
+  await ensureTables(env);
+  const email = clean(body.email, 120).toLowerCase(), device = clean(body.device_token, 80);
+  if (!device || !validEmail(email) || !clean(body.code, 10)) return { status: 400, json: { ok: false, error: "bad_request" } };
+  const acc = await accountByEmail(env, email);
+  const bad = await checkCode(env, "el:" + email, device, body.code, acc ? acc.mobile : "", "el");
+  if (bad) return bad;
+  if (acc) {
+    if (acc.blocked) return { status: 403, json: { ok: false, error: "blocked" } };
+    try { await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(acc.mobile, device, new Date().toISOString()).run(); } catch (e) {}
+    let bt = "";
+    try { const p = await env.DB.prepare("SELECT business_type FROM travel_partners WHERE mobile1=? OR mobile2=? ORDER BY id LIMIT 1").bind(acc.mobile, acc.mobile).first(); bt = p && p.business_type ? String(p.business_type) : ""; } catch (e) {}
+    await secLog(env, acc.mobile, "el_login_trusted", "");
+    return { status: 200, json: { ok: true, exists: true, mobile: acc.mobile, name: acc.name || "", role: acc.role === "customer" ? "customer" : "owner", business_type: bt } };
+  }
+  await env.DB.prepare("INSERT OR REPLACE INTO email_proofs (email, device_token, expires_at) VALUES (?,?,?)").bind(email, device, Date.now() + 30 * 60 * 1000).run();
+  await secLog(env, "", "el_proof_issued", "");
+  return { status: 200, json: { ok: true, exists: false } };
+}
+
+/* used by the login: is there a live proof for this e-mail on this phone? */
+export async function hasEmailProof(env, email, device) {
+  email = clean(email, 120).toLowerCase(); device = clean(device, 80);
+  if (!email || !device) return false;
+  await ensureTables(env);
+  const r = await env.DB.prepare("SELECT expires_at FROM email_proofs WHERE email=? AND device_token=?").bind(email, device).first();
+  return !!(r && r.expires_at > Date.now());
+}
+export async function useEmailProof(env, email, device, mobile) {
+  email = clean(email, 120).toLowerCase(); device = clean(device, 80);
+  await env.DB.prepare("UPDATE app_users SET email=?, email_verified=1, email_verified_at=?, email_required=0 WHERE mobile=?").bind(email, new Date().toISOString(), mobile).run();
+  await env.DB.prepare("DELETE FROM email_proofs WHERE email=? AND device_token=?").bind(email, device).run();
+  await secLog(env, mobile, "el_registered", "");
+}
+
+/* POST pin_reset_send {mobile, device_token}: a trusted phone asks for the code that allows a NEW app PIN */
+export async function pinResetSend(env, body) {
+  await ensureTables(env);
+  const mobile = clean(body.mobile, 20), device = clean(body.device_token, 80);
+  if (!(await deviceKnown(env, mobile, device))) return { status: 403, json: { ok: false, error: "unauthorized" } };
+  const ve = await verifiedEmailOf(env, mobile);
+  if (!ve) return { status: 200, json: { ok: false, error: "no_verified_email" } };
+  const denied = await issueCode(env, "pin:" + mobile, device, ve.email, (code) => ({
+    subject: "Travel Connect PIN reset code " + code,
+    html: mailBox("Someone asked to set a <b>new app PIN</b> on a phone logged in to your Travel Connect account. Your code is:", code, "\u0d2a\u0d41\u0d24\u0d3f\u0d2f PIN \u0d38\u0d46\u0d31\u0d4d\u0d31\u0d4d \u0d1a\u0d46\u0d2f\u0d4d\u0d2f\u0d3e\u0d28\u0d41\u0d33\u0d4d\u0d33 \u0d15\u0d4b\u0d21\u0d4d:"),
+    text: `Your Travel Connect PIN reset code is ${code}. Valid for 10 minutes. If this was not you, do not share it.`,
+  }));
+  if (denied) return denied;
+  await secLog(env, mobile, "pin_code_sent", "");
+  return { status: 200, json: { ok: true, hint: maskEmail(ve.email) } };
+}
+
+/* POST pin_reset_verify {mobile, device_token, code} */
+export async function pinResetVerify(env, body) {
+  await ensureTables(env);
+  const mobile = clean(body.mobile, 20), device = clean(body.device_token, 80);
+  if (!(await deviceKnown(env, mobile, device))) return { status: 403, json: { ok: false, error: "unauthorized" } };
+  const bad = await checkCode(env, "pin:" + mobile, device, body.code, mobile, "pin");
+  if (bad) return bad;
+  await secLog(env, mobile, "pin_reset_ok", "");
+  return { status: 200, json: { ok: true } };
 }
