@@ -1,5 +1,6 @@
 import { sendWebPush } from "./_webpush.js";
 import { getEnforceDate, dateLabels, istToday, missingDocs, isComplete, seatsOf } from "./trip_class.js";
+import { runDigestSweep } from "./owner_digest.js";
 
 /* Daily check of every vehicle's documents (runs by itself once a day, on the first API request of the day).
    1. Permit / Insurance dates: message + phone notification 30, 7 and 1 day before and when expired.
@@ -100,7 +101,7 @@ async function emailCopy(env, p, title, body, urgent) {
   } catch (e) { return false; }
 }
 
-export async function notify(env, key, p, title, body, urgent) {
+export async function notify(env, key, p, title, body, urgent, noMail) {
   if (env._seen) { if (env._seen.has(key)) return false; }
   else { const seen = await env.DB.prepare("SELECT 1 AS x FROM doc_notices WHERE k=?").bind(key).first(); if (seen) return false; }
   try {
@@ -110,7 +111,7 @@ export async function notify(env, key, p, title, body, urgent) {
   await env.DB.prepare("INSERT OR IGNORE INTO doc_notices (k, sent_at) VALUES (?,?)").bind(key, new Date().toISOString()).run();
   if (env._seen) env._seen.add(key);
   await push(env, [p.mobile1, p.mobile2], title, body.split("\n")[0].slice(0, 160), "tc-doc-" + key.replace(/[^a-z0-9]/gi, "-"));
-  await emailCopy(env, p, title, body, !!urgent);
+  if (!noMail) await emailCopy(env, p, title, body, !!urgent);
   return true;
 }
 
@@ -233,6 +234,16 @@ export async function runExpirySweep(env0) {
       }
     }
   }
+  /* 4. reminders from the owners' phone summaries (tomorrow's bookings, driving licences): owner_digest.js */
+  if (!stats.more) {
+    try {
+      const nowIst = new Date(Date.now() + 330 * 60000);
+      const tomorrow = new Date(Date.parse(today + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
+      const dg = await runDigestSweep(env, { notify, full, today, tomorrow, hour: nowIst.getUTCHours(), dayDiff }, "am");
+      stats.sent += dg.sent; stats.digest_owners = dg.owners;
+      if (dg.more) stats.more = true;
+    } catch (e) {}
+  }
   stats.emails = env._mailSent || 0;
   return stats;
 }
@@ -251,6 +262,30 @@ export async function maybeRunExpirySweep(env) {
     if (!stats.more) {
       await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES ('expiry_sweep_date', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(today).run();
       lastRun = today;
+    }
+  } catch (e) {}
+}
+
+/* Evening reminder (from 17:00 IST, once a day, on the first API request after that): tomorrow's bookings of every owner who sent a summary.
+   Uses the same push + Messages-box path and the same "sent once" memory as the morning sweep. */
+let lastPm = "", lastPmTry = 0;
+export async function maybeRunDigestEvening(env0) {
+  const today = istToday();
+  const hour = new Date(Date.now() + 330 * 60000).getUTCHours();
+  if (hour < 17 || lastPm === today || Date.now() - lastPmTry < 30000) return;
+  lastPmTry = Date.now();
+  try {
+    const ctr = { n: 0 };
+    const env = { ...env0, _ctr: ctr, DB: { prepare: (q) => { ctr.n++; return env0.DB.prepare(q); } } };
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_flags (key TEXT PRIMARY KEY, value TEXT)").run();
+    const r = await env.DB.prepare("SELECT value FROM app_flags WHERE key='digest_pm_date'").first();
+    if (r && r.value === today) { lastPm = today; return; }
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS doc_notices (k TEXT PRIMARY KEY, sent_at TEXT)").run();
+    const tomorrow = new Date(Date.parse(today + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
+    const dg = await runDigestSweep(env, { notify, full: () => ctr.n >= BUDGET, today, tomorrow, hour, dayDiff }, "pm");
+    if (!dg.more) {
+      await env.DB.prepare("INSERT INTO app_flags (key, value) VALUES ('digest_pm_date', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(today).run();
+      lastPm = today;
     }
   } catch (e) {}
 }
