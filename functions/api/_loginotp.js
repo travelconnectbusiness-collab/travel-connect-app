@@ -480,8 +480,10 @@ export async function emailLoginVerify(env, body) {
     try { await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(acc.mobile, device, new Date().toISOString()).run(); } catch (e) {}
     let bt = "";
     try { const p = await env.DB.prepare("SELECT business_type FROM travel_partners WHERE mobile1=? OR mobile2=? ORDER BY id LIMIT 1").bind(acc.mobile, acc.mobile).first(); bt = p && p.business_type ? String(p.business_type) : ""; } catch (e) {}
+    let loc = "", pin = "";
+    try { const q = await env.DB.prepare("SELECT location, pincode FROM app_users WHERE mobile=?").bind(acc.mobile).first(); loc = q && q.location ? String(q.location) : ""; pin = q && q.pincode ? String(q.pincode) : ""; } catch (e) {}
     await secLog(env, acc.mobile, "el_login_trusted", "");
-    return { status: 200, json: { ok: true, exists: true, mobile: acc.mobile, name: acc.name || "", role: acc.role === "customer" ? "customer" : "owner", business_type: bt } };
+    return { status: 200, json: { ok: true, exists: true, mobile: acc.mobile, name: acc.name || "", role: acc.role === "customer" ? "customer" : "owner", business_type: bt, location: loc, pincode: pin } };
   }
   await env.DB.prepare("INSERT OR REPLACE INTO email_proofs (email, device_token, expires_at) VALUES (?,?,?)").bind(email, device, Date.now() + 30 * 60 * 1000).run();
   await secLog(env, "", "el_proof_issued", "");
