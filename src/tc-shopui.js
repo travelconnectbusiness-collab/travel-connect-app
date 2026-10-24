@@ -430,7 +430,7 @@
    var c=$("tcShopCard"), anchor=null, mode="";
    if(u&&u.role!=="customer"){
     var pb=$("partnerBox"), msg=pb?pb.querySelector("#tcMsgCard"):null;
-    if(pb&&msg&&isShopBox(pb)){ anchor=msg; mode="after"; }
+    if(pb&&msg&&isShopBox(pb)){ anchor=msg; mode="before"; }   /* directly ABOVE Messages: the Share card must stay directly BELOW it (tc-sharecard.js), two cards fighting for the same slot flicker */
    }
    if(!anchor){ if(c&&c.parentNode) c.remove(); return; }
    if(!c) c=make();
