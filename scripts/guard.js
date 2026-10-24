@@ -267,6 +267,7 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-shopimp.js", "tc-regdocs.js loads tc-shopimp.js"],
   ["src/tc-menu.js", "__tcMenuClean", "Menu: admin entries are hidden unless the user is the app owner (tc-menu.js)"],
   ["src/tc-menu.js", "tcOpenAllUsersAdmin", "Menu clean-up lists the admin entries"],
+  ["src/tc-menu.js", "__tcDyn", "Menu: header Menu button always calls the current tcOpenMenu (first tap showed the old Menu)"],
   ["src/tc-menu.js", "tcAdminHub", "Menu: ONE Admin entry (password) opens the page with all admin items"],
   ["src/tc-menu.js", "__tcBizOnScreen", "Menu clean-up: taxi entries (Rate Master, Trip & Accounts, backups) hidden on non-taxi business pages"],
   ["src/tc-shopui.js", "__tcBizOnScreen", "Shop button / Menu entry follow the open business type"],
