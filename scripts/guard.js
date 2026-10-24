@@ -256,6 +256,7 @@ const MARKERS = [
   ["src/tc-shop.js", "__tcShop", "Shop book data layer: records, sync, stock / cost / report sums (tc-shop.js)"],
   ["src/tc-shop.js", "/api/shop", "Shop book is sent to / read from the server"],
   ["src/tc-shopui.js", "__tcShopUi", "Shop screens: Home, Sale, Purchase, Dead / loss, product picker (tc-shopui.js)"],
+  ["src/tc-shopui.js", "tcShopCard", "Shop: big Shop accounts button on the dashboard"],
   ["src/tc-shopui.js", "tsSaSave", "Shop: save a sale"],
   ["src/tc-shopui.js", "tsPuSave", "Shop: save a purchase (transport shared over the bill)"],
   ["src/tc-shoprep.js", "__tcShopRep", "Shop screens: Stock, Expenses, Today's account, Excel (tc-shoprep.js)"],
