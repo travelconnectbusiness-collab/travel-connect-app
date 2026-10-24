@@ -97,4 +97,18 @@
   }catch(e){ if(window.console) console.error("tc-menu",e); }
   return r;
  };
+
+ /* FIRST-OPEN BUG (owner's video 2026-10-24): core.js binds the header Menu button with  .onclick=tcOpenMenu  when the header is drawn,
+    which can happen BEFORE this file (and tc-shopui.js, tc-acctsec.js ...) wrapped tcOpenMenu - so the very first tap opened core's
+    ORIGINAL Menu (old list, no Shop row) and only a later opening (after Back, or any tap that called tcOpenMenu by name) showed the new one.
+    Fix: the button always calls whatever window.tcOpenMenu is at click time. Re-checked whenever the page changes (the header is redrawn). */
+ function bindBtn(){
+  var b=document.getElementById("tcMenuBtn");
+  if(b&&!b.__tcDyn){ b.__tcDyn=1; b.onclick=function(){ return window.tcOpenMenu.apply(window,arguments); }; }
+ }
+ var bt=null;
+ function laterBind(){ clearTimeout(bt); bt=setTimeout(bindBtn,30); }
+ bindBtn();
+ try{ if(window.MutationObserver) new MutationObserver(laterBind).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+ window.addEventListener("load",function(){ bindBtn(); setTimeout(bindBtn,600); });
 })();
