@@ -410,10 +410,17 @@
  (function(){
   var tm=null;
   function isShopBox(pb){
-   var m=pb.querySelector(".card .muted"); if(!m) return false;
+   /* the app itself knows which business is open (core: db.settings.myBusinessType, window._myPartner); label text is the last fallback */
+   var t=window.__tcBizOnScreen?window.__tcBizOnScreen():"";
+   if(t){
+    if(t==="shop") return true;
+    var p=window._myPartner;
+    return !!(p&&/aquarium|\bpets?\b/i.test((p.business_subtype||"")+" "+(p.business_name||"")));   /* a pet shop registered under another category */
+   }
+   var m=pb&&pb.querySelector(".card .muted"); if(!m) return false;
    return /^\s*(shop|ഷോപ്പ്)|\bshop \/ store|aquarium|\bpets?\b/i.test(m.textContent||"");
   }
-  window.__tcShopIsShopPage=function(){ var pb=$("partnerBox"); return !!(pb&&isShopBox(pb)); };
+  window.__tcShopIsShopPage=function(){ return isShopBox($("partnerBox")); };
   function make(){
    var c=document.createElement("div"); c.id="tcShopCard";
    c.style.cssText="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0b7a8a,#0b5f6b);box-shadow:0 2px 8px rgba(11,95,107,.3)";
