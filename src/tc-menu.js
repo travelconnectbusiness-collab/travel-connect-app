@@ -47,16 +47,23 @@
     '<div style="color:#6a7a87;font-size:11.5px">'+B("Only for the app owner","ആപ്പ് ഉടമയ്ക്ക് മാത്രം")+'</div></div><div style="margin-top:4px">';
    sorted().forEach(function(g){
     h+='<div style="margin:12px 2px 0;font-size:11.5px;font-weight:800;letter-spacing:.8px;color:#0b6b78;text-transform:uppercase">'+g.title+'</div>';
-    g.rows.forEach(function(e){ h+=e.html; });
+    g.rows.forEach(function(e){ h+=e.html.replace(/onclick="closeModal\(\);/,'onclick="window.__tcFromHub=1;closeModal();'); });
    });
    h+='<div style="cursor:pointer;padding:14px 2px;color:#0b6b78;font-weight:700;font-size:14px" onclick="closeModal();tcOpenMenu()">&#8592; '+B("Back to Menu","മെനുവിലേക്ക് മടങ്ങുക")+'</div></div>';
    if(typeof modal==="function") modal(h);
   };
   if(typeof requireAdmin==="function") requireAdmin(open); else open();
  };
+ /* Back from a page opened out of the hub: core reopens the Menu (popstate -> tcOpenMenu). Take the person back to the hub instead
+    (no new password: the admin token of this session is still valid). window.__tcFromHub is set by the hub's rows and is
+    cleared by every opening of the Menu and by a tap on the header Menu button, so it only ever acts on that one Back. */
+ window.__tcFromHub=0;
+ document.addEventListener("click",function(e){ try{ if(e.target&&e.target.closest&&e.target.closest("#tcMenuBtn")) window.__tcFromHub=0; }catch(x){} },true);
  var om=window.tcOpenMenu;
  if(typeof om!=="function") return;
  window.tcOpenMenu=function(){
+  var fromHub=window.__tcFromHub; window.__tcFromHub=0;
+  if(fromHub&&typeof adminToken==="function"&&adminToken()){ try{ var u0=JSON.parse(localStorage.getItem("tc_user")||"null"); if(u0&&u0.isAppOwner){ window.tcAdminHub(); return; } }catch(e){} }
   var r=om.apply(this,arguments);
   try{
    var u=JSON.parse(localStorage.getItem("tc_user")||"null"), owner=!!(u&&u.isAppOwner);
