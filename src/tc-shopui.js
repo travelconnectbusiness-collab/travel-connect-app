@@ -75,6 +75,7 @@
  function openShop(screen,reuse){
   if(U.open){ go(screen||"home"); return; }
   U.open=true; show();
+  LS.set("tc_shop_seen","1");
   if(!reuse){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} }
   go(screen||"home");
   SH.later(300);
@@ -405,6 +406,43 @@
   var t=H.today(), R=SH.report(t,t), L=R.deadList.slice().reverse();
   $("deDay").innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ","Today"))+'</b>'+L.map(function(l){ return '<div class="tsRow"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(l.r.x.q)+' · '+E(l.r.x.r||"")+'</div></div><div><button class="tsX" onclick="tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
+
+ /* ---------- big button on the dashboard (so nobody has to look in the Menu) ---------- */
+ (function(){
+  var tm=null;
+  function seen(){ return LS.get("tc_shop_seen")==="1"; }
+  function isShopBox(pb){
+   var m=pb.querySelector(".card .muted"); if(!m) return false;
+   return /^\s*(shop|ഷോപ്പ്)|shop \/ store|aquarium|pet/i.test(m.textContent||"");
+  }
+  function make(){
+   var c=document.createElement("div"); c.id="tcShopCard";
+   c.style.cssText="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0b7a8a,#0b5f6b);box-shadow:0 2px 8px rgba(11,95,107,.3)";
+   c.setAttribute("onclick","tsOpen('home')");
+   c.innerHTML='<div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#128722;</div>'+
+    '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:17px">'+E(T("ഷോപ്പ് കണക്ക്","Shop accounts"))+'</div>'+
+    '<div style="font-size:12.5px;opacity:.95;line-height:1.35">'+E(T("വിൽപ്പന, വാങ്ങൽ, സ്റ്റോക്ക്, ചെലവ്, ഇന്നത്തെ കണക്ക്","Sales, purchases, stock, expenses, today's account"))+'</div></div>'+
+    '<div style="font-size:22px">&#8250;</div>';
+   return c;
+  }
+  function place(){
+   var app=$("app"); if(!app) return;
+   var u=null; try{ u=getCurrentUser(); }catch(e){}
+   var c=$("tcShopCard"), anchor=null, mode="";
+   if(u&&u.role!=="customer"){
+    var pb=$("partnerBox"), more=$("tcMore"), msg=pb?pb.querySelector("#tcMsgCard"):null;
+    if(pb&&msg&&(isShopBox(pb)||seen())){ anchor=msg; mode="after"; }
+    else if(more&&more.parentNode&&app.contains(more)&&seen()){ anchor=more; mode="before"; }
+   }
+   if(!anchor){ if(c&&c.parentNode) c.remove(); return; }
+   if(!c) c=make();
+   if(mode==="before"){ if(c.nextElementSibling!==anchor||c.parentNode!==anchor.parentNode) anchor.parentNode.insertBefore(c,anchor); }
+   else if(c.previousElementSibling!==anchor||c.parentNode!==anchor.parentNode) anchor.parentNode.insertBefore(c,anchor.nextSibling);
+  }
+  function later(){ clearTimeout(tm); tm=setTimeout(function(){ try{ place(); }catch(e){ if(window.console) console.error("tc-shopcard",e); } },120); }
+  function start(){ var app=$("app"); if(!app||!window.MutationObserver) return; new MutationObserver(later).observe(app,{childList:true,subtree:true}); later(); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start); else start();
+ })();
 
  /* ---------- Menu entry + address #shop ---------- */
  var om=window.tcOpenMenu;
