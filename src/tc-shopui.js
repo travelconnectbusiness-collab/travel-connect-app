@@ -75,7 +75,6 @@
  function openShop(screen,reuse){
   if(U.open){ go(screen||"home"); return; }
   U.open=true; show();
-  LS.set("tc_shop_seen","1");
   if(!reuse){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} }
   go(screen||"home");
   SH.later(300);
@@ -410,11 +409,11 @@
  /* ---------- big button on the dashboard (so nobody has to look in the Menu) ---------- */
  (function(){
   var tm=null;
-  function seen(){ return LS.get("tc_shop_seen")==="1"; }
   function isShopBox(pb){
    var m=pb.querySelector(".card .muted"); if(!m) return false;
-   return /^\s*(shop|ഷോപ്പ്)|shop \/ store|aquarium|pet/i.test(m.textContent||"");
+   return /^\s*(shop|ഷോപ്പ്)|\bshop \/ store|aquarium|\bpets?\b/i.test(m.textContent||"");
   }
+  window.__tcShopIsShopPage=function(){ var pb=$("partnerBox"); return !!(pb&&isShopBox(pb)); };
   function make(){
    var c=document.createElement("div"); c.id="tcShopCard";
    c.style.cssText="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0b7a8a,#0b5f6b);box-shadow:0 2px 8px rgba(11,95,107,.3)";
@@ -430,9 +429,8 @@
    var u=null; try{ u=getCurrentUser(); }catch(e){}
    var c=$("tcShopCard"), anchor=null, mode="";
    if(u&&u.role!=="customer"){
-    var pb=$("partnerBox"), more=$("tcMore"), msg=pb?pb.querySelector("#tcMsgCard"):null;
-    if(pb&&msg&&(isShopBox(pb)||seen())){ anchor=msg; mode="after"; }
-    else if(more&&more.parentNode&&app.contains(more)&&seen()){ anchor=more; mode="before"; }
+    var pb=$("partnerBox"), msg=pb?pb.querySelector("#tcMsgCard"):null;
+    if(pb&&msg&&isShopBox(pb)){ anchor=msg; mode="after"; }
    }
    if(!anchor){ if(c&&c.parentNode) c.remove(); return; }
    if(!c) c=make();
@@ -450,7 +448,7 @@
   var r=om.apply(this,arguments);
   try{
    var u=getCurrentUser(), body=$("modalBody");
-   if(u&&u.role!=="customer"&&body&&!body.querySelector("#tcShopMenu")&&typeof tcMenuItem==="function"){
+   if(u&&u.role!=="customer"&&body&&!body.querySelector("#tcShopMenu")&&typeof tcMenuItem==="function"&&window.__tcShopIsShopPage&&window.__tcShopIsShopPage()){
     var wrap=document.createElement("div"); wrap.id="tcShopMenu";
     wrap.innerHTML=tcMenuItem('<path d="M3 9l1-5h16l1 5"></path><path d="M4 9v11h16V9"></path><path d="M9 20v-6h6v6"></path>',(typeof tcBl==="function"?tcBl("Shop accounts (stock, sales, purchase)","ഷോപ്പ് കണക്ക് (സ്റ്റോക്ക്, വിൽപ്പന, വാങ്ങൽ)"):"Shop accounts"),"tsOpen('home')");
     var items=body.querySelectorAll('[onclick*="tcApplyUpdate"]'), at=items.length?items[0]:null;
