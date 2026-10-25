@@ -258,6 +258,7 @@ const MARKERS = [
   ["src/tc-shopui.js", "__tcShopUi", "Shop screens: Home, Sale, Purchase, Dead / loss, product picker (tc-shopui.js)"],
   ["src/tc-shopui.js", "tcShopCard", "Shop: big Shop accounts button on the dashboard"],
   ["src/tc-shopui.js", "tsSaSave", "Shop: save a sale"],
+  ["src/tc-shopui.js", "psNt", "Shop: unit name + 'stock not counted' + estimated cost for measured items (pipe in m, lemon, syrup in ml)"],
   ["src/tc-shopui.js", "tsPsMerge", "Shop: merge an item that exists under two names into one"],
   ["src/tc-shopui.js", "tsPsDel", "Shop: delete an item that has no entries"],
   ["src/tc-shop.js", "usage", "Shop: merged / deleted items (mg, dl) are handled by the book"],
