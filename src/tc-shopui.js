@@ -124,9 +124,10 @@
  function dmy(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }
  function num(id){ var e=$(id); var v=parseFloat(e&&e.value); return isNaN(v)?0:v; }
  function setv(id,v){ var e=$(id); if(e) e.value=v; }
- function stockTxt(p){ return p.comp?(p.can==null?"":T("ഉണ്ടാക്കാൻ പറ്റുന്നത് ","Can make ")+qty(p.can)):(p.stock==null?"":T("സ്റ്റോക്ക് ","In stock ")+qty(p.stock)); }
+ function un(p){ return p&&p.u?" "+p.u:""; }
+ function stockTxt(p){ return p.comp?(p.can==null?"":T("ഉണ്ടാക്കാൻ പറ്റുന്നത് ","Can make ")+qty(p.can)):(p.stock==null?(p.nt?T("എണ്ണുന്നില്ല","Stock not counted"):""):T("സ്റ്റോക്ക് ","In stock ")+qty(p.stock)+un(p)); }
  function avail(p){ return p.comp?p.can:p.stock; }
- function partsTxt(p){ return (p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+" "+(q?q.n:"?"); }).join(" + "); }
+ function partsTxt(p){ return (p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+(q&&q.u?" "+q.u:"")+" "+(q?q.n:"?"); }).join(" + "); }
 
  /* ---------- product picker ---------- */
  var PK={};
@@ -166,7 +167,10 @@
    '<label>'+E(T("തരം","Kind"))+'</label><div id="psT"><span class="tsChip'+(t==="f"?" on":"")+'" onclick="tsPsT(\'f\')">🐟 '+E(T("മീൻ","Fish"))+'</span><span class="tsChip'+(t!=="f"?" on":"")+'" onclick="tsPsT(\'i\')">📦 '+E(T("സാധനം","Item"))+'</span></div>'+
    '<label>'+E(T("വിഭാഗം","Category"))+'</label><select id="psC">'+cats.map(function(c){ return '<option value="'+E(c)+'"'+(c===PS.c?" selected":"")+'>'+E(SH.catName(c,lang==="ml"))+'</option>'; }).join("")+'</select>'+
    '<label>'+E(T("വിൽപ്പന വില (ഒന്നിന്)","Selling price (each)"))+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
-   '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="numeric" value="'+E(x.pk||1)+'">'+
+   '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം / മീറ്റർ / കിലോ? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="decimal" value="'+E(x.pk||1)+'">'+
+   '<label>'+E(T("അളവിന്റെ പേര് (m, kg, ml... ; എണ്ണമാണെങ്കിൽ ഒഴിച്ചിടുക)","Unit name (m, kg, ml... leave empty for pieces)"))+'</label><input id="psU" maxlength="8" value="'+E(x.u||"")+'">'+
+   '<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="psNt"'+(x.nt?" checked":"")+' style="width:auto"> '+E(T("ഇതിന്റെ സ്റ്റോക്ക് എണ്ണുന്നില്ല (തൂക്കി / അളന്ന് വാങ്ങുന്നത്)","Do not count the stock (weighed / measured)"))+'</label>'+
+   '<label>'+E(T("കണക്കാക്കിയ വാങ്ങൽ വില (ഒന്നിന്) - വാങ്ങൽ ചേർക്കുന്നതുവരെ ഉപയോഗിക്കും","Estimated cost each - used until real purchases are entered"))+'</label><input id="psE" type="number" inputmode="decimal" value="'+E(x.ec||"")+'">'+
    '<label>'+E(T("സ്റ്റോക്ക് ഇതിൽ കുറഞ്ഞാൽ അടയാളം കാണിക്കുക","Mark LOW when stock is at or below"))+'</label><input id="psL" type="number" inputmode="numeric" value="'+E(x.lo==null?"":x.lo)+'">'+
    '<div style="margin-top:12px;padding:8px;border:1px dashed #9bb;border-radius:10px"><b>'+E(T("🧩 ഒന്നിലധികം സാധനങ്ങൾ ചേർന്നതാണോ? (ഉദാ: സോഡ + നാരങ്ങ)","🧩 Made of other items? (e.g. soda + lime)"))+'</b><div class="tsM">'+E(T("ഇതിൽ ഉൾപ്പെടുന്ന സാധനങ്ങൾ ചേർത്താൽ ഇത് വിൽക്കുമ്പോൾ അവയുടെ സ്റ്റോക്ക് തനിയേ കുറയും. അല്ലെങ്കിൽ ഒന്നും ചേർക്കേണ്ട.","Add the parts and each sale will take them out of stock by itself. Leave empty for a normal item."))+'</div><div id="psRc"></div>'+picker("rcp",{noRc:true,allowNew:false,ph:T("ഉൾപ്പെടുന്ന സാധനം തിരയുക...","Search a part..."),pick:psRcAdd})+'</div>'+
    (pid?'':'<label>'+E(T("ഇപ്പോൾ ഉള്ള സ്റ്റോക്ക് (എണ്ണം)","Stock now (count)"))+'</label><input id="psQ" type="number" inputmode="decimal" placeholder="0">'+
@@ -181,7 +185,7 @@
  function psRcDraw(){
   var d=$("psRc"); if(!d) return;
   var cost=0, ok=true;
-  var h=PS.rc.map(function(c,i){ var q=SH.prod(c.i); if(q) cost+=q.avg*(+c.q||0); return '<div class="tsRow"><div>'+E(q?q.n:"?")+'</div><div><input type="number" inputmode="decimal" value="'+E(c.q)+'" style="width:70px" onchange="tsPsRcQ('+i+',this.value)"> <button class="tsX" onclick="tsPsRcDel('+i+')">✕</button></div></div>'; }).join("");
+  var h=PS.rc.map(function(c,i){ var q=SH.prod(c.i); if(q) cost+=q.avg*(+c.q||0); return '<div class="tsRow"><div>'+E(q?q.n:"?")+(q&&q.u?' <span class="tsM">('+E(q.u)+')</span>':'')+'</div><div><input type="number" inputmode="decimal" value="'+E(c.q)+'" style="width:70px" onchange="tsPsRcQ('+i+',this.value)"> <button class="tsX" onclick="tsPsRcDel('+i+')">✕</button></div></div>'; }).join("");
   if(PS.rc.length&&cost>0) h+='<div class="tsM">'+E(T("ഇതിന്റെ ചെലവ് ≈ ₹","Cost of one ≈ ₹"))+cost.toFixed(2)+'</div>';
   d.innerHTML=h;
  }
@@ -202,13 +206,13 @@
   var n=($("psN").value||"").replace(/\s+/g," ").trim();
   if(!n){ say(T("പേര് വേണം","Enter the name")); return; }
   var dup=SH.findName(n); if(dup&&dup.id!==PS.pid){ say(T("ഈ പേരിൽ ഒരു ഇനം ഉണ്ട്","An item with this name exists")); return; }
-  var x={n:n,t:PS.t,c:$("psC").value,pr:num("psP"),pk:Math.max(1,Math.round(num("psK"))||1)};
+  var x={n:n,t:PS.t,c:$("psC").value,pr:num("psP"),pk:Math.max(1,num("psK")||1),u:($("psU").value||"").trim().slice(0,8),nt:$("psNt").checked?1:0,ec:num("psE")>0?num("psE"):""};
   var lo=$("psL").value; x.lo=lo===""?"":Math.max(0,parseFloat(lo)||0);
   var cb=PS.cb, pid=PS.pid, np, rc=PS.rc.filter(function(c){ return c.i&&(+c.q||0)>0; });
   if(rc.length&&pid&&SH.products({all:true}).some(function(o){ return o.rc&&o.rc.some(function(c){ return c.i===pid; }); })){ say(T("ഇത് വേറെ ഒരു കോമ്പോയുടെ ഭാഗമാണ്; ഇതിൽ ഭാഗങ്ങൾ ചേർക്കാൻ പറ്റില്ല","This item is a part of another combo, so it cannot have parts")); return; }
   if(rc.length&&pid){ var cur=SH.prod(pid); if(cur&&!cur.comp&&cur.stock>0&&!confirm(T("ഇതിനു സ്വന്തം സ്റ്റോക്ക് ("+qty(cur.stock)+") ഉണ്ട്. ഭാഗങ്ങൾ ചേർത്താൽ ഇത് ഇനി സ്റ്റോക്ക് ആയി കണക്കാക്കില്ല. തുടരട്ടേ?","This item has its own stock ("+qty(cur.stock)+"). With parts it is no longer counted as stock. Continue?"))) return; }
   if(pid){ x.i=pid; x.rc=rc; SH.saveProduct(x); np=SH.prod(pid); }
-  else { var oq=num("psQ"), ov=num("psV"); if(rc.length) x.rc=rc; else if(oq>0){ x.oq=oq; if(ov>0) x.ov=ov; } np=SH.newProduct(x); }
+  else { var oq=num("psQ"), ov=num("psV"); if(rc.length) x.rc=rc; else if(oq>0&&!x.nt){ x.oq=oq; if(ov>0) x.ov=ov; } np=SH.newProduct(x); }
   closeSheet(); say(T("സേവ് ചെയ്തു","Saved"));
   if(cb) cb(np); else render();
  };
@@ -274,7 +278,7 @@
   U.sale.sel=p.id;
   $("saSel").innerHTML='<div style="margin-top:10px;font-size:20px;font-weight:800">'+E(p.n)+'</div><div class="tsM">'+E(stockTxt(p))+(p.low?' <span class="tsLow">LOW</span>':'')+'</div>'+(p.comp?'<div class="tsM">= '+E(partsTxt(p))+'</div>':'')+
    '<div class="tsG"><div><label>'+E(T("വില (ഒന്നിന്)","Price (each)"))+'</label><input id="saPr" type="number" inputmode="decimal" value="'+E(p.pr||"")+'" oninput="tsSaCalc(\'p\')"></div>'+
-   '<div><label>'+E(T("എണ്ണം","Quantity"))+'</label><input id="saQ" type="number" inputmode="decimal" value="1" oninput="tsSaCalc(\'q\')"></div></div>'+
+   '<div><label>'+E(T("എണ്ണം","Quantity")+(p.u?" ("+p.u+")":""))+'</label><input id="saQ" type="number" inputmode="decimal" value="1" oninput="tsSaCalc(\'q\')"></div></div>'+
    '<label>'+E(T("ആകെ തുക","Total"))+'</label><input id="saT" type="number" inputmode="decimal" oninput="tsSaCalc(\'t\')">'+
    '<button class="tsBtn" onclick="tsSaAdd()">➕ '+E(T("ചേർക്കുക","Add"))+'</button>';
   tsSaCalc("q"); var q=$("saQ"); if(q){ q.focus(); q.select(); }
