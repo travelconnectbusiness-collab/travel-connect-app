@@ -33,7 +33,7 @@
   $("stList").innerHTML=!L.length?'<div class="tsM" style="text-align:center">'+E(T("ഒന്നുമില്ല","Nothing here"))+'</div>':
    L.map(function(p){
     return '<div class="tsRow" onclick="tsStOpen(\''+p.id+'\')"><div><b>'+E(p.n)+'</b>'+(p.low?' <span class="tsLow">LOW</span>':'')+'<div class="tsM">'+E(SH.catName(p.c,ML()))+(p.pr>0?' · '+money(p.pr):'')+'</div></div>'+
-     '<div style="text-align:right;font-size:20px;font-weight:800">'+(p.comp?(p.can==null?"—":qty(p.can))+'<div class="tsM" style="font-weight:600">'+E(T("ഉണ്ടാക്കാം","can make"))+'</div>':(p.stock==null?"—":qty(p.stock))+(simple||p.stock==null?'':'<div class="tsM" style="font-weight:600">'+money(p.value)+'</div>'))+'</div></div>';
+     '<div style="text-align:right;font-size:20px;font-weight:800">'+(p.comp?(p.can==null?"—":qty(p.can))+'<div class="tsM" style="font-weight:600">'+E(T("ഉണ്ടാക്കാം","can make"))+'</div>':(p.stock==null?"—"+(p.nt?'<div class="tsM" style="font-weight:600">'+E(T("എണ്ണുന്നില്ല","not counted"))+'</div>':""):qty(p.stock)+(p.u?'<small> '+E(p.u)+'</small>':""))+(simple||p.stock==null?'':'<div class="tsM" style="font-weight:600">'+money(p.value)+'</div>'))+'</div></div>';
    }).join("")+(simple?'':'<div class="tsRow"><b>'+E(T("സ്റ്റോക്ക് വില","Stock value"))+'</b><b>'+money(tot)+'</b></div>');
  }
  window.tsStOpen=function(id){
@@ -41,12 +41,12 @@
   var simple=UI.simple(), M=SH.calc();
   var last=""; if(p.last) last=UI.dmy(p.last);
   UI.sheet('<h3 style="margin:0">'+E(p.n)+'</h3><div class="tsM">'+E(SH.catName(p.c,ML()))+'</div>'+
-   (p.comp?'<div class="tsRow"><span>'+E(T("ഉണ്ടാക്കാൻ പറ്റുന്നത്","Can make"))+'</span><b style="font-size:24px">'+(p.can==null?"—":qty(p.can))+'</b></div><div class="tsM">= '+E((p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+" "+(q?q.n:"?"); }).join(" + "))+'</div>':'<div class="tsRow"><span>'+E(T("സ്റ്റോക്ക്","In stock"))+'</span><b style="font-size:24px">'+(p.stock==null?"—":qty(p.stock))+'</b></div>')+
+   (p.comp?'<div class="tsRow"><span>'+E(T("ഉണ്ടാക്കാൻ പറ്റുന്നത്","Can make"))+'</span><b style="font-size:24px">'+(p.can==null?"—":qty(p.can))+'</b></div><div class="tsM">= '+E((p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+(q&&q.u?" "+q.u:"")+" "+(q?q.n:"?"); }).join(" + "))+'</div>':'<div class="tsRow"><span>'+E(T("സ്റ്റോക്ക്","In stock"))+'</span><b style="font-size:24px">'+(p.stock==null?"—":qty(p.stock))+'</b></div>')+
    '<div class="tsRow"><span>'+E(T("വിൽപ്പന വില","Selling price"))+'</span><b>'+(p.pr>0?money(p.pr):"—")+'</b></div>'+
    (simple?'':'<div class="tsRow"><span>'+E(T("വാങ്ങിയ വില (ശരാശരി)","Average cost"))+'</span><b>'+(p.avg>0?"₹"+p.avg.toFixed(2):"—")+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("നിർദേശിക്കുന്ന വില","Suggested price"))+' ('+p.mg+'%)</span><b>'+(p.sugg>0?money(p.sugg):"—")+'</b></div>')+
    '<div class="tsRow"><span>'+E(T("അവസാനം വിറ്റത്","Last sold"))+'</span><b>'+E(last||"—")+'</b></div>'+
-   (p.comp?'':'<button class="tsBtn" onclick="tsStAdj(\''+id+'\')">🔢 '+E(T("എണ്ണം ശരിയാക്കുക","Correct the count"))+'</button>')+
+   (p.comp||p.nt?'':'<button class="tsBtn" onclick="tsStAdj(\''+id+'\')">🔢 '+E(T("എണ്ണം ശരിയാക്കുക","Correct the count"))+'</button>')+
    '<button class="tsBtn g" onclick="tsCloseSheet();tsStEdit(\''+id+'\')">✏ '+E(T("വിലയും വിവരങ്ങളും മാറ്റുക","Edit price / details"))+'</button>'+
    '<button class="tsBtn g" onclick="tsStHist(\''+id+'\')">📜 '+E(T("ചരിത്രം","History"))+'</button>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
