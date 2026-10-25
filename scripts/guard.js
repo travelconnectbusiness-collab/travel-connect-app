@@ -258,6 +258,8 @@ const MARKERS = [
   ["src/tc-shopui.js", "__tcShopUi", "Shop screens: Home, Sale, Purchase, Dead / loss, product picker (tc-shopui.js)"],
   ["src/tc-shopui.js", "tcShopCard", "Shop: big Shop accounts button on the dashboard"],
   ["src/tc-shopui.js", "tsSaSave", "Shop: save a sale"],
+  ["src/tc-shopui.js", "tsPsRcDel", "Shop: combo item (soda + lime) - parts picked in the product sheet"],
+  ["src/tc-shop.js", "unitCost", "Shop: a combo sale keeps its own recipe and costs the parts"],
   ["src/tc-shopui.js", "tsPuSave", "Shop: save a purchase (transport shared over the bill)"],
   ["src/tc-shoprep.js", "__tcShopRep", "Shop screens: Stock, Expenses, Today's account, Excel (tc-shoprep.js)"],
   ["src/tc-shoprep.js", "tsRpXlsx", "Shop: Excel of the whole book"],
