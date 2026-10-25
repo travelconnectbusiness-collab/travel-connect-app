@@ -126,7 +126,8 @@
    if(r.k==="b"&&x.p){ a=acc(x.p); a.pq+=+x.q||0; a.pv+=(+x.q||0)*(+x.rt||0)+(+x.tr||0); a.lastBuy=r.d>a.lastBuy?r.d:a.lastBuy; }
    else if(r.k==="s"&&x.p){
     var pr=prods[x.p];
-    if(pr&&pr.rc&&pr.rc.length){ pr.rc.forEach(function(c){ var b=acc(c.i); b.sq+=(+x.q||0)*(+c.q||0); if(r.d>b.last) b.last=r.d; }); }
+    var rcs=x.rc&&x.rc.length?x.rc:(pr&&pr.rc&&pr.rc.length?pr.rc:null);   /* the sale keeps the recipe it was made with, so changing a recipe later never rewrites old stock */
+    if(rcs){ rcs.forEach(function(c){ var b=acc(c.i); b.sq+=(+x.q||0)*(+c.q||0); if(r.d>b.last) b.last=r.d; }); }
     else { a=acc(x.p); a.sq+=+x.q||0; }
     a=acc(x.p); a.sv+=(+x.q||0)*(+x.pr||0); if(r.d>a.last) a.last=r.d;
    }
@@ -142,7 +143,11 @@
   });
   Object.keys(P).forEach(function(i){
    var p=P[i];
-   if(p.rc&&p.rc.length){ p.avg=p.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0); p.stock=null; }
+   if(p.rc&&p.rc.length){
+    p.avg=p.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0); p.stock=null; p.comp=true;
+    /* how many can still be made from the parts in stock */
+    p.can=null; p.rc.forEach(function(c){ var q=P[c.i], n=(+c.q||0)>0&&q&&q.stock!=null?Math.max(0,Math.floor(q.stock/(+c.q)+1e-9)):null; if(n!=null&&(p.can==null||n<p.can)) p.can=n; });
+   }
    p.value=p.stock!=null?Math.max(0,p.stock)*p.avg:0;
    p.low=p.stock!=null&&p.lo!=null&&p.stock<=p.lo;
    var mg=+cfgVal(cfg,"mg:"+p.c,p.t==="f"?100:50);
@@ -153,11 +158,16 @@
   return memo;
  }
 
+ function unitCost(x,P){
+  if(x&&x.rc&&x.rc.length) return x.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0);
+  var p=x&&P[x.p]; return p?p.avg:0;
+ }
  function products(opt){
   opt=opt||{}; var M=calc();
   return Object.keys(M.P).map(function(i){ return M.P[i]; }).filter(function(p){
    if(!opt.all&&p.off) return false;
    if(opt.t&&p.t!==opt.t) return false;
+   if(opt.noRc&&p.comp) return false;   /* a made-up item (soda + lime) is never bought or written off itself - only its parts are */
    return true;
   }).sort(function(a,b){ return nm(a.n)<nm(b.n)?-1:1; });
  }
@@ -193,7 +203,7 @@
    if(!inRange(r.d,d1,d2)) return;
    var x=r.x||{}, p=P[x.p];
    if(r.k==="s"){
-    var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*(p?p.avg:0);
+    var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*unitCost(x,P);
     R.sales+=tot; R.cost+=cost;
     if(x.pm==="U") R.upi+=tot; else if(x.pm==="O") R.other+=tot; else R.cash+=tot;
     R.lines.push({r:r,p:p,tot:tot,cost:cost});
@@ -233,7 +243,7 @@
 
  load();
  window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
-  report:report,stockValue:stockValue,topSellers:topSellers,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
+  report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
   _S:function(){ return S; }};
