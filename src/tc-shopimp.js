@@ -232,9 +232,14 @@
    row(T("ചെലവ്","Expenses"),P.expenses.length+" · "+money(sumE))+row(T("ചത്തത്","Dead / loss"),P.deads.length)+
    (P.from?row(T("തീയതി","Dates"),UI.dmy(P.from)+" → "+UI.dmy(P.to)):"")+
    ((P.skipped.s+P.skipped.p+P.skipped.e+P.skipped.m)?'<div class="tsM" style="margin-top:6px">'+E(T("ഒഴിവാക്കിയ ശൂന്യ വരികൾ: ","Empty rows left out: "))+(P.skipped.s+P.skipped.p+P.skipped.e+P.skipped.m)+'</div>':'')+'</div>';
+  var man=manualCount(P);
+  if(man) h+='<div class="tsC" style="background:#fff4dc"><b>⚠ '+E(T("ആപ്പിൽ ഈ ദിവസങ്ങളിൽ കൈ കൊണ്ട് ചേർത്ത "+man+" എൻട്രികൾ ഉണ്ട്","The app already has "+man+" records you typed in for these dates"))+'</b><div class="tsM" style="margin-top:4px;line-height:1.5">'+
+   E(T("അവ ഷീറ്റിലുള്ള അതേ വിൽപ്പന/വാങ്ങൽ ആണെങ്കിൽ ഇരട്ടിച്ച് കണക്കാകും. അങ്ങനെയെങ്കിൽ ആദ്യം അവ X അമർത്തി റദ്ദാക്കുക. (ഒരേ പേരുള്ള ഇനങ്ങൾ ആപ്പ് വീണ്ടും ഉണ്ടാക്കില്ല.)","If these are the same sales / purchases as in the sheet they will be counted twice - cancel them first with X. (Items with the same name are not created again.)"))+'</div></div>';
+  h+='<button class="tsBtn" onclick="tsImGo()">✔ '+E(T("ആപ്പിലേക്ക് ചേർക്കുക","Add to the app"))+'</button>';
   if(names.length){
-   h+='<div class="tsC"><b>'+E(T("ഈ പേരുകൾ സ്റ്റോക്ക് ലിസ്റ്റിൽ ഇല്ല","These names are not in the stock lists"))+' ('+names.length+')</b><div class="tsM" style="margin:4px 0 8px">'+
-    E(T("ഏത് ഇനത്തിന്റെ പേരാണെന്ന് തിരഞ്ഞെടുക്കുക. മിക്കതും ആപ്പ് ഊഹിച്ചിട്ടുണ്ട്; തെറ്റിയാൽ മാത്രം മാറ്റുക.","Pick which item each name is. The app has guessed most; change only the wrong ones."))+'</div>'+
+   h+='<details class="tsC" style="margin-top:12px"><summary style="font-weight:700;cursor:pointer">'+E(T("പേരുകൾ പരിശോധിക്കണോ? ("+names.length+") - വേണമെങ്കിൽ മാത്രം","Check the name guesses ("+names.length+") - only if you want"))+'</summary>'+
+    '<div class="tsM" style="margin:6px 0 8px;line-height:1.5">'+
+    E(T("ഈ പേരുകൾ സ്റ്റോക്ക് ലിസ്റ്റിൽ ഇല്ല. മിക്കതും ആപ്പ് ഊഹിച്ചിട്ടുണ്ട് (ഉദാ. 'Copper Oscar fish small' = 'Oscar fish small (copper)'). തെറ്റിയാൽ മാത്രം മാറ്റുക; ഒന്നും മാറ്റാതെ മുകളിലെ ബട്ടൺ അമർത്തിയാലും മതി.","These names are not in the stock lists. The app has guessed most of them (e.g. 'Copper Oscar fish small' = 'Oscar fish small (copper)'). Change only the wrong ones - or just press the button above."))+'</div>'+
     names.map(function(u,i){
      var cur=IM.map[u.k]!=null?IM.map[u.k]:(u.guess||"@new");
      var use=[]; if(u.s) use.push(T("വിൽപ്പന ","sold ")+u.s); if(u.b) use.push(T("വാങ്ങൽ ","bought ")+u.b); if(u.m) use.push(T("ചത്തത് ","dead ")+u.m);
@@ -242,10 +247,15 @@
       '<select onchange="tsImMap(\''+E(u.k)+'\',this.value)" style="margin-top:4px"><option value="@new"'+(cur==="@new"?" selected":"")+'>➕ '+E(T("പുതിയ ഇനമായി","As a new item"))+'</option>'+
       (u.s||u.m?'<option value="@skip"'+(cur==="@skip"?" selected":"")+'>🚫 '+E(T("ഒഴിവാക്കുക","Leave out"))+'</option>':'')+
       known.map(function(p){ return '<option value="'+E(p.k)+'"'+(cur===p.k?" selected":"")+'>'+E(p.n)+'</option>'; }).join("")+'</select></div>';
-    }).join("")+'</div>';
+    }).join("")+'</details>';
   }
-  h+='<button class="tsBtn" onclick="tsImGo()">✔ '+E(T("ആപ്പിലേക്ക് ചേർക്കുക","Add to the app"))+'</button>';
   out.innerHTML=h;
+ }
+ /* records typed by hand (not imported) that fall inside the sheet's dates */
+ function manualCount(P){
+  var M=SH.calc(), n=0; if(!P.from) return 0;
+  M.live.forEach(function(r){ if((r.k==="s"||r.k==="b"||r.k==="e"||r.k==="m")&&!(r.x&&r.x.imp)&&r.d>=P.from&&r.d<=P.to) n++; });
+  return n;
  }
  function row(a,b){ return '<div class="tsRow"><span>'+E(a)+'</span><b>'+E(b)+'</b></div>'; }
  window.tsImMap=function(k,v){ IM.map[k]=v; };
