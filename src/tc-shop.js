@@ -119,6 +119,22 @@
    if(r.k!=="p"||!r.x||!r.x.i) return;
    prods[r.x.i]=Object.assign({},prods[r.x.i]||{},r.x);
   });
+  /* an item merged into another (one item typed under two names) or deleted: its records count for the other item / not at all */
+  var MG={}, EX={}, GONE={};
+  Object.keys(prods).forEach(function(i){ var p=prods[i]; if(p.dl) GONE[i]=1; else if(p.mg&&p.mg!==i&&prods[p.mg]&&!prods[p.mg].dl) MG[i]=p.mg; });
+  function canon(i){ var n=0; while(MG[i]&&n++<10) i=MG[i]; return i; }
+  Object.keys(MG).forEach(function(i){ var k=canon(i), p=prods[i], e=EX[k]||(EX[k]={oq:0,ov:0,als:[]}); e.oq+=+p.oq||0; e.ov+=+p.ov||0; if(p.n) e.als.push(p.n); if(p.al) e.als.push(p.al); });
+  if(Object.keys(MG).length){
+   live=live.map(function(r){
+    var x=r.x; if(!x||!/^[bsma]$/.test(r.k)) return r;
+    var np=x.p&&MG[x.p]?canon(x.p):x.p, rcm=x.rc&&x.rc.some(function(c){ return MG[c.i]; });
+    if(np===x.p&&!rcm) return r;
+    var y=Object.assign({},x,{p:np}); if(x.rc) y.rc=x.rc.map(function(c){ return {i:canon(c.i),q:c.q}; });
+    return Object.assign({},r,{x:y});
+   });
+   Object.keys(prods).forEach(function(i){ if(prods[i].rc&&prods[i].rc.length) prods[i]=Object.assign({},prods[i],{rc:prods[i].rc.map(function(c){ return {i:canon(c.i),q:c.q}; })}); });
+  }
+  Object.keys(MG).forEach(function(i){ delete prods[i]; }); Object.keys(GONE).forEach(function(i){ delete prods[i]; });
   var A={}; Object.keys(prods).forEach(function(i){ A[i]={pq:0,pv:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:0}; });
   function acc(i){ return A[i]||(A[i]={pq:0,pv:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:0,missing:1}); }
   live.forEach(function(r){
@@ -136,9 +152,9 @@
   });
   var P={};
   Object.keys(prods).forEach(function(i){
-   var p=prods[i], a=A[i], oq=+p.oq||0, ov=+p.ov||0, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
+   var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
    var avg=den>0?(ov+a.pv)/den:0;
-   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",off:!!p.off,rc:p.rc||null,
+   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",als:ex.als,off:!!p.off,rc:p.rc||null,
     pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
@@ -172,7 +188,9 @@
   }).sort(function(a,b){ return nm(a.n)<nm(b.n)?-1:1; });
  }
  function prod(id){ return calc().P[id]||null; }
- function findName(name){ var k=nm(name); var L=products({all:true}); for(var i=0;i<L.length;i++) if(nm(L[i].n)===k||nm(L[i].al)===k) return L[i]; return null; }
+ function findName(name){ var k=nm(name); var L=products({all:true}); for(var i=0;i<L.length;i++) if(nm(L[i].n)===k||nm(L[i].al)===k||L[i].als.some(function(a){ return nm(a)===k; })) return L[i]; return null; }
+ /* how much the book already uses an item (records + an opening stock): an unused item may be deleted, otherwise it is merged */
+ function usage(id){ var p=prod(id); if(!p) return 0; var n=p.oq>0?1:0; calc().live.forEach(function(r){ if(r.x&&r.x.p===id&&/^[bsma]$/.test(r.k)) n++; if(r.x&&r.x.rc&&r.x.rc.some(function(c){ return c.i===id; })) n++; }); return n; }
  function search(q,opt){
   var k=nm(q), L=products(opt); if(!k) return L;
   var s1=[],s2=[],s3=[];
@@ -243,7 +261,7 @@
 
  load();
  window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
-  report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
+  report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
   _S:function(){ return S; }};
