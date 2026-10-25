@@ -1,7 +1,7 @@
 /* Shop book - the data part (tc-shop.js, loaded by tc-regdocs.js). Screens are in tc-shopui.js / tc-shoprep.js / tc-shopimp.js.
    For the aquarium / pet shop (Mrithasanjeevani): products, sales, purchases (with transport shared over the bill), dead fish / loss,
    expenses, stock corrections. The book is a list of small records (never edited in place):
-     p product  {i:productId,n:name,t:'f' fish|'i' item,c:category,pk:units per pack,pr:selling price,lo:low-stock mark,oq:opening qty,ov:opening value,al:other name,off:1 hidden,rc:[{i,q}] recipe}
+     p product  {i:productId,n:name,t:'f' fish|'i' item,c:category,pk:units per pack,pr:selling price,lo:low-stock mark,oq:opening qty,ov:opening value,al:other name,off:1 hidden,rc:[{i,q}] recipe,u:unit text,nt:1 stock not counted,ec:estimated cost each}
      s sale     {p,q,pr,pm:'C'|'U',g:group}            b purchase {p,q,rt:rate per unit,tr:transport share,su:supplier,bn:bill no,g}
      m dead/loss {p,q,r}   e expense {c,a,t}   a stock correction {p,q:+/- units,r}   o owner money {t:'in'|'out',a,n}
      v cancel {r:id of the cancelled record}   c setting {k,v}
@@ -154,8 +154,9 @@
   Object.keys(prods).forEach(function(i){
    var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
    var avg=den>0?(ov+a.pv)/den:0;
-   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",als:ex.als,off:!!p.off,rc:p.rc||null,
-    pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
+   if(!(avg>0)&&+p.ec>0) avg=+p.ec;   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
+   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,als:ex.als,off:!!p.off,rc:p.rc||null,
+    pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
    var p=P[i];
