@@ -32,7 +32,7 @@
   $("stList").innerHTML=!L.length?'<div class="tsM" style="text-align:center">'+E(T("ഒന്നുമില്ല","Nothing here"))+'</div>':
    L.map(function(p){
     return '<div class="tsRow" onclick="tsStOpen(\''+p.id+'\')"><div><b>'+E(p.n)+'</b>'+(p.low?' <span class="tsLow">LOW</span>':'')+'<div class="tsM">'+E(SH.catName(p.c,ML()))+(p.pr>0?' · '+money(p.pr):'')+'</div></div>'+
-     '<div style="text-align:right;font-size:20px;font-weight:800">'+(p.stock==null?"—":qty(p.stock))+(simple||p.stock==null?'':'<div class="tsM" style="font-weight:600">'+money(p.value)+'</div>')+'</div></div>';
+     '<div style="text-align:right;font-size:20px;font-weight:800">'+(p.comp?(p.can==null?"—":qty(p.can))+'<div class="tsM" style="font-weight:600">'+E(T("ഉണ്ടാക്കാം","can make"))+'</div>':(p.stock==null?"—":qty(p.stock))+(simple||p.stock==null?'':'<div class="tsM" style="font-weight:600">'+money(p.value)+'</div>'))+'</div></div>';
    }).join("")+(simple?'':'<div class="tsRow"><b>'+E(T("സ്റ്റോക്ക് വില","Stock value"))+'</b><b>'+money(tot)+'</b></div>');
  }
  window.tsStOpen=function(id){
@@ -40,12 +40,12 @@
   var simple=UI.simple(), M=SH.calc();
   var last=""; if(p.last) last=UI.dmy(p.last);
   UI.sheet('<h3 style="margin:0">'+E(p.n)+'</h3><div class="tsM">'+E(SH.catName(p.c,ML()))+'</div>'+
-   '<div class="tsRow"><span>'+E(T("സ്റ്റോക്ക്","In stock"))+'</span><b style="font-size:24px">'+(p.stock==null?"—":qty(p.stock))+'</b></div>'+
+   (p.comp?'<div class="tsRow"><span>'+E(T("ഉണ്ടാക്കാൻ പറ്റുന്നത്","Can make"))+'</span><b style="font-size:24px">'+(p.can==null?"—":qty(p.can))+'</b></div><div class="tsM">= '+E((p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+" "+(q?q.n:"?"); }).join(" + "))+'</div>':'<div class="tsRow"><span>'+E(T("സ്റ്റോക്ക്","In stock"))+'</span><b style="font-size:24px">'+(p.stock==null?"—":qty(p.stock))+'</b></div>')+
    '<div class="tsRow"><span>'+E(T("വിൽപ്പന വില","Selling price"))+'</span><b>'+(p.pr>0?money(p.pr):"—")+'</b></div>'+
    (simple?'':'<div class="tsRow"><span>'+E(T("വാങ്ങിയ വില (ശരാശരി)","Average cost"))+'</span><b>'+(p.avg>0?"₹"+p.avg.toFixed(2):"—")+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("നിർദേശിക്കുന്ന വില","Suggested price"))+' ('+p.mg+'%)</span><b>'+(p.sugg>0?money(p.sugg):"—")+'</b></div>')+
    '<div class="tsRow"><span>'+E(T("അവസാനം വിറ്റത്","Last sold"))+'</span><b>'+E(last||"—")+'</b></div>'+
-   '<button class="tsBtn" onclick="tsStAdj(\''+id+'\')">🔢 '+E(T("എണ്ണം ശരിയാക്കുക","Correct the count"))+'</button>'+
+   (p.comp?'':'<button class="tsBtn" onclick="tsStAdj(\''+id+'\')">🔢 '+E(T("എണ്ണം ശരിയാക്കുക","Correct the count"))+'</button>')+
    '<button class="tsBtn g" onclick="tsCloseSheet();tsStEdit(\''+id+'\')">✏ '+E(T("വിലയും വിവരങ്ങളും മാറ്റുക","Edit price / details"))+'</button>'+
    '<button class="tsBtn g" onclick="tsStHist(\''+id+'\')">📜 '+E(T("ചരിത്രം","History"))+'</button>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
@@ -160,7 +160,7 @@
   out.push({name:"Monthly",rows:rows,widths:[14,16,16,16,18,16,16],freeze:"B2"});
   /* sales */
   rows=[hdr(["Date","Item","Qty","Price","Total","Paid by","Cost / unit","Profit"])];
-  M.live.filter(function(r){ return r.k==="s"; }).sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; }).forEach(function(r){ var p=P[r.x.p], q=+r.x.q||0, pr=+r.x.pr||0, av=p?p.avg:0;
+  M.live.filter(function(r){ return r.k==="s"; }).sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; }).forEach(function(r){ var p=P[r.x.p], q=+r.x.q||0, pr=+r.x.pr||0, av=SH.unitCost(r.x,P);
    rows.push([c(UI.dmy(r.d)),c(p?p.n:"?"),c(q),m(pr),m(q*pr),c(r.x.pm==="U"?"UPI":"Cash"),m(av),m(q*pr-q*av)]); });
   out.push({name:"Sales",rows:rows,widths:[12,34,8,10,12,9,11,11],freeze:"A2",filter:"A1:H"+rows.length});
   /* purchases */
@@ -178,7 +178,7 @@
   out.push({name:"Dead-Loss",rows:rows,widths:[12,34,8,14,12],freeze:"A2",filter:"A1:E"+rows.length});
   /* stock */
   rows=[hdr(["Item","Kind","Category","Stock","Avg cost","Stock value","Selling price","Low?"])];
-  SH.products().forEach(function(p){ rows.push([c(p.n),c(p.t==="f"?"Fish":"Item"),c(p.c),c(p.stock==null?"":Math.round(p.stock*1000)/1000),m(p.avg),m(p.value),m(p.pr),c(p.low?"LOW":"")]); });
+  SH.products().forEach(function(p){ rows.push([c(p.n),c(p.t==="f"?"Fish":"Item"),c(p.c),c(p.comp?(p.can==null?"":"can make "+p.can):p.stock==null?"":Math.round(p.stock*1000)/1000),m(p.avg),m(p.value),m(p.pr),c(p.low?"LOW":"")]); });
   out.push({name:"Stock",rows:rows,widths:[34,8,14,9,11,12,12,8],freeze:"A2",filter:"A1:H"+rows.length});
   var bytes;
   try{ bytes=wb(out); }catch(e){ if(window.console) console.error(e); say(T("Excel ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല","Could not make the Excel")); return; }
