@@ -137,7 +137,7 @@
  window.tsPkIn=function(id){
   var i=$("pk_"+id+"_i"), l=$("pk_"+id+"_l"); if(!i||!l) return;
   var q=i.value.trim(), o=PK[id]||{};
-  var L=SH.search(q,{t:o.t,noRc:o.noRc}).slice(0,q?8:0);
+  var L=SH.search(q,{t:o.t,noRc:o.noRc}); if(o.skip) L=L.filter(function(p){ return !o.skip(p); }); L=L.slice(0,q?8:0);
   if(!q&&o.recent) L=o.recent();
   var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+'</small></div>'; }).join("");
   if(q&&o.allowNew!==false&&!SH.findName(q)) h+='<div class="n" onclick="tsPkNew(\''+id+'\')">➕ "'+E(q)+'" '+E(T("പുതിയ ഇനമായി ചേർക്കുക","add as new item"))+'</div>';
@@ -172,6 +172,8 @@
    (pid?'':'<label>'+E(T("ഇപ്പോൾ ഉള്ള സ്റ്റോക്ക് (എണ്ണം)","Stock now (count)"))+'</label><input id="psQ" type="number" inputmode="decimal" placeholder="0">'+
     '<label>'+E(T("ആ സ്റ്റോക്കിന്റെ ആകെ വാങ്ങിയ വില (അറിയാമെങ്കിൽ)","Cost of that stock (if known)"))+'</label><input id="psV" type="number" inputmode="decimal">')+
    '<button class="tsBtn" onclick="tsPsSave()">'+E(T("സേവ് ചെയ്യുക","Save"))+'</button>'+
+   (pid?'<button class="tsBtn g" onclick="tsPsMerge()">🔀 '+E(T("ഇതേ ഇനം വേറെ പേരിൽ ഉണ്ട് - ഒന്നാക്കുക","Same item under another name - merge"))+'</button>'+
+    '<button class="tsBtn r" onclick="tsPsDel()">🗑 '+E(T("ഡിലീറ്റ് ചെയ്യുക","Delete"))+'</button>':'')+
    (pid?'<button class="tsBtn r" onclick="tsPsHide()">'+E(p.off?T("വീണ്ടും കാണിക്കുക","Show again"):T("ഇനി വിൽക്കുന്നില്ല (മറയ്ക്കുക)","Hide (not sold any more)"))+'</button>':'')+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
   psRcDraw();
@@ -209,6 +211,22 @@
   else { var oq=num("psQ"), ov=num("psV"); if(rc.length) x.rc=rc; else if(oq>0){ x.oq=oq; if(ov>0) x.ov=ov; } np=SH.newProduct(x); }
   closeSheet(); say(T("സേവ് ചെയ്തു","Saved"));
   if(cb) cb(np); else render();
+ };
+ window.tsPsMerge=function(){
+  var p=SH.prod(PS.pid); if(!p) return;
+  sheet('<h3 style="margin:0 0 6px">'+E(p.n)+'</h3><div class="tsM" style="line-height:1.5">'+E(T("ഇത് വേറൊരു ഇനത്തിന്റെ തന്നെ മറ്റൊരു പേരാണ്. ഇതിന്റെ എല്ലാ വിൽപ്പനയും വാങ്ങലും സ്റ്റോക്കും ഏത് ഇനത്തിലേക്ക് ചേർക്കണം? (ഇത് ലിസ്റ്റിൽ നിന്ന് മാറും)","This is another name of an item. Which item should all its sales, purchases and stock join? (This one then leaves the list)"))+'</div>'+
+   picker("mg",{noRc:false,skip:function(q){ return q.id===p.id; },allowNew:false,ph:T("ശരിയായ ഇനം തിരയുക...","Search the right item..."),pick:function(t){ psMergeInto(p,t); }})+
+   '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
+ };
+ function psMergeInto(p,t){
+  if(!confirm(T("'"+p.n+"' ന്റെ എല്ലാ കണക്കും '"+t.n+"' ലേക്ക് ചേർക്കട്ടേ? '"+p.n+"' ലിസ്റ്റിൽ നിന്ന് മാറും.","Add everything of '"+p.n+"' to '"+t.n+"'? '"+p.n+"' leaves the list."))) return;
+  SH.saveProduct({i:p.id,mg:t.id}); closeSheet(); say(T("ഒന്നാക്കി","Merged")); var cb=PS&&PS.cb; if(cb) cb(t); else render();
+ }
+ window.tsPsDel=function(){
+  var p=SH.prod(PS.pid); if(!p) return;
+  if(SH.usage(p.id)>0){ say(T("ഇതിൽ കണക്കുകൾ ഉണ്ട്. ഡിലീറ്റ് ചെയ്യാതെ 'ഒന്നാക്കുക' ഉപയോഗിക്കൂ","It has entries. Use merge, or hide it")); return; }
+  if(!confirm(T("'"+p.n+"' ഡിലീറ്റ് ചെയ്യട്ടേ?","Delete '"+p.n+"'?"))) return;
+  SH.saveProduct({i:p.id,dl:1}); closeSheet(); say(T("ഡിലീറ്റ് ചെയ്തു","Deleted")); render();
  };
  window.tsPsHide=function(){
   var p=SH.prod(PS.pid); if(!p) return;
