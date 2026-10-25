@@ -43,11 +43,15 @@
  }
  window.tcAdminHub=function(){
   var open=function(){
+   window.__tcHubModal=0;
    var h='<div style="text-align:center;margin-bottom:6px"><div style="font-weight:800;letter-spacing:1.5px;color:#082b49;font-size:13px">'+B("ADMIN","അഡ്മിൻ")+'</div>'+
     '<div style="color:#6a7a87;font-size:11.5px">'+B("Only for the app owner","ആപ്പ് ഉടമയ്ക്ക് മാത്രം")+'</div></div><div style="margin-top:4px">';
    sorted().forEach(function(g){
     h+='<div style="margin:12px 2px 0;font-size:11.5px;font-weight:800;letter-spacing:.8px;color:#0b6b78;text-transform:uppercase">'+g.title+'</div>';
-    g.rows.forEach(function(e){ h+=e.html.replace(/onclick="closeModal\(\);/,'onclick="window.__tcFromHub=1;closeModal();'); });
+    g.rows.forEach(function(e){
+     /* a row that opens a PAGE: Back returns to the hub (flag read by the Menu wrapper); a row that opens a POP-UP (Security): closing it returns to the hub */
+     h+=e.oc.indexOf("tcDevSecOpen")>=0?e.html.replace(/onclick="closeModal\(\);/,'onclick="closeModal();window.__tcHubModal=1;'):e.html.replace(/onclick="closeModal\(\);/,'onclick="window.__tcFromHub=1;closeModal();');
+    });
    });
    h+='<div style="cursor:pointer;padding:14px 2px;color:#0b6b78;font-weight:700;font-size:14px" onclick="closeModal();tcOpenMenu()">&#8592; '+B("Back to Menu","മെനുവിലേക്ക് മടങ്ങുക")+'</div></div>';
    if(typeof modal==="function") modal(h);
@@ -59,6 +63,34 @@
     cleared by every opening of the Menu and by a tap on the header Menu button, so it only ever acts on that one Back. */
  window.__tcFromHub=0;
  document.addEventListener("click",function(e){ try{ if(e.target&&e.target.closest&&e.target.closest("#tcMenuBtn")) window.__tcFromHub=0; }catch(x){} },true);
+ /* closing the Security pop-up (Close button or the phone's Back) shows the Admin page again - only when no other pop-up took its place */
+ window.__tcHubModal=0;
+ function backToHub(){
+  setTimeout(function(){
+   try{ var m=document.getElementById("modal"); if(window.__tcHubModal&&m&&m.classList.contains("hidden")){ window.__tcHubModal=0; window.tcAdminHub(); } else if(!m||m.classList.contains("hidden")) window.__tcHubModal=0; }catch(e){}
+  },60);
+ }
+ var cm0=window.closeModal;
+ if(typeof cm0==="function") window.closeModal=function(){ var r=cm0.apply(this,arguments); if(window.__tcHubModal) backToHub(); return r; };
+ window.addEventListener("popstate",function(){ if(window.__tcHubModal) backToHub(); });
+ /* ADMIN PASSWORD LIFETIME (owner 2026-10-25: switching to another business still opened Admin without the password):
+    the admin session ends when another business is opened and after 15 minutes without any admin call. */
+ var seenTok="", lastUse=0, oat=window.adminToken;
+ if(typeof oat==="function") window.adminToken=function(){
+  var t=oat.apply(this,arguments);
+  if(t){
+   var n=Date.now(), idle=window.__tcAdminIdleMs||15*60*1000;
+   if(t!==seenTok){ seenTok=t; lastUse=n; }
+   else if(n-lastUse>idle){ try{ sessionStorage.removeItem("tc_admin_token"); }catch(e){} seenTok=""; return ""; }
+   else lastUse=n;
+  }
+  return t;
+ };
+ var ooo=window.tcOpenOneBusiness;
+ if(typeof ooo==="function") window.tcOpenOneBusiness=function(p){
+  try{ var cur=(typeof db!=="undefined"&&db&&db.settings)?db.settings.myPartnerId:null; if(p&&cur!=null&&String(cur)!==String(p.id)) sessionStorage.removeItem("tc_admin_token"); }catch(e){}
+  return ooo.apply(this,arguments);
+ };
  var om=window.tcOpenMenu;
  if(typeof om!=="function") return;
  window.tcOpenMenu=function(){
@@ -94,6 +126,15 @@
     if(at&&at.parentNode) at.parentNode.insertBefore(wrap,at); else body.appendChild(wrap);
    }
    if(first&&first.parentNode) first.parentNode.removeChild(first);
+   /* owner 2026-10-25: "Switch to another of my businesses" was only at the TOP of the taxi dashboard, far down on the other pages -> also in the Menu */
+   try{
+    var mine=window._myBusinesses;
+    if(mine&&mine.length>1&&typeof tcSwitchBusiness==="function"&&typeof tcMenuItem==="function"&&!body.querySelector("#tcSwitchMenu")){
+     var sw=document.createElement("div"); sw.id="tcSwitchMenu";
+     sw.innerHTML=tcMenuItem('<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>',(typeof tcT==="function"?tcT("switch_business"):"Switch to another of my businesses"),"closeModal();tcSwitchBusiness()");
+     var firstRow=body.querySelector("[onclick]"); if(firstRow&&firstRow.parentNode) firstRow.parentNode.insertBefore(sw,firstRow);
+    }
+   }catch(e){}
   }catch(e){ if(window.console) console.error("tc-menu",e); }
   return r;
  };
