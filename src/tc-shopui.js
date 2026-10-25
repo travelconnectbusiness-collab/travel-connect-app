@@ -124,7 +124,9 @@
  function dmy(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }
  function num(id){ var e=$(id); var v=parseFloat(e&&e.value); return isNaN(v)?0:v; }
  function setv(id,v){ var e=$(id); if(e) e.value=v; }
- function stockTxt(p){ return p.stock==null?"":T("സ്റ്റോക്ക് ","In stock ")+qty(p.stock); }
+ function stockTxt(p){ return p.comp?(p.can==null?"":T("ഉണ്ടാക്കാൻ പറ്റുന്നത് ","Can make ")+qty(p.can)):(p.stock==null?"":T("സ്റ്റോക്ക് ","In stock ")+qty(p.stock)); }
+ function avail(p){ return p.comp?p.can:p.stock; }
+ function partsTxt(p){ return (p.rc||[]).map(function(c){ var q=SH.prod(c.i); return qty(+c.q||0)+" "+(q?q.n:"?"); }).join(" + "); }
 
  /* ---------- product picker ---------- */
  var PK={};
@@ -135,9 +137,9 @@
  window.tsPkIn=function(id){
   var i=$("pk_"+id+"_i"), l=$("pk_"+id+"_l"); if(!i||!l) return;
   var q=i.value.trim(), o=PK[id]||{};
-  var L=SH.search(q,{t:o.t}).slice(0,q?8:0);
+  var L=SH.search(q,{t:o.t,noRc:o.noRc}).slice(0,q?8:0);
   if(!q&&o.recent) L=o.recent();
-  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.stock!=null?qty(p.stock):"")+(p.low?' ⚠':'')+'</small></div>'; }).join("");
+  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+'</small></div>'; }).join("");
   if(q&&o.allowNew!==false&&!SH.findName(q)) h+='<div class="n" onclick="tsPkNew(\''+id+'\')">➕ "'+E(q)+'" '+E(T("പുതിയ ഇനമായി ചേർക്കുക","add as new item"))+'</div>';
   if(!h&&q) h='<div><span class="tsM">'+E(T("ഒന്നുമില്ല","Nothing found"))+'</span></div>';
   l.innerHTML=h; l.classList.toggle("hidden",!h);
@@ -157,7 +159,7 @@
  function prodSheet(pid,preset,cb){
   var p=pid?SH.prod(pid):null, x=p?p.raw:(preset||{});
   var t=x.t||"i";
-  PS={pid:pid,cb:cb,t:t,c:x.c||(t==="f"?"Fish":"Other")};
+  PS={pid:pid,cb:cb,t:t,c:x.c||(t==="f"?"Fish":"Other"),rc:(x.rc||[]).map(function(c){ return {i:c.i,q:+c.q||1}; })};
   var cats=SH.categories();
   sheet('<h3 style="margin:0 0 6px">'+E(pid?T("ഇനം മാറ്റുക","Edit item"):T("പുതിയ ഇനം","New item"))+'</h3>'+
    '<label>'+E(T("പേര്","Name"))+'</label><input id="psN" value="'+E(x.n||"")+'">'+
@@ -166,12 +168,29 @@
    '<label>'+E(T("വിൽപ്പന വില (ഒന്നിന്)","Selling price (each)"))+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
    '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="numeric" value="'+E(x.pk||1)+'">'+
    '<label>'+E(T("സ്റ്റോക്ക് ഇതിൽ കുറഞ്ഞാൽ അടയാളം കാണിക്കുക","Mark LOW when stock is at or below"))+'</label><input id="psL" type="number" inputmode="numeric" value="'+E(x.lo==null?"":x.lo)+'">'+
+   '<div style="margin-top:12px;padding:8px;border:1px dashed #9bb;border-radius:10px"><b>'+E(T("🧩 ഒന്നിലധികം സാധനങ്ങൾ ചേർന്നതാണോ? (ഉദാ: സോഡ + നാരങ്ങ)","🧩 Made of other items? (e.g. soda + lime)"))+'</b><div class="tsM">'+E(T("ഇതിൽ ഉൾപ്പെടുന്ന സാധനങ്ങൾ ചേർത്താൽ ഇത് വിൽക്കുമ്പോൾ അവയുടെ സ്റ്റോക്ക് തനിയേ കുറയും. അല്ലെങ്കിൽ ഒന്നും ചേർക്കേണ്ട.","Add the parts and each sale will take them out of stock by itself. Leave empty for a normal item."))+'</div><div id="psRc"></div>'+picker("rcp",{noRc:true,allowNew:false,ph:T("ഉൾപ്പെടുന്ന സാധനം തിരയുക...","Search a part..."),pick:psRcAdd})+'</div>'+
    (pid?'':'<label>'+E(T("ഇപ്പോൾ ഉള്ള സ്റ്റോക്ക് (എണ്ണം)","Stock now (count)"))+'</label><input id="psQ" type="number" inputmode="decimal" placeholder="0">'+
     '<label>'+E(T("ആ സ്റ്റോക്കിന്റെ ആകെ വാങ്ങിയ വില (അറിയാമെങ്കിൽ)","Cost of that stock (if known)"))+'</label><input id="psV" type="number" inputmode="decimal">')+
    '<button class="tsBtn" onclick="tsPsSave()">'+E(T("സേവ് ചെയ്യുക","Save"))+'</button>'+
    (pid?'<button class="tsBtn r" onclick="tsPsHide()">'+E(p.off?T("വീണ്ടും കാണിക്കുക","Show again"):T("ഇനി വിൽക്കുന്നില്ല (മറയ്ക്കുക)","Hide (not sold any more)"))+'</button>':'')+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
+  psRcDraw();
  }
+ function psRcDraw(){
+  var d=$("psRc"); if(!d) return;
+  var cost=0, ok=true;
+  var h=PS.rc.map(function(c,i){ var q=SH.prod(c.i); if(q) cost+=q.avg*(+c.q||0); return '<div class="tsRow"><div>'+E(q?q.n:"?")+'</div><div><input type="number" inputmode="decimal" value="'+E(c.q)+'" style="width:70px" onchange="tsPsRcQ('+i+',this.value)"> <button class="tsX" onclick="tsPsRcDel('+i+')">✕</button></div></div>'; }).join("");
+  if(PS.rc.length&&cost>0) h+='<div class="tsM">'+E(T("ഇതിന്റെ ചെലവ് ≈ ₹","Cost of one ≈ ₹"))+cost.toFixed(2)+'</div>';
+  d.innerHTML=h;
+ }
+ function psRcAdd(p){
+  if(p.id===PS.pid){ say(T("ഇതിൽ തന്നെ ചേർക്കാൻ പറ്റില്ല","An item cannot contain itself")); return; }
+  var f=PS.rc.filter(function(c){ return c.i===p.id; })[0];
+  if(f) f.q=(+f.q||0)+1; else PS.rc.push({i:p.id,q:1});
+  psRcDraw();
+ }
+ window.tsPsRcQ=function(i,v){ var n=parseFloat(v); if(PS.rc[i]) PS.rc[i].q=n>0?n:1; psRcDraw(); };
+ window.tsPsRcDel=function(i){ PS.rc.splice(i,1); psRcDraw(); };
  window.tsPsT=function(t){
   PS.t=t; var c=$("psC");
   if(c&&(c.value==="Fish"||c.value==="Other")) c.value=t==="f"?"Fish":"Other";
@@ -183,9 +202,11 @@
   var dup=SH.findName(n); if(dup&&dup.id!==PS.pid){ say(T("ഈ പേരിൽ ഒരു ഇനം ഉണ്ട്","An item with this name exists")); return; }
   var x={n:n,t:PS.t,c:$("psC").value,pr:num("psP"),pk:Math.max(1,Math.round(num("psK"))||1)};
   var lo=$("psL").value; x.lo=lo===""?"":Math.max(0,parseFloat(lo)||0);
-  var cb=PS.cb, pid=PS.pid, np;
-  if(pid){ x.i=pid; SH.saveProduct(x); np=SH.prod(pid); }
-  else { var oq=num("psQ"), ov=num("psV"); if(oq>0){ x.oq=oq; if(ov>0) x.ov=ov; } np=SH.newProduct(x); }
+  var cb=PS.cb, pid=PS.pid, np, rc=PS.rc.filter(function(c){ return c.i&&(+c.q||0)>0; });
+  if(rc.length&&pid&&SH.products({all:true}).some(function(o){ return o.rc&&o.rc.some(function(c){ return c.i===pid; }); })){ say(T("ഇത് വേറെ ഒരു കോമ്പോയുടെ ഭാഗമാണ്; ഇതിൽ ഭാഗങ്ങൾ ചേർക്കാൻ പറ്റില്ല","This item is a part of another combo, so it cannot have parts")); return; }
+  if(rc.length&&pid){ var cur=SH.prod(pid); if(cur&&!cur.comp&&cur.stock>0&&!confirm(T("ഇതിനു സ്വന്തം സ്റ്റോക്ക് ("+qty(cur.stock)+") ഉണ്ട്. ഭാഗങ്ങൾ ചേർത്താൽ ഇത് ഇനി സ്റ്റോക്ക് ആയി കണക്കാക്കില്ല. തുടരട്ടേ?","This item has its own stock ("+qty(cur.stock)+"). With parts it is no longer counted as stock. Continue?"))) return; }
+  if(pid){ x.i=pid; x.rc=rc; SH.saveProduct(x); np=SH.prod(pid); }
+  else { var oq=num("psQ"), ov=num("psV"); if(rc.length) x.rc=rc; else if(oq>0){ x.oq=oq; if(ov>0) x.ov=ov; } np=SH.newProduct(x); }
   closeSheet(); say(T("സേവ് ചെയ്തു","Saved"));
   if(cb) cb(np); else render();
  };
@@ -233,7 +254,7 @@
  };
  function saSelect(p){
   U.sale.sel=p.id;
-  $("saSel").innerHTML='<div style="margin-top:10px;font-size:20px;font-weight:800">'+E(p.n)+'</div><div class="tsM">'+E(stockTxt(p))+(p.low?' <span class="tsLow">LOW</span>':'')+'</div>'+
+  $("saSel").innerHTML='<div style="margin-top:10px;font-size:20px;font-weight:800">'+E(p.n)+'</div><div class="tsM">'+E(stockTxt(p))+(p.low?' <span class="tsLow">LOW</span>':'')+'</div>'+(p.comp?'<div class="tsM">= '+E(partsTxt(p))+'</div>':'')+
    '<div class="tsG"><div><label>'+E(T("വില (ഒന്നിന്)","Price (each)"))+'</label><input id="saPr" type="number" inputmode="decimal" value="'+E(p.pr||"")+'" oninput="tsSaCalc(\'p\')"></div>'+
    '<div><label>'+E(T("എണ്ണം","Quantity"))+'</label><input id="saQ" type="number" inputmode="decimal" value="1" oninput="tsSaCalc(\'q\')"></div></div>'+
    '<label>'+E(T("ആകെ തുക","Total"))+'</label><input id="saT" type="number" inputmode="decimal" oninput="tsSaCalc(\'t\')">'+
@@ -251,7 +272,8 @@
   if(!(q>0)){ say(T("എണ്ണം നൽകുക","Enter the quantity")); return; }
   if(!(pr>0)){ say(T("വില നൽകുക","Enter the price")); return; }
   var have=s.cart.filter(function(l){ return l.p===p.id; }).reduce(function(a,l){ return a+l.q; },0);
-  if(p.stock!=null&&q+have>p.stock+1e-9&&!confirm(T("സ്റ്റോക്കിൽ "+qty(p.stock)+" മാത്രമേ ഉള്ളൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(p.stock)+" in stock. Add anyway?"))) return;
+  var av=avail(p);
+  if(av!=null&&q+have>av+1e-9&&!confirm(p.comp?T("സ്റ്റോക്കിലുള്ളതുകൊണ്ട് "+qty(av)+" എണ്ണം മാത്രമേ ഉണ്ടാക്കാൻ പറ്റൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" can be made from the stock. Add anyway?"):T("സ്റ്റോക്കിൽ "+qty(av)+" മാത്രമേ ഉള്ളൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" in stock. Add anyway?"))) return;
   s.cart.push({p:p.id,n:p.n,q:q,pr:pr});
   s.sel=null; $("saSel").innerHTML=""; saCart();
   var i=$("pk_sa_i"); if(i) i.focus();
@@ -272,8 +294,9 @@
   var s=U.sale; if(!s.cart.length) return;
   var d=dateVal("saD"), g=H.uid(), tot=0;
   s.cart.forEach(function(l){
-   SH.add("s",{p:l.p,q:l.q,pr:l.pr,pm:s.pm,g:g},d); tot+=l.q*l.pr;
-   var p=SH.prod(l.p); if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.pr});
+   var p=SH.prod(l.p), rec={p:l.p,q:l.q,pr:l.pr,pm:s.pm,g:g};
+   if(p&&p.comp) rec.rc=p.rc.map(function(c){ return {i:c.i,q:+c.q||0}; });
+   SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.pr});
   });
   U.sale={cart:[],pm:"C",sel:null};
   say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot));
@@ -299,7 +322,7 @@
   $("tsBody").innerHTML=
    '<div class="tsC"><label style="margin-top:0">'+E(T("വാങ്ങിയ കട (സപ്ലൈയർ)","Supplier"))+'</label><input id="puS" list="puSL" value="'+E(s.sup)+'" onchange="tsPuHead()"><datalist id="puSL">'+sups.map(function(x){ return '<option value="'+E(x)+'">'; }).join("")+'</datalist>'+
    '<div class="tsG"><div><label>'+E(T("ബിൽ നമ്പർ","Bill no."))+'</label><input id="puB" value="'+E(s.bn)+'" onchange="tsPuHead()"></div><div>'+dateRow("puD",s.date)+'</div></div></div>'+
-   '<div class="tsC">'+picker("pu",{pick:puSelect,ph:T("വാങ്ങിയ സാധനം / മീൻ...","Item / fish bought...")})+'<div id="puSel"></div></div>'+
+   '<div class="tsC">'+picker("pu",{noRc:true,pick:puSelect,ph:T("വാങ്ങിയ സാധനം / മീൻ...","Item / fish bought...")})+'<div id="puSel"></div></div>'+
    '<div class="tsC" id="puLines"></div>';
   puLines();
  };
@@ -381,7 +404,7 @@
  var REASONS=[["ചത്തു","Died"],["കേടായി","Damaged"],["തീയതി കഴിഞ്ഞു","Expired"],["മറ്റ്","Other"]];
  SC.dead=function(){
   var s=U.dead={sel:null,reason:0};
-  $("tsBody").innerHTML='<div class="tsC">'+picker("de",{pick:deSelect,ph:T("മീൻ / സാധനം തിരയുക...","Search fish / item...")})+'<div id="deSel"></div></div><div id="deDay"></div>';
+  $("tsBody").innerHTML='<div class="tsC">'+picker("de",{noRc:true,pick:deSelect,ph:T("മീൻ / സാധനം തിരയുക...","Search fish / item...")})+'<div id="deSel"></div></div><div id="deDay"></div>';
   deDay();
  };
  function deSelect(p){
