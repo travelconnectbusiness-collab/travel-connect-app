@@ -19,15 +19,16 @@
   stList();
  },function(){ return "📦 "+T("സ്റ്റോക്ക്","Stock"); });
  function tabs(){
-  var L=[["f",T("🐟 മീൻ","🐟 Fish")],["i",T("📦 സാധനങ്ങൾ","📦 Items")],["l",T("⚠ തീരാറായവ","⚠ Low")]];
+  var L=[["f",T("🐟 മീൻ","🐟 Fish")],["i",T("📦 സാധനങ്ങൾ","📦 Items")],["l",T("⚠ തീരാറായവ","⚠ Low")],["h",T("🙈 മറച്ചവ","🙈 Hidden")]];
   return L.map(function(t){ return '<span class="tsChip'+(V.tab===t[0]?" on":"")+'" onclick="tsStTab(\''+t[0]+'\')">'+E(t[1])+'</span>'; }).join("");
  }
  window.tsStTab=function(t){ V.tab=t; UI.render(); };
  window.tsStQ=function(v){ V.q=v; stList(); };
  window.tsStNew=function(){ UI.prodSheet(null,{t:V.tab==="f"?"f":"i"},function(){ UI.render(); }); };
  function stList(){
-  var simple=UI.simple(), L=SH.search(V.q,{t:V.tab==="l"?"":V.tab});
+  var simple=UI.simple(), L=SH.search(V.q,{t:V.tab==="l"||V.tab==="h"?"":V.tab,all:V.tab==="h"});
   if(V.tab==="l") L=L.filter(function(p){ return p.low; });
+  if(V.tab==="h") L=L.filter(function(p){ return p.off; });
   var tot=0; L.forEach(function(p){ tot+=p.value; });
   $("stList").innerHTML=!L.length?'<div class="tsM" style="text-align:center">'+E(T("ഒന്നുമില്ല","Nothing here"))+'</div>':
    L.map(function(p){
