@@ -106,7 +106,8 @@
  /* ---------- compute (memoised on S.ver) ---------- */
  var FISH_CATS={"Fish":1};
  var CATS=["Fish","Fish Food","Cat Food","Dog Food","Bird Food","Medicines","Accessories","Tank","Filters","Air Pump","Other"];
- var CAT_ML={"Fish":"മീൻ","Fish Food":"മീൻ തീറ്റ","Cat Food":"പൂച്ച ഭക്ഷണം","Dog Food":"നായ ഭക്ഷണം","Bird Food":"പക്ഷി തീറ്റ","Medicines":"മരുന്ന്","Accessories":"ആക്സസറീസ്","Tank":"ടാങ്ക് / ബൗൾ","Filters":"ഫിൽട്ടർ","Air Pump":"എയർ പമ്പ്","Other":"മറ്റുള്ളവ"};
+ var CAT_ML={"Fish":"മീൻ","Fish Food":"മീൻ തീറ്റ","Cat Food":"പൂച്ച ഭക്ഷണം","Dog Food":"നായ ഭക്ഷണം","Bird Food":"പക്ഷി തീറ്റ","Medicines":"മരുന്ന്","Accessories":"ആക്സസറീസ്","Tank":"ടാങ്ക് / ബൗൾ","Filters":"ഫിൽട്ടർ","Air Pump":"എയർ പമ്പ്","Other":"മറ്റുള്ളവ","Grocery":"പലചരക്ക്","Stationery":"സ്റ്റേഷനറി","Electronics":"ഇലക്ട്രോണിക്സ്","Electricals":"ഇലക്ട്രിക്കൽ","Hardware":"ഹാർഡ്‌വെയർ","Clothing":"വസ്ത്രം","Toys":"കളിപ്പാട്ടം","Cosmetics":"കോസ്മെറ്റിക്സ്","Food":"ഭക്ഷണം","Drinks":"പാനീയം"};
+ var GEN_CATS=["Grocery","Food","Drinks","Stationery","Electronics","Electricals","Hardware","Clothing","Toys","Medicines","Cosmetics","Accessories","Other"];
  function cfgVal(c,k,def){ return c.hasOwnProperty(k)&&c[k]!==""&&c[k]!=null?c[k]:def; }
  function calc(){
   guard();
@@ -157,7 +158,7 @@
    var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
    var avg=den>0?(ov+a.pv)/den:0;
    if(!(avg>0)&&+p.ec>0) avg=+p.ec;   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
-   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,als:ex.als,off:!!p.off,rc:p.rc||null,
+   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,als:ex.als,off:!!p.off,rc:p.rc||null,
     pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
@@ -169,7 +170,8 @@
    }
    p.value=p.stock!=null?Math.max(0,p.stock)*p.avg:0;
    p.low=p.stock!=null&&p.lo!=null&&p.stock<=p.lo;
-   var mg=+cfgVal(cfg,"mg:"+p.c,p.t==="f"?100:50);
+   var aq=(cfg.kind||(Object.keys(prods).length?"aquarium":""))==="aquarium";
+   var mg=+cfgVal(cfg,"mg:"+p.c,p.t==="f"?100:+cfgVal(cfg,"mgdef",aq?50:30));
    p.sugg=p.avg>0?r2(p.avg*(1+mg/100)):0; p.mg=mg;
   });
   var unknown=Object.keys(A).filter(function(i){ return !P[i]; });
@@ -205,8 +207,11 @@
   });
   return s1.concat(s2,s3);
  }
+ /* shop settings kept in the book (records k:'c'): kind aquarium|general (an older book with products and no choice = aquarium), name, wageOn, wage, mgdef, gst, gstin */
+ function cfg(k,def){ return cfgVal(calc().cfg,k,def); }
+ function kind(){ var k=cfg("kind",""); if(k) return k; return products({all:true}).length?"aquarium":""; }
  function categories(){
-  var set={}; CATS.forEach(function(c){ set[c]=1; });
+  var set={}; (kind()==="aquarium"?CATS:GEN_CATS).forEach(function(c){ set[c]=1; });
   products({all:true}).forEach(function(p){ if(p.c) set[p.c]=1; });
   return Object.keys(set);
  }
@@ -219,7 +224,9 @@
  /* ---------- reports ---------- */
  function inRange(d,a,b){ return d>=a&&d<=b; }
  function report(d1,d2){
-  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,supPaid:0};
+  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
+  /* GST tally: prices and purchase rates are taken as GST-INCLUSIVE; a record carries the rate it was made with (gr) */
+  function G(rt){ return R.gst[rt]||(R.gst[rt]={rate:+rt,outBase:0,outTax:0,inBase:0,inTax:0}); }
   M.live.forEach(function(r){
    if(!inRange(r.d,d1,d2)) return;
    var x=r.x||{}, p=P[x.p];
@@ -227,6 +234,7 @@
     var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*unitCost(x,P);
     R.sales+=tot; R.cost+=cost;
     if(x.pm==="U") R.upi+=tot; else if(x.pm==="O") R.other+=tot; else if(x.pm==="K") R.credit+=tot; else R.cash+=tot;
+    if(+x.gr>0){ var tx=tot*x.gr/(100+ +x.gr), g=G(x.gr); g.outBase+=tot-tx; g.outTax+=tx; R.gstOut+=tx; }
     R.lines.push({r:r,p:p,tot:tot,cost:cost});
     R.days[r.d]=(R.days[r.d]||0)+tot;
    }else if(r.k==="e"){
@@ -236,6 +244,7 @@
     var c=(+x.q||0)*(p?p.avg:0); R.dead+=c; R.deadQty+=+x.q||0; R.deadList.push({r:r,p:p,cost:c});
    }else if(r.k==="b"){
     R.bought+=(+x.q||0)*(+x.rt||0)+(+x.tr||0);
+    if(+x.gr>0){ var am=(+x.q||0)*(+x.rt||0)+(+x.tr||0), tp=am*x.gr/(100+ +x.gr), gi=G(x.gr); gi.inBase+=am-tp; gi.inTax+=tp; R.gstIn+=tp; }
    }else if(r.k==="o"&&x.t==="rc"){
     var rv=+x.a||0; R.recv+=rv; if(x.pm==="U") R.recvUpi+=rv; else R.recvCash+=rv;
    }else if(r.k==="o"&&x.t==="sp"){
@@ -284,7 +293,7 @@
  function offChange(f){ listeners=listeners.filter(function(g){ return g!==f; }); }
 
  load();
- window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
+ window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
   report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
