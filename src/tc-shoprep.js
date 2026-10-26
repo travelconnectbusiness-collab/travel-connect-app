@@ -105,7 +105,10 @@
    :'<span class="tsChip" onclick="tsRpM(-1)">◀</span><b style="font-size:19px"> '+E(mname(r.m))+' </b><span class="tsChip" onclick="tsRpM(1)">▶</span>';
   var h='<div class="tsC" style="text-align:center"><div><span class="tsChip'+(isDay?" on":"")+'" onclick="tsRpMode(\'day\')">'+E(T("ദിവസം","Day"))+'</span><span class="tsChip'+(!isDay?" on":"")+'" onclick="tsRpMode(\'month\')">'+E(T("മാസം","Month"))+'</span></div><div style="margin-top:8px">'+nav+'</div></div>';
   h+='<div class="tsC"><div class="tsRow"><span>'+E(T("വിൽപ്പന","Sales"))+'</span><span class="tsTot">'+money(R.sales)+'</span></div>'+
-   '<div class="tsRow"><span>💵 '+E(T("പണം","Cash"))+'</span><b>'+money(R.cash)+'</b></div><div class="tsRow"><span>📱 UPI</span><b>'+money(R.upi)+'</b></div>';
+   '<div class="tsRow"><span>💵 '+E(T("പണം","Cash"))+'</span><b>'+money(R.cash)+'</b></div><div class="tsRow"><span>📱 UPI</span><b>'+money(R.upi)+'</b></div>'+
+   (R.credit>0?'<div class="tsRow"><span>📒 '+E(T("കടം (കിട്ടാനുണ്ട്)","On credit"))+'</span><b>'+money(R.credit)+'</b></div>':'')+
+   (R.recv>0?'<div class="tsRow"><span>💰 '+E(T("കടം തിരിച്ചു കിട്ടിയത്","Credit money received"))+'</span><b>'+money(R.recv)+'</b></div>':'')+
+   (R.supPaid>0?'<div class="tsRow"><span>💸 '+E(T("സപ്ലയർക്ക് കൊടുത്തത്","Paid to suppliers"))+'</span><b>'+money(R.supPaid)+'</b></div>':'');
   if(!simple){
    h+='<div class="tsRow"><span>'+E(T("ലാഭം (വിൽപ്പനയിൽ)","Gross profit"))+'</span><b>'+money(R.profit)+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("ചെലവ്","Expenses"))+'</span><b>'+money(R.exp)+'</b></div>'+
@@ -162,7 +165,7 @@
   /* sales */
   rows=[hdr(["Date","Item","Qty","Price","Total","Paid by","Cost / unit","Profit"])];
   M.live.filter(function(r){ return r.k==="s"; }).sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; }).forEach(function(r){ var p=P[r.x.p], q=+r.x.q||0, pr=+r.x.pr||0, av=SH.unitCost(r.x,P);
-   rows.push([c(UI.dmy(r.d)),c(p?p.n:"?"),c(q),m(pr),m(q*pr),c(r.x.pm==="U"?"UPI":"Cash"),m(av),m(q*pr-q*av)]); });
+   rows.push([c(UI.dmy(r.d)),c(p?p.n:"?"),c(q),m(pr),m(q*pr),c(r.x.pm==="U"?"UPI":r.x.pm==="K"?"Credit: "+(r.x.cu||""):"Cash"),m(av),m(q*pr-q*av)]); });
   out.push({name:"Sales",rows:rows,widths:[12,34,8,10,12,9,11,11],freeze:"A2",filter:"A1:H"+rows.length});
   /* purchases */
   rows=[hdr(["Date","Supplier","Bill no.","Item","Qty (units)","Rate / unit","Transport share","Landing / unit","Total"])];
@@ -180,6 +183,13 @@
   /* stock */
   rows=[hdr(["Item","Kind","Category","Stock","Avg cost","Stock value","Selling price","Low?"])];
   SH.products().forEach(function(p){ rows.push([c(p.n),c(p.t==="f"?"Fish":"Item"),c(p.c),c(p.comp?(p.can==null?"":"can make "+p.can):p.stock==null?"":Math.round(p.stock*1000)/1000),m(p.avg),m(p.value),m(p.pr),c(p.low?"LOW":"")]); });
+  if(SH.ledger){
+   var Lg=SH.ledger(), r1=[hdr(["Customer","Still to get"])], r2=[hdr(["Supplier","Still to pay"])];
+   Lg.cust.forEach(function(e){ if(e.owed>0.004) r1.push([c(e.n),m(e.owed)]); });
+   Lg.sup.forEach(function(e){ if(e.owed>0.004) r2.push([c(e.n),m(e.owed)]); });
+   out.push({name:"Credit customers",rows:r1,widths:[28,14],freeze:"A2"});
+   out.push({name:"Supplier dues",rows:r2,widths:[28,14],freeze:"A2"});
+  }
   out.push({name:"Stock",rows:rows,widths:[34,8,14,9,11,12,12,8],freeze:"A2",filter:"A1:H"+rows.length});
   var bytes;
   try{ bytes=wb(out); }catch(e){ if(window.console) console.error(e); say(T("Excel ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല","Could not make the Excel")); return; }
