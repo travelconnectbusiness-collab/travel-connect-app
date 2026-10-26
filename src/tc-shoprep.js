@@ -18,8 +18,10 @@
    '<button class="tsBtn g s" onclick="tsStNew()">➕ '+E(T("പുതിയ ഇനം","New item"))+'</button></div><div class="tsC" id="stList"></div>';
   stList();
  },function(){ return "📦 "+T("സ്റ്റോക്ക്","Stock"); });
+ function isAq(){ return SH.kind()==="aquarium"; }
  function tabs(){
-  var L=[["f",T("🐟 മീൻ","🐟 Fish")],["i",T("📦 സാധനങ്ങൾ","📦 Items")],["l",T("⚠ തീരാറായവ","⚠ Low")],["h",T("🙈 മറച്ചവ","🙈 Hidden")]];
+  if(!isAq()&&V.tab==="f") V.tab="i";
+  var L=(isAq()?[["f",T("🐟 മീൻ","🐟 Fish")]]:[]).concat([["i",T("📦 സാധനങ്ങൾ","📦 Items")],["l",T("⚠ തീരാറായവ","⚠ Low")],["h",T("🙈 മറച്ചവ","🙈 Hidden")]]);
   return L.map(function(t){ return '<span class="tsChip'+(V.tab===t[0]?" on":"")+'" onclick="tsStTab(\''+t[0]+'\')">'+E(t[1])+'</span>'; }).join("");
  }
  window.tsStTab=function(t){ V.tab=t; UI.render(); };
@@ -112,15 +114,25 @@
   if(!simple){
    h+='<div class="tsRow"><span>'+E(T("ലാഭം (വിൽപ്പനയിൽ)","Gross profit"))+'</span><b>'+money(R.profit)+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("ചെലവ്","Expenses"))+'</span><b>'+money(R.exp)+'</b></div>'+
-    '<div class="tsRow"><span>'+E(T("ചത്ത മീൻ / നഷ്ടം","Dead fish / loss"))+(R.deadQty?' ('+qty(R.deadQty)+')':'')+'</span><b>'+money(R.dead)+'</b></div>'+
+    '<div class="tsRow"><span>'+E(isAq()?T("ചത്ത മീൻ / നഷ്ടം","Dead fish / loss"):T("നഷ്ടം / കേടായത്","Loss / damaged"))+(R.deadQty?' ('+qty(R.deadQty)+')':'')+'</span><b>'+money(R.dead)+'</b></div>'+
     '<div class="tsRow"><span><b>'+E(R.net>=0?T("അറ്റ ലാഭം","Net profit"):T("അറ്റ നഷ്ടം","Net loss"))+'</b></span><b style="font-size:24px;color:'+(R.net>=0?'#177044':'#a12d2d')+'">'+money(R.net)+'</b></div>';
   }
   h+='</div>';
+  if(SH.cfg("gst","0")==="1"){
+   var gr=Object.keys(R.gst).map(function(k){ return R.gst[k]; }).sort(function(a,b){ return a.rate-b.rate; });
+   h+='<div class="tsC"><b>GST</b> <span class="tsM">'+E(T("(വിലകൾ GST ഉൾപ്പെടെ എന്ന് കണക്കാക്കുന്നു)","(prices are taken as GST-inclusive)"))+'</span>'+
+    '<div class="tsRow"><span>'+E(T("വിൽപ്പനയിലെ GST","GST on sales"))+'</span><b>'+money(R.gstOut)+'</b></div>'+
+    '<div class="tsRow"><span>'+E(T("വാങ്ങലിലെ GST","GST on purchases"))+'</span><b>'+money(R.gstIn)+'</b></div>'+
+    '<div class="tsRow"><span><b>'+E(R.gstOut-R.gstIn>=0?T("അടയ്ക്കേണ്ടത്","To pay"):T("തിരിച്ചു കിട്ടാനുള്ളത്","To claim back"))+'</b></span><b style="font-size:22px">'+money(Math.abs(R.gstOut-R.gstIn))+'</b></div>'+
+    gr.map(function(g){ return '<div class="tsM" style="margin-top:4px">'+g.rate+'% · '+E(T("വിൽപ്പന ","sales "))+money(g.outBase)+' + '+money(g.outTax)+' · '+E(T("വാങ്ങൽ ","bought "))+money(g.inBase)+' + '+money(g.inTax)+'</div>'; }).join("")+'</div>';
+  }
   if(isDay){
+   if(SH.cfg("wageOn",isAq()?"1":"0")==="1"){
    var left=Math.max(0,R.wage-R.wagePaid);
-   h+='<div class="tsC"><b>'+E(T("അമ്മയുടെ കൂലി","Wage"))+'</b> <span class="tsM">('+E(T("100 രൂപയ്ക്ക് 10","10 per 100"))+')</span><div class="tsRow"><span>'+E(T("ഇന്നത്തെ കൂലി","Wage for the day"))+'</span><b>'+money(R.wage)+'</b></div>'+
+   h+='<div class="tsC"><b>'+E(isAq()?T("അമ്മയുടെ കൂലി","Wage"):T("കൂലി","Wage"))+'</b> <span class="tsM">('+E(T("100 രൂപയ്ക്ക് "+SH.cfg("wage",10),SH.cfg("wage",10)+" per 100"))+')</span><div class="tsRow"><span>'+E(T("ഇന്നത്തെ കൂലി","Wage for the day"))+'</span><b>'+money(R.wage)+'</b></div>'+
     (R.wagePaid?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(R.wagePaid)+'</b></div>':'')+
     (left>0?'<button class="tsBtn" onclick="tsRpWage('+left+')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+' · '+money(left)+'</button>':'')+'</div>';
+   }
    var by={}; R.lines.forEach(function(l){ var k=l.r.x.p; (by[k]=by[k]||{n:l.p?l.p.n:"?",q:0,t:0}); by[k].q+=+l.r.x.q||0; by[k].t+=l.tot; });
    var items=Object.keys(by).map(function(k){ return by[k]; }).sort(function(a,b){ return b.t-a.t; });
    if(items.length) h+='<div class="tsC"><b>'+E(T("വിറ്റവ","Sold"))+'</b>'+items.map(function(i){ return '<div class="tsRow"><span>'+E(i.n)+' <span class="tsM">× '+qty(i.q)+'</span></span><b>'+money(i.t)+'</b></div>'; }).join("")+'</div>';
@@ -189,6 +201,11 @@
    Lg.sup.forEach(function(e){ if(e.owed>0.004) r2.push([c(e.n),m(e.owed)]); });
    out.push({name:"Credit customers",rows:r1,widths:[28,14],freeze:"A2"});
    out.push({name:"Supplier dues",rows:r2,widths:[28,14],freeze:"A2"});
+  }
+  if(SH.cfg("gst","0")==="1"){
+   var gr2=[hdr(["Month","GST %","Sales (without GST)","GST on sales","Purchases (without GST)","GST on purchases"])];
+   ml.forEach(function(k){ var Rg=SH.report(k+"-01",monthEnd(k)); Object.keys(Rg.gst).map(function(z){ return Rg.gst[z]; }).sort(function(a,b){ return a.rate-b.rate; }).forEach(function(g){ gr2.push([c(k),c(g.rate),m(g.outBase),m(g.outTax),m(g.inBase),m(g.inTax)]); }); });
+   out.push({name:"GST",rows:gr2,widths:[12,8,20,14,22,16],freeze:"A2"});
   }
   out.push({name:"Stock",rows:rows,widths:[34,8,14,9,11,12,12,8],freeze:"A2",filter:"A1:H"+rows.length});
   var bytes;
