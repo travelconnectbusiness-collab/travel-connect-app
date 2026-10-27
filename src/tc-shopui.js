@@ -570,7 +570,7 @@
   }
  }catch(e){}
 
- window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
+ window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
   T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
