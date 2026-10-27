@@ -26,6 +26,8 @@
  function mny(n){ return "₹"+r2(n).toLocaleString("en-IN",{maximumFractionDigits:2}); }
  function today(){ return H.today(); }
  function tn(ty){ return T(NAME[ty][0],NAME[ty][1]); }
+ /* tc-docslink.js (shop) keeps the shop's Sales / Credit & dues / stock in step with an invoice or bill; it is called after every change of a document */
+ function hook(id){ try{ if(typeof window.tcDocsRebuild==="function") window.tcDocsRebuild(id); }catch(e){ if(window.console) console.error("tc-docslink",e); } }
  function chip(on,fn,txt){ return '<span class="tdChip'+(on?" on":"")+'" onclick="'+fn+'">'+E(txt)+'</span>'; }
  function cap(s,n){ return String(s==null?"":s).replace(/\s+/g," ").trim().slice(0,n); }
 
@@ -243,7 +245,8 @@
    '<label>'+E(T("തീയതി","Date"))+'</label><input type="date" id="tddt" value="'+E(F.dt)+'" oninput="tdS(\'dt\',this.value)">'+
    (isQ?'<label>'+E(T("ക്വട്ടേഷൻ ബാധകമായ അവസാന തീയതി","Valid until"))+'</label><input type="date" id="tdvu" value="'+E(F.vu)+'" oninput="tdS(\'vu\',this.value)">':'')+'</div>'+
    '<div class="tdC"><b>'+E(T("ഇനങ്ങൾ","Items"))+'</b><div id="tdLines">'+F.L.map(function(l,i){ return lineHtml(i); }).join("")+'</div>'+
-   '<button class="tdBtn g s" onclick="tdAdd()">➕ '+E(T("ഇനം ചേർക്കുക","Add item"))+'</button></div>'+
+   '<button class="tdBtn g s" onclick="tdAdd()">➕ '+E(T("ഇനം ചേർക്കുക","Add item"))+'</button>'+
+   (F.ty!=="Q"&&SH.products().length?'<div class="tdM" style="margin-top:6px">📦 '+E(T("സ്റ്റോക്കിലെ ഇനങ്ങൾ സെയിൽസിൽ ചേരും, സ്റ്റോക്ക് കുറയും. കിട്ടാത്ത തുക 'കടം / കിട്ടാനുള്ളത്' ൽ വരും.","Items from your stock go to Sales and reduce the stock. Money not received goes to 'Credit & dues'."))+'</div>':'')+'</div>'+
    '<div class="tdC"><label style="margin-top:0">'+E(T("ഡിസ്കൗണ്ട് (രൂപ, ഓപ്ഷണൽ)","Discount (Rs., optional)"))+'</label><input id="tddc" type="number" inputmode="decimal" value="'+E(F.dc)+'" oninput="tdS(\'dc\',this.value);tdTotals()">'+
    '<label>GST</label><div>'+chip(!F.gon,"tdGon(0)",T("GST ഇല്ല","No GST"))+chip(F.gon,"tdGon(1)",T("GST ഉണ്ട് (മുകളിൽ ചേർക്കും)","GST (added on top)"))+'</div>'+
    (F.gon?'<label>GST %</label><input id="tdgp" type="number" inputmode="decimal" value="'+E(F.gp)+'" placeholder="e.g. 18" oninput="tdS(\'gp\',this.value);tdTotals()">'+
@@ -305,6 +308,7 @@
    var tot=calcDoc({L:x.L,dc:x.dc,gp:x.gp,pays:[]}).total, a=F.pay==="full"?tot:Math.min(tot,r2(F.pa));
    if(a>0) SH.add("o",{t:"dp",doc:x.id,a:a,pm:F.pm},dt);
   }
+  hook(x.id);
   say(T("സേവ് ചെയ്തു","Saved")); F=null; go("view",{id:x.id});
  };
 
@@ -326,6 +330,7 @@
     '<div class="tdC"><b>'+E(T("പണം","Payments"))+'</b>'+(d.pays.length?d.pays.map(function(r){ return '<div class="tdRow"><div>'+mny(r.x.a)+' <span class="tdM">'+({C:"Cash",U:"UPI",B:"Bank"}[r.x.pm]||"")+' · '+E(r.d.split("-").reverse().join("-"))+'</span></div><button class="tdX" onclick="tdPayDel(\''+r.id+'\',\''+d.id+'\')">✕</button></div>'; }).join(""):'<div class="tdM">'+E(T("ഒന്നും കിട്ടിയിട്ടില്ല","Nothing received yet"))+'</div>')+
     '<div class="tdRow"><span>'+E(T("ബാക്കി","Balance"))+'</span><b style="color:'+(d.bal>0.5?'#a12d2d':'#157a3a')+'">'+mny(Math.max(0,d.bal))+'</b></div>'+
     (d.bal>0.5?'<button class="tdBtn s" onclick="tdPaySheet(\''+d.id+'\')">💰 '+E(T("പണം കിട്ടി","Add payment"))+'</button>':'')+'</div>')+
+   (typeof window.tcDocsNote==="function"?window.tcDocsNote(d):'')+
    (d.nt?'<div class="tdC tdM" style="white-space:pre-wrap">'+E(d.nt)+'</div>':'')+
    '<div class="tdC"><button class="tdBtn" style="margin-top:0" onclick="tdPrint(\''+d.id+'\')">🖨 '+E(T("പ്രിന്റ് / PDF സേവ്","Print / Save PDF"))+'</button>'+
    '<button class="tdBtn g" onclick="tdPrint(\''+d.id+'\',1)">🖼 '+E(T("ചിത്രമായി ഷെയർ ചെയ്യുക","Share as picture"))+'</button>'+
@@ -345,9 +350,9 @@
  window.tdPaySave=function(id){
   var a=r2(($("tdPa")||{}).value); if(!(a>0)){ say(T("തുക ചേർക്കുക","Enter the amount")); return; }
   var d=$("tdPd"), dt=d&&/^\d{4}-\d{2}-\d{2}$/.test(d.value)?d.value:today();
-  SH.add("o",{t:"dp",doc:id,a:a,pm:$("tdPmS").value},dt); closeSheet(); say(T("സേവ് ചെയ്തു","Saved")); render();
+  SH.add("o",{t:"dp",doc:id,a:a,pm:$("tdPmS").value},dt); hook(id); closeSheet(); say(T("സേവ് ചെയ്തു","Saved")); render();
  };
- window.tdPayDel=function(rid,id){ SH.cancel(rid); render(); };
+ window.tdPayDel=function(rid,id){ SH.cancel(rid); hook(id); render(); };
  window.tdConv=function(id){
   var d=get(id); if(!d) return;
   sheet('<h3 style="margin:0 0 6px">'+E(T("ഇൻവോയ്സ് ആക്കട്ടെ?","Make an invoice?"))+'</h3><div class="tdM">'+E(T("ഈ ക്വട്ടേഷനിലെ ഇനങ്ങളും കസ്റ്റമറും ചേർത്ത് പുതിയ ഇൻവോയ്സ് ഉണ്ടാകും. ക്വട്ടേഷൻ അതേപടി നിൽക്കും.","A new invoice is made with this quotation's items and customer. The quotation stays."))+'</div>'+
@@ -357,14 +362,14 @@
   var d=get(id); if(!d) return;
   var x={t:"doc",id:H.uid(),v:1,ty:"I",no:nextNo("I"),cn:d.cn,L:d.L,fr:d.id};
   ["cm","ca","cg","tt","dc","gp"].forEach(function(k){ if(d[k]) x[k]=d[k]; });
-  SH.add("o",x,today()); closeSheet(); say(T("ഇൻവോയ്സ് ഉണ്ടാക്കി","Invoice made")); go("view",{id:x.id});
+  SH.add("o",x,today()); hook(x.id); closeSheet(); say(T("ഇൻവോയ്സ് ഉണ്ടാക്കി","Invoice made")); go("view",{id:x.id});
  };
  window.tdDelAsk=function(id){
   var d=get(id); if(!d) return;
   sheet('<h3 style="margin:0 0 6px">'+E(T("ഒഴിവാക്കട്ടെ?","Delete this?"))+'</h3><div>'+E(d.no+" · "+d.cn+" · "+mny(d.total))+'</div>'+
    '<button class="tdBtn r" onclick="tdDelGo(\''+id+'\')">🗑 '+E(T("ശരി, ഒഴിവാക്കുക","Yes, delete"))+'</button><button class="tdBtn g" onclick="tdCloseSheet()">'+E(T("വേണ്ട","No"))+'</button>');
  };
- window.tdDelGo=function(id){ SH.add("o",{t:"dd",doc:id}); closeSheet(); say(T("ഒഴിവാക്കി","Deleted")); go("list"); };
+ window.tdDelGo=function(id){ SH.add("o",{t:"dd",doc:id}); hook(id); closeSheet(); say(T("ഒഴിവാക്കി","Deleted")); go("list"); };
 
  /* ---------- my details / GST ---------- */
  window.tdSetOpen=function(){
