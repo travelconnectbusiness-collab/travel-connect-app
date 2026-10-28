@@ -51,6 +51,7 @@
  window.tsCrPaySave=function(){
   var c=V.cur, e=c&&ent(c.t,c.k); if(!e) return;
   var a=num("crA"); if(!(a>0)){ say(T("തുക നൽകുക","Enter the amount")); return; }
+  if(a>e.owed+0.5&&!confirm(T("ഇത് ബാക്കി തുകയായ "+money(Math.max(0,e.owed))+" നേക്കാൾ കൂടുതലാണ്. ഇരട്ടി എൻട്രി ആണോ? എങ്കിലും സേവ് ചെയ്യട്ടേ?","This is more than the balance "+money(Math.max(0,e.owed))+". Is it a double entry? Save anyway?"))) return;
   var x=c.t==="c"?{t:"rc",cu:e.n,a:a,pm:V.pm}:{t:"sp",su:e.n,a:a,pm:V.pm};
   SH.add("o",x,UI.dateVal("crD"));
   say(T("സേവ് ചെയ്തു · ","Saved · ")+money(a)); UI.closeSheet(); UI.render();
