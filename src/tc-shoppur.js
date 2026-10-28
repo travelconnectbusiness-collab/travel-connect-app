@@ -119,6 +119,8 @@
   var a=num("pbA"), su=b.su||($("pbSu")&&$("pbSu").value.trim())||"";
   if(!(a>0)){ say(T("തുക നൽകുക","Enter the amount")); return; }
   if(!su){ say(T("കടയുടെ പേര് നൽകുക","Enter the supplier's name")); return; }
+  var led=SH.ledger().sup.filter(function(e){ return e.k===H.nm(su); })[0], owed=led?Math.max(0,led.owed):0;
+  if(a>owed+0.5&&!confirm(T("ഈ കടയ്ക്ക് ഇപ്പോൾ ആകെ കൊടുക്കാനുള്ളത് "+money(owed)+" മാത്രമാണ്. നേരത്തെ ഇതേ പണം മറ്റൊരിടത്ത് (കടം / കിട്ടാനുള്ളത് > കൊടുത്തു) ചേർത്തിട്ടുണ്ടോ? എങ്കിലും സേവ് ചെയ്യട്ടേ?","This supplier is owed only "+money(owed)+" in total. Was the same payment already entered elsewhere (Credit & dues > Paid)? Save anyway?"))) return;
   var g=key; if(!b.hasG||!b.su) g=remake(b,function(){ return {su:su}; });
   SH.add("o",{t:"sp",su:su,a:a,pm:V.pm,bg:g},UI.dateVal("pbD"));
   say(T("സേവ് ചെയ്തു · ","Saved · ")+money(a)); again(g);
