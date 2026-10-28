@@ -254,7 +254,7 @@
    if(!fresh.length) return r;      /* refused (e.g. supplier name missing): nothing saved, stay on the form */
    if(later) SH.add("o",{t:"sp",su:s.sup,a:r2(paid),pm:P.pm,bg:fresh[0].x.g},on);
    P.ref=null;
-   UI.go("purchases");
+   UI.go(window.__tcDayFrom?"day":"purchases");
   }catch(e){}
   return r;
  };
