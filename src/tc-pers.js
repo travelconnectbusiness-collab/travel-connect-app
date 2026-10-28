@@ -2,7 +2,7 @@
    Owner's request (2026-10-28): every user, customers too, should be able to keep PERSONAL accounts:
      1. income / expense with a description          (db.persMoney)
      2. loans given / taken, per person              (db.persLoans)
-     3. ceremony cover money (wedding, panayattu, housewarming ...) given / received with name + address   (db.persGifts, tc-persgift.js)
+     3. ceremony cover money (wedding, panappayattu, housewarming ...) given / received with name + address   (db.persGifts, tc-persgift.js)
    STORAGE: inside the app's own saved data (db, written by save()) = ON THE PHONE ONLY, free for everybody.
      Premium accounts: the three lists are part of the automatic Cloud Backup (TC_BK_LISTS, tc-backup.js) - no server change.
      Everyone else: "Backup file" (JSON, can be shared to WhatsApp / Drive) + restore from that file (merge by id), and CSV for Excel.
@@ -19,10 +19,10 @@
  var E=function(v){ return typeof esc==="function"?esc(v):String(v==null?"":v).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); };
  var $=function(id){ return document.getElementById(id); };
  var say=function(m){ try{ toast(m); }catch(e){ alert(m); } };
- var K={m:"persMoney",l:"persLoans",g:"persGifts"};
- var S={open:false,screen:"home",params:{},mon:""}, SC={}, UP={money:"home",loans:"home",person:"loans",backup:"home",gifts:"home",gperson:"gifts",gevents:"gifts",gevent:"gevents"};
+ var K={m:"persMoney",l:"persLoans",g:"persGifts",c:"persChits",cp:"persChitPay"};
+ var S={open:false,screen:"home",params:{},mon:""}, SC={}, UP={money:"home",loans:"home",person:"loans",backup:"home",gifts:"home",gperson:"gifts",gevents:"gifts",gevent:"gevents",chits:"home",chit:"chits"};
  var TITLE={home:["My Accounts","എന്റെ കണക്കുകൾ"],money:["Income & expense","വരവ് ചെലവ്"],loans:["Loans","കടം"],person:["",""],backup:["Backup & export","ബാക്കപ്പ് / എക്സ്പോർട്ട്"],
-  gifts:["Ceremony covers","ചടങ്ങ് കവർ"],gperson:["",""],gevents:["By ceremony","ചടങ്ങ് തിരിച്ച്"],gevent:["",""]};
+  gifts:["Ceremony covers","ചടങ്ങ് കവർ"],chits:["Chitty / Kuri","ചിട്ടി / കുറി"],chit:["",""],gperson:["",""],gevents:["By ceremony","ചടങ്ങ് തിരിച്ച്"],gevent:["",""]};
  P.S=S; P.SC=SC; P.UP=UP; P.TITLE=TITLE; P.B=B; P.E=E; P.K=K;
 
  /* ---------- small helpers ---------- */
@@ -97,7 +97,7 @@
  function title(){
   var t=TITLE[S.screen]||["",""], s=B(t[0],t[1]);
   if(S.screen==="person") s=S.params.name||"";
-  if(S.screen==="gperson"||S.screen==="gevent") s=S.params.title||"";
+  if(S.screen==="gperson"||S.screen==="gevent"||S.screen==="chit") s=S.params.title||"";
   return s;
  }
  function render(){
@@ -156,8 +156,9 @@
     '<div class="tpG2"><div><div class="tpM">'+E(B("Income","വരവ്"))+'</div><div class="tpBig tpIn">'+mny(mi)+'</div></div><div><div class="tpM">'+E(B("Expense","ചെലവ്"))+'</div><div class="tpBig tpOut">'+mny(mo)+'</div></div></div></div>'+
    '<div class="tpC" onclick="tpGo(\'loans\')" style="cursor:pointer"><b>🤝 '+E(B("Loans","കടം"))+'</b>'+
     '<div class="tpG2"><div><div class="tpM">'+E(B("To get","എനിക്ക് കിട്ടാനുള്ളത്"))+'</div><div class="tpBig tpIn">'+mny(owedMe)+'</div></div><div><div class="tpM">'+E(B("To give","ഞാൻ കൊടുക്കാനുള്ളത്"))+'</div><div class="tpBig tpOut">'+mny(iOwe)+'</div></div></div></div>'+
-   '<div class="tpC" onclick="tpGo(\'gifts\')" style="cursor:pointer"><b>🎁 '+E(B("Ceremony covers (wedding, panayattu, housewarming)","ചടങ്ങ് കവർ (വിവാഹം, പണയറ്റ്, ഗൃഹപ്രവേശം)"))+'</b>'+
+   '<div class="tpC" onclick="tpGo(\'gifts\')" style="cursor:pointer"><b>🎁 '+E(B("Ceremony covers (wedding, panappayattu, housewarming)","ചടങ്ങ് കവർ (വിവാഹം, പണപ്പയറ്റ്, ഗൃഹപ്രവേശം)"))+'</b>'+
     '<div class="tpG2"><div><div class="tpM">'+E(B("I gave","ഞാൻ കൊടുത്തത്"))+'</div><div class="tpBig">'+mny(gv)+'</div></div><div><div class="tpM">'+E(B("I received","എനിക്ക് കിട്ടിയത്"))+'</div><div class="tpBig">'+mny(gt)+'</div></div></div></div>'+
+   (P.homeCards||[]).map(function(f){ try{ return f(); }catch(e){ return ""; } }).join("")+
    '<button class="tpBtn g" onclick="tpGo(\'backup\')">💾 '+E(B("Backup file / export","ബാക്കപ്പ് ഫയൽ / എക്സ്പോർട്ട്"))+'</button>';
  };
 
@@ -171,20 +172,45 @@
   while(m<1){ m+=12; y--; } while(m>12){ m-=12; y++; }
   S.mon=y+"-"+pad(m); refresh();
  };
+ /* the book is DAY-wise (owner 2026-10-28: 'every day's date has to be put and written'): Day view = one chosen day, Month view = the month grouped by day */
+ function addDays(d,n){ var x=new Date(d+"T12:00:00"); x.setDate(x.getDate()+n); return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate()); }
+ window.tpDayMove=function(n){ S.day=addDays(S.day||today(),n); S.mon=S.day.slice(0,7); refresh(); };
+ window.tpDayPick=function(v){ if(okDate(v)){ S.day=v; S.mon=v.slice(0,7); refresh(); } };
+ window.tpMMode=function(m){ S.mm=m; if(m==="d"&&S.mon&&monthKey(S.day||"")!==S.mon) S.day=(S.mon===today().slice(0,7)?today():S.mon+"-01"); refresh(); };
+ window.tpDayOpen=function(d){ S.day=d; S.mm="d"; refresh(); };
+ function sums(L1){ var i=0,o=0; L1.forEach(function(r){ if(r.t==="in") i+=r.a; else o+=r.a; }); return [i,o]; }
+ function mrow(r){
+  return '<div class="tpRow" '+oc("tpMEdit",r.id)+'><div style="min-width:0"><b>'+E(r.n||(r.t==="in"?B("Income","വരവ്"):B("Expense","ചെലവ്")))+'</b></div><b class="'+(r.t==="in"?"tpIn":"tpOut")+'">'+(r.t==="in"?"+":"-")+mny(r.a)+'</b></div>';
+ }
  SC.money=function(){
-  var mon=S.mon||(S.mon=today().slice(0,7)), L1=srt(mine(K.m).filter(function(r){ return monthKey(r.d)===mon; })), mi=0, mo=0;
-  L1.forEach(function(r){ if(r.t==="in") mi+=r.a; else mo+=r.a; });
-  $("tpBody").innerHTML=
-   '<div class="tpC" style="display:flex;align-items:center;justify-content:space-between"><button class="tpBtn g s" onclick="tpMon(-1)">◀</button><b>'+E(monthLabel(mon))+'</b><button class="tpBtn g s" onclick="tpMon(1)">▶</button></div>'+
-   '<div class="tpC"><div class="tpG2"><div><div class="tpM">'+E(B("Income","വരവ്"))+'</div><div class="tpBig tpIn">'+mny(mi)+'</div></div><div><div class="tpM">'+E(B("Expense","ചെലവ്"))+'</div><div class="tpBig tpOut">'+mny(mo)+'</div></div></div>'+
-   '<div class="tpM" style="margin-top:6px">'+E(B("Balance","ബാക്കി"))+': <b>'+mny(mi-mo)+'</b></div></div>'+
-   '<div class="tpG2"><button class="tpBtn in" onclick="tpMAdd(\'in\')">➕ '+E(B("Income","വരവ്"))+'</button><button class="tpBtn out" onclick="tpMAdd(\'out\')">➕ '+E(B("Expense","ചെലവ്"))+'</button></div>'+
-   '<div class="tpC" style="padding:4px 14px">'+(L1.length?L1.map(function(r){
-     return '<div class="tpRow" '+oc("tpMEdit",r.id)+'><div style="min-width:0"><b>'+E(r.n||(r.t==="in"?B("Income","വരവ്"):B("Expense","ചെലവ്")))+'</b><div class="tpM">'+E(dmy(r.d))+'</div></div><b class="'+(r.t==="in"?"tpIn":"tpOut")+'">'+(r.t==="in"?"+":"-")+mny(r.a)+'</b></div>';
-    }).join(""):'<div class="tpM" style="text-align:center;padding:16px 0">'+E(B("Nothing this month","ഈ മാസം ഒന്നുമില്ല"))+'</div>')+'</div>';
+  if(!S.mm) S.mm="d"; if(!S.day) S.day=today();
+  var mon=S.mm==="d"?S.day.slice(0,7):(S.mon||(S.mon=today().slice(0,7))), all=mine(K.m), LM=all.filter(function(r){ return monthKey(r.d)===mon; }), m=sums(LM), h;
+  var modes='<div>'+chip(S.mm==="d","tpMMode('d')",B("Day","ദിവസം"))+chip(S.mm==="m","tpMMode('m')",B("Month","മാസം"))+'</div>';
+  if(S.mm==="d"){
+   var LD=srt(all.filter(function(r){ return r.d===S.day; })), dd=sums(LD);
+   h='<div class="tpC" style="display:flex;align-items:center;gap:8px"><button class="tpBtn g s" style="margin:0" onclick="tpDayMove(-1)">◀</button>'+
+    '<input type="date" value="'+E(S.day)+'" onchange="tpDayPick(this.value)" style="margin:0;text-align:center;font-weight:800"><button class="tpBtn g s" style="margin:0" onclick="tpDayMove(1)">▶</button></div>'+
+    (S.day!==today()?'<button class="tpBtn g s" style="margin:0 0 6px" onclick="tpDayPick(\''+today()+'\')">'+E(B("Today","ഇന്ന്"))+'</button>':"")+
+    '<div class="tpC"><div class="tpG2"><div><div class="tpM">'+E(B("Income","വരവ്"))+'</div><div class="tpBig tpIn">'+mny(dd[0])+'</div></div><div><div class="tpM">'+E(B("Expense","ചെലവ്"))+'</div><div class="tpBig tpOut">'+mny(dd[1])+'</div></div></div>'+
+    '<div class="tpM" style="margin-top:6px">'+E(B("Balance of the day","ദിവസത്തെ ബാക്കി"))+': <b>'+mny(dd[0]-dd[1])+'</b></div></div>'+
+    '<div class="tpG2"><button class="tpBtn in" onclick="tpMAdd(\'in\')">➕ '+E(B("Income","വരവ്"))+'</button><button class="tpBtn out" onclick="tpMAdd(\'out\')">➕ '+E(B("Expense","ചെലവ്"))+'</button></div>'+
+    '<div class="tpC" style="padding:4px 14px">'+(LD.length?LD.map(mrow).join(""):'<div class="tpM" style="text-align:center;padding:16px 0">'+E(B("Nothing on this day","ഈ ദിവസം ഒന്നുമില്ല"))+'</div>')+'</div>'+
+    '<div class="tpM" style="text-align:center">'+E(monthLabel(mon))+': '+E(B("income ","വരവ് "))+mny(m[0])+' · '+E(B("expense ","ചെലവ് "))+mny(m[1])+'</div>';
+  }else{
+   var days={}; LM.forEach(function(r){ (days[r.d]=days[r.d]||[]).push(r); });
+   var keys=Object.keys(days).sort().reverse();
+   h='<div class="tpC" style="display:flex;align-items:center;justify-content:space-between"><button class="tpBtn g s" onclick="tpMon(-1)">◀</button><b>'+E(monthLabel(mon))+'</b><button class="tpBtn g s" onclick="tpMon(1)">▶</button></div>'+
+    '<div class="tpC"><div class="tpG2"><div><div class="tpM">'+E(B("Income","വരവ്"))+'</div><div class="tpBig tpIn">'+mny(m[0])+'</div></div><div><div class="tpM">'+E(B("Expense","ചെലവ്"))+'</div><div class="tpBig tpOut">'+mny(m[1])+'</div></div></div>'+
+    '<div class="tpM" style="margin-top:6px">'+E(B("Balance","ബാക്കി"))+': <b>'+mny(m[0]-m[1])+'</b></div></div>'+
+    (keys.length?keys.map(function(d){
+      var ds=sums(days[d]);
+      return '<div class="tpC" style="padding:6px 14px"><div class="tpRow" style="border-bottom:2px solid #dce9ef" '+oc("tpDayOpen",d)+'><b>'+E(dmy(d))+'</b><span class="tpM"><span class="tpIn">+'+mny(ds[0])+'</span> · <span class="tpOut">-'+mny(ds[1])+'</span> ›</span></div>'+srt(days[d]).map(mrow).join("")+'</div>';
+     }).join(""):'<div class="tpC tpM" style="text-align:center">'+E(B("Nothing this month","ഈ മാസം ഒന്നുമില്ല"))+'</div>');
+  }
+  $("tpBody").innerHTML=modes+h;
  };
  function moneySheet(r,t){
-  t=r?r.t:t; var d=r?r.d:(monthKey(today())===(S.mon||monthKey(today()))?today():(S.mon+"-01"));
+  t=r?r.t:t; var d=r?r.d:(S.mm==="m"?(monthKey(today())===(S.mon||monthKey(today()))?today():(S.mon+"-01")):(S.day||today()));
   sheet('<h3>'+E((r?B("Edit: ","മാറ്റുക: "):"")+(t==="in"?B("Income","വരവ്"):B("Expense","ചെലവ്")))+'</h3>'+
    fld("tpA",B("Amount (₹)","തുക (₹)"),"number",r?r.a:"",'inputmode="decimal" min="0" step="any"')+
    fld("tpN",B("Description","വിവരണം"),"text",r?r.n:"",'maxlength="80" list="tpNotes" placeholder="'+E(B("e.g. salary, petrol, groceries","ഉദാ: ശമ്പളം, പെട്രോൾ, പലചരക്ക്"))+'"')+dlist("tpNotes",uniq(mine(K.m).filter(function(x){ return x.t===t; }).map(function(x){ return x.n; })))+
@@ -202,7 +228,7 @@
   if(!okDate(d)){ say(B("Check the date","തീയതി നോക്കുക")); return; }
   if(id){ var r=rec(K.m,id); if(!r) return; r.a=a; r.d=d; r.n=n; touch(r); }
   else put(K.m,{d:d,t:t,a:a,n:n});
-  S.mon=d.slice(0,7); closeSheet(); refresh(); say(B("Saved","സേവ് ചെയ്തു"));
+  S.mon=d.slice(0,7); if(S.mm!=="m") S.day=d; closeSheet(); refresh(); say(B("Saved","സേവ് ചെയ്തു"));
  };
  window.tpDel=function(k,id){
   if(!confirm(B("Delete this entry?","ഈ എൻട്രി ഡിലീറ്റ് ചെയ്യട്ടേ?"))) return;
@@ -308,7 +334,7 @@
   l:function(){ return [["Date","Person","Type","Amount","Note"]].concat(srt(mine(K.l)).map(function(r){ return [r.d,r.p,LNAME[r.t]?LNAME[r.t][0]:r.t,r.a,r.n||""]; })); }
  };
  P.CSVS=CSVS;
- window.tpCsv=function(w){ var f=CSVS[w]; if(!f) return; dl({m:"income-expense",l:"loans",g:"ceremony-covers"}[w]+"-"+stamp()+".csv","text/csv",csv(f())); };
+ window.tpCsv=function(w){ var f=CSVS[w]; if(!f) return; dl({m:"income-expense",l:"loans",g:"ceremony-covers",c:"chitty"}[w]+"-"+stamp()+".csv","text/csv",csv(f())); };
  window.tpBkFile=function(){
   var o={app:"travelconnect-personal",v:1,at:new Date().toISOString(),mobile:me()};
   Object.keys(K).forEach(function(c){ o[K[c]]=mine(K[c]); });
@@ -348,7 +374,7 @@
    '<div class="tpC"><b>'+E(B("Restore from a backup file","ബാക്കപ്പ് ഫയലിൽ നിന്ന് തിരികെ ചേർക്കുക"))+'</b><div class="tpM">'+E(B("Adds only what is missing; nothing is overwritten.","ഇല്ലാത്തവ മാത്രം ചേർക്കും; നിലവിലുള്ളത് മാറില്ല."))+'</div>'+
     '<input type="file" accept=".json,application/json" onchange="tpRestoreFile(this)" style="margin-top:8px"></div>'+
    '<div class="tpC"><b>'+E(B("Export for Excel (CSV)","Excel-ന് (CSV)"))+'</b><div>'+
-    '<button class="tpBtn g s" onclick="tpCsv(\'m\')">'+E(B("Income & expense","വരവ് ചെലവ്"))+'</button><button class="tpBtn g s" onclick="tpCsv(\'l\')">'+E(B("Loans","കടം"))+'</button><button class="tpBtn g s" onclick="tpCsv(\'g\')">'+E(B("Ceremony covers","ചടങ്ങ് കവർ"))+'</button></div></div>';
+    '<button class="tpBtn g s" onclick="tpCsv(\'m\')">'+E(B("Income & expense","വരവ് ചെലവ്"))+'</button><button class="tpBtn g s" onclick="tpCsv(\'l\')">'+E(B("Loans","കടം"))+'</button><button class="tpBtn g s" onclick="tpCsv(\'g\')">'+E(B("Ceremony covers","ചടങ്ങ് കവർ"))+'</button><button class="tpBtn g s" onclick="tpCsv(\'c\')">'+E(B("Chitty","ചിട്ടി"))+'</button></div></div>';
  };
 
  /* ---------- Premium cloud backup includes the lists ---------- */
