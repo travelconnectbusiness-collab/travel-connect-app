@@ -82,7 +82,7 @@
   if(exp.length){
    var et=0; exp.forEach(function(r){ et+=+r.x.a||0; });
    h+='<div class="tsC"><div class="tsRow" style="border:0"><b>🧾 '+E(T("ചെലവ്","Expenses"))+' ('+exp.length+')</b><b>'+money(et)+'</b></div>'+exp.map(function(r){
-    return '<div class="tsRow" onclick="tsDyExp(\''+r.id+'\')"><div>'+E(ecName(r.x.c))+(r.x.t?'<div class="tsM">'+E(r.x.t)+'</div>':'')+late(r)+'</div><div><b>'+money(r.x.a)+'</b> ›</div></div>';
+    return '<div class="tsRow" onclick="tsDyExp(\''+r.id+'\')"><div>'+E(ecName(r.x.c))+(r.x.t&&r.x.t!==r.x.c?'<div class="tsM">'+E(r.x.t)+'</div>':'')+late(r)+'</div><div><b>'+money(r.x.a)+'</b> ›</div></div>';
    }).join("")+'</div>';
   }
   if(loss.length){
@@ -154,6 +154,8 @@
   }
   if(!keep.length){ say(T("എല്ലാ സാധനങ്ങളും ഒഴിവാക്കി - 'വിൽപ്പന റദ്ദാക്കുക' ഉപയോഗിക്കുക","All items removed - use 'Cancel this sale'")); return; }
   if(V.pm==="K"&&!cu){ say(T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")); return; }
+  for(var j=0;j<keep.length;j++){ var pp=g.P[keep[j].r.x.p];
+   if(pp&&!pp.u&&!pp.nt&&Math.abs(keep[j].q-Math.round(keep[j].q))>1e-9&&!confirm(T(pp.n+": എണ്ണം "+qty(keep[j].q)+" ആണ് - പൂർണ്ണസംഖ്യ അല്ല. ഇങ്ങനെ തന്നെ സേവ് ചെയ്യട്ടേ?",pp.n+": the count is "+qty(keep[j].q)+" - not a whole number. Save like this?"))) return; }
   g.recs.forEach(function(r){ SH.cancel(r.id); });
   var gid=H.uid();
   keep.forEach(function(z){ var x=Object.assign({},z.r.x,{q:z.q,pr:z.pr,pm:V.pm,g:gid}); if(V.pm==="K") x.cu=cu; else delete x.cu; SH.add("s",x,d); });
