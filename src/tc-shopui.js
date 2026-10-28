@@ -320,9 +320,16 @@
    '<button class="tsBtn" onclick="tsSaAdd()">➕ '+E(T("ചേർക്കുക","Add"))+'</button>';
   tsSaCalc("q"); var q=$("saQ"); if(q){ q.focus(); q.select(); }
  }
+ /* counted items (no unit, stock counted): typing the TOTAL changes the price of each, never the count (80 for 4 fish = 20 each, not 2.667 fish);
+    weighed / measured items (unit set or "not counted") still get quantity = total / price */
+ function counted(){ var p=U.sale&&U.sale.sel?SH.prod(U.sale.sel):null; return !!p&&!p.u&&!p.nt; }
  window.tsSaCalc=function(src){
   var pr=num("saPr"), q=num("saQ"), t=num("saT");
-  if(src==="t"){ if(pr>0) setv("saQ",Math.round(t/pr*1000)/1000); }
+  if(U.sale) U.sale.src=src;
+  if(src==="t"){
+   if(counted()){ if(q>0&&t>0) setv("saPr",Math.round(t/q*100)/100); }
+   else if(pr>0) setv("saQ",Math.round(t/pr*1000)/1000);
+  }
   else setv("saT",Math.round(pr*q*100)/100||"");
  };
  window.tsSaAdd=function(){
@@ -330,6 +337,10 @@
   var q=num("saQ"), pr=num("saPr");
   if(!(q>0)){ say(T("എണ്ണം നൽകുക","Enter the quantity")); return; }
   if(!(pr>0)){ say(T("വില നൽകുക","Enter the price")); return; }
+  if(counted()){
+   var tt=num("saT"); if(s.src==="t"&&tt>0) pr=tt/q;      /* total typed last: keep it exact (80 stays 80, not 80.01) */
+   if(Math.abs(q-Math.round(q))>1e-9&&!confirm(T("എണ്ണം "+qty(q)+" ആണ് - പൂർണ്ണസംഖ്യ അല്ല. ഇങ്ങനെ തന്നെ ചേർക്കട്ടേ?","The count is "+qty(q)+" - not a whole number. Add it like this?"))) return;
+  }
   var have=s.cart.filter(function(l){ return l.p===p.id; }).reduce(function(a,l){ return a+l.q; },0);
   var av=avail(p);
   if(av!=null&&q+have>av+1e-9&&!confirm(p.comp?T("സ്റ്റോക്കിലുള്ളതുകൊണ്ട് "+qty(av)+" എണ്ണം മാത്രമേ ഉണ്ടാക്കാൻ പറ്റൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" can be made from the stock. Add anyway?"):T("സ്റ്റോക്കിൽ "+qty(av)+" മാത്രമേ ഉള്ളൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" in stock. Add anyway?"))) return;
