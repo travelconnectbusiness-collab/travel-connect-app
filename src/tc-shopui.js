@@ -118,6 +118,7 @@
  function closeSheet(){ var d=$("tsSheet"); if(d) d.remove(); }
  window.tsCloseSheet=closeSheet;
  function dateRow(id,v){
+  if(window.__tcDayPick&&v===H.today()) v=window.__tcDayPick;   /* Day book: entering for another day (tc-shopday.js) */
   return '<label>'+E(T("തീയതി","Date"))+'</label><input type="date" id="'+id+'" value="'+E(v)+'" max="'+H.today()+'" onchange="tsDateWarn(this)">'+
    '<div id="'+id+'W" class="tsM" style="color:#a12d2d;font-weight:700"></div>';
  }
