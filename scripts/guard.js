@@ -276,6 +276,7 @@ const MARKERS = [
   ["src/tc-shopday.js", "tsDyAdd", "Shop: add an entry for the chosen day"],
   ["src/tc-shopui.js", "__tcDayPick", "Shop entry screens use the Day book date instead of today"],
   ["src/tc-regdocs.js", "tc-shopday.js", "tc-regdocs.js loads tc-shopday.js"],
+  ["src/tc-shopui.js", "function counted()", "Shop sale: typing the total of a counted item changes the price, not the count"],
   ["src/tc-shopset.js", "__tcShopSet", "Shop: Settings screen (name, kind of shop, wage, margin, GST) (tc-shopset.js)"],
   ["src/tc-shopset.js", "tsStSave", "Shop: save the settings"],
   ["src/tc-shopui.js", "tsKind", "Shop: first-time question - aquarium or another shop"],
