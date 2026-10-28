@@ -1,5 +1,5 @@
 /* Ceremony cover (gift money) ledger - part of "My Accounts" (tc-persgift.js, loaded by tc-regdocs.js right after tc-pers.js).
-   Owner's request (2026-10-28): in Kerala a cover with money is given at weddings, panayattu, housewarming ... and is expected back later,
+   Owner's request (2026-10-28): in Kerala a cover with money is given at weddings, panappayattu, housewarming ... and is expected back later,
    "the same or double". Record every cover I GAVE at somebody else's ceremony and every cover I RECEIVED at my own, with the person's
    name + address; when somebody invites me (or I invite him) look the person up and see what he gave / what I gave and the amount to return.
    DATA (db.persGifts, same rules as tc-pers.js - phone only, Premium Cloud Backup, backup file):
@@ -12,7 +12,7 @@
  if(!P||P.gifts) return;
  P.gifts=1;
  var B=P.B, E=P.E, K=P.K.g, S=P.S, SC=P.SC, $=P.$, mny=P.mny, dmy=P.dmy, norm=P.norm, enc=P.enc, oc=P.oc, val=P.val, num=P.num, say=P.say, cap=P.cap;
- var TYPES=[["wd","വിവാഹം","Wedding"],["en","വിവാഹ നിശ്ചയം","Engagement"],["pn","പണയറ്റ്","Panayattu"],["gp","ഗൃഹപ്രവേശം","Housewarming"],["bd","ജന്മദിനം","Birthday"],["ot","മറ്റുള്ളവ","Other"]];
+ var TYPES=[["wd","വിവാഹം","Wedding"],["en","വിവാഹ നിശ്ചയം","Engagement"],["pn","പണപ്പയറ്റ്","Panappayattu"],["gp","ഗൃഹപ്രവേശം","Housewarming"],["bd","ജന്മദിനം","Birthday"],["ot","മറ്റുള്ളവ","Other"]];
  function tyName(c){ for(var i=0;i<TYPES.length;i++) if(TYPES[i][0]===c) return B(TYPES[i][2],TYPES[i][1]); return B("Other","മറ്റുള്ളവ"); }
  function pk(r){ return norm(r.p)+"|"+norm(r.ad); }
  function people(){
