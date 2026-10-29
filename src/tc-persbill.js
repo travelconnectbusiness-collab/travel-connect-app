@@ -7,7 +7,7 @@
    (this phone shows it whenever the app is opened - a push message is NOT sent for personal accounts, they never leave the phone).
    "Add reminder to phone calendar" gives a .ics file (repeating, with an alert at 9 am the day before) that the phone's calendar app opens.
    DATA (phone only / Premium cloud backup / backup file - same rules as tc-pers.js; keys are added to P.K and TC_BK_LISTS here):
-     db.persBills   {id,u,ts, nm: name, ty: type key, a: usual amount, cy: cycle, nx: NEXT due date ('' = finished), ad: day of month to keep, k: number of instalments (0 = no end), nt: note}
+     db.persBills   {id,u,ts, nm: name, ty: type key, a: usual amount, cy: cycle, nx: NEXT due date ('' = finished), ad: day of month to keep, k: number of instalments (0 = no end), nt: note, rm: 1 = notification reminder ON (tc-persrem.js sends name + date only)}
      db.persBillPay {id,u,ts, b: bill id, d: date paid, a: amount, dd: the due date it covered, n: note}
    Cycles: w1 week, d28 28 days (recharge), m1 / m2 / m3 / m6 months (a 31st becomes the month end), y1 year, o once. Deleting a bill hides its payments too. */
 (function(){
@@ -128,6 +128,7 @@
    '<div class="tpC"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:19px">'+ty.ic+' '+E(x.b.nm)+'</b><button class="tpBtn g s" style="margin:0" onclick="tpBEdit(\''+x.b.id+'\')">✎ '+E(B("Edit","മാറ്റുക"))+'</button></div>'+
     '<div class="tpM">'+mny(x.b.a)+' · '+E(cyName(x.b.cy))+(x.b.k>0?' · '+x.cnt+'/'+x.b.k+' '+E(B("paid","അടച്ചു")):'')+'</div>'+
     (x.b.nt?'<div class="tpM">'+E(x.b.nt)+'</div>':"")+
+    (x.b.rm===1&&!x.done?'<div class="tpM">🔔 '+E(B("Notification reminder is ON","നോട്ടിഫിക്കേഷൻ ഓർമ്മപ്പെടുത്തൽ ഓണാണ്"))+'</div>':"")+
     '<div class="tpG2" style="margin-top:8px"><div><div class="tpM">'+E(B("Paid so far","ഇതുവരെ അടച്ചത്"))+'</div><div class="tpBig tpOut">'+mny(x.paid)+'</div><div class="tpM">'+x.cnt+' '+E(B("time(s)","തവണ"))+'</div></div>'+
     '<div><div class="tpM">'+E(B("Next due","അടുത്ത തീയതി"))+'</div><div class="tpBig" style="font-size:20px;color:'+st.c+'">'+(x.done?"-":E(dmy(x.b.nx)))+'</div><div class="tpM" style="color:'+st.c+'">'+E(st.t)+'</div></div></div>'+
     (x.done?'<div style="margin-top:8px"><b>✓ '+E(B("Finished - nothing more to pay","കഴിഞ്ഞു - ഇനി അടയ്ക്കാനില്ല"))+'</b></div>':
@@ -157,6 +158,8 @@
    ((b&&!b.nx)?'<div class="tpNote" style="margin-top:8px">'+E(B("This bill is finished.","ഈ ബിൽ കഴിഞ്ഞു."))+'</div>':
     P.fld("tpbD",b?B("Next due date","അടുത്ത തീയതി"):B("First / next due date","ആദ്യത്തെ / അടുത്ത തീയതി"),"date",b?b.nx:P.today()))+
    P.fld("tpbK",B("Number of instalments (EMI) - empty = no end","തവണകളുടെ എണ്ണം (EMI) - ഇല്ലെങ്കിൽ ഒഴിച്ചിടുക"),"number",b&&b.k>0?b.k:"",'inputmode="numeric" min="1" max="600" step="1"')+
+   '<label class="tpL" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="tpbR" style="width:auto;margin-top:3px"'+((!b||b.rm===1)?" checked":"")+'><span><b>🔔 '+E(B("Remind me by notification","നോട്ടിഫിക്കേഷൻ വഴി ഓർമ്മിപ്പിക്കുക"))+'</b><br><span class="tpM">'+E(B("The day before, on the day and once if late. Only the bill NAME and DATE go to our server for this (never the amount).","തലേന്ന്, അന്ന്, വൈകിയാൽ ഒരു തവണ. ഇതിനായി ബില്ലിന്റെ പേരും തീയതിയും മാത്രം സെർവറിലേക്ക് പോകും (തുക ഒരിക്കലും പോകില്ല)."))+'</span></span></label>'+
+   (P.remHintHtml?P.remHintHtml():"")+
    P.fld("tpbT",B("Note (optional)","കുറിപ്പ് (വേണമെങ്കിൽ)"),"text",b?b.nt:"",'maxlength="80"')+
    '<button class="tpBtn" onclick="tpBSave(\''+(b?b.id:"")+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button>'+
    (b?'<button class="tpBtn r" onclick="tpBDel(\''+b.id+'\')">'+E(B("Delete","ഡിലീറ്റ്"))+'</button>':"")+
@@ -174,6 +177,7 @@
  window.tpBCy=function(c){ BS.cy=c; setOn(".tpBCy",c); };
  window.tpBSave=function(id){
   var nm=cap(val("tpbN"),50), a=num(val("tpbA")), d=val("tpbD"), k=Math.round(num(val("tpbK"))||0), nt=cap(val("tpbT"),80);
+  var rc=$("tpbR"), rm=rc&&rc.checked?1:0;
   var b=id?P.rec(KB,id):null;
   var fin=!!(b&&!b.nx);
   if(!nm){ say(B("Enter the name","പേര് നൽകുക")); return; }
@@ -185,10 +189,10 @@
   if(k>0&&k<cnt){ say(B("Instalments cannot be fewer than the "+cnt+" already paid","ഇതുവരെ അടച്ച "+cnt+" തവണയിൽ കുറവ് പറ്റില്ല")); return; }
   var bid=id;
   if(b){
-   b.nm=nm; b.a=a; b.cy=BS.cy; b.k=k; b.nt=nt; b.ty=BS.ty;
+   b.nm=nm; b.a=a; b.cy=BS.cy; b.k=k; b.nt=nt; b.ty=BS.ty; b.rm=rm;
    if(!fin){ b.nx=d; b.ad=P.okDate(d)?+d.slice(8,10):b.ad; }
    P.touch(b);
-  }else bid=P.put(KB,{nm:nm,ty:BS.ty,a:a,cy:BS.cy,nx:d,ad:+d.slice(8,10),k:k,nt:nt}).id;
+  }else bid=P.put(KB,{nm:nm,ty:BS.ty,a:a,cy:BS.cy,nx:d,ad:+d.slice(8,10),k:k,nt:nt,rm:rm}).id;
   P.closeSheet(); P.go("bill",{id:bid,title:nm}); say(B("Saved","സേവ് ചെയ്തു"));
  };
  window.tpBDel=function(id){
