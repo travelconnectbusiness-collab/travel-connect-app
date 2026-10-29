@@ -406,7 +406,7 @@
   function place(){
    var c=$("tcPersCard"), u=null; try{ u=getCurrentUser(); }catch(e){}
    var app=$("app"), btn=app&&app.querySelector('button[onclick*="activeboard"]'), anchor=btn&&btn.closest?btn.closest(".actions"):null;
-   if(!u||u.role!=="customer"||!anchor){ if(c&&!anchor&&c.parentNode) c.remove(); return; }
+   if(!u||(u.role!=="customer"&&location.hash!=="#previewcustomer")||!anchor){ if(c&&!anchor&&c.parentNode) c.remove(); return; }
    if(!c) c=card();
    var a=c.children[1].children[0], b=c.children[1].children[1], t1=B("My Accounts","എന്റെ കണക്കുകൾ"), t2=B("Income, expense, loans, bills, ceremony covers","വരവ് ചെലവ്, കടം, ബില്ലുകൾ, ചടങ്ങ് കവർ"), dt=""; try{ dt=P.dueText?P.dueText():""; }catch(e){} if(dt) t2="🔔 "+dt;
    if(a.textContent!==t1) a.textContent=t1; if(b.textContent!==t2) b.textContent=t2;
