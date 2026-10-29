@@ -19,6 +19,8 @@ import { allowed as rlAllowed } from "./functions/api/_ratelimit.js";
 import { maybeRunExpirySweep, maybeRunDigestEvening } from "./functions/api/docs_expiry.js";
 import { onRequestPost as ownerDigestPost } from "./functions/api/owner_digest.js";
 import { onRequestPost as shopPost } from "./functions/api/shop.js";
+import { onRequestPost as deletionPost } from "./functions/api/deletion.js";
+import { onRequestPost as adminBackupPost } from "./functions/api/admin_backup.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -116,6 +118,14 @@ async function handleApi(request, env, url, ctx) {
 
   if (url.pathname === "/api/shop") {
     if (request.method === "POST") return shopPost({ request, env });
+  }
+
+  if (url.pathname === "/api/deletion") {
+    if (request.method === "POST") return deletionPost({ request, env });
+  }
+
+  if (url.pathname === "/api/admin_backup") {
+    if (request.method === "POST") return adminBackupPost({ request, env });
   }
 
   if (url.pathname === "/api/backup") {
