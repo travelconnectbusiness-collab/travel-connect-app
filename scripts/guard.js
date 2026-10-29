@@ -348,6 +348,7 @@ const MARKERS = [
   ["src/tc-shopprice.js", "tsPlPrint", "Shop: print / share the price list"],
   ["src/tc-shopprice.js", "tsPlAuto", "Shop: open the shop first switch (this phone only)"],
   ["src/tc-regdocs.js", "tc-shopprice.js", "tc-regdocs.js loads tc-shopprice.js"],
+  ["manifest.webmanifest", "/#shop", "App icon long-press shortcut: Shop accounts"],
   ["privacy.html", "Request deletion of my data", "Privacy page tells how to ask for deletion in the app"],
   ["functions/api/owner_digest.js", "runDigestSweep", "Server: reminders from the owner's summary"],
   ["functions/api/owner_digest.js", "owner_digest", "Server: owner_digest table + endpoint"],
