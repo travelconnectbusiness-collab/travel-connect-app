@@ -133,7 +133,8 @@
     (x.done?'<div style="margin-top:8px"><b>✓ '+E(B("Finished - nothing more to pay","കഴിഞ്ഞു - ഇനി അടയ്ക്കാനില്ല"))+'</b></div>':
      (x.left!=null?'<div style="margin-top:8px">'+E(B("Instalments left: ","ബാക്കി തവണകൾ: "))+'<b>'+x.left+'</b> (≈ '+mny(x.left*x.b.a)+')</div>':""))+'</div>'+
    (x.done?"":'<button class="tpBtn out" onclick="tpBPay(\''+x.b.id+'\')">✔ '+E(B("Paid","അടച്ചു"))+' - '+E(dmy(x.b.nx))+'</button>'+
-    '<button class="tpBtn g" onclick="tpBillIcs(\''+x.b.id+'\')">📅 '+E(B("Add reminder to phone calendar","ഫോൺ കലണ്ടറിൽ ഓർമ്മപ്പെടുത്തൽ ചേർക്കുക"))+'</button>')+
+    '<button class="tpBtn g" onclick="tpBillGcal(\''+x.b.id+'\')">📅 '+E(B("Add to phone calendar (Google Calendar)","ഫോൺ കലണ്ടറിൽ ചേർക്കുക (Google Calendar)"))+'</button>'+
+    '<button class="tpBtn g s" onclick="tpBillIcs(\''+x.b.id+'\')">📁 '+E(B("Calendar file (.ics)","കലണ്ടർ ഫയൽ (.ics)"))+'</button>')+
    '<div class="tpC" style="padding:4px 14px">'+(rows.length?rows.map(function(r){
      return '<div class="tpRow" '+oc("tpBpEdit",r.id)+'><div style="min-width:0"><b>'+E(dmy(r.d))+'</b><div class="tpM">'+(r.dd?E(B("For ","തീയതി "))+E(dmy(r.dd)):"")+(r.n?" · "+E(r.n):"")+'</div></div><b class="tpOut">'+mny(r.a)+'</b></div>';
     }).join(""):'<div class="tpM" style="text-align:center;padding:16px 0">'+E(B("Nothing paid yet","ഒന്നും അടച്ചിട്ടില്ല"))+'</div>')+'</div>';
@@ -242,7 +243,7 @@
  /* ---------- phone calendar (.ics) ---------- */
  function icsEsc(s){ return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g," "); }
  function ymd(d){ return d.replace(/-/g,""); }
- P.icsOf=function(x){
+ function ruleOf(x){
   var b=x.b, rule="";
   var map={w1:"FREQ=WEEKLY;INTERVAL=1",d28:"FREQ=DAILY;INTERVAL=28",m1:"FREQ=MONTHLY;INTERVAL=1",m2:"FREQ=MONTHLY;INTERVAL=2",m3:"FREQ=MONTHLY;INTERVAL=3",m6:"FREQ=MONTHLY;INTERVAL=6",y1:"FREQ=YEARLY;INTERVAL=1"};
   if(map[b.cy]){
@@ -250,12 +251,26 @@
    if(/^m/.test(b.cy)){ var ad=b.ad||+b.nx.slice(8,10); rule+=";BYMONTHDAY="+(ad<=28?ad:-1); }
    if(b.k>0) rule+=";COUNT="+Math.max(b.k-x.cnt,1);
   }
+  return rule;
+ }
+ /* a ready-made "new event" page of Google Calendar (opens in the Calendar app or the browser; one tap on Save) */
+ P.gcalUrl=function(x){
+  var b=x.b, rule=ruleOf(x);
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(b.nm+" - Rs "+b.a)+
+   "&dates="+ymd(b.nx)+"/"+ymd(addDays(b.nx,1))+"&details="+encodeURIComponent("Bill reminder from Travel Connect > My Accounts")+(rule?"&recur="+encodeURIComponent("RRULE:"+rule):"");
+ };
+ P.icsOf=function(x){
+  var b=x.b, rule=ruleOf(x);
   var st=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
   return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Travel Connect//My Accounts//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT",
    "UID:"+b.id+"@travelconnect.dev","DTSTAMP:"+st,"DTSTART;VALUE=DATE:"+ymd(b.nx),"DTEND;VALUE=DATE:"+ymd(addDays(b.nx,1)),
    "SUMMARY:"+icsEsc(b.nm+" - Rs "+b.a)].concat(rule?["RRULE:"+rule]:[]).concat([
    "DESCRIPTION:"+icsEsc("Bill reminder from Travel Connect > My Accounts"),
    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(b.nm+" due tomorrow"),"TRIGGER;RELATED=START:-PT15H","END:VALARM","END:VEVENT","END:VCALENDAR"]).join("\r\n")+"\r\n";
+ };
+ window.tpBillGcal=function(id){
+  var x=find(id); if(!x||x.done) return;
+  try{ window.open(P.gcalUrl(x),"_blank"); }catch(e){ location.href=P.gcalUrl(x); }
  };
  window.tpBillIcs=function(id){
   var x=find(id); if(!x||x.done) return;
