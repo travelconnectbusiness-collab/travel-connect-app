@@ -38,7 +38,10 @@
   if(more&&more.parentNode&&app.contains(more)){ anchor=more; mode="before"; }                        /* taxi / travel owner dashboard */
   else if(box&&box.querySelector("#tcMsgCard,button[onclick*=\"tcOpenEditPartnerDetails\"]")){          /* other businesses' dashboard */
    var m=box.querySelector("#tcMsgCard"); if(m){ anchor=m; mode="after"; } else { anchor=box.firstElementChild; mode="before"; }
-  }else if(ab&&(u.role==="customer"||location.hash==="#previewcustomer")){ anchor=ab.closest(".actions")||ab.parentNode; mode="after"; }       /* customer home */
+  }else if(ab&&(u.role==="customer"||location.hash==="#previewcustomer")){                                                  /* customer home */
+   var pc=$("tcPersCard");     /* sits right after the My Accounts card (tc-pers.js sits right after the buttons row): the two never push each other around */
+   anchor=(pc&&app.contains(pc))?pc:(ab.closest(".actions")||ab.parentNode); mode="after";
+  }
   var c=$("tcShareCard");
   if(!anchor){ if(c&&c.parentNode&&!app.querySelector("#tcMore,#partnerBox,button[onclick*=\"view('activeboard')\"]")) c.remove(); return; }
   if(!c) c=make();
