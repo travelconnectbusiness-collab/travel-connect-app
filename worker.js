@@ -21,6 +21,7 @@ import { onRequestPost as ownerDigestPost } from "./functions/api/owner_digest.j
 import { onRequestPost as shopPost } from "./functions/api/shop.js";
 import { onRequestPost as deletionPost } from "./functions/api/deletion.js";
 import { onRequestPost as adminBackupPost } from "./functions/api/admin_backup.js";
+import { onRequestPost as billRemindersPost, maybeRunBillReminders } from "./functions/api/bill_reminders.js";
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -124,6 +125,10 @@ async function handleApi(request, env, url, ctx) {
     if (request.method === "POST") return deletionPost({ request, env });
   }
 
+  if (url.pathname === "/api/bill_reminders") {
+    if (request.method === "POST") return billRemindersPost({ request, env });
+  }
+
   if (url.pathname === "/api/admin_backup") {
     if (request.method === "POST") return adminBackupPost({ request, env });
   }
@@ -163,7 +168,7 @@ export default {
           },
         });
       }
-      if (ctx && ctx.waitUntil) { ctx.waitUntil(maybeRunExpirySweep(env)); /* daily permit/insurance date check */ ctx.waitUntil(maybeRunDigestEvening(env)); /* evening: tomorrow's bookings */ }
+      if (ctx && ctx.waitUntil) { ctx.waitUntil(maybeRunExpirySweep(env)); /* daily permit/insurance date check */ ctx.waitUntil(maybeRunDigestEvening(env)); /* evening: tomorrow's bookings */ ctx.waitUntil(maybeRunBillReminders(env)); /* morning: bill reminders of My Accounts */ }
       const apiRes = await handleApi(request, env, url, ctx);
       if (apiRes) {
         const withCors = new Response(apiRes.body, apiRes);
