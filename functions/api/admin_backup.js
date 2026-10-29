@@ -4,7 +4,7 @@
      POST /api/admin_backup  { token }                         -> { ok, tables:[{name, rows, skipped?}] }
      POST /api/admin_backup  { token, table, offset }          -> { ok, table, rows:[{...}], offset, next }   (next = null at the end; 200 rows per call)
    ADMIN ONLY (admin token). NO SECRETS: tables whose name looks like a login code / OTP / proof / session / push subscription / security log are listed as
-   skipped and never read; in every other table the columns whose name has a word like token / hash / secret / password / key / code / otp / auth /
+   skipped and never read; in every other table the columns whose name has a word like token / hash / secret / password / code / otp / auth / (api_key, x_key)
    endpoint (pincode, rate_per_km ... are kept) are dropped from the rows. Table names come from sqlite_master (never from the request text), so nothing can be injected.
    The rule is by NAME because this file does not know every table - look at the first downloaded file once and tell if something private is in it. */
 import { verifyAdminToken } from "./_auth_helper.js";
@@ -12,7 +12,7 @@ import { allowed } from "./_ratelimit.js";
 
 const PAGE = 200;
 const BAD_TABLE = /otp|code_|proof|session|secret|subscri|security_log|devauth|ratelimit|rate_limit|challenge/i;
-const BAD_COL = /(^|_)(token|hash|secret|password|passwd|pass|key|otp|code|salt|auth|endpoint|p256dh)(_|$)|token|hash$/i;
+const BAD_COL = /(^|_)(token|hash|secret|password|passwd|pass|otp|code|salt|auth|endpoint|p256dh)(_|$)|token|hash$|_key$|^key_|api_?key|private/i;   /* a plain column called key (flag / setting NAME) is kept */
 
 export async function onRequestPost({ request, env }) {
   let body;
