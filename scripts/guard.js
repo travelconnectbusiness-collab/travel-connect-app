@@ -357,6 +357,7 @@ const MARKERS = [
   ["src/tc-custhome.js", "tcPrevBar", "Admin preview of the customer page hides the owner's own cards"],
   ["src/tc-regdocs.js", "tc-custhome.js", "tc-regdocs.js loads tc-custhome.js"],
   ["privacy.html", "Remind me by notification", "Privacy page tells that bill name and date are sent for notification reminders"],
+  ["privacy.html", "We do not read, check or use your personal accounts", "Privacy page: we never read the personal accounts (My Accounts) and nobody can view them in the app"],
   ["src/tc-admindata.js", "__tcAdminData", "Admin: Download backup, deletion requests; customer deletion link; no Message on own business (tc-admindata.js)"],
   ["src/tc-admindata.js", "tcAdmBackup", "Admin: Download backup button"],
   ["src/tc-admindata.js", "tcDelSend", "Request deletion of my data"],
