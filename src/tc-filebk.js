@@ -32,6 +32,7 @@
   Object.keys(db).forEach(function(k){
    var v=db[k];
    if(k==="categories"||!Array.isArray(v)) return;
+   if(window.__tcPersHide&&window.__tcPersHide.indexOf(k)>=0) return;     /* My Accounts lists are in the locked vault (tc-perslock.js) */
    if(v.length&&!v.every(function(x){ return x&&typeof x==="object"; })) return;
    out[k]=v;
   });
