@@ -259,7 +259,8 @@
  };
  window.tpBillIcs=function(id){
   var x=find(id); if(!x||x.done) return;
-  P.dl("bill-"+(x.b.nm.replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"")||"reminder")+".ics","text/calendar",P.icsOf(x));
+  var tm=new Date();   /* date + time in the name: Chrome asks "Download file again?" when the same file name is downloaded twice */
+  P.dl("bill-"+(x.b.nm.replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"")||"reminder")+"-"+x.b.nx+"-"+pad(tm.getHours())+pad(tm.getMinutes())+pad(tm.getSeconds())+".ics","text/calendar",P.icsOf(x));
   say(B("Open the file to add it to your calendar","ഫയൽ തുറന്നാൽ കലണ്ടറിൽ ചേരും"));
  };
 
