@@ -290,6 +290,7 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-perschit.js", "tc-regdocs.js loads tc-perschit.js"],
   ["src/tc-persbill.js", "tpBpSave", "My Accounts: bills & reminders - school fee, milk, recharge, EMI (tc-persbill.js)"],
   ["src/tc-persbill.js", "tpBillIcs", "My Accounts: bill reminder for the phone calendar"],
+  ["src/tc-persbill.js", "tpBillGcal", "My Accounts: bill reminder - Google Calendar link"],
   ["src/tc-regdocs.js", "tc-persbill.js", "tc-regdocs.js loads tc-persbill.js"],
   ["src/tc-shopui.js", "function counted()", "Shop sale: typing the total of a counted item changes the price, not the count"],
   ["src/tc-shopset.js", "__tcShopSet", "Shop: Settings screen (name, kind of shop, wage, margin, GST) (tc-shopset.js)"],
