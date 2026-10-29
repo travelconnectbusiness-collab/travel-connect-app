@@ -7,7 +7,8 @@
       Items without a price are never printed - the screen says how many are left out.
    2) "Open the shop first": a switch on Shop Home. When ON (kept in THIS phone only), opening the app on this phone goes straight into the
       shop screens - made for the shop's own phone, where the app icon on the home screen then works as the shop's icon. Back closes the shop
-      and the normal app is behind it. OFF by default. Nothing is sent to the server. */
+      and the normal app is behind it. OFF by default. Nothing is sent to the server.
+   3) Long-press shortcut: manifest.webmanifest has a "Shop accounts" shortcut (url /#shop); this file opens the shop when the app is already open and the address becomes #shop. */
 (function(){
  var SH=window.__tcShop, UI=window.__tcShopUi;
  if(!SH||!UI||window.__tcShopPrice) return;
@@ -158,6 +159,12 @@
    if(b&&b!==watched){ watched=b; watch(); if(UI.isOpen()&&UI.screenName()==="home"&&!b.querySelector("#tsPlCard")) place(); }
   }catch(e){}
  },1000);
+
+ /* ---------- the app icon's long-press shortcut "Shop accounts" (manifest.webmanifest, url /#shop) ----------
+    A fresh start with #shop is handled by tc-shopui.js; this covers the app being open already (the address changes to #shop without a reload) */
+ window.addEventListener("hashchange",function(){
+  try{ if(location.hash==="#shop"&&lsGet("tc_user")&&!UI.isOpen()){ var u=getCurrentUser(); if(u&&u.role!=="customer") UI.open("home"); } }catch(e){}
+ });
 
  /* ---------- open the shop first (this phone only) ---------- */
  (function(){
