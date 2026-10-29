@@ -38,7 +38,7 @@
   if(more&&more.parentNode&&app.contains(more)){ anchor=more; mode="before"; }                        /* taxi / travel owner dashboard */
   else if(box&&box.querySelector("#tcMsgCard,button[onclick*=\"tcOpenEditPartnerDetails\"]")){          /* other businesses' dashboard */
    var m=box.querySelector("#tcMsgCard"); if(m){ anchor=m; mode="after"; } else { anchor=box.firstElementChild; mode="before"; }
-  }else if(ab&&u.role==="customer"){ anchor=ab.closest(".actions")||ab.parentNode; mode="after"; }       /* customer home */
+  }else if(ab&&(u.role==="customer"||location.hash==="#previewcustomer")){ anchor=ab.closest(".actions")||ab.parentNode; mode="after"; }       /* customer home */
   var c=$("tcShareCard");
   if(!anchor){ if(c&&c.parentNode&&!app.querySelector("#tcMore,#partnerBox,button[onclick*=\"view('activeboard')\"]")) c.remove(); return; }
   if(!c) c=make();
