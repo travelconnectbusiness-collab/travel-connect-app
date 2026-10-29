@@ -157,7 +157,7 @@
   function place(){
    var u=null; try{ u=getCurrentUser(); }catch(e){}
    var app=$("app"), c=$("tcDelLink"), card=app&&app.querySelector(".container>.card");
-   if(!u||u.role!=="customer"||!card||!card.querySelector('button[onclick*="activeboard"]')){ if(c&&c.parentNode&&!(card&&card.contains(c))) c.remove(); return; }
+   if(!u||(u.role!=="customer"&&location.hash!=="#previewcustomer")||!card||!card.querySelector('button[onclick*="activeboard"]')){ if(c&&c.parentNode&&!(card&&card.contains(c))) c.remove(); return; }
    if(!c){
     c=document.createElement("div"); c.id="tcDelLink"; c.setAttribute("onclick","tcDelAsk()");
     c.style.cssText="text-align:center;margin:22px 0 6px;font-size:12.5px;color:#6a7a87;text-decoration:underline;cursor:pointer";
