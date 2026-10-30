@@ -389,7 +389,8 @@
   return '<div style="margin:10px 0;padding:10px 12px;border-radius:10px;background:'+(st?"#e3f3ea":"#eef3f7")+';border:1px solid '+(st?"#b9dcc6":"#d3dee6")+';font-size:13px;color:#12303f;line-height:1.5">'+
    (st?'🔒 <b>'+E(B("Password lock is ON","പാസ്‌വേഡ് ലോക്ക് ഓൺ ആണ്"))+'</b> '+E(B("(accounts, shop book, cloud backup)","(കണക്കുകൾ, ഷോപ്പ് ബുക്ക്, ക്ലൗഡ് ബാക്കപ്പ്)"))
     :'🔓 '+E(B("Want to lock your data with a password? (optional)","ഡാറ്റ പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യണോ? (ഓപ്ഷണൽ)")))+
-   ' <a href="javascript:void(0)" onclick="tpGo(\'backup\')" style="color:#0b6b78;font-weight:800">'+E(B("My Accounts › Backup","എന്റെ കണക്കുകൾ › Backup"))+'</a></div>';
+   ' <a href="javascript:void(0)" onclick="tpGo(\'backup\')" style="color:#0b6b78;font-weight:800">'+E(B("My Accounts › Backup","എന്റെ കണക്കുകൾ › Backup"))+'</a>'+
+   (P.shopLock&&P.shopLock.stateText&&P.shopLock.stateText()?'<div style="margin-top:4px">🏪 '+E(P.shopLock.stateText())+(P.shopLock.needKey&&P.shopLock.needKey()?' <a href="javascript:void(0)" onclick="tslUnlock()" style="color:#a12d2d;font-weight:800">'+E(B("Enter password","പാസ്‌വേഡ് നൽകുക"))+'</a>':"")+'</div>':"")+'</div>';
  };
  var otb=window.tcOpenBackupPage;
  if(typeof otb==="function") window.tcOpenBackupPage=async function(){
