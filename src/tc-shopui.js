@@ -294,7 +294,8 @@
    '<button class="tsBtn g s" onclick="tsLang()">'+(lang==="ml"?"English":"മലയാളം")+'</button>'+
    '<button class="tsBtn g s" onclick="tsSimple()">'+E(simple?T("ലാഭം കാണിക്കുക","Show profit"):T("ലാഭം മറയ്ക്കുക","Hide profit"))+'</button>'+
    (SC.settings?'<button class="tsBtn g s" onclick="tsOpen(\'settings\')">⚙ '+E(T("സെറ്റിങ്സ്","Settings"))+'</button>':'')+
-   '<button class="tsBtn g s" onclick="tsSyncNow()">⟳ '+E(T("സിങ്ക്","Sync"))+'</button></div>';
+   '<button class="tsBtn g s" onclick="tsSyncNow()">⟳ '+E(T("സിങ്ക്","Sync"))+'</button></div>'+
+   (window.__tcPers&&window.__tcPers.shopLock&&window.__tcPers.shopLock.homeLine?window.__tcPers.shopLock.homeLine():"");
   syncMark();
  };
  window.tsKind=function(k){ SH.setCfg("kind",k); render(); };
