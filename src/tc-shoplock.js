@@ -183,7 +183,10 @@
   setJob({id:"j"+Date.now().toString(36),mode:mode,cur:0,done:0,bad:0,srv:0});
   runJob();
  }
- function redraw(){ try{ if(P.S&&P.S.open&&P.S.screen==="backup") P.refresh(); }catch(e){} }
+ function redraw(){
+  try{ if(P.S&&P.S.open&&P.S.screen==="backup") P.refresh(); }catch(e){}
+  try{ var U=window.__tcShopUi; if(U&&U.screenName&&U.screenName()==="home") U.render(); }catch(e){}
+ }
 
  /* the lock of this phone was turned on / off / changed, or a key arrived from a restore */
  L.listen(function(kind,info){
@@ -256,6 +259,50 @@
   }catch(e){ return false; }
  }
 
+ /* ---------- state of the book on THIS phone: text for Settings / lock card, and a small card on the shop Home ---------- */
+ var learning=false;
+ function learn(){
+  if(learning) return; learning=true;
+  post("pull",{since:2147483647}).then(function(){ learning=false; autoCheck(); redraw(); },function(){ learning=false; });
+ }
+ function needKey(){ return !!(srv.known&&srv.locked&&!curKey()); }
+ SL.needKey=needKey;
+ SL.stateText=function(){
+  if(!L.sup()) return "";
+  if(getJob()) return B("Shop book: locking ...","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്യുന്നു ...");
+  if(!srv.known){ learn(); return ""; }
+  if(srv.locked&&curKey()) return B("Shop book: locked - opens on this phone","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്തതാണ് - ഈ ഫോണിൽ തുറക്കും");
+  if(srv.locked) return B("Shop book: LOCKED - this phone cannot open it yet (enter the password)","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്തതാണ് - ഈ ഫോണിൽ ഇതുവരെ തുറക്കാൻ പറ്റില്ല (പാസ്‌വേഡ് നൽകുക)");
+  return B("Shop book: not locked","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്തിട്ടില്ല");
+ };
+ SL.homeLine=function(){
+  var U=window.__tcShopUi, T=(U&&U.T)||function(ml,en){ return en; };
+  var j=getJob(), h="", bg="#eef3f7", btn="";
+  if(!L.sup()) return "";
+  if(j){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് ലോക്ക് ചെയ്യുന്നു… ഇന്റർനെറ്റ് ഓണാക്കി വെക്കുക","Locking the shop book… keep the internet on")+(j.done?" ("+j.done+")":""); bg="#fff6df"; }
+  else if(!srv.known){ learn(); return ""; }
+  else if(srv.locked&&curKey()){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്തതാണ്","The shop book is locked with your password"); bg="#e3f3ea"; }
+  else if(srv.locked){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് ലോക്ക് ചെയ്തതാണ്. ഈ ഫോണിൽ തുറക്കാൻ പാസ്‌വേഡ് നൽകുക","The shop book is locked. Enter the password to open it on this phone"); bg="#fff6df"; btn='<button class="tsBtn g s" onclick="tslUnlock()">🔓 '+E(T("പാസ്‌വേഡ് നൽകുക","Enter password"))+'</button>'; }
+  else return "";                       /* not locked: nothing to say on the Home screen (the Settings screen tells) */
+  return '<div class="tsC" style="margin-top:10px;background:'+bg+';font-size:13px;line-height:1.5">'+E(h)+btn+'</div>';
+ };
+
+ /* ---------- records that an OLD version of the app stored while the book was already locked ----------
+    (an old app pulled the encrypted rows as if they were normal records and moved its cursor past them): throw those out, start the pull from 0 again */
+ function repairJunk(){
+  try{
+   var S=SH._S(), bad=[], id;
+   for(id in S.recs){ var r=S.recs[id]; if(r&&r.x&&r.x.__e===1) bad.push(id); }
+   if(!bad.length) return false;
+   bad.forEach(function(i){ delete S.recs[i]; });
+   S.q=(S.q||[]).filter(function(i){ return bad.indexOf(i)<0; });
+   S.cur=0; S.ver=(S.ver||0)+1;
+   try{ localStorage.setItem("tc_shop_v1:"+me(),JSON.stringify({recs:S.recs,q:S.q,cur:S.cur,cfg:S.cfg})); }catch(e){}
+   return true;
+  }catch(e){ return false; }
+ }
+ SL.repair=repairJunk;
+
  /* ---------- one state line for the lock card ---------- */
  L.extra=function(){
   var j=getJob(), h="";
@@ -269,6 +316,7 @@
  SL.state=function(){ return {srv:srv,job:getJob(),running:running}; };
 
  /* ---------- start: learn the state of the book once (cheap), continue an interrupted job ---------- */
+ setTimeout(function(){ try{ if(repairJunk()) SH.sync(); }catch(e){} },2500);
  setTimeout(function(){
   try{
    if(!(hasShop()||L.on()||getJob())) return;
