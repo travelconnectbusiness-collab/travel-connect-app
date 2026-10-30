@@ -22,7 +22,7 @@
  var L=P.lock, B=P.B, E=P.E, $=P.$, me=P.me, say=P.say;
  var SL=P.shopLock={};
  var ofetch=window.fetch;
- var srv={known:false,locked:0,salt:"",iter:0};
+ var srv={why:"",known:false,locked:0,salt:"",iter:0};
  var running=false, asked=0, retryT=0;
 
  function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} return null; }
@@ -108,7 +108,10 @@
   try{
    var u=typeof input==="string"?input:(input&&input.url)||"";
    var m=/\/api\/shop\?action=(push|pull)\b/.exec(u);
-   if(m&&init&&typeof init.body==="string") return m[1]==="push"?doPush(input,init):doPull(input,init);
+   if(m&&init&&typeof init.body==="string") return (m[1]==="push"?doPush(input,init):doPull(input,init)).then(function(r){
+    try{ if(r&&r.status===403) r.clone().json().then(function(j){ var w=String((j&&j.why)||"").slice(0,30); if(w!==srv.why){ srv.why=w; redraw(); } },function(){}); }catch(e){}
+    return r;
+   });
   }catch(e){}
   return ofetch.apply(this,arguments);
  };
@@ -265,11 +268,20 @@
   if(learning) return; learning=true;
   post("pull",{since:2147483647}).then(function(){ learning=false; autoCheck(); redraw(); },function(){ learning=false; });
  }
+ function whyText(){
+  var w=srv.why; if(!w) return "";
+  var t={unknown_device:["ഈ ഫോൺ സെർവറിൽ രജിസ്റ്റർ ആയിട്ടില്ല","this phone is not registered on the server"],no_header:["ഫോണിൽ ലോഗിൻ വിവരം കാണുന്നില്ല","the phone has no login details"],no_user:["ഈ നമ്പർ രജിസ്റ്റർ ചെയ്തതായി കാണുന്നില്ല","this number is not registered"],blocked:["ഈ അക്കൗണ്ട് തടഞ്ഞിരിക്കുന്നു","this account is blocked"],lookup_error:["സെർവർ പരിശോധന പരാജയപ്പെട്ടു, വീണ്ടും ശ്രമിക്കുക","server check failed, try again"]}[w];
+  return " ("+(t?B(t[1],t[0])+" - ":"")+w+")";
+ }
+ function isAuth(){ try{ return SH.status&&SH.status.s==="auth"; }catch(e){ return false; } }
+ var wasAuth=false;
+ try{ SH.onChange(function(w){ if(w!=="status") return; var a=isAuth(); if(a!==wasAuth){ wasAuth=a; redraw(); } }); }catch(e){}
  function needKey(){ return !!(srv.known&&srv.locked&&!curKey()); }
  SL.needKey=needKey;
  SL.stateText=function(){
   if(!L.sup()) return "";
   if(getJob()) return B("Shop book: locking ...","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്യുന്നു ...");
+  if(isAuth()) return B("Shop book: this phone is not logged in - log in with the owner's mobile number","ഷോപ്പ് ബുക്ക്: ഈ ഫോൺ ലോഗിൻ ആയിട്ടില്ല - ഉടമയുടെ മൊബൈൽ നമ്പറിൽ ലോഗിൻ ചെയ്യുക");
   if(!srv.known){ learn(); return ""; }
   if(srv.locked&&curKey()) return B("Shop book: locked - opens on this phone","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്തതാണ് - ഈ ഫോണിൽ തുറക്കും");
   if(srv.locked) return B("Shop book: LOCKED - this phone cannot open it yet (enter the password)","ഷോപ്പ് ബുക്ക്: ലോക്ക് ചെയ്തതാണ് - ഈ ഫോണിൽ ഇതുവരെ തുറക്കാൻ പറ്റില്ല (പാസ്‌വേഡ് നൽകുക)");
@@ -279,7 +291,8 @@
   var U=window.__tcShopUi, T=(U&&U.T)||function(ml,en){ return en; };
   var j=getJob(), h="", bg="#eef3f7", btn="";
   if(!L.sup()) return "";
-  if(j){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് ലോക്ക് ചെയ്യുന്നു… ഇന്റർനെറ്റ് ഓണാക്കി വെക്കുക","Locking the shop book… keep the internet on")+(j.done?" ("+j.done+")":""); bg="#fff6df"; }
+  if(isAuth()){ h="⚠ "+T("ഈ ഫോൺ ലോഗിൻ ആയിട്ടില്ല, അതുകൊണ്ട് ഷോപ്പ് ബുക്ക് വരുന്നില്ല. ഉടമയുടെ മൊബൈൽ നമ്പറിൽ (ഒന്നാമത്തെ ഫോണിലെ അതേ നമ്പർ) ലോഗ്ഔട്ട് ചെയ്ത് വീണ്ടും ലോഗിൻ ചെയ്യുക. അതുവരെ ഇവിടെ എൻട്രി ചേർക്കരുത്.","This phone is not logged in, so the shop book cannot come. Log out and log in again with the owner's mobile number (the same number as the first phone). Do not add entries here until then."); bg="#fde8e8"; h+=whyText(); }
+  else if(j){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് ലോക്ക് ചെയ്യുന്നു… ഇന്റർനെറ്റ് ഓണാക്കി വെക്കുക","Locking the shop book… keep the internet on")+(j.done?" ("+j.done+")":""); bg="#fff6df"; }
   else if(!srv.known){ learn(); return ""; }
   else if(srv.locked&&curKey()){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്തതാണ്","The shop book is locked with your password"); bg="#e3f3ea"; }
   else if(srv.locked){ h="🔒 "+T("ഷോപ്പ് ബുക്ക് ലോക്ക് ചെയ്തതാണ്. ഈ ഫോണിൽ തുറക്കാൻ പാസ്‌വേഡ് നൽകുക","The shop book is locked. Enter the password to open it on this phone"); bg="#fff6df"; btn='<button class="tsBtn g s" onclick="tslUnlock()">🔓 '+E(T("പാസ്‌വേഡ് നൽകുക","Enter password"))+'</button>'; }
