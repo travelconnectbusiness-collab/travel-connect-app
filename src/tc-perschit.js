@@ -5,7 +5,7 @@
    face instalment - therefore every payment is typed (default = the face instalment).
    This first version is for the MEMBER (subscriber). Running a chitty as the foreman (many members) is not built.
    DATA (phone only / Premium cloud backup / backup file - same rules as tc-pers.js):
-     db.persChits    {id,u,ts, nm: name, v: chit value, a: face instalment, n: months, d: date of the FIRST instalment}
+     db.persChits    {id,u,ts, nm: name, ph: mobile of the organiser / foreman (optional, 2026-10-30), v: chit value, a: face instalment, n: months, d: date of the FIRST instalment}
      db.persChitPay  {id,u,ts, c: chit id, t:'pay'|'prize', d, a, n: note}     pay = an instalment paid, prize = the pot received
    Next due date = first date + (instalments paid) months (the same day; a 31st becomes the month end). Deleting a chit hides its payments too. */
 (function(){
@@ -42,19 +42,27 @@
  });
 
  /* ---------- list ---------- */
- SC.chits=function(){
-  var L=chits(), t=P.today();
+ var CQ="";
+ function chitRows(){
+  var L=chits(), t=P.today(), q=P.cap(CQ,40).toLowerCase(), qd=/^[\d\s+\-]+$/.test(CQ)?P.digits(CQ):"";
+  L=L.filter(function(x){ return !q||String(x.c.nm).toLowerCase().indexOf(q)>=0||(qd.length>=3&&P.digits(x.c.ph).indexOf(qd)>=0); });
   L.sort(function(a,b){ return (a.done-b.done)||((a.next||"9")<(b.next||"9")?-1:1); });
-  $("tpBody").innerHTML=
-   '<button class="tpBtn in" style="margin-top:0" onclick="tpCAdd()">➕ '+E(B("New chitty","പുതിയ ചിട്ടി"))+'</button>'+
-   (L.length?L.map(function(x){
+  return L.length?L.map(function(x){
      var late=!x.done&&x.next<t;
      return '<div class="tpC" '+oc("tpChit",x.c.id)+' style="cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">'+E(x.c.nm)+'</b><b>'+mny(x.c.a)+'</b></div>'+
-      '<div class="tpM">'+E(B("Chit value ","ചിട്ടി തുക "))+mny(x.c.v)+' · '+x.c.n+' '+E(B("months","മാസം"))+'</div>'+
+      '<div class="tpM">'+E(B("Chit value ","ചിട്ടി തുക "))+mny(x.c.v)+' · '+x.c.n+' '+E(B("months","മാസം"))+(x.c.ph?' · '+E(x.c.ph):"")+'</div>'+
       '<div style="margin-top:6px">'+x.cnt+'/'+x.c.n+' '+E(B("paid","അടച്ചു"))+' · '+mny(x.paid)+'</div>'+
       '<div style="margin-top:4px;font-weight:700;color:'+(x.prize?"#157a3a":"#5b7787")+'">'+(x.prize?'🎉 '+E(B("Got the kuri ","കുറി കിട്ടി "))+mny(x.prize.a):E(B("Kuri not got yet","കുറി കിട്ടിയിട്ടില്ല")))+'</div>'+
       (x.done?'<div class="tpM">✓ '+E(B("Finished","കഴിഞ്ഞു"))+'</div>':'<div style="margin-top:4px;color:'+(late?"#b03a2e":"#12303f")+';font-weight:700">'+E(B("Next: ","അടുത്ത തവണ: "))+E(dmy(x.next))+(late?' ⚠ '+E(B("overdue","കഴിഞ്ഞു")):"")+'</div>')+'</div>';
-    }).join(""):'<div class="tpC tpM" style="text-align:center">'+E(B("No chitty added yet","ചിട്ടി ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>')+
+    }).join(""):'<div class="tpC tpM" style="text-align:center">'+E(q||qd?B("No such chitty","ഈ പേരിൽ ചിട്ടിയില്ല"):B("No chitty added yet","ചിട്ടി ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>';
+ }
+ window.tpcSearch=function(v){ CQ=v||""; var r=$("tpcRows"); if(r) r.innerHTML=chitRows(); };
+ SC.chits=function(){
+  var n=chits().length;
+  $("tpBody").innerHTML=
+   '<button class="tpBtn in" style="margin-top:0" onclick="tpCAdd()">➕ '+E(B("New chitty","പുതിയ ചിട്ടി"))+'</button>'+
+   (n>=3?'<input id="tpcQ" placeholder="🔍 '+E(B("Search name / phone","പേര് / ഫോൺ തിരയുക"))+'" value="'+E(CQ)+'" oninput="tpcSearch(this.value)" style="margin-top:12px">':"")+
+   '<div id="tpcRows">'+chitRows()+'</div>'+
    '<button class="tpBtn g" onclick="tpCsv(\'c\')">📤 '+E(B("Export to Excel (CSV)","Excel-ലേക്ക് (CSV)"))+'</button>';
  };
  window.tpChit=function(id){ var x=find(id); if(x) P.go("chit",{id:id,title:x.c.nm}); };
@@ -67,6 +75,7 @@
   $("tpBody").innerHTML=
    '<div class="tpC"><div style="display:flex;justify-content:space-between"><b style="font-size:19px">'+E(x.c.nm)+'</b><button class="tpBtn g s" style="margin:0" onclick="tpCEdit(\''+x.c.id+'\')">✎ '+E(B("Edit","മാറ്റുക"))+'</button></div>'+
     '<div class="tpM">'+E(B("Chit value ","ചിട്ടി തുക "))+mny(x.c.v)+' · '+E(B("instalment ","തവണ "))+mny(x.c.a)+' · '+x.c.n+' '+E(B("months","മാസം"))+' · '+E(B("from ","തുടക്കം "))+E(dmy(x.c.d))+'</div>'+
+    (x.c.ph?'<div class="tpM">📞 <a href="tel:'+E((/^\s*\+/.test(x.c.ph)?"+":"")+P.digits(x.c.ph))+'">'+E(x.c.ph)+'</a></div>':"")+
     '<div class="tpG2" style="margin-top:8px"><div><div class="tpM">'+E(B("Paid so far","ഇതുവരെ അടച്ചത്"))+'</div><div class="tpBig tpOut">'+mny(x.paid)+'</div><div class="tpM">'+x.cnt+'/'+x.c.n+'</div></div>'+
     '<div><div class="tpM">'+E(B("Kuri received","കുറി കിട്ടിയത്"))+'</div><div class="tpBig tpIn">'+(x.prize?mny(x.prize.a):"-")+'</div><div class="tpM">'+(x.prize?E(dmy(x.prize.d)):E(B("not yet","ഇല്ല")))+'</div></div></div>'+
     (x.prize?'<div style="margin-top:8px">'+E(B("Received - paid: ","കിട്ടിയത് - അടച്ചത്: "))+'<b>'+mny(x.prize.a-x.paid)+'</b></div>':"")+
@@ -83,6 +92,7 @@
  function chitSheet(c){
   P.sheet('<h3>'+E(c?B("Edit chitty","ചിട്ടി മാറ്റുക"):B("New chitty","പുതിയ ചിട്ടി"))+'</h3>'+
    P.fld("tpcN",B("Name of the chitty","ചിട്ടിയുടെ പേര്"),"text",c?c.nm:"",'maxlength="60" placeholder="'+E(B("e.g. KSFE 5 lakh, Raman's kuri","ഉദാ: KSFE 5 ലക്ഷം, രാമന്റെ കുറി"))+'"')+
+   P.fld("tpcPh",B("Organiser mobile (optional)","നടത്തുന്ന ആളുടെ മൊബൈൽ (വേണമെങ്കിൽ)"),"tel",c?(c.ph||""):"",'inputmode="tel" maxlength="20" autocomplete="off"')+
    P.fld("tpcV",B("Chit value (₹)","ചിട്ടി തുക (₹)"),"number",c?c.v:"",'inputmode="decimal" min="0" step="any"')+
    P.fld("tpcA",B("Monthly instalment (₹)","മാസത്തവണ (₹)"),"number",c?c.a:"",'inputmode="decimal" min="0" step="any"')+
    P.fld("tpcM",B("Number of months","മാസങ്ങൾ"),"number",c?c.n:"",'inputmode="numeric" min="1" max="240" step="1"')+
@@ -94,15 +104,16 @@
  window.tpCAdd=function(){ chitSheet(null); };
  window.tpCEdit=function(id){ var c=P.rec(KC,id); if(c) chitSheet(c); };
  window.tpCSave=function(id){
-  var nm=cap(val("tpcN"),60), v=num(val("tpcV")), a=num(val("tpcA")), n=Math.round(num(val("tpcM"))), d=val("tpcD");
+  var nm=cap(val("tpcN"),60), ph=P.cleanPh(val("tpcPh")), v=num(val("tpcV")), a=num(val("tpcA")), n=Math.round(num(val("tpcM"))), d=val("tpcD");
   if(!nm){ say(B("Enter the name","പേര് നൽകുക")); return; }
+  if(ph&&P.digits(ph).length<7){ say(B("Check the mobile number","മൊബൈൽ നമ്പർ നോക്കുക")); return; }
   if(!(a>0)||a>=1e9){ say(B("Enter the monthly instalment","മാസത്തവണ നൽകുക")); return; }
   if(!(n>=1&&n<=240)){ say(B("Enter the number of months","മാസങ്ങൾ നൽകുക")); return; }
   if(!P.okDate(d)){ say(B("Check the date","തീയതി നോക്കുക")); return; }
   if(!(v>0)) v=P.r2(a*n);
   var cid=id;
-  if(id){ var c=P.rec(KC,id); if(!c) return; c.nm=nm; c.v=v; c.a=a; c.n=n; c.d=d; P.touch(c); }
-  else cid=P.put(KC,{nm:nm,v:v,a:a,n:n,d:d}).id;
+  if(id){ var c=P.rec(KC,id); if(!c) return; c.nm=nm; c.ph=ph; c.v=v; c.a=a; c.n=n; c.d=d; P.touch(c); }
+  else cid=P.put(KC,{nm:nm,ph:ph,v:v,a:a,n:n,d:d}).id;
   P.closeSheet(); P.go("chit",{id:cid,title:nm}); say(B("Saved","സേവ് ചെയ്തു"));
  };
  window.tpCDel=function(id){
@@ -141,8 +152,8 @@
  };
 
  P.CSVS.c=function(){
-  var out=[["Chitty","Date","Type","Amount","Note"]];
-  chits().forEach(function(x){ P.srt(x.rows).forEach(function(r){ out.push([x.c.nm,r.d,r.t==="prize"?"Kuri received":"Instalment paid",r.a,r.n||""]); }); });
+  var out=[["Chitty","Date","Type","Amount","Note","Mobile"]];
+  chits().forEach(function(x){ P.srt(x.rows).forEach(function(r){ out.push([x.c.nm,r.d,r.t==="prize"?"Kuri received":"Instalment paid",r.a,r.n||"",x.c.ph||""]); }); });
   return out;
  };
 })();
