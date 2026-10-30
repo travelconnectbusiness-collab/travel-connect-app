@@ -13,7 +13,13 @@
    owner_free) partner. A new backup that holds FEWER records than the one
    already stored is refused unless force=true - so a freshly installed,
    empty app can never wipe a good backup by accident. The previous backup
-   is always kept as prev.json. */
+   is always kept as prev.json.
+
+   PASSWORD-LOCKED BACKUP (2026-10-30, tc-perslock.js on the phone): a person who switched the password lock on sends
+   { __enc:1, vault:{ salt, iter, iv, ct, ts, n } } - the WHOLE payload encrypted on the phone (AES-256-GCM, key from a password
+   only that person knows). The server stores it as sent and cannot read it; "n" is only the record count for the status line.
+   Rules: an encrypted backup skips the shrink check; a PLAIN backup never replaces an encrypted one unless force=true
+   (error locked_backup_exists) - so a freshly installed empty app cannot overwrite a locked backup by accident. */
 
 /* The phone adds more lists to the backup (tc-livetrip.js: liveTrips; tc-accbook.js: accVehicles, accEntries; tc-enq.js: bookings).
    They are saved as sent; listing them here also counts them, so a smaller backup can never wipe a bigger one. */
@@ -54,7 +60,11 @@ async function isPremium(env, mobile) {
   });
 }
 
+const isEnc = (d) => !!(d && d.__enc === 1 && d.vault && typeof d.vault === "object" &&
+  typeof d.vault.ct === "string" && typeof d.vault.iv === "string" && typeof d.vault.salt === "string");
+
 function countOf(data) {
+  if (isEnc(data)) return { counts: {}, total: Math.max(0, Math.floor(Number(data.vault.n) || 0)), enc: true };
   const counts = {};
   let total = 0;
   for (const k of LIST_KEYS) {
@@ -86,8 +96,9 @@ export async function onRequestPost({ request, env }) {
     if (!obj) return Response.json({ ok: true, exists: false });
     const saved = JSON.parse(await obj.text());
     const c = countOf(saved.data);
-    if (action === "info") return Response.json({ ok: true, exists: true, savedAt: saved.savedAt, counts: c.counts, total: c.total });
-    return Response.json({ ok: true, exists: true, savedAt: saved.savedAt, counts: c.counts, total: c.total, data: saved.data });
+    const enc = !!c.enc;
+    if (action === "info") return Response.json({ ok: true, exists: true, savedAt: saved.savedAt, counts: c.counts, total: c.total, enc });
+    return Response.json({ ok: true, exists: true, savedAt: saved.savedAt, counts: c.counts, total: c.total, enc, data: saved.data });
   }
 
   if (action === "put") {
@@ -102,15 +113,18 @@ export async function onRequestPost({ request, env }) {
     const old = await env.FILES.get(base + "latest.json");
     if (old) {
       const oldText = await old.text();
-      let oldTotal = 0;
-      try { oldTotal = countOf(JSON.parse(oldText).data).total; } catch (e) {}
-      if (!body.force && incoming.total < oldTotal) {
+      let oldTotal = 0, oldEnc = false;
+      try { const oc = countOf(JSON.parse(oldText).data); oldTotal = oc.total; oldEnc = !!oc.enc; } catch (e) {}
+      if (oldEnc && !incoming.enc && !body.force) {
+        return Response.json({ ok: false, error: "locked_backup_exists" }, { status: 409 });
+      }
+      if (!body.force && !incoming.enc && !oldEnc && incoming.total < oldTotal) {
         return Response.json({ ok: false, error: "would_shrink", server_total: oldTotal, local_total: incoming.total }, { status: 409 });
       }
       await env.FILES.put(base + "prev.json", oldText, { httpMetadata: { contentType: "application/json" } });
     }
     await env.FILES.put(base + "latest.json", text, { httpMetadata: { contentType: "application/json" } });
-    return Response.json({ ok: true, savedAt: JSON.parse(text).savedAt, total: incoming.total, counts: incoming.counts });
+    return Response.json({ ok: true, savedAt: JSON.parse(text).savedAt, total: incoming.total, counts: incoming.counts, enc: !!incoming.enc });
   }
 
   return Response.json({ ok: false, error: "unknown_action" }, { status: 400 });
