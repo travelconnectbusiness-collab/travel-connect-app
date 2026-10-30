@@ -20,6 +20,7 @@
    '<div class="tsC"><b>'+E(T("വില നിർദേശം","Suggested price"))+'</b><label>'+E(T("സാധാരണ ലാഭ % (വാങ്ങൽ വിലയുടെ മുകളിൽ)","Usual profit % on the cost"))+'</label><input id="stM" type="number" inputmode="decimal" value="'+E(ST.mgdef)+'"></div>'+
    '<div class="tsC"><b>GST</b><div>'+chip(ST.gst,"tsStSet('gst',1)",T("ഉണ്ട്","On"))+chip(!ST.gst,"tsStSet('gst',0)",T("ഇല്ല","Off"))+'</div>'+
    (ST.gst?'<label>GSTIN</label><input id="stG" value="'+E(ST.gstin)+'" maxlength="20"><div class="tsM" style="line-height:1.5">'+E(T("ഓരോ ഇനത്തിനും GST % കൊടുക്കുക (ഇനം മാറ്റുക > കൂടുതൽ ഓപ്ഷനുകൾ). വിലകൾ GST ഉൾപ്പെടെയാണെന്ന് കണക്കാക്കും. 'ഇന്നത്തെ കണക്ക്' ലും Excel ലും GST കാണാം. ഇത് കണക്ക് നോക്കാനുള്ള സഹായം മാത്രമാണ്; റിട്ടേൺ നൽകാൻ അക്കൗണ്ടന്റിനെ കാണുക.","Give each item a GST % (edit item > More options). Prices are taken as GST-inclusive. GST shows in Today's account and Excel. This only helps you see the figures - ask an accountant for returns."))+'</div>':'<div class="tsM">'+E(T("GST ഇല്ലാത്ത കടയ്ക്ക് ഇത് ഇല്ല എന്ന് വെച്ചാൽ മതി. പിന്നീട് മാറ്റാം.","A shop without GST can leave this off. It can be switched on later."))+'</div>')+'</div>'+
+   (window.__tcPers&&window.__tcPers.lock&&window.__tcPers.lock.line?window.__tcPers.lock.line():"")+
    '<button class="tsBtn" onclick="tsStSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button>';
  }
  UI.screen("settings",function(){
