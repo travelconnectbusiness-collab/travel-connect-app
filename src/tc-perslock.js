@@ -14,6 +14,9 @@
    - NEW PHONE / restored from cloud or from an owner's backup file: the vault arrives in db.persVault; My Accounts shows "Locked accounts found - enter password";
      the right password opens it (records are ADDED by id, nothing is overwritten) and the lock is switched on for this phone with the same password.
    - turn off / change password need the current password.
+   - 2026-10-30 (owner: 'all data, not only the accounts'): for Premium owners the WHOLE cloud backup payload of tc-backup.js (bills, quotations, trips, customers, vehicles ...
+     + the personal vault) is encrypted as ONE blob {__enc:1, vault:{salt,iter,iv,ct,ts,n}}; server backup.js stores it as sent and refuses a plain backup over it (locked_backup_exists).
+     tcBkPayload / tcBackupNow / tcBkCall are wrapped (see the CLOUD section below); a plain payload is never sent while the lock is on.
    THE PASSWORD CANNOT BE RECOVERED by anybody (not by us): forgotten password = the locked copies cannot be opened (the accounts on the phone itself stay).
    NOT covered: the copy that lives on the phone itself (protected only by the phone's own lock and the app PIN) and the business data (bills, trips, customers) of owners.
    core.js / cs.js / directory.js / tc-backup.js are NOT edited. */
@@ -102,10 +105,85 @@
   window.save=function(){ var r=os.apply(this,arguments); try{ if(on()) schedule(3000); }catch(e){} return r; };
  })();
 
- /* two backups in a row so that the old plain copy on the server (prev.json) is replaced too */
+ /* ---------- CLOUD BACKUP of everything (Premium owners): the WHOLE payload of tc-backup.js is encrypted on the phone ----------
+    Server (backup.js): accepts { __enc:1, vault:{salt,iter,iv,ct,ts,n} } as it is and never lets a plain backup replace it (locked_backup_exists).
+    tcBkPayload() is wrapped (sync) - it hands out the last sealed blob; tcBackupNow() is wrapped (async) - it seals first; with the lock ON a plain payload is never sent
+    (if the blob is not ready the payload function throws and the backup simply does not run). tcBkCall("get") is wrapped: an encrypted answer is opened with this phone's key
+    or, on a new phone, with the password typed in a small window; the plain payload then goes through the ORIGINAL restore (merge by id). */
+ var cBlob=null, cHash="", opay=window.tcBkPayload, obn=window.tcBackupNow, obc=window.tcBkCall;
+ async function sealCloud(){
+  if(!on()||!sup()||typeof opay!=="function") return null;
+  await seal(false);                                   /* the personal vault first (it is part of the payload) */
+  var plain=opay(), js=JSON.stringify(plain), h=hash(js);
+  if(cBlob&&cHash===h) return cBlob;
+  var mt=meta(), raw=keyRaw(), e=await encObj(raw,plain), n=0;
+  try{ if(typeof tcBkTotal==="function") n=tcBkTotal(plain); }catch(x){}
+  cBlob={salt:mt.salt,iter:mt.iter,iv:e.iv,ct:e.ct,ts:Date.now(),n:n}; cHash=h;
+  return cBlob;
+ }
+ P.lock.sealCloud=sealCloud;
+ if(typeof opay==="function") window.tcBkPayload=function(){
+  if(!on()) return opay.apply(this,arguments);
+  if(!cBlob) throw new Error("locked backup not ready");
+  return {__enc:1,v:1,vault:cBlob};
+ };
+ if(typeof obn==="function") window.tcBackupNow=async function(manual){
+  try{ if(on()) await sealCloud(); }catch(e){}
+  return obn.apply(this,arguments);
+ };
+ /* small password window for a restore on a phone that does not hold the key */
+ function askPassword(vault){
+  return new Promise(function(resolve){
+   var old=$("tplOv"); if(old) old.remove();
+   var d=document.createElement("div"); d.id="tplOv";
+   d.style.cssText="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px";
+   d.innerHTML='<div style="background:#fff;border-radius:16px;padding:16px;max-width:380px;width:100%;color:#12303f"><div style="font-weight:800;font-size:17px">🔒 '+E(B("Locked backup","ലോക്ക് ചെയ്ത ബാക്കപ്പ്"))+'</div>'+
+    '<div style="font-size:13.5px;margin:6px 0 4px">'+E(B("Your backup is locked. Type the password you set.","നിങ്ങളുടെ ബാക്കപ്പ് ലോക്ക് ചെയ്തതാണ്. നിങ്ങൾ വെച്ച പാസ്‌വേഡ് ടൈപ്പ് ചെയ്യുക."))+'</div>'+
+    '<input id="tplOvP" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px;font-size:17px;border:2px solid #b7cbd6;border-radius:10px">'+
+    '<div id="tplOvE" style="color:#a12d2d;font-weight:700;font-size:13px;min-height:18px;margin-top:4px"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:6px"><button id="tplOvOk" style="flex:1;border:0;border-radius:12px;padding:12px;font-size:16px;font-weight:800;color:#fff;background:#0b6b78">'+E(B("Open","തുറക്കുക"))+'</button>'+
+    '<button id="tplOvNo" style="flex:1;border:0;border-radius:12px;padding:12px;font-size:16px;font-weight:800;background:#dce9ef;color:#12303f">'+E(B("Cancel","വേണ്ട"))+'</button></div></div>';
+   document.body.appendChild(d);
+   function done(v){ d.remove(); resolve(v); }
+   $("tplOvNo").onclick=function(){ done(null); };
+   $("tplOvOk").onclick=async function(){
+    var pw=$("tplOvP").value||"", er=$("tplOvE"); er.textContent=B("Opening ...","തുറക്കുന്നു ...");
+    var r=await openVault(vault,pw);
+    if(r) done({pw:pw,r:r}); else er.textContent=B("Wrong password","പാസ്‌വേഡ് തെറ്റാണ്");
+   };
+   setTimeout(function(){ try{ $("tplOvP").focus(); }catch(e){} },100);
+  });
+ }
+ if(typeof obc==="function") window.tcBkCall=async function(action,extra){
+  var r=await obc.apply(this,arguments);
+  try{
+   if(action==="get"&&r&&r.ok&&r.exists&&r.data&&r.data.__enc===1&&r.data.vault){
+    var v=r.data.vault, plain=null, m=me();
+    if(on()){ try{ plain=await decObj(keyRaw(),v); }catch(e){ plain=null; } }
+    if(!plain){
+     var got=await askPassword(v);
+     if(!got) return {ok:false,error:"locked_cancelled"};
+     plain=got.r.o;
+     if(!on()){      /* this phone now holds the key too: its own copies get locked from now on */
+      ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(got.r.raw)); ls("tc_pls:"+m,null);
+      hide();
+     }
+    }
+    r.data=plain; r.enc=false;
+   }
+  }catch(e){ return {ok:false,error:"locked_failed"}; }
+  return r;
+ };
+ /* turning the lock on / off / changing the password: two backups in a row (the server keeps the previous one as prev.json), forced because plain and locked backups never replace each other otherwise */
  async function pushCloud(){
   try{
-   if(typeof tcBkEligible==="function"&&tcBkEligible()&&typeof tcBackupNow==="function"){ await tcBackupNow(true); await tcBackupNow(true); }
+   if(typeof tcBkEligible!=="function"||!tcBkEligible()||typeof window.tcBkCall!=="function") return;
+   if(on()) await sealCloud();
+   for(var i=0;i<2;i++){
+    var d=window.tcBkPayload();
+    await window.tcBkCall("put",{data:d,force:true});
+   }
+   ls("tc_bk_hash",null);
   }catch(e){}
  }
 
@@ -163,7 +241,7 @@
   P.sheet('<h3>🔒 '+E(change?B("Change password","പാസ്‌വേഡ് മാറ്റുക"):B("Turn off the lock","ലോക്ക് ഓഫ് ചെയ്യുക"))+'</h3>'+
    pwField("tplC",B("Current password","ഇപ്പോഴത്തെ പാസ്‌വേഡ്"))+
    (change?pwField("tplP1",B("New password (at least 6 characters)","പുതിയ പാസ്‌വേഡ് (കുറഞ്ഞത് 6 അക്ഷരം)"))+pwField("tplP2",B("Type the new one again","പുതിയത് ഒന്നുകൂടി ടൈപ്പ് ചെയ്യുക"))+WARN():
-    '<div class="tpNote">'+E(B("Your accounts in the cloud backup and in new backup files will be saved WITHOUT a lock again.","ക്ലൗഡ് ബാക്കപ്പിലും പുതിയ ബാക്കപ്പ് ഫയലിലും കണക്കുകൾ വീണ്ടും ലോക്ക് ഇല്ലാതെ സേവ് ആകും."))+'</div>')+
+    '<div class="tpNote">'+E(B("Your cloud backup and new backup files will be saved WITHOUT a lock again.","ക്ലൗഡ് ബാക്കപ്പും പുതിയ ബാക്കപ്പ് ഫയലുകളും വീണ്ടും ലോക്ക് ഇല്ലാതെ സേവ് ആകും."))+'</div>')+
    '<div id="tplErr" class="tpM" style="color:#a12d2d;font-weight:700"></div>'+
    '<button class="tpBtn'+(change?'':' r')+'" onclick="tpLockDoCur(\''+(change?"change":"off")+'\')">'+E(change?B("Change","മാറ്റുക"):B("Turn off","ഓഫ് ചെയ്യുക"))+'</button><button class="tpBtn g" onclick="tpCloseSheet()">'+E(B("Cancel","വേണ്ട"))+'</button>');
  };
@@ -264,11 +342,11 @@
   var h='<div class="tpC" id="tplCard"><b>🔒 '+E(B("Password lock for backups","ബാക്കപ്പിന് പാസ്‌വേഡ് ലോക്ക്"))+'</b>';
   if(!sup()) return h+'<div class="tpM">'+E(B("This browser cannot lock with a password.","ഈ ബ്രൗസറിൽ പാസ്‌വേഡ് ലോക്ക് പറ്റില്ല."))+'</div></div>';
   if(s){
-   h+='<div class="tpNote tpOkN">✅ '+E(B("ON - your accounts in the cloud backup and in backup files are locked (AES-256). Only your password opens them.","ഓൺ - ക്ലൗഡ് ബാക്കപ്പിലെയും ബാക്കപ്പ് ഫയലിലെയും നിങ്ങളുടെ കണക്കുകൾ ലോക്ക് ചെയ്തതാണ് (AES-256). നിങ്ങളുടെ പാസ്‌വേഡ് കൊണ്ട് മാത്രമേ തുറക്കൂ."))+'</div>'+
+   h+='<div class="tpNote tpOkN">✅ '+E(B("ON - your accounts, and (Premium owners) your whole cloud backup - bills, trips, customers - are locked (AES-256). Only your password opens them.","ഓൺ - നിങ്ങളുടെ കണക്കുകളും (Premium ഓണർമാർക്ക്) ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ - ലോക്ക് ചെയ്തതാണ് (AES-256). നിങ്ങളുടെ പാസ്‌വേഡ് കൊണ്ട് മാത്രമേ തുറക്കൂ."))+'</div>'+
     '<div class="tpM">'+E(B("A forgotten password cannot be recovered by anybody.","മറന്ന പാസ്‌വേഡ് ആർക്കും തിരിച്ചെടുക്കാൻ പറ്റില്ല."))+'</div>'+
     '<button class="tpBtn g s" onclick="tpLockAskCur(\'change\')">'+E(B("Change password","പാസ്‌വേഡ് മാറ്റുക"))+'</button><button class="tpBtn r s" onclick="tpLockAskCur(\'off\')">'+E(B("Turn off","ഓഫ് ചെയ്യുക"))+'</button>';
   }else{
-   h+='<div class="tpM">'+E(B("Optional. Lock your accounts in the cloud backup and in backup files with a password only you know. Nobody else - not even us - can read them then.","ഓപ്ഷണൽ. ക്ലൗഡ് ബാക്കപ്പിലെയും ബാക്കപ്പ് ഫയലിലെയും കണക്കുകൾ നിങ്ങൾക്ക് മാത്രം അറിയാവുന്ന പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യാം. അപ്പോൾ മറ്റാർക്കും - ഞങ്ങൾക്കും - വായിക്കാൻ പറ്റില്ല."))+'</div>'+
+   h+='<div class="tpM">'+E(B("Optional. Lock your accounts - and, for Premium owners, the whole cloud backup (bills, trips, customers) - with a password only you know. Nobody else, not even us, can read them then.","ഓപ്ഷണൽ. നിങ്ങളുടെ കണക്കുകളും (Premium ഓണർമാർക്ക് ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ) നിങ്ങൾക്ക് മാത്രം അറിയാവുന്ന പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യാം. അപ്പോൾ മറ്റാർക്കും, ഞങ്ങൾക്കും, വായിക്കാൻ പറ്റില്ല."))+'</div>'+
     '<button class="tpBtn" onclick="tpLockAsk()">🔒 '+E(B("Turn on password lock","പാസ്‌വേഡ് ലോക്ക് ഓൺ ചെയ്യുക"))+'</button>';
   }
   return h+'</div>';
