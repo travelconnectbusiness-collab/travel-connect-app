@@ -9,7 +9,7 @@
      A paid cloud backup for customers needs a separate customer-plan step (not built yet).
    Every record: {id, u: mobile of the login that made it (several logins can share one phone - each sees only its own), d: 'YYYY-MM-DD', ts, ...}
      money  : {t:'in'|'out', a, n: description}
-     loans  : {t:'g' lent | 'bk' got back | 't' borrowed | 'rp' repaid, p: person, a, n}     balance of a person = lent + repaid - gotBack - borrowed  (+ = he owes me)
+     loans  : {ph: mobile (optional, 2026-10-30), t:'g' lent | 'bk' got back | 't' borrowed | 'rp' repaid, p: person, a, n}     balance of a person = lent + repaid - gotBack - borrowed  (+ = he owes me)
      A deleted record stays as {del:1} so that restoring an old backup never brings it back.
    Own full-screen layer #tcPers (history state {tcPers:1}); opened from Menu (all roles) and from the customer home page (a card). */
 (function(){
@@ -23,6 +23,7 @@
  var S={open:false,screen:"home",params:{},mon:""}, SC={}, UP={money:"home",loans:"home",person:"loans",backup:"home",gifts:"home",gperson:"gifts",gevents:"gifts",gevent:"gevents",chits:"home",chit:"chits"};
  var TITLE={home:["My Accounts","എന്റെ കണക്കുകൾ"],money:["Income & expense","വരവ് ചെലവ്"],loans:["Loans","കടം"],person:["",""],backup:["Backup & export","ബാക്കപ്പ് / എക്സ്പോർട്ട്"],
   gifts:["Ceremony covers","ചടങ്ങ് കവർ"],chits:["Chitty / Kuri","ചിട്ടി / കുറി"],chit:["",""],gperson:["",""],gevents:["By ceremony","ചടങ്ങ് തിരിച്ച്"],gevent:["",""]};
+ P.digits=digits; P.tail=tail; P.cleanPh=cleanPh;
  P.S=S; P.SC=SC; P.UP=UP; P.TITLE=TITLE; P.B=B; P.E=E; P.K=K;
 
  /* ---------- small helpers ---------- */
@@ -37,6 +38,9 @@
  function dmy(d){ var p=String(d||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:String(d||""); }
  function norm(s){ return String(s==null?"":s).replace(/\s+/g," ").trim().toLowerCase(); }
  function cap(s,n){ return String(s==null?"":s).replace(/\s+/g," ").trim().slice(0,n); }
+ function digits(s){ return String(s==null?"":s).replace(/\D/g,""); }
+ function tail(s){ return digits(s).slice(-10); }   /* +91 98.. and 98.. are the same number */
+ function cleanPh(s){ return cap(s,20).replace(/[^\d+ ]/g,"").trim(); }
  function enc(s){ return encodeURIComponent(s).replace(/'/g,"%27"); }
  function oc(fn){ var a=[].slice.call(arguments,1).map(function(x){ return "'"+String(x).replace(/'/g,"%27")+"'"; }).join(","); return 'onclick="'+fn+'('+a+')"'; }
  function me(){ try{ var u=getCurrentUser(); return String((u&&u.mobile)||""); }catch(e){ return ""; } }
@@ -243,35 +247,43 @@
   var m={};
   mine(K.l).forEach(function(r){
    var k=norm(r.p); if(!k||!SIGN[r.t]) return;
-   var o=m[k]||(m[k]={k:k,name:r.p,bal:0,last:"",n:0});
-   o.bal+=SIGN[r.t]*r.a; o.n++; if((r.d||"")>=o.last){ o.last=r.d||""; o.name=r.p; }
+   var o=m[k]||(m[k]={k:k,name:r.p,ph:"",bal:0,last:"",n:0});
+   o.bal+=SIGN[r.t]*r.a; o.n++; if((r.d||"")>=o.last){ o.last=r.d||""; o.name=r.p; if(r.ph) o.ph=r.ph; } else if(!o.ph&&r.ph) o.ph=r.ph;
   });
   return Object.keys(m).map(function(k){ var o=m[k]; o.bal=r2(o.bal); if(Math.abs(o.bal)<0.005) o.bal=0; return o; });
  }
+ function phOf(k){ var o=persons().filter(function(x){ return x.k===k; })[0]; return o?o.ph:""; }
  function balOf(name,skipId){
   var k=norm(name), b=0;
   mine(K.l).forEach(function(r){ if(norm(r.p)===k&&r.id!==skipId&&SIGN[r.t]) b+=SIGN[r.t]*r.a; });
   return r2(b);
  }
  P.persons=persons;
+ var LQ="";
+ function loanRows(){
+  var q=norm(LQ), qd=/^[\d\s+\-]+$/.test(LQ)?digits(LQ):"", all=persons(), pe=all.filter(function(p){ return !q||norm(p.name).indexOf(q)>=0||(qd.length>=3&&digits(p.ph).indexOf(qd)>=0); });
+  pe.sort(function(a,b){ return (a.bal===0)-(b.bal===0)||Math.abs(b.bal)-Math.abs(a.bal); });
+  return '<div class="tpC" style="padding:4px 14px">'+(pe.length?pe.map(function(p){
+     var t=p.bal>0?B("will give me","എനിക്ക് തരാനുണ്ട്"):p.bal<0?B("I must give","ഞാൻ കൊടുക്കാനുണ്ട്"):B("settled","തീർന്നു");
+     return '<div class="tpRow" '+oc("tpPerson",enc(p.name))+(p.bal===0?' style="opacity:.55"':"")+'><div style="min-width:0"><b>'+E(p.name)+'</b><div class="tpM">'+E(t)+(p.last?" · "+E(dmy(p.last)):"")+(p.ph?" · "+E(p.ph):"")+'</div></div><b class="'+(p.bal>0?"tpIn":p.bal<0?"tpOut":"")+'">'+(p.bal===0?"✓":mny(Math.abs(p.bal)))+'</b></div>';
+    }).join(""):'<div class="tpM" style="text-align:center;padding:16px 0">'+E(q?B("No such person","ഈ പേരിൽ ആരുമില്ല"):B("No loans recorded","കടം ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>')+'</div>';
+ }
+ window.tplSearch=function(v){ LQ=v||""; var r=$("tplRows"); if(r) r.innerHTML=loanRows(); };
  SC.loans=function(){
   var pe=persons(), owedMe=0, iOwe=0;
   pe.forEach(function(p){ if(p.bal>0) owedMe+=p.bal; else if(p.bal<0) iOwe-=p.bal; });
-  pe.sort(function(a,b){ return (a.bal===0)-(b.bal===0)||Math.abs(b.bal)-Math.abs(a.bal); });
   $("tpBody").innerHTML=
    '<div class="tpC"><div class="tpG2"><div><div class="tpM">'+E(B("I will get","എനിക്ക് കിട്ടാനുള്ളത്"))+'</div><div class="tpBig tpIn">'+mny(owedMe)+'</div></div><div><div class="tpM">'+E(B("I must give","ഞാൻ കൊടുക്കാനുള്ളത്"))+'</div><div class="tpBig tpOut">'+mny(iOwe)+'</div></div></div></div>'+
    '<div class="tpG2"><button class="tpBtn in" onclick="tpLAdd(\'g\')">➕ '+E(B("Lent money","കടം കൊടുത്തു"))+'</button><button class="tpBtn out" onclick="tpLAdd(\'t\')">➕ '+E(B("Borrowed","കടം വാങ്ങി"))+'</button></div>'+
-   '<div class="tpC" style="padding:4px 14px">'+(pe.length?pe.map(function(p){
-     var t=p.bal>0?B("will give me","എനിക്ക് തരാനുണ്ട്"):p.bal<0?B("I must give","ഞാൻ കൊടുക്കാനുണ്ട്"):B("settled","തീർന്നു");
-     return '<div class="tpRow" '+oc("tpPerson",enc(p.name))+(p.bal===0?' style="opacity:.55"':"")+'><div style="min-width:0"><b>'+E(p.name)+'</b><div class="tpM">'+E(t)+(p.last?" · "+E(dmy(p.last)):"")+'</div></div><b class="'+(p.bal>0?"tpIn":p.bal<0?"tpOut":"")+'">'+(p.bal===0?"✓":mny(Math.abs(p.bal)))+'</b></div>';
-    }).join(""):'<div class="tpM" style="text-align:center;padding:16px 0">'+E(B("No loans recorded","കടം ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>')+'</div>';
+   (pe.length?'<input id="tplQ" placeholder="🔍 '+E(B("Search name / phone","പേര് / ഫോൺ തിരയുക"))+'" value="'+E(LQ)+'" oninput="tplSearch(this.value)" style="margin-top:12px">':"")+
+   '<div id="tplRows">'+loanRows()+'</div>';
  };
  window.tpPerson=function(e){ var n=decodeURIComponent(e); go("person",{name:n,key:norm(n)}); };
  SC.person=function(p){
   var name=p.name, k=p.key, rows=srt(mine(K.l).filter(function(r){ return norm(r.p)===k; })), bal=balOf(name);
   var msg=bal>0?B("He/she must give you","ഇവർ നിങ്ങൾക്ക് തരാനുള്ളത്"):bal<0?B("You must give","നിങ്ങൾ കൊടുക്കാനുള്ളത്"):B("Account settled","കണക്ക് തീർന്നു");
   $("tpBody").innerHTML=
-   '<div class="tpC" style="text-align:center"><div class="tpM">'+E(msg)+'</div><div class="tpBig '+(bal>0?"tpIn":bal<0?"tpOut":"")+'">'+(bal===0?"✓":mny(Math.abs(bal)))+'</div></div>'+
+   '<div class="tpC" style="text-align:center"><div class="tpM">'+E(msg)+'</div><div class="tpBig '+(bal>0?"tpIn":bal<0?"tpOut":"")+'">'+(bal===0?"✓":mny(Math.abs(bal)))+'</div>'+(phOf(k)?'<div class="tpM" style="margin-top:6px">📞 <a href="tel:'+E((/^\s*\+/.test(phOf(k))?"+":"")+digits(phOf(k)))+'">'+E(phOf(k))+'</a></div>':"")+'</div>'+
    (bal>0?'<button class="tpBtn in" onclick="tpLAdd(\'bk\',\''+enc(name)+'\')">✔ '+E(B("Got money back","തിരിച്ചു കിട്ടി"))+'</button>':"")+
    (bal<0?'<button class="tpBtn out" onclick="tpLAdd(\'rp\',\''+enc(name)+'\')">✔ '+E(B("Paid back","തിരിച്ചു കൊടുത്തു"))+'</button>':"")+
    '<div class="tpG2"><button class="tpBtn g" onclick="tpLAdd(\'g\',\''+enc(name)+'\')">➕ '+E(B("Lent more","വീണ്ടും കൊടുത്തു"))+'</button><button class="tpBtn g" onclick="tpLAdd(\'t\',\''+enc(name)+'\')">➕ '+E(B("Borrowed more","വീണ്ടും വാങ്ങി"))+'</button></div>'+
@@ -281,9 +293,10 @@
     }).join("")+'</div>';
  };
  function loanSheet(r,t,name){
-  t=r?r.t:t; var bal=name?balOf(name):0, pre=r?r.a:((t==="bk"&&bal>0)?bal:(t==="rp"&&bal<0)?-bal:"");
+  t=r?r.t:t; var bal=name?balOf(name):0, ph0=r?(r.ph||""):(name?phOf(norm(name)):""), pre=r?r.a:((t==="bk"&&bal>0)?bal:(t==="rp"&&bal<0)?-bal:"");
   sheet('<h3>'+E((r?B("Edit: ","മാറ്റുക: "):"")+B(LNAME[t][0],LNAME[t][1]))+'</h3>'+
-   fld("tpP",B("Person's name","ആളുടെ പേര്"),"text",r?r.p:(name||""),'maxlength="60" list="tpPpl" autocomplete="off"')+dlist("tpPpl",uniq(mine(K.l).map(function(x){ return x.p; })))+
+   fld("tpP",B("Person's name","ആളുടെ പേര്"),"text",r?r.p:(name||""),'maxlength="60" list="tpPpl" autocomplete="off" onchange="tpLFillPh()"')+dlist("tpPpl",uniq(mine(K.l).map(function(x){ return x.p; })))+
+   fld("tpPh",B("Mobile (optional)","മൊബൈൽ നമ്പർ (വേണമെങ്കിൽ)"),"tel",ph0,'inputmode="tel" maxlength="20" autocomplete="off" oninput="tpLByPh()"')+
    fld("tpA",B("Amount (₹)","തുക (₹)"),"number",pre,'inputmode="decimal" min="0" step="any"')+
    fld("tpD",B("Date","തീയതി"),"date",r?r.d:today())+
    fld("tpN",B("Note (optional)","കുറിപ്പ് (വേണമെങ്കിൽ)"),"text",r?r.n:"",'maxlength="80"')+
@@ -291,18 +304,27 @@
    (r?'<button class="tpBtn r" onclick="tpDel(\''+K.l+'\',\''+r.id+'\')">'+E(B("Delete","ഡിലീറ്റ്"))+'</button>':"")+
    '<button class="tpBtn g" onclick="tpCloseSheet()">'+E(B("Cancel","വേണ്ട"))+'</button>');
  }
+ window.tpLFillPh=function(){   /* a known name -> fill the number */
+  var f=$("tpPh"); if(!f||f.value.trim()) return; var x=phOf(norm(val("tpP"))); if(x) f.value=x;
+ };
+ window.tpLByPh=function(){   /* a known number (10 digits) -> fill the name, only while the name is empty */
+  var n=$("tpP"), f=$("tpPh"); if(!n||!f||n.value.trim()) return;
+  var t=tail(f.value); if(t.length<10) return;
+  var x=persons().filter(function(o){ return tail(o.ph)===t; })[0]; if(x) n.value=x.name;
+ };
  window.tpLAdd=function(t,e){ loanSheet(null,t,e?decodeURIComponent(e):""); };
  window.tpLEdit=function(id){ var r=rec(K.l,id); if(r) loanSheet(r); };
  window.tpLSave=function(id,t){
-  var p=cap(val("tpP"),60), a=num(val("tpA")), d=val("tpD")||today(), n=cap(val("tpN"),80);
+  var p=cap(val("tpP"),60), ph=cleanPh(val("tpPh")), a=num(val("tpA")), d=val("tpD")||today(), n=cap(val("tpN"),80);
   if(!p){ say(B("Enter the name","പേര് നൽകുക")); return; }
+  if(ph&&digits(ph).length<7){ say(B("Check the mobile number","മൊബൈൽ നമ്പർ നോക്കുക")); return; }
   if(!(a>0)||a>=1e9){ say(B("Enter the amount","തുക നൽകുക")); return; }
   if(!okDate(d)){ say(B("Check the date","തീയതി നോക്കുക")); return; }
   var bal=balOf(p,id);
   if(t==="bk"&&a>Math.max(bal,0)+0.005&&!confirm(B("He/she owes you only "+mny(Math.max(bal,0))+". Save "+mny(a)+" anyway?","ഇവർ തരാനുള്ളത് "+mny(Math.max(bal,0))+" മാത്രമാണ്. എന്നാലും "+mny(a)+" സേവ് ചെയ്യട്ടേ?"))) return;
   if(t==="rp"&&a>Math.max(-bal,0)+0.005&&!confirm(B("You owe only "+mny(Math.max(-bal,0))+". Save "+mny(a)+" anyway?","നിങ്ങൾ കൊടുക്കാനുള്ളത് "+mny(Math.max(-bal,0))+" മാത്രമാണ്. എന്നാലും "+mny(a)+" സേവ് ചെയ്യട്ടേ?"))) return;
-  if(id){ var r=rec(K.l,id); if(!r) return; r.p=p; r.a=a; r.d=d; r.n=n; touch(r); }
-  else put(K.l,{d:d,t:t,p:p,a:a,n:n});
+  if(id){ var r=rec(K.l,id); if(!r) return; r.p=p; r.ph=ph; r.a=a; r.d=d; r.n=n; touch(r); }
+  else put(K.l,{d:d,t:t,p:p,ph:ph,a:a,n:n});
   closeSheet();
   if(S.screen==="person"||S.screen==="loans") go("person",{name:p,key:norm(p)}); else refresh();
   say(B("Saved","സേവ് ചെയ്തു"));
@@ -331,7 +353,7 @@
  P.csv=csv;
  var CSVS={
   m:function(){ return [["Date","Type","Amount","Description"]].concat(srt(mine(K.m)).map(function(r){ return [r.d,r.t==="in"?"Income":"Expense",r.a,r.n||""]; })); },
-  l:function(){ return [["Date","Person","Type","Amount","Note"]].concat(srt(mine(K.l)).map(function(r){ return [r.d,r.p,LNAME[r.t]?LNAME[r.t][0]:r.t,r.a,r.n||""]; })); }
+  l:function(){ return [["Date","Person","Type","Amount","Note","Mobile"]].concat(srt(mine(K.l)).map(function(r){ return [r.d,r.p,LNAME[r.t]?LNAME[r.t][0]:r.t,r.a,r.n||"",r.ph||""]; })); }
  };
  P.CSVS=CSVS;
  window.tpCsv=function(w){ var f=CSVS[w]; if(!f) return; dl({m:"income-expense",l:"loans",g:"ceremony-covers",c:"chitty"}[w]+"-"+stamp()+".csv","text/csv",csv(f())); };
