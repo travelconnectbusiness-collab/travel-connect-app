@@ -18,7 +18,10 @@
      + the personal vault) is encrypted as ONE blob {__enc:1, vault:{salt,iter,iv,ct,ts,n}}; server backup.js stores it as sent and refuses a plain backup over it (locked_backup_exists).
      tcBkPayload / tcBackupNow / tcBkCall are wrapped (see the CLOUD section below); a plain payload is never sent while the lock is on.
    THE PASSWORD CANNOT BE RECOVERED by anybody (not by us): forgotten password = the locked copies cannot be opened (the accounts on the phone itself stay).
-   NOT covered: the copy that lives on the phone itself (protected only by the phone's own lock and the app PIN) and the business data (bills, trips, customers) of owners.
+   NOT covered: the copy that lives on the phone itself (protected only by the phone's own lock and the app PIN), and the kind + date of each shop record (the server needs them).
+   - 2026-10-30 (owner: 'encrypt the shop book too'): the same password also locks the SHOP BOOK on the server - see tc-shoplock.js (it listens to this module: P.lock.listen / fire,
+     and uses P.lock.key / meta / pbk). This file only exposes the key tools, tells tc-shoplock.js when the lock is turned on / off / changed / opened on a new phone, and shows
+     one state line of the shop book in the lock card (P.lock.extra) and on other pages (P.lock.line).
    core.js / cs.js / directory.js / tc-backup.js are NOT edited. */
 (function(){
  var P=window.__tcPers;
@@ -54,6 +57,10 @@
  function keyRaw(){ var m=me(), k=m?ls("tc_plk:"+m):null; try{ return k?unb64(k):null; }catch(e){ return null; } }
  function on(){ return !!(meta()&&keyRaw()); }
  P.lock.on=on;
+ P.lock.key=keyRaw; P.lock.meta=meta; P.lock.pbk=pbk; P.lock.b64=b64; P.lock.unb64=unb64; P.lock.sup=sup; P.lock.ITER=ITER;
+ P.lock.listeners=[];
+ P.lock.listen=function(f){ P.lock.listeners.push(f); };
+ P.lock.fire=function(kind,info){ P.lock.listeners.forEach(function(f){ try{ f(kind,info||{}); }catch(e){ if(window.console) console.error("tc-perslock listener",e); } }); };
  function vaults(){ var m=me(); return L("persVault").filter(function(r){ return r&&String(r.u||"")===m&&r.ct&&r.iv; }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); }); }
  function newVault(){ var v=vaults()[0], ap=+(ls("tc_pla:"+me())||0); return (v&&(v.ts||0)>ap)?v:null; }
  function snapshot(){
@@ -166,7 +173,7 @@
      plain=got.r.o;
      if(!on()){      /* this phone now holds the key too: its own copies get locked from now on */
       ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(got.r.raw)); ls("tc_pls:"+m,null);
-      hide();
+      hide(); P.lock.fire("key",{});
      }
     }
     r.data=plain; r.enc=false;
@@ -232,7 +239,7 @@
    ls("tc_plm:"+m,JSON.stringify({salt:b64(salt),iter:ITER})); ls("tc_plk:"+m,b64(raw)); ls("tc_pls:"+m,null);
    hide(); await seal(true); P.closeSheet(); P.refresh();
    say(B("Password lock is ON","പാസ്‌വേഡ് ലോക്ക് ഓൺ ആയി"));
-   pushCloud();
+   pushCloud(); P.lock.fire("on",{});
   }catch(e){ sheetErr(B("Could not lock - try again","ലോക്ക് ചെയ്യാൻ പറ്റിയില്ല - വീണ്ടും ശ്രമിക്കുക")); }
  };
  /* ask for the CURRENT password: what = "off" | "change" */
@@ -255,7 +262,7 @@
    ls("tc_plm:"+m,null); ls("tc_plk:"+m,null); ls("tc_pls:"+m,null); ls("tc_pla:"+m,null);
    db.persVault=L("persVault").filter(function(r){ return String(r&&r.u||"")!==m; });
    hide(); try{ save(); }catch(e){}
-   P.closeSheet(); P.refresh(); say(B("Lock is OFF","ലോക്ക് ഓഫ് ആയി")); pushCloud(); return;
+   P.closeSheet(); P.refresh(); say(B("Lock is OFF","ലോക്ക് ഓഫ് ആയി")); pushCloud(); P.lock.fire("off",{oldRaw:raw}); return;
   }
   var a=($("tplP1")||{}).value||"", b=($("tplP2")||{}).value||"";
   if(a.length<6){ sheetErr(B("Password needs at least 6 characters","പാസ്‌വേഡിന് കുറഞ്ഞത് 6 അക്ഷരം വേണം")); return; }
@@ -263,7 +270,7 @@
   try{
    var salt=crypto.getRandomValues(new Uint8Array(16)), nr=await pbk(a,salt,ITER);
    ls("tc_plm:"+m,JSON.stringify({salt:b64(salt),iter:ITER})); ls("tc_plk:"+m,b64(nr)); ls("tc_pls:"+m,null);
-   await seal(true); P.closeSheet(); P.refresh(); say(B("Password changed","പാസ്‌വേഡ് മാറ്റി")); pushCloud();
+   await seal(true); P.closeSheet(); P.refresh(); say(B("Password changed","പാസ്‌വേഡ് മാറ്റി")); pushCloud(); P.lock.fire("change",{oldRaw:raw});
   }catch(e){ sheetErr(B("Could not change - try again","മാറ്റാൻ പറ്റിയില്ല - വീണ്ടും ശ്രമിക്കുക")); }
  };
  /* a locked copy arrived (cloud restore / backup file of an owner): open it with the password */
@@ -282,7 +289,7 @@
   if(!r){ sheetErr(B("Wrong password","പാസ്‌വേഡ് തെറ്റാണ്")); return; }
   var add=mergeSnap(r.o), m=me();
   ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(r.raw)); ls("tc_pla:"+m,String(v.ts||0)); ls("tc_pls:"+m,null);
-  hide(); schedule(500);
+  hide(); schedule(500); P.lock.fire("key",{});
   P.closeSheet(); P.refresh();
   say(B(add+" entries added - lock is ON for this phone","ചേർത്തത്: "+add+" എൻട്രികൾ - ഈ ഫോണിലും ലോക്ക് ഓൺ"));
  };
@@ -342,14 +349,14 @@
   var h='<div class="tpC" id="tplCard"><b>🔒 '+E(B("Password lock for backups","ബാക്കപ്പിന് പാസ്‌വേഡ് ലോക്ക്"))+'</b>';
   if(!sup()) return h+'<div class="tpM">'+E(B("This browser cannot lock with a password.","ഈ ബ്രൗസറിൽ പാസ്‌വേഡ് ലോക്ക് പറ്റില്ല."))+'</div></div>';
   if(s){
-   h+='<div class="tpNote tpOkN">✅ '+E(B("ON - your accounts, and (Premium owners) your whole cloud backup - bills, trips, customers - are locked (AES-256). Only your password opens them.","ഓൺ - നിങ്ങളുടെ കണക്കുകളും (Premium ഓണർമാർക്ക്) ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ - ലോക്ക് ചെയ്തതാണ് (AES-256). നിങ്ങളുടെ പാസ്‌വേഡ് കൊണ്ട് മാത്രമേ തുറക്കൂ."))+'</div>'+
+   h+='<div class="tpNote tpOkN">✅ '+E(B("ON - your accounts, your shop book, and (Premium owners) your whole cloud backup - bills, trips, customers - are locked (AES-256). Only your password opens them.","ഓൺ - നിങ്ങളുടെ കണക്കുകളും ഷോപ്പ് ബുക്കും (Premium ഓണർമാർക്ക്) ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ - ലോക്ക് ചെയ്തതാണ് (AES-256). നിങ്ങളുടെ പാസ്‌വേഡ് കൊണ്ട് മാത്രമേ തുറക്കൂ."))+'</div>'+
     '<div class="tpM">'+E(B("A forgotten password cannot be recovered by anybody.","മറന്ന പാസ്‌വേഡ് ആർക്കും തിരിച്ചെടുക്കാൻ പറ്റില്ല."))+'</div>'+
     '<button class="tpBtn g s" onclick="tpLockAskCur(\'change\')">'+E(B("Change password","പാസ്‌വേഡ് മാറ്റുക"))+'</button><button class="tpBtn r s" onclick="tpLockAskCur(\'off\')">'+E(B("Turn off","ഓഫ് ചെയ്യുക"))+'</button>';
   }else{
-   h+='<div class="tpM">'+E(B("Optional. Lock your accounts - and, for Premium owners, the whole cloud backup (bills, trips, customers) - with a password only you know. Nobody else, not even us, can read them then.","ഓപ്ഷണൽ. നിങ്ങളുടെ കണക്കുകളും (Premium ഓണർമാർക്ക് ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ) നിങ്ങൾക്ക് മാത്രം അറിയാവുന്ന പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യാം. അപ്പോൾ മറ്റാർക്കും, ഞങ്ങൾക്കും, വായിക്കാൻ പറ്റില്ല."))+'</div>'+
+   h+='<div class="tpM">'+E(B("Optional. Lock your accounts, your shop book and - for Premium owners - the whole cloud backup (bills, trips, customers) with ONE password only you know. Nobody else, not even us, can read them then.","ഓപ്ഷണൽ. നിങ്ങളുടെ കണക്കുകൾ, ഷോപ്പ് ബുക്ക്, (Premium ഓണർമാർക്ക്) ക്ലൗഡ് ബാക്കപ്പ് മുഴുവനും - ബില്ലുകൾ, ട്രിപ്പുകൾ, കസ്റ്റമർമാർ - നിങ്ങൾക്ക് മാത്രം അറിയാവുന്ന ഒരൊറ്റ പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യാം. അപ്പോൾ മറ്റാർക്കും, ഞങ്ങൾക്കും, വായിക്കാൻ പറ്റില്ല."))+'</div>'+
     '<button class="tpBtn" onclick="tpLockAsk()">🔒 '+E(B("Turn on password lock","പാസ്‌വേഡ് ലോക്ക് ഓൺ ചെയ്യുക"))+'</button>';
   }
-  return h+'</div>';
+  return h+(P.lock.extra?P.lock.extra():"")+'</div>';
  }
  function foundHtml(){
   if(on()||!newVault()) return "";
@@ -373,6 +380,22 @@
  if(typeof ob==="function") SC.backup=function(){
   ob.apply(this,arguments);
   try{ var body=$("tpBody"); if(body) body.insertAdjacentHTML("afterbegin",foundHtml()+cardHtml()); }catch(e){}
+ };
+
+ /* ---------- one line for other pages (Cloud Backup window, shop Settings): where the lock is and whether it is on ---------- */
+ P.lock.line=function(){
+  if(!sup()) return "";
+  var st=on();
+  return '<div style="margin:10px 0;padding:10px 12px;border-radius:10px;background:'+(st?"#e3f3ea":"#eef3f7")+';border:1px solid '+(st?"#b9dcc6":"#d3dee6")+';font-size:13px;color:#12303f;line-height:1.5">'+
+   (st?'🔒 <b>'+E(B("Password lock is ON","പാസ്‌വേഡ് ലോക്ക് ഓൺ ആണ്"))+'</b> '+E(B("(accounts, shop book, cloud backup)","(കണക്കുകൾ, ഷോപ്പ് ബുക്ക്, ക്ലൗഡ് ബാക്കപ്പ്)"))
+    :'🔓 '+E(B("Want to lock your data with a password? (optional)","ഡാറ്റ പാസ്‌വേഡ് കൊണ്ട് ലോക്ക് ചെയ്യണോ? (ഓപ്ഷണൽ)")))+
+   ' <a href="javascript:void(0)" onclick="tpGo(\'backup\')" style="color:#0b6b78;font-weight:800">'+E(B("My Accounts › Backup","എന്റെ കണക്കുകൾ › Backup"))+'</a></div>';
+ };
+ var otb=window.tcOpenBackupPage;
+ if(typeof otb==="function") window.tcOpenBackupPage=async function(){
+  var r=await otb.apply(this,arguments);
+  try{ var s=document.getElementById("tcBkStatus"); if(s&&!document.getElementById("tplLine")){ s.insertAdjacentHTML("afterend",'<div id="tplLine">'+P.lock.line()+'</div>'); } }catch(e){}
+  return r;
  };
 
  /* ---------- start ---------- */
