@@ -217,6 +217,11 @@
  /* shop settings kept in the book (records k:'c'): kind aquarium|general (an older book with products and no choice = aquarium), name, wageOn, wage, mgdef, gst, gstin */
  function cfg(k,def){ return cfgVal(calc().cfg,k,def); }
  function kind(){ var k=cfg("kind",""); if(k) return k; return products({all:true}).length?"aquarium":""; }
+ /* wage (for whoever sells): OFF unless the shop turned it on in Settings - or its book already has "Wage" expenses (an older book that used it keeps it, rate 10).
+    The rate is "Rs. per full Rs.100 sold"; the name shown is the shop's own (wageName, default "Wage"). */
+ function hasWage(){ return calc().live.some(function(r){ return r.k==="e"&&r.x&&r.x.c==="Wage"; }); }
+ function wageOn(){ return cfg("wageOn",hasWage()?"1":"0")==="1"; }
+ function wageRate(){ var v=parseFloat(cfg("wage","")); return isNaN(v)?(hasWage()?10:0):v; }
  function categories(){
   var set={}; (kind()==="aquarium"?CATS:GEN_CATS).forEach(function(c){ set[c]=1; });
   products({all:true}).forEach(function(p){ if(p.c) set[p.c]=1; });
@@ -259,8 +264,8 @@
    }
   });
   R.profit=R.sales-R.cost; R.net=R.profit-R.exp-R.dead;
-  var pct=+cfgVal(M.cfg,"wage",10);
-  R.wage=Math.floor(R.sales/100)*pct;   /* Rs.10 for every full Rs.100 sold (the sheet's rule) */
+  var pct=wageRate();
+  R.wage=Math.floor(R.sales/100)*pct;   /* the shop's rate (e.g. Rs.10) for every full Rs.100 sold */
   return R;
  }
  /* credit given to customers and dues to suppliers (open balances, all dates) */
@@ -300,7 +305,7 @@
  function offChange(f){ listeners=listeners.filter(function(g){ return g!==f; }); }
 
  load();
- window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
+ window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
   pay:payParts,report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
