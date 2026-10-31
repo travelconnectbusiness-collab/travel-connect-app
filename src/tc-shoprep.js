@@ -71,7 +71,7 @@
   var M=SH.calc(), rows=M.live.filter(function(r){ return r.x&&r.x.p===id&&(r.k==="b"||r.k==="s"||r.k==="m"||r.k==="a"); }).sort(function(a,b){ return a.d<b.d?1:a.d>b.d?-1:(a.ts<b.ts?1:-1); }).slice(0,25);
   var nm={b:T("വാങ്ങി","Bought"),s:T("വിറ്റു","Sold"),m:T("നഷ്ടം","Loss"),a:T("തിരുത്തൽ","Correction")};
   UI.sheet('<h3 style="margin:0">'+E(T("ചരിത്രം","History"))+'</h3>'+(rows.length?rows.map(function(r){
-   var q=r.x.q; return '<div class="tsRow"><div>'+E(nm[r.k])+' <b>'+qty(q)+'</b><div class="tsM">'+E(UI.dmy(r.d))+(r.k==="s"?' · '+money(r.x.pr):'')+(r.k==="b"?' · ₹'+(+r.x.rt).toFixed(2):'')+'</div></div><div><button class="tsX" onclick="tsCancel(\''+r.id+'\')">✕</button></div></div>';
+   var q=r.x.q; return '<div class="tsRow"><div>'+E(nm[r.k])+' <b>'+qty(q)+'</b><div class="tsM">'+E(UI.dmy(r.d))+(r.k==="s"?' · '+UI.rt(r.x.rp||r.x.pr):'')+(r.k==="b"?' · ₹'+(+r.x.rt).toFixed(2):'')+'</div></div><div><button class="tsX" onclick="tsCancel(\''+r.id+'\')">✕</button></div></div>';
   }).join(""):'<div class="tsM">'+E(T("ഒന്നുമില്ല","Nothing"))+'</div>')+'<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
 
@@ -81,13 +81,13 @@
  var X={c:"Miscellaneous"};
  UI.screen("expense",function(){
   var t=H.today(), mo=t.slice(0,7), R=SH.report(mo+"-01",t);
-  UI.body().innerHTML=
+  UI.body().innerHTML=UI.stkBox()+
    '<div class="tsC"><label style="margin-top:0">'+E(T("എന്തിന്?","For what?"))+'</label><div id="exC">'+EC.map(function(c){ return '<span class="tsChip'+(X.c===c[0]?" on":"")+'" onclick="tsExC(\''+c[0]+'\')">'+E(T(c[1],c[2]))+'</span>'; }).join("")+'</div>'+
    '<label>'+E(T("തുക","Amount"))+'</label><input id="exA" type="number" inputmode="decimal">'+
    '<label>'+E(T("കുറിപ്പ് (വേണമെങ്കിൽ)","Note (optional)"))+'</label><input id="exN">'+UI.dateRow("exD",t)+
    '<button class="tsBtn" onclick="tsExSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button></div>'+
    '<div class="tsC"><b>'+E(T("ഈ മാസത്തെ ചെലവ് ","This month: "))+money(R.exp)+'</b>'+
-   R.expList.slice().reverse().slice(0,15).map(function(r){ return '<div class="tsRow"><div>'+E(ecName(r.x.c))+'<div class="tsM">'+E(UI.dmy(r.d))+(r.x.t?' · '+E(r.x.t):'')+'</div></div><div><b>'+money(r.x.a)+'</b> <button class="tsX" onclick="tsCancel(\''+r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
+   R.expList.slice().reverse().slice(0,15).map(function(r){ return '<div class="tsRow" onclick="if(window.tsDyExp)tsDyExp(\''+r.id+'\')"><div>'+E(ecName(r.x.c))+'<div class="tsM">'+E(UI.dmy(r.d))+(r.x.t?' · '+E(r.x.t):'')+'</div></div><div><b>'+money(r.x.a)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancel(\''+r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
  },function(){ return "🧾 "+T("ചെലവ്","Expenses"); });
  window.tsExC=function(c){ X.c=c; var ch=document.querySelectorAll("#exC .tsChip"); for(var i=0;i<ch.length;i++) ch[i].classList.toggle("on",EC[i][0]===c); };
  window.tsExSave=function(){
