@@ -18,7 +18,7 @@
    PASSWORD-LOCKED BACKUP (2026-10-30, tc-perslock.js on the phone): a person who switched the password lock on sends
    { __enc:1, vault:{ salt, iter, iv, ct, ts, n } } - the WHOLE payload encrypted on the phone (AES-256-GCM, key from a password
    only that person knows). The server stores it as sent and cannot read it; "n" is only the record count for the status line.
-   Rules: an encrypted backup skips the shrink check; a PLAIN backup never replaces an encrypted one unless force=true
+   Rules: an encrypted backup over an encrypted one is refused when its count n is smaller (would_shrink, force=true overrides); a PLAIN backup never replaces an encrypted one unless force=true
    (error locked_backup_exists) - so a freshly installed empty app cannot overwrite a locked backup by accident. */
 
 /* The phone adds more lists to the backup (tc-livetrip.js: liveTrips; tc-accbook.js: accVehicles, accEntries; tc-enq.js: bookings).
@@ -118,10 +118,17 @@ export async function onRequestPost({ request, env }) {
       if (oldEnc && !incoming.enc && !body.force) {
         return Response.json({ ok: false, error: "locked_backup_exists" }, { status: 409 });
       }
+      /* an ENCRYPTED backup over an encrypted one: the count n (real records, personal lists included) must not be smaller - a new / empty phone
+         with the same password can not wipe the real backup (31 Oct 2026: it did, because n was only 1 per vault) */
+      if (!body.force && incoming.enc && oldEnc && incoming.total < oldTotal) {
+        return Response.json({ ok: false, error: "would_shrink", server_total: oldTotal, local_total: incoming.total }, { status: 409 });
+      }
       if (!body.force && !incoming.enc && !oldEnc && incoming.total < oldTotal) {
         return Response.json({ ok: false, error: "would_shrink", server_total: oldTotal, local_total: incoming.total }, { status: 409 });
       }
       await env.FILES.put(base + "prev.json", oldText, { httpMetadata: { contentType: "application/json" } });
+      /* the biggest copy that ever got replaced by a smaller one stays as best.json (a second forced overwrite can not push it out of prev.json) */
+      if (incoming.total < oldTotal) await env.FILES.put(base + "best.json", oldText, { httpMetadata: { contentType: "application/json" } });
     }
     await env.FILES.put(base + "latest.json", text, { httpMetadata: { contentType: "application/json" } });
     return Response.json({ ok: true, savedAt: JSON.parse(text).savedAt, total: incoming.total, counts: incoming.counts, enc: !!incoming.enc });
