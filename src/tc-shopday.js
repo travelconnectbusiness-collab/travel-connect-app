@@ -92,7 +92,7 @@
   }
   if(mon.length){
    h+='<div class="tsC"><div class="tsRow" style="border:0"><b>💰 '+E(T("പണം കിട്ടിയത് / കൊടുത്തത്","Money received / paid"))+' ('+mon.length+')</b></div>'+mon.map(function(r){ var rc=r.x.t==="rc";
-    return '<div class="tsRow" onclick="tsDyMoney(\''+r.id+'\')"><div>'+E(rc?T("കിട്ടി: ","Received: "):T("കൊടുത്തു: ","Paid: "))+E((rc?r.x.cu:r.x.su)||"")+'<div class="tsM">'+(r.x.pm==="U"?"UPI":E(T("പണം","Cash")))+'</div>'+late(r)+'</div><div><b style="color:'+(rc?'#177044':'#7a5a14')+'">'+money(r.x.a)+'</b> ›</div></div>';
+    return '<div class="tsRow" onclick="tsDyMoney(\''+r.id+'\')"><div>'+E(rc?T("കിട്ടി: ","Received: "):T("കൊടുത്തു: ","Paid: "))+E((rc?r.x.cu:r.x.su)||"")+'<div class="tsM">'+E(UI.pmTxt(r.x))+'</div>'+late(r)+'</div><div><b style="color:'+(rc?'#177044':'#7a5a14')+'">'+money(r.x.a)+'</b> ›</div></div>';
    }).join("")+'</div>';
   }
   if(!goList.length&&!bl.length&&!exp.length&&!loss.length&&!mon.length) h+='<div class="tsC tsM" style="text-align:center">'+E(T("ഈ ദിവസം എൻട്രികൾ ഒന്നുമില്ല","Nothing entered for this day"))+'</div>';
@@ -217,12 +217,12 @@
 
  /* ---------- money received from a customer / paid to a supplier ---------- */
  window.tsDyMoney=function(id){
-  var r=rec(id); if(!r){ UI.closeSheet(); return; } var rc=r.x.t==="rc"; V.pm=r.x.pm==="U"?"U":"C";
+  var r=rec(id); if(!r){ UI.closeSheet(); return; } var rc=r.x.t==="rc"; V.pm=UI.mchipOk(r.x.pm);
   UI.sheet('<h3 style="margin:0">'+(rc?'💰 '+E(T("പണം കിട്ടി","Money received")):'💸 '+E(T("പണം കൊടുത്തു","Money paid")))+'</h3><div class="tsM">'+E((rc?r.x.cu:r.x.su)||"")+'</div>'+
-   '<label>'+E(T("തുക","Amount"))+'</label><input id="dyA" type="number" inputmode="decimal" value="'+E(r.x.a)+'" style="font-size:24px">'+pmChips(V.pm,"tsDyPm2")+UI.dateRow("dyDt",r.d)+
+   '<label>'+E(T("തുക","Amount"))+'</label><input id="dyA" type="number" inputmode="decimal" value="'+E(r.x.a)+'" style="font-size:24px">'+UI.mchips("dyPm",V.pm,"tsDyPm2")+UI.dateRow("dyDt",r.d)+
    '<button class="tsBtn" onclick="tsDyMoneySave(\''+id+'\')">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" style="color:#a12d2d" onclick="tsDyDel(\''+id+'\')">🗑 '+E(T("ഒഴിവാക്കുക","Delete"))+'</button><button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
- window.tsDyPm2=function(m){ V.pm=m; var c=document.querySelectorAll("#dyPm .tsChip"), ks=["C","U"]; for(var i=0;i<c.length;i++) c[i].classList.toggle("on",ks[i]===m); };
+ window.tsDyPm2=function(m){ V.pm=m; UI.mchipSet("dyPm",m); };
  window.tsDyMoneySave=function(id){
   var r=rec(id); if(!r) return; var a=num("dyA"); if(!(a>0)){ say(T("തുക നൽകുക","Enter the amount")); return; }
   SH.replace(id,Object.assign({},r.x,{a:a,pm:V.pm}),UI.dateVal("dyDt")); say(T("സേവ് ചെയ്തു","Saved")); UI.closeSheet(); UI.render();
