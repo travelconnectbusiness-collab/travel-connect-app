@@ -386,6 +386,11 @@
   };
   rd.readAsText(f);
  };
+ /* Premium: the Cloud Backup entry is hidden from the Menu while a shop is open (tc-menu.js), so My Accounts has its own way in */
+ window.tpCloudRestore=function(){
+  closePers();
+  setTimeout(function(){ try{ if(typeof tcOpenBackupPage==="function") tcOpenBackupPage(); }catch(e){} },450);
+ };
  SC.backup=function(){
   var cloud=(typeof tcBkEligible==="function")&&tcBkEligible(), last=(db.settings&&db.settings.persBkAt)||0;
   $("tpBody").innerHTML=
@@ -393,6 +398,8 @@
     '<div class="tpNote">📱 '+E(B("Stored only on this phone. Take a backup file and keep it in WhatsApp / Google Drive.","ഈ ഫോണിൽ മാത്രം. ബാക്കപ്പ് ഫയൽ എടുത്ത് WhatsApp / Google Drive-ൽ സൂക്ഷിക്കൂ."))+'</div>')+
    '<div class="tpC"><button class="tpBtn" style="margin-top:0" onclick="tpBkFile()">💾 '+E(B("Take backup file","ബാക്കപ്പ് ഫയൽ എടുക്കുക"))+'</button>'+
     '<div class="tpM" style="margin-top:6px">'+E(B("Last backup file: ","അവസാന ബാക്കപ്പ് ഫയൽ: "))+(last?E(dmy(new Date(last).toISOString().slice(0,10))):E(B("never","ഇല്ല")))+'</div></div>'+
+   (cloud?'<div class="tpC"><button class="tpBtn g" style="margin-top:0" onclick="tpCloudRestore()">☁ '+E(B("Cloud Backup: restore on this phone","ക്ലൗഡ് ബാക്കപ്പ്: ഈ ഫോണിൽ തിരികെ ചേർക്കുക"))+'</button>'+
+    '<div class="tpM" style="margin-top:6px">'+E(B("Use this on a new / second phone to bring your accounts here. Adds only what is missing.","പുതിയ / രണ്ടാമത്തെ ഫോണിൽ നിങ്ങളുടെ കണക്കുകൾ കൊണ്ടുവരാൻ ഇത് ഉപയോഗിക്കുക. ഇല്ലാത്തവ മാത്രം ചേർക്കും."))+'</div></div>':'')+
    '<div class="tpC"><b>'+E(B("Restore from a backup file","ബാക്കപ്പ് ഫയലിൽ നിന്ന് തിരികെ ചേർക്കുക"))+'</b><div class="tpM">'+E(B("Adds only what is missing; nothing is overwritten.","ഇല്ലാത്തവ മാത്രം ചേർക്കും; നിലവിലുള്ളത് മാറില്ല."))+'</div>'+
     '<input type="file" accept=".json,application/json" onchange="tpRestoreFile(this)" style="margin-top:8px"></div>'+
    '<div class="tpC"><b>'+E(B("Export for Excel (CSV)","Excel-ന് (CSV)"))+'</b><div>'+
