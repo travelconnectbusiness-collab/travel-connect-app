@@ -1,6 +1,6 @@
 /* Shop book - credit customers and supplier dues (tc-shopcr.js, loaded by tc-regdocs.js after tc-shoprep.js).
    Home > "Credit & dues": two lists - what customers still owe (sales paid by "Credit" with a name) and what the shop still owes
-   suppliers (purchases where "Paid now" was less than the bill). Tap a name: the history, "Money received" / "Money paid" (cash or UPI, any date).
+   suppliers (purchases where "Paid now" was less than the bill). Tap a name: the history, "Money received" / "Money paid" (cash, UPI, card or bank, any date).
    Stored as ordinary book records (see tc-shop.js: kind "o" t:'rc' / t:'sp'; nothing new on the server). Sums come from SH.ledger(). */
 (function(){
  var SH=window.__tcShop, UI=window.__tcShopUi; if(!SH||!UI||!SH.ledger||window.__tcShopCr) return;
@@ -30,7 +30,7 @@
    '<button class="tsBtn" style="background:#1a8f4a" onclick="tsCrPay()">'+(isC?'💰 '+E(T("പണം കിട്ടി","Money received")):'💸 '+E(T("പണം കൊടുത്തു","Money paid")))+'</button>'+
    '<div style="margin-top:10px">'+rows.map(function(r){
      var x=r.x||{}, pay=r.k==="o", p=P[x.p], amt=pay?-(+x.a||0):(r.k==="s"?(SH.pay(x,(+x.q||0)*(+x.pr||0)).K||0):(+x.cr||0));
-     var what=pay?(isC?T("പണം കിട്ടി","Received"):T("പണം കൊടുത്തു","Paid"))+(x.pm==="U"?" · UPI":""):(p?p.n:"?")+" × "+qty(x.q)+(r.k==="b"&&x.bn?" · "+E(x.bn):"");
+     var what=pay?(isC?T("പണം കിട്ടി","Received"):T("പണം കൊടുത്തു","Paid"))+(x.pm&&x.pm!=="C"?" · "+UI.pmTxt(x):""):(p?p.n:"?")+" × "+qty(x.q)+(r.k==="b"&&x.bn?" · "+E(x.bn):"");
      return '<div class="tsRow"><div>'+E(what)+'<div class="tsM">'+E(UI.dmy(r.d))+(x.n?" · "+E(x.n):"")+'</div></div><div><b style="color:'+(amt<0?'#177044':'inherit')+'">'+(amt<0?"−":"")+money(Math.abs(amt))+'</b> <button class="tsX" onclick="tsCrCancel(\''+r.id+'\')">✕</button></div></div>'; }).join("")+'</div>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
@@ -42,12 +42,12 @@
   var c=V.cur, e=c&&ent(c.t,c.k); if(!e) return; V.pm="C"; var isC=c.t==="c";
   UI.sheet('<h3 style="margin:0">'+E(e.n)+'</h3><div class="tsM">'+E(isC?T("കിട്ടിയ തുക","Amount received"):T("കൊടുത്ത തുക","Amount paid"))+'</div>'+
    '<input id="crA" type="number" inputmode="decimal" value="'+E(e.owed>0?e.owed:"")+'" style="font-size:26px">'+
-   '<div id="crPm"><span class="tsChip on" onclick="tsCrPm(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip" onclick="tsCrPm(\'U\')">📱 UPI</span></div>'+
+   UI.mchips("crPm","C","tsCrPm")+
    UI.dateRow("crD",H.today())+
    '<button class="tsBtn" style="background:#1a8f4a;font-size:21px;padding:17px" onclick="tsCrPaySave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" onclick="tsCrOpen(\''+c.t+'\',\''+enc(e.k)+'\')">← '+E(T("പിന്നോട്ട്","Back"))+'</button>');
   var a=$("crA"); if(a){ a.focus(); a.select(); }
  };
- window.tsCrPm=function(m){ V.pm=m; var c=document.querySelectorAll("#crPm .tsChip"); if(c.length>1){ c[0].classList.toggle("on",m==="C"); c[1].classList.toggle("on",m==="U"); } };
+ window.tsCrPm=function(m){ V.pm=m; UI.mchipSet("crPm",m); };
  window.tsCrPaySave=function(){
   var c=V.cur, e=c&&ent(c.t,c.k); if(!e) return;
   var a=num("crA"); if(!(a>0)){ say(T("തുക നൽകുക","Enter the amount")); return; }
