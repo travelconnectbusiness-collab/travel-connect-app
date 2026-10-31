@@ -64,7 +64,7 @@
  function setCfg(k,v){ return add("c",{k:k,v:v}); }
 
  /* ---------- sync ---------- */
- function later(ms){ clearTimeout(syncT); syncT=setTimeout(sync,ms||2500); }
+ function later(ms){ clearTimeout(syncT); syncT=setTimeout(sync,ms||800); }
  function api(action,body){
   return fetch("/api/shop?action="+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){
    return r.json().catch(function(){ return {ok:false,error:"http_"+r.status}; }).then(function(j){ if(!j.ok&&!j.error) j.error="http_"+r.status; return j; });
