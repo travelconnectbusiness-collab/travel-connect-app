@@ -29,7 +29,7 @@
   UI.sheet('<h3 style="margin:0">'+E(e.n)+'</h3><div class="tsTot" style="color:'+(isC?'#a12d2d':'#7a5a14')+'">'+money(Math.max(0,e.owed))+'</div><div class="tsM">'+E(isC?T("ഇത്രയും കിട്ടാനുണ്ട്","still to get"):T("ഇത്രയും കൊടുക്കാനുണ്ട്","still to pay"))+(e.owed<-0.004?' · '+E(T("മുൻകൂർ കിട്ടി/കൊടുത്തത് ","advance "))+money(-e.owed):'')+'</div>'+
    '<button class="tsBtn" style="background:#1a8f4a" onclick="tsCrPay()">'+(isC?'💰 '+E(T("പണം കിട്ടി","Money received")):'💸 '+E(T("പണം കൊടുത്തു","Money paid")))+'</button>'+
    '<div style="margin-top:10px">'+rows.map(function(r){
-     var x=r.x||{}, pay=r.k==="o", p=P[x.p], amt=pay?-(+x.a||0):(r.k==="s"?(+x.q||0)*(+x.pr||0):(+x.cr||0));
+     var x=r.x||{}, pay=r.k==="o", p=P[x.p], amt=pay?-(+x.a||0):(r.k==="s"?(SH.pay(x,(+x.q||0)*(+x.pr||0)).K||0):(+x.cr||0));
      var what=pay?(isC?T("പണം കിട്ടി","Received"):T("പണം കൊടുത്തു","Paid"))+(x.pm==="U"?" · UPI":""):(p?p.n:"?")+" × "+qty(x.q)+(r.k==="b"&&x.bn?" · "+E(x.bn):"");
      return '<div class="tsRow"><div>'+E(what)+'<div class="tsM">'+E(UI.dmy(r.d))+(x.n?" · "+E(x.n):"")+'</div></div><div><b style="color:'+(amt<0?'#177044':'inherit')+'">'+(amt<0?"−":"")+money(Math.abs(amt))+'</b> <button class="tsX" onclick="tsCrCancel(\''+r.id+'\')">✕</button></div></div>'; }).join("")+'</div>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
