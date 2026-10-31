@@ -70,7 +70,7 @@
    var st=0; goList.forEach(function(g){ g.tot=0; g.recs.forEach(function(r){ g.tot+=(+r.x.q||0)*(+r.x.pr||0); }); st+=g.tot; });
    h+='<div class="tsC"><div class="tsRow" style="border:0"><b>🛒 '+E(T("വിൽപ്പന","Sales"))+' ('+goList.length+')</b><b>'+money(st)+'</b></div>'+goList.map(function(g){
     var names=g.recs.map(function(r){ var p=P[r.x.p]; return (p?p.n:"?")+(+r.x.q!==1?" ×"+qty(r.x.q):""); }).join(", "); if(names.length>70) names=names.slice(0,68)+"…";
-    return '<div class="tsRow" onclick="tsDySale(\''+enc(g.key)+'\')"><div>'+E(names)+'<div class="tsM">'+E(pmTxt(g.recs[0].x))+'</div>'+late(g.recs[0])+'</div><div><b>'+money(g.tot)+'</b> ›</div></div>';
+    return '<div class="tsRow" onclick="tsDySale(\''+enc(g.key)+'\')"><div>'+E(names)+'<div class="tsM">'+E(pmTxt(g.recs[0].x))+'</div>'+(g.recs[0].x.no?'<div class="tsM">📝 '+E(g.recs[0].x.no)+'</div>':'')+late(g.recs[0])+'</div><div><b>'+money(g.tot)+'</b> ›</div></div>';
    }).join("")+'</div>';
   }
   if(bl.length){
@@ -112,14 +112,16 @@
  window.tsDySale=function(k){
   var key=decodeURIComponent(k), g=saleGroup(key); if(!g){ UI.closeSheet(); return; }
   var tot=0, x0=g.recs[0].x;
-  var lines=g.recs.map(function(r){ var p=g.P[r.x.p], t=(+r.x.q||0)*(+r.x.pr||0); tot+=t; return '<div class="tsRow"><div>'+E(p?p.n:"?")+'<div class="tsM">'+qty(r.x.q)+' × '+money(r.x.pr)+'</div></div><b>'+money(t)+'</b></div>'; }).join("");
-  UI.sheet('<h3 style="margin:0">🛒 '+E(T("വിൽപ്പന","Sale"))+' · '+E(dmy(g.recs[0].d))+'</h3><div class="tsM">'+E(pmTxt(x0))+'</div><div style="margin-top:8px">'+lines+'</div>'+
+  var lines=g.recs.map(function(r){ var p=g.P[r.x.p], t=(+r.x.q||0)*(+r.x.pr||0); tot+=t; return '<div class="tsRow"><div>'+E(p?p.n:"?")+'<div class="tsM">'+qty(r.x.q)+(p&&p.u?" "+E(p.u):"")+' × '+UI.rt(r.x.rp||r.x.pr)+'</div></div><b>'+money(t)+'</b></div>'; }).join("");
+  UI.sheet('<h3 style="margin:0">🛒 '+E(T("വിൽപ്പന","Sale"))+' · '+E(dmy(g.recs[0].d))+'</h3><div class="tsM">'+E(pmTxt(x0))+'</div>'+(x0.no?'<div class="tsM">📝 '+E(x0.no)+'</div>':'')+'<div style="margin-top:8px">'+lines+'</div>'+
    '<div class="tsRow"><span><b>'+E(T("ആകെ","Total"))+'</b></span><span class="tsTot">'+money(tot)+'</span></div>'+
    (g.dk?'<div class="tsM" style="margin:8px 0">'+E(T("ഇത് ഒരു ഇൻവോയ്സ് / ബില്ലിൽ നിന്ന് വന്നതാണ് - മാറ്റം ആ ഇൻവോയ്സിൽ വരുത്തുക.","This came from an invoice / bill - change it in that document."))+'</div>'+
      (typeof window.tcDocsOpen==="function"?'<button class="tsBtn" onclick="tsCloseSheet();tcDocsOpen(\'view\',{id:\''+E(x0.dk)+'\'})">🧾 '+E(T("ഇൻവോയ്സ് തുറക്കുക","Open the document"))+'</button>':""):
      '<button class="tsBtn" onclick="tsDySaleEdit(\''+enc(key)+'\')">✏ '+E(T("തിരുത്തുക","Edit"))+'</button><button class="tsBtn g" style="color:#a12d2d" onclick="tsDySaleDel(\''+enc(key)+'\')">🗑 '+E(T("വിൽപ്പന റദ്ദാക്കുക","Cancel this sale"))+'</button>')+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
+ /* tapping a sale in a list goes straight to its edit form (an entry made from an invoice / bill opens the plain view instead) */
+ window.tsDySaleGo=function(k){ var g=saleGroup(decodeURIComponent(k)); if(!g){ UI.closeSheet(); return; } if(g.dk) window.tsDySale(k); else window.tsDySaleEdit(k); };
  window.tsDySaleDel=function(k){
   var g=saleGroup(decodeURIComponent(k)); if(!g) return;
   if(!confirm(T("ഈ വിൽപ്പന റദ്ദാക്കട്ടേ? സാധനങ്ങൾ സ്റ്റോക്കിലേക്ക് തിരിച്ചു വരും.","Cancel this sale? The items go back to stock."))) return;
@@ -136,21 +138,27 @@
  };
  window.tsDySaleEdit=function(k){
   var key=decodeURIComponent(k), g=saleGroup(key); if(!g) return; var x0=g.recs[0].x; V.pm=x0.pm==="U"||x0.pm==="K"?x0.pm:"C";
-  var lines=g.recs.map(function(r,i){ var p=g.P[r.x.p];
-   return '<div style="margin-top:8px"><b>'+E(p?p.n:"?")+'</b><div class="tsG"><div><label>'+E(T("എണ്ണം","Quantity"))+'</label><input id="dyQ'+i+'" type="number" inputmode="decimal" value="'+E(r.x.q)+'"></div><div><label>'+E(T("വില (ഒന്നിന്)","Price (each)"))+'</label><input id="dyP'+i+'" type="number" inputmode="decimal" value="'+E(r.x.pr)+'"></div></div></div>'; }).join("");
+  var lines=g.recs.map(function(r,i){ var p=g.P[r.x.p], q0=+r.x.q||0, rate=+r.x.rp||+r.x.pr||0, tt=r2(q0*(+r.x.pr||0));
+   return '<div style="margin-top:8px"><b>'+E(p?p.n:"?")+'</b><div class="tsG"><div><label>'+E(T("എണ്ണം","Quantity")+(p&&p.u?" ("+p.u+")":""))+'</label><input id="dyQ'+i+'" type="number" inputmode="decimal" value="'+E(r.x.q)+'" oninput="tsDyCalc('+i+',\'q\')"></div><div><label>'+E(T("വില ","Price ")+"("+UI.perTxt(p&&p.u||"")+")")+'</label><input id="dyP'+i+'" type="number" inputmode="decimal" value="'+E(rate)+'" oninput="tsDyCalc('+i+',\'p\')"></div></div><label>'+E(T("ആകെ തുക","Total"))+'</label><input id="dyT'+i+'" type="number" inputmode="decimal" value="'+E(tt)+'" data-t0="'+E(tt)+'"></div>'; }).join("");
   UI.sheet('<h3 style="margin:0">✏ '+E(T("വിൽപ്പന തിരുത്തുക","Edit sale"))+'</h3><div class="tsM">'+E(T("ഒരു സാധനം ഒഴിവാക്കാൻ എണ്ണം 0 ആക്കുക","Set the quantity to 0 to remove an item"))+'</div>'+lines+
    '<div style="margin-top:8px">'+pmChips(V.pm,"tsDyPm")+'</div>'+
    '<div id="dyCuW" style="display:'+(V.pm==="K"?"block":"none")+'"><label>'+E(T("ആർക്കാണ് കടം? (പേര്)","Credit to whom? (name)"))+'</label><input id="dyCu" list="dyCuL" value="'+E(x0.cu||"")+'"><datalist id="dyCuL">'+SH.ledger().cust.map(function(c){ return '<option value="'+E(c.n)+'">'; }).join("")+'</datalist></div>'+
    UI.dateRow("dyDt",g.recs[0].d)+
-   '<button class="tsBtn" onclick="tsDySaleSave(\''+enc(key)+'\')">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" onclick="tsDySale(\''+enc(key)+'\')">← '+E(T("പിന്നോട്ട്","Back"))+'</button>');
+   '<label>'+E(T("കുറിപ്പ് (വേണമെങ്കിൽ)","Note (optional)"))+'</label><input id="dyNo" maxlength="80" value="'+E(x0.no||"")+'" placeholder="'+E(T("ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"))+'">'+
+   '<button class="tsBtn" onclick="tsDySaleSave(\''+enc(key)+'\')">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" style="color:#a12d2d" onclick="tsDySaleDel(\''+enc(key)+'\')">🗑 '+E(T("വിൽപ്പന റദ്ദാക്കുക","Cancel this sale"))+'</button><button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
+ window.tsDyCalc=function(i,src){ var q=num("dyQ"+i), p=num("dyP"+i), e=$("dyT"+i); if(e) e.value=r2(q*p)||""; };
  window.tsDySaleSave=function(k){
   var key=decodeURIComponent(k), g=saleGroup(key); if(!g) return;
   var cu=($("dyCu")&&$("dyCu").value||"").replace(/\s+/g," ").trim(), d=UI.dateVal("dyDt"), keep=[];
   for(var i=0;i<g.recs.length;i++){
-   var q=num("dyQ"+i), pr=num("dyP"+i);
+   var q=num("dyQ"+i), pr=num("dyP"+i), tt=num("dyT"+i), rp=null;
    if(isNaN(q)||q<0||isNaN(pr)||pr<0){ say(T("എണ്ണമോ വിലയോ ശരിയല്ല","Quantity or price is not valid")); return; }
-   if(q>0){ if(!(pr>0)){ say(T("വില നൽകുക","Enter the price")); return; } keep.push({r:g.recs[i],q:q,pr:pr}); }
+   if(q>0){ if(!(pr>0)){ say(T("വില നൽകുക","Enter the price")); return; }
+    var t0=parseFloat($("dyT"+i).getAttribute("data-t0")), touched=Math.abs(tt-t0)>0.004, o=g.recs[i].x;
+    if(tt>0&&touched&&Math.abs(tt-q*pr)>0.004){ rp=pr; pr=tt/q; }   /* a total different from quantity x rate: the rate stays as typed, the total is exactly what was typed */
+    else if(!touched&&Math.abs(q-(+o.q||0))<1e-9&&Math.abs(pr-(+o.rp||+o.pr||0))<1e-9){ pr=+o.pr; rp=o.rp||null; }   /* nothing changed in this line: keep it exactly as it was */
+    keep.push({r:g.recs[i],q:q,pr:pr,rp:rp}); }
   }
   if(!keep.length){ say(T("എല്ലാ സാധനങ്ങളും ഒഴിവാക്കി - 'വിൽപ്പന റദ്ദാക്കുക' ഉപയോഗിക്കുക","All items removed - use 'Cancel this sale'")); return; }
   if(V.pm==="K"&&!cu){ say(T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")); return; }
@@ -158,7 +166,8 @@
    if(pp&&!pp.u&&!pp.nt&&Math.abs(keep[j].q-Math.round(keep[j].q))>1e-9&&!confirm(T(pp.n+": എണ്ണം "+qty(keep[j].q)+" ആണ് - പൂർണ്ണസംഖ്യ അല്ല. ഇങ്ങനെ തന്നെ സേവ് ചെയ്യട്ടേ?",pp.n+": the count is "+qty(keep[j].q)+" - not a whole number. Save like this?"))) return; }
   g.recs.forEach(function(r){ SH.cancel(r.id); });
   var gid=H.uid();
-  keep.forEach(function(z){ var x=Object.assign({},z.r.x,{q:z.q,pr:z.pr,pm:V.pm,g:gid}); if(V.pm==="K") x.cu=cu; else delete x.cu; SH.add("s",x,d); });
+  var no=($("dyNo")&&$("dyNo").value||"").replace(/\s+/g," ").trim().slice(0,80);
+  keep.forEach(function(z){ var x=Object.assign({},z.r.x,{q:z.q,pr:z.pr,pm:V.pm,g:gid}); if(z.rp) x.rp=z.rp; else delete x.rp; if(no) x.no=no; else delete x.no; if(V.pm==="K") x.cu=cu; else delete x.cu; SH.add("s",x,d); });
   say(T("സേവ് ചെയ്തു","Saved")); UI.closeSheet(); UI.render();
  };
 
