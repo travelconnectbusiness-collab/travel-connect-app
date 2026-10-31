@@ -398,6 +398,8 @@ const MARKERS = [
   ["src/tc-shopui.js", "tsCancelBill", "Shop: cancel a whole bill from today's list"],
   ["src/tc-shopui.js", "function deferEntry", "Shop opened by itself at app start: the history entry is added at the first tap, so Back goes to the Dashboard (not out of the app)"],
   ["src/tc-shopui.js", "function mchips", "Shop: Cash / UPI / Card / Bank chips for money received and paid"],
+  ["src/tc-shop.js", "function wageOn", "Shop wage is OFF unless the shop turns it on (or already paid a wage); own rate, no built-in 10 per 100"],
+  ["src/tc-shopset.js", "stWn", "Shop Settings: the shop's own name for the wage"],
   ["src/tc-shopset.js", "lock.line", "Shop Settings shows where the password lock is"],
   ["functions/api/shop.js", "locked_book", "Shop server: refuses a plain record while the book is locked"],
   ["functions/api/shop.js", "action === \"reseal\"", "Shop server: reseal replaces the payload of existing records (lock on / off / password change)"],
