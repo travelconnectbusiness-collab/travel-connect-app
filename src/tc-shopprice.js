@@ -163,7 +163,7 @@
  /* ---------- the app icon's long-press shortcut "Shop accounts" (manifest.webmanifest, url /#shop) ----------
     A fresh start with #shop is handled by tc-shopui.js; this covers the app being open already (the address changes to #shop without a reload) */
  window.addEventListener("hashchange",function(){
-  try{ if(location.hash==="#shop"&&lsGet("tc_user")&&!UI.isOpen()){ var u=getCurrentUser(); if(u&&u.role!=="customer") UI.open("home"); } }catch(e){}
+  try{ if(location.hash==="#shop"&&lsGet("tc_user")&&!UI.isOpen()){ var u=getCurrentUser(); if(u&&u.role!=="customer") UI.open("home",false,true); } }catch(e){}
  });
 
  /* ---------- open the shop first (this phone only) ---------- */
@@ -178,7 +178,7 @@
     if(UI.isOpen()){ done=true; clearInterval(t); return; }
     var u=getCurrentUser();
     if(!u||u.role==="customer"){ clearInterval(t); return; }
-    if(window.__tcShopIsShopPage&&window.__tcShopIsShopPage()){ done=true; clearInterval(t); UI.open("home"); }
+    if(window.__tcShopIsShopPage&&window.__tcShopIsShopPage()){ done=true; clearInterval(t); UI.open("home",false,true); }
    }catch(e){}
   },500);
  })();
