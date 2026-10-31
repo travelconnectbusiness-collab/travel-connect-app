@@ -1,6 +1,6 @@
 /* Shop book - screens, part 2 (tc-shoprep.js, loaded by tc-regdocs.js after tc-shopui.js).
    Stock (fish / items / running low, tap an item for price, cost, history, "correct the count"), Expenses, and "Today's account"
-   (day and month: sales, cash / UPI, profit, expenses, dead-fish cost, net, the mother's wage = Rs.10 for every full Rs.100 sold,
+   (day and month: sales, cash / UPI, profit, expenses, dead-fish cost, net, the wage (optional, the shop's own rate per full Rs.100 sold),
    Excel of the whole book). Data and sums from window.__tcShop; screens are added to window.__tcShopUi.
    "Hide profit" (home screen) hides cost, profit and stock value on this phone - for the shop's phone. */
 (function(){
@@ -128,9 +128,9 @@
     gr.map(function(g){ return '<div class="tsM" style="margin-top:4px">'+g.rate+'% · '+E(T("വിൽപ്പന ","sales "))+money(g.outBase)+' + '+money(g.outTax)+' · '+E(T("വാങ്ങൽ ","bought "))+money(g.inBase)+' + '+money(g.inTax)+'</div>'; }).join("")+'</div>';
   }
   if(isDay){
-   if(SH.cfg("wageOn",isAq()?"1":"0")==="1"){
+   if(SH.wageOn()){
    var left=Math.max(0,R.wage-R.wagePaid);
-   h+='<div class="tsC"><b>'+E(isAq()?T("അമ്മയുടെ കൂലി","Wage"):T("കൂലി","Wage"))+'</b> <span class="tsM">('+E(T("100 രൂപയ്ക്ക് "+SH.cfg("wage",10),SH.cfg("wage",10)+" per 100"))+')</span><div class="tsRow"><span>'+E(T("ഇന്നത്തെ കൂലി","Wage for the day"))+'</span><b>'+money(R.wage)+'</b></div>'+
+   h+='<div class="tsC"><b>'+E(SH.cfg("wageName","")||T("കൂലി","Wage"))+'</b> <span class="tsM">('+E(T("100 രൂപയ്ക്ക് "+SH.wageRate(),SH.wageRate()+" per 100"))+')</span><div class="tsRow"><span>'+E(T("ഇന്നത്തെ കൂലി","Wage for the day"))+'</span><b>'+money(R.wage)+'</b></div>'+
     (R.wagePaid?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(R.wagePaid)+'</b></div>':'')+
     (left>0?'<button class="tsBtn" onclick="tsRpWage('+left+')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+' · '+money(left)+'</button>':'')+'</div>';
    }
@@ -157,7 +157,7 @@
  };
  window.tsRpWageSave=function(){
   var a=num("wgA"); if(!(a>0)) return;
-  SH.add("e",{c:"Wage",a:a,t:T("അമ്മയുടെ കൂലി","Wage")},V.rep.d); UI.render(); say(T("സേവ് ചെയ്തു","Saved"));
+  SH.add("e",{c:"Wage",a:a,t:SH.cfg("wageName","")||T("കൂലി","Wage")},V.rep.d); UI.render(); say(T("സേവ് ചെയ്തു","Saved"));
  };
 
  /* ================= EXCEL ================= */
