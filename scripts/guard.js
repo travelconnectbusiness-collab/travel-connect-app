@@ -379,6 +379,7 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-shoplock.js", "tc-regdocs.js loads tc-shoplock.js"],
   ["src/tc-shoplock.js", "repairJunk", "Shop book: encrypted rows stored as plain records by an old app version are thrown out and pulled again"],
   ["src/tc-shoplock.js", "isAuth", "Shop book: red 'phone not logged in' card on the shop Home when the server refuses the device"],
+  ["src/tc-pers.js", "tpCloudRestore", "My Accounts > Backup: Premium button into the Cloud Backup window (restore on a second phone)"],
   ["src/tc-shoplock.js", "whyText", "Shop book: the 'not logged in' card shows the reason code the server gave"],
   ["src/tc-shoplock.js", "homeLine", "Shop book: locked / not openable card on the shop Home screen"],
   ["src/tc-shopui.js", "shopLock.homeLine", "Shop Home shows the shop book lock card (tc-shoplock.js)"],
