@@ -359,6 +359,8 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-perslock.js", "tc-regdocs.js loads tc-perslock.js"],
   ["src/tc-perslock.js", "sealCloud", "Password lock: the whole cloud backup is encrypted on the phone"],
   ["functions/api/backup.js", "locked_backup_exists", "Cloud backup: a plain backup never replaces a locked one"],
+  ["functions/api/backup.js", "best.json", "Cloud backup: an encrypted backup with fewer records than the stored one is refused; the biggest copy is kept as best.json"],
+  ["src/tc-perslock.js", "persVault||[]", "Locked cloud backup: n counts the real records inside the vault (not 1 per vault)"],
   ["functions/api/backup.js", "isEnc", "Cloud backup accepts the encrypted payload as it is"],
   ["privacy.html", "password lock", "Privacy page tells about the optional password lock"],
   ["src/tc-custhome.js", "__tcCustHome", "Compact customer home page + small Active switch (tc-custhome.js)"],
