@@ -352,10 +352,100 @@
  function rt(n){ return "₹"+(Math.round((+n||0)*100)/100).toLocaleString("en-IN"); }   /* a RATE keeps its paise: 176.47 is not shown as 176 */
  function enc(k){ return encodeURIComponent(k).replace(/'/g,"%27"); }
 
+/* ---------- how it was paid: one way (chips) or in parts (cash + UPI + card + bank + credit) ---------- */
+ var PMS=[["C","💵","പണം","Cash"],["U","📱","UPI","UPI"],["D","💳","കാർഡ്","Card"],["B","🏦","ബാങ്ക് ട്രാൻസ്ഫർ","Bank transfer"],["K","📒","കടം","Credit"]];
+ function pmList(){ return PMS.filter(function(m){ return m[0]!=="K"||SH.ledger; }); }
+ function pmOf(c){ for(var i=0;i<PMS.length;i++) if(PMS[i][0]===c) return PMS[i]; return PMS[0]; }
+ /* text of how a sale was paid; plain = no icons (Excel) */
+ function pmTxt(x,plain){
+  x=x||{}; var ic=function(c){ return plain?"":pmOf(c)[1]+" "; }, nm=function(c){ return plain?pmOf(c)[3]:T(pmOf(c)[2],pmOf(c)[3]); };
+  if(x.sp){ return Object.keys(x.sp).map(function(m){ return ic(m)+nm(m)+" "+(plain?Math.round(x.sp[m]*100)/100:money(x.sp[m])); }).join(" + ")+(x.sp.K>0&&x.cu?" · "+x.cu:""); }
+  var m=x.pm||"C";
+  if(m==="K") return (plain?"Credit: "+(x.cu||""):"📒 "+T("കടം","Credit")+(x.cu?" · "+x.cu:""));
+  if(m==="O") return plain?"Other":T("മറ്റ്","Other");
+  return ic(m)+nm(m);
+ }
+ var PW={};
+ function pwNew(id,o){ PW[id]={pm:o.pm||"C",split:!!o.split,sp:o.sp||{},cu:o.cu||"",cuId:o.cuId,tot:o.tot||0}; return PW[id]; }
+ function pwNum(v){ var n=parseFloat(v); return n>0?Math.round(n*100)/100:0; }
+ function pwSum(w){ var t=0; pmList().forEach(function(m){ t+=pwNum(w.sp[m[0]]); }); return Math.round(t*100)/100; }
+ function pwCu(w){
+  return '<div id="pw_'+w.id+'_cu" style="display:'+(w.split?(pwNum(w.sp.K)>0?"block":"none"):"block")+'"><label>'+E(T("ആർക്കാണ് കടം? (പേര്)","Credit to whom? (name)"))+'</label><input id="'+w.cuId+'" list="'+w.cuId+'L" value="'+E(w.cu||"")+'" onchange="tsPwCu(\''+w.id+'\')"><datalist id="'+w.cuId+'L">'+SH.ledger().cust.map(function(c){ return '<option value="'+E(c.n)+'">'; }).join("")+'</datalist></div>';
+ }
+ function pwInner(id){
+  var w=PW[id], h="";
+  if(!w.split){
+   h+='<div>'+pmList().map(function(m){ return '<span class="tsChip'+(w.pm===m[0]?" on":"")+'" onclick="tsPwPm(\''+id+'\',\''+m[0]+'\')">'+m[1]+' '+E(T(m[2],m[3]))+'</span>'; }).join("")+'</div>';
+   if(w.pm==="K"&&SH.ledger) h+=pwCu(w);
+   h+='<div style="margin-top:6px"><span class="tsChip" style="padding:5px 11px;font-size:14px;margin:0" onclick="tsPwSplit(\''+id+'\')">➗ '+E(T("പല രീതിയിൽ കിട്ടി (ഭാഗികമായി)","Paid in parts (cash + UPI...)"))+'</span></div>';
+  }else{
+   h+='<div class="tsM" style="margin-top:8px;font-weight:700">'+E(T("ഓരോ രീതിയിലും എത്ര കിട്ടി? (പേരിൽ അമർത്തിയാൽ ബാക്കി തുക വരും)","How much came each way? (tap a name to put the rest)"))+'</div>'+
+    pmList().map(function(m){ return '<div class="tsRow" style="border:0;padding:3px 0"><span style="min-width:150px" onclick="tsPwFill(\''+id+'\',\''+m[0]+'\')">'+m[1]+' <b>'+E(T(m[2],m[3]))+'</b></span><input id="pw_'+id+'_'+m[0]+'" type="number" inputmode="decimal" value="'+E(w.sp[m[0]]||"")+'" oninput="tsPwIn(\''+id+'\')" style="width:120px;padding:8px"></div>'; }).join("")+
+    '<div id="pw_'+id+'_rest" class="tsM" style="font-weight:800;margin-top:4px"></div>'+(SH.ledger?pwCu(w):"")+
+    '<div style="margin-top:6px"><span class="tsChip" style="padding:5px 11px;font-size:14px;margin:0" onclick="tsPwSplit(\''+id+'\')">← '+E(T("ഒറ്റ രീതി","One way"))+'</span></div>';
+  }
+  return h;
+ }
+ function payHtml(id){ return '<div id="pw_'+id+'">'+pwInner(id)+'</div>'; }
+ function pwRest(id){
+  var w=PW[id], e=$("pw_"+id+"_rest"); if(!w||!e) return;
+  var rest=Math.round((w.tot-pwSum(w))*100)/100, ok=Math.abs(rest)<0.5;
+  e.textContent=T("ആകെ ","Total ")+money(w.tot)+" · "+T("ഇട്ടത് ","entered ")+money(pwSum(w))+" · "+(ok?"✔":T("ബാക്കി ","rest ")+money(rest)); e.style.color=ok?"#177044":"#a12d2d";
+  var c=$("pw_"+id+"_cu"); if(c) c.style.display=pwNum(w.sp.K)>0?"block":"none";
+ }
+ function pwRedraw(id){ var e=$("pw_"+id); if(e) e.innerHTML=pwInner(id); pwRest(id); }
+ function pwReadCu(w){ var c=w.cuId&&$(w.cuId); if(c) w.cu=(c.value||"").replace(/\s+/g," ").trim(); }
+ function pwReadIn(w){ pmList().forEach(function(m){ var e=$("pw_"+w.id+"_"+m[0]); if(e) w.sp[m[0]]=e.value; }); }
+ window.tsPwPm=function(id,m){ var w=PW[id]; if(!w) return; pwReadCu(w); w.pm=m; pwRedraw(id); };
+ window.tsPwCu=function(id){ var w=PW[id]; if(w) pwReadCu(w); };
+ window.tsPwSplit=function(id){
+  var w=PW[id]; if(!w) return; pwReadCu(w);
+  if(!w.split){ w.split=true; w.sp={}; if(w.tot>0) w.sp[w.pm]=String(Math.round(w.tot*100)/100); }
+  else { pwReadIn(w); var best=w.pm, bv=-1; pmList().forEach(function(m){ var v=pwNum(w.sp[m[0]]); if(v>bv){ bv=v; best=m[0]; } }); if(bv>0) w.pm=best; w.split=false; }
+  pwRedraw(id);
+ };
+ window.tsPwIn=function(id){ var w=PW[id]; if(!w) return; pwReadIn(w); pwRest(id); };
+ window.tsPwFill=function(id,m){
+  var w=PW[id]; if(!w) return; pwReadIn(w); var others=0;
+  pmList().forEach(function(x){ if(x[0]!==m) others+=pwNum(w.sp[x[0]]); });
+  var rest=Math.max(0,Math.round((w.tot-others)*100)/100); w.sp[m]=rest?String(rest):""; var e=$("pw_"+id+"_"+m); if(e) e.value=w.sp[m]; pwRest(id);
+ };
+ function payInit(id,o){ o=o||{}; o.cuId=o.cuId||("pw"+id+"Cu"); var w=pwNew(id,o); w.id=id; return w; }
+ function payTot(id,tot){ var w=PW[id]; if(!w) return; w.tot=Math.round((+tot||0)*100)/100; pwRest(id); }
+ /* what to store: {ok,pm,sp,bt,cu} or {ok:false,msg} */
+ function payRes(id,tot){
+  var w=PW[id]; if(!w) return {ok:true,pm:"C",cu:""}; pwReadCu(w);
+  if(w.split){
+   pwReadIn(w); var sp={}, keys=[], sum=0;
+   pmList().forEach(function(m){ var v=pwNum(w.sp[m[0]]); if(v>0){ sp[m[0]]=v; keys.push(m[0]); sum+=v; } });
+   sum=Math.round(sum*100)/100;
+   if(!keys.length||Math.abs(sum-tot)>0.5) return {ok:false,msg:T("തുക ചേരുന്നില്ല - ബാക്കി ","Amounts do not add up - rest ")+money(Math.round((tot-sum)*100)/100)};
+   if(sp.K>0&&!w.cu) return {ok:false,msg:T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")};
+   keys.sort(function(a,b){ return sp[b]-sp[a]; });
+   if(keys.length===1) return {ok:true,pm:keys[0],cu:keys[0]==="K"?w.cu:""};
+   return {ok:true,pm:keys[0],sp:sp,bt:sum,cu:sp.K>0?w.cu:""};
+  }
+  if(w.pm==="K"&&!w.cu) return {ok:false,msg:T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")};
+  return {ok:true,pm:w.pm,cu:w.pm==="K"?w.cu:""};
+ }
+
+ /* customers of earlier sales (optional name + mobile on a sale, like a bill): the last mobile used with a name is offered again */
+ function custList(){
+  var seen={}, out=[], L=SH.calc().live;
+  for(var i=L.length-1;i>=0&&out.length<80;i--){ var r=L[i]; if(r.k==="s"&&r.x&&r.x.cn){ var k=H.nm(r.x.cn); if(!seen[k]){ seen[k]=1; out.push({n:r.x.cn,m:r.x.cm||""}); } } }
+  return out;
+ }
+ function custOpts(){ return custList().map(function(c){ return '<option value="'+E(c.n)+'">'; }).join(""); }
+ function cleanMob(v){ return String(v||"").replace(/[^0-9+ ]/g,"").replace(/\s+/g," ").trim().slice(0,15); }
+ function cleanName(v){ return String(v||"").replace(/\s+/g," ").trim().slice(0,40); }
+ function custMobile(name){ var k=H.nm(name), L=custList(); for(var i=0;i<L.length;i++) if(H.nm(L[i].n)===k) return L[i].m; return ""; }
+ window.tsCustFill=function(nameId,mobId){ var n=$(nameId), m=$(mobId); if(n&&m&&!m.value.trim()){ var v=custMobile(n.value); if(v) m.value=v; } };
+
  /* ---------- SALE ---------- */
  TITLE.sale=function(){ return "🛒 "+T("വിൽപ്പന","Sale"); };
  SC.sale=function(){
-  var s=U.sale=U.sale&&U.sale.cart.length?U.sale:{cart:[],pm:"C",sel:null};
+  var fresh=!(U.sale&&U.sale.cart.length), s=U.sale=fresh?{cart:[],pm:"C",sel:null}:U.sale;
+  if(fresh||!PW.sa) payInit("sa",{cuId:"saCu"});
   s.sel=null;
   $("tsBody").innerHTML=stkBox()+
    '<div class="tsC">'+picker("sa",{pick:saSelect,recent:function(){ return SH.topSellers(8); },ph:T("സാധനം / മീൻ തിരയുക...","Search item / fish...")})+
@@ -425,45 +515,66 @@
   $("saCart").innerHTML=!s.cart.length?'<div class="tsM" style="text-align:center">'+E(T("വിൽക്കുന്ന സാധനം തിരഞ്ഞെടുക്കൂ","Pick the items sold"))+'</div>':
    s.cart.map(function(l,i){ var p=SH.prod(l.p), u=p&&p.u?" "+p.u:""; return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+E(u)+' × '+rt(l.rp||l.pr)+(p&&p.u?' / '+E(p.u):'')+'</div></div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
    '<div class="tsRow"><span>'+E(T("ആകെ","Total"))+'</span><span class="tsTot">'+money(tot)+'</span></div>'+
-   '<div><span class="tsChip'+(s.pm==="C"?" on":"")+'" onclick="tsSaPm(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip'+(s.pm==="U"?" on":"")+'" onclick="tsSaPm(\'U\')">📱 UPI</span>'+(SH.ledger?'<span class="tsChip'+(s.pm==="K"?" on":"")+'" onclick="tsSaPm(\'K\')">📒 '+E(T("കടം","Credit"))+'</span>':'')+'</div>'+
-   (s.pm==="K"?'<label>'+E(T("ആർക്കാണ് കടം? (പേര്)","Credit to whom? (name)"))+'</label><input id="saCu" list="saCuL" value="'+E(s.cu||"")+'" onchange="tsSaCu(this.value)"><datalist id="saCuL">'+SH.ledger().cust.map(function(c){ return '<option value="'+E(c.n)+'">'; }).join("")+'</datalist>':'')+
+   payHtml("sa")+
    dateRow("saD",s.date||H.today())+
-   '<details style="margin-top:8px"'+(s.no?' open':'')+'><summary style="font-weight:700;font-size:15px;color:#35566a">📝 '+E(T("കുറിപ്പ് (വേണമെങ്കിൽ)","Note (optional)"))+'</summary><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(T("ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"))+'" onchange="tsSaNo(this.value)"></details>'+
+   '<details style="margin-top:8px"'+((s.no||s.cn||s.cm)?' open':'')+'><summary style="font-weight:700;font-size:15px;color:#35566a">👤 '+E(T("കസ്റ്റമർ / കുറിപ്പ് (വേണമെങ്കിൽ)","Customer / note (optional)"))+'</summary>'+
+   '<label>'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="saCn" list="saCnL" maxlength="40" value="'+E(s.cn||"")+'" onchange="tsSaCn(this.value)"><datalist id="saCnL">'+custOpts()+'</datalist>'+
+   '<label>'+E(T("മൊബൈൽ നമ്പർ","Mobile number"))+'</label><input id="saCm" type="tel" inputmode="tel" maxlength="15" value="'+E(s.cm||"")+'" onchange="tsSaCm(this.value)">'+
+   '<label>'+E(T("കുറിപ്പ്","Note"))+'</label><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(T("ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"))+'" onchange="tsSaNo(this.value)"></details>'+
    '<button class="tsBtn" onclick="tsSaSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save sale"))+'</button>';
-  if(s.cart.length) tsDateWarn0($("saD"));
+  if(s.cart.length){ tsDateWarn0($("saD")); payTot("sa",tot); }
  }
  function tsDateWarn0(el){ var w=el&&$(el.id+"W"); if(w) w.textContent=(el.value&&el.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; }
  window.tsSaDel=function(i){ U.sale.cart.splice(i,1); saCart(); };
- window.tsSaCu=function(v){ U.sale.cu=(v||"").replace(/\s+/g," ").trim(); };
+ window.tsSaCu=function(v){ U.sale.cu=(v||"").replace(/\s+/g," ").trim(); if(PW.sa) PW.sa.cu=U.sale.cu; };
+ window.tsSaCn=function(v){ U.sale.cn=cleanName(v); tsCustFill("saCn","saCm"); var m=$("saCm"); if(m) U.sale.cm=cleanMob(m.value); var cu=$("saCu"); if(cu&&!cu.value.trim()&&U.sale.cn){ cu.value=U.sale.cn; if(PW.sa) PW.sa.cu=U.sale.cn; } };
+ window.tsSaCm=function(v){ U.sale.cm=cleanMob(v); };
  window.tsSaNo=function(v){ U.sale.no=(v||"").replace(/\s+/g," ").trim().slice(0,80); };
- window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; var n=$("saNo"); if(n) tsSaNo(n.value); U.sale.pm=m; saCart(); };
+ window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; var n=$("saNo"); if(n) tsSaNo(n.value); U.sale.pm=m; tsPwPm("sa",m); };
  window.tsSaSave=function(){
   var s=U.sale; if(!s.cart.length) return;
-  if(s.pm==="K"){ var cn=$("saCu"); if(cn) tsSaCu(cn.value); if(!s.cu){ say(T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")); return; } }
   var nn=$("saNo"); if(nn) tsSaNo(nn.value);
-  var d=dateVal("saD"), g=H.uid(), tot=0;
+  var cn0=$("saCn"); if(cn0) U.sale.cn=cleanName(cn0.value); var cm0=$("saCm"); if(cm0) U.sale.cm=cleanMob(cm0.value);
+  { var cin=$("saCu"); if(cin&&!cin.value.trim()&&s.cn) cin.value=s.cn; }
+  var d=dateVal("saD"), g=H.uid(), tot=0, all=s.cart.reduce(function(a,l){ return a+l.q*l.pr; },0);
+  var pr0=payRes("sa",all); if(!pr0.ok){ say(pr0.msg); return; }
+  s.pm=pr0.pm; s.cu=pr0.cu;
   s.cart.forEach(function(l){
    var p=SH.prod(l.p), rec={p:l.p,q:l.q,pr:l.pr,pm:s.pm,g:g};
+   if(pr0.sp){ rec.sp=pr0.sp; rec.bt=pr0.bt; }
    if(l.rp) rec.rp=l.rp;
    if(s.no) rec.no=s.no;
-   if(s.pm==="K") rec.cu=s.cu;
+   if(s.cn) rec.cn=s.cn;
+   if(s.cm) rec.cm=s.cm;
+   if(s.cu) rec.cu=s.cu;
    if(p&&p.g>0&&SH.cfg("gst","0")==="1") rec.gr=p.g;
    if(p&&p.comp) rec.rc=p.rc.map(function(c){ return {i:c.i,q:+c.q||0}; });
    SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.rp||l.pr});
   });
-  U.sale={cart:[],pm:"C",sel:null};
-  say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot)+(s.pm==="K"?" · "+s.cu:"")+(d!==H.today()?" · "+dmy(d):""));
+  U.sale={cart:[],pm:"C",sel:null}; payInit("sa",{cuId:"saCu"});
+  say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot)+(s.cu?" · "+s.cu:"")+(d!==H.today()?" · "+dmy(d):""));
   render();
  };
  function saDay(){
   var box=$("saDay"); if(!box) return;
   var t=H.today(), R=SH.report(t,t), L=R.lines.slice().reverse().slice(0,12);
-  box.innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
-   L.map(function(l){ var x=l.r.x, u=l.p&&l.p.u?" "+l.p.u:"";
-    return '<div class="tsRow" onclick="tsEntry(\''+enc(x.g||l.r.id)+'\')"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(x.q)+E(u)+' × '+rt(x.rp||x.pr)+(x.pm==="U"?" · UPI":"")+(x.pm==="K"?" · "+E(x.cu||""):"")+'</div>'+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div><b>'+money(l.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
+  /* one row per BILL (lines of one sale share x.g): the items under each other, customer, payment, note */
+  var G={}, order=[];
+  R.lines.forEach(function(l){ var k=l.r.x.g||l.r.id; if(!G[k]){ G[k]={k:k,ls:[],tot:0}; order.push(G[k]); } G[k].ls.push(l); G[k].tot+=l.tot; });
+  order=order.slice().reverse().slice(0,12);
+  box.innerHTML=!order.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
+   order.map(function(g){ var x=g.ls[0].r.x;
+    return '<div class="tsRow" onclick="tsEntry(\''+enc(g.k)+'\')"><div>'+g.ls.map(function(l){ var y=l.r.x, u=l.p&&l.p.u?" "+l.p.u:""; return '<div>'+E(l.p?l.p.n:"?")+' <span class="tsM">'+qty(y.q)+E(u)+' × '+rt(y.rp||y.pr)+'</span></div>'; }).join("")+
+     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancelBill(\''+enc(g.k)+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
  /* tap an entry in a list: the Day book's edit sheet (tc-shopday.js) - quantity, price, total, payment, date, note - or cancel */
  window.tsEntry=function(k){ if(typeof window.tsDySaleGo==="function") window.tsDySaleGo(k); else if(typeof window.tsDySale==="function") window.tsDySale(k); };
+ window.tsCancelBill=function(k){
+  var key=decodeURIComponent(k), recs=SH.calc().live.filter(function(r){ return r.k==="s"&&(r.x.g||r.id)===key; });
+  if(!recs.length) return;
+  if(!confirm(recs.length>1?T("ഈ വിൽപ്പന മുഴുവനും ("+recs.length+" ഇനങ്ങൾ) റദ്ദാക്കട്ടേ?","Cancel this whole sale ("+recs.length+" items)?"):T("ഈ എൻട്രി റദ്ദാക്കട്ടേ?","Cancel this entry?"))) return;
+  recs.forEach(function(r){ SH.cancel(r.id); }); say(T("റദ്ദാക്കി","Cancelled")); render();
+ };
  window.tsCancel=function(id){
   if(!confirm(T("ഈ എൻട്രി റദ്ദാക്കട്ടേ?","Cancel this entry?"))) return;
   SH.cancel(id); say(T("റദ്ദാക്കി","Cancelled")); render();
@@ -666,6 +777,6 @@
  }catch(e){}
 
  window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
-  T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,stkBox:stkBox,rt:rt,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
+  T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
