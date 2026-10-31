@@ -231,7 +231,7 @@
  /* ---------- reports ---------- */
  function inRange(d,a,b){ return d>=a&&d<=b; }
  function report(d1,d2){
-  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
+  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,recvCard:0,recvBank:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
   /* GST tally: prices and purchase rates are taken as GST-INCLUSIVE; a record carries the rate it was made with (gr) */
   function G(rt){ return R.gst[rt]||(R.gst[rt]={rate:+rt,outBase:0,outTax:0,inBase:0,inTax:0}); }
   M.live.forEach(function(r){
@@ -253,7 +253,7 @@
     R.bought+=(+x.q||0)*(+x.rt||0)+(+x.tr||0);
     if(+x.gr>0){ var am=(+x.q||0)*(+x.rt||0)+(+x.tr||0), tp=am*x.gr/(100+ +x.gr), gi=G(x.gr); gi.inBase+=am-tp; gi.inTax+=tp; R.gstIn+=tp; }
    }else if(r.k==="o"&&x.t==="rc"){
-    var rv=+x.a||0; R.recv+=rv; if(x.pm==="U") R.recvUpi+=rv; else R.recvCash+=rv;
+    var rv=+x.a||0; R.recv+=rv; if(x.pm==="U") R.recvUpi+=rv; else if(x.pm==="D") R.recvCard+=rv; else if(x.pm==="B") R.recvBank+=rv; else R.recvCash+=rv;
    }else if(r.k==="o"&&x.t==="sp"){
     R.supPaid+=+x.a||0;
    }
