@@ -124,7 +124,8 @@
   var plain=opay(), js=JSON.stringify(plain), h=hash(js);
   if(cBlob&&cHash===h) return cBlob;
   var mt=meta(), raw=keyRaw(), e=await encObj(raw,plain), n=0;
-  try{ if(typeof tcBkTotal==="function") n=tcBkTotal(plain); }catch(x){}
+  /* n = real record count: the taxi lists + the personal records inside the vault (a vault is ONE record in the lists, its own n says how many it holds) */
+  try{ if(typeof tcBkTotal==="function") n=tcBkTotal(plain); (plain.persVault||[]).forEach(function(r){ n+=Math.max(0,Math.floor(+r.n||0))-1; }); if(n<0) n=0; }catch(x){}
   cBlob={salt:mt.salt,iter:mt.iter,iv:e.iv,ct:e.ct,ts:Date.now(),n:n}; cHash=h;
   return cBlob;
  }
