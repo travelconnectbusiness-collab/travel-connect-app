@@ -108,6 +108,7 @@
   var h='<div class="tsC" style="text-align:center"><div><span class="tsChip'+(isDay?" on":"")+'" onclick="tsRpMode(\'day\')">'+E(T("ദിവസം","Day"))+'</span><span class="tsChip'+(!isDay?" on":"")+'" onclick="tsRpMode(\'month\')">'+E(T("മാസം","Month"))+'</span></div><div style="margin-top:8px">'+nav+'</div></div>';
   h+='<div class="tsC"><div class="tsRow"><span>'+E(T("വിൽപ്പന","Sales"))+'</span><span class="tsTot">'+money(R.sales)+'</span></div>'+
    '<div class="tsRow"><span>💵 '+E(T("പണം","Cash"))+'</span><b>'+money(R.cash)+'</b></div><div class="tsRow"><span>📱 UPI</span><b>'+money(R.upi)+'</b></div>'+
+   (R.card>0?'<div class="tsRow"><span>💳 '+E(T("കാർഡ്","Card"))+'</span><b>'+money(R.card)+'</b></div>':'')+(R.bank>0?'<div class="tsRow"><span>🏦 '+E(T("ബാങ്ക് ട്രാൻസ്ഫർ","Bank transfer"))+'</span><b>'+money(R.bank)+'</b></div>':'')+
    (R.credit>0?'<div class="tsRow"><span>📒 '+E(T("കടം (കിട്ടാനുണ്ട്)","On credit"))+'</span><b>'+money(R.credit)+'</b></div>':'')+
    (R.recv>0?'<div class="tsRow"><span>💰 '+E(T("കടം തിരിച്ചു കിട്ടിയത്","Credit money received"))+'</span><b>'+money(R.recv)+'</b></div>':'')+
    (R.supPaid>0?'<div class="tsRow"><span>💸 '+E(T("സപ്ലയർക്ക് കൊടുത്തത്","Paid to suppliers"))+'</span><b>'+money(R.supPaid)+'</b></div>':'');
@@ -175,10 +176,10 @@
   rows.push([c("Total",{b:true})].concat(tot.map(function(x){ return m(x); })));
   out.push({name:"Monthly",rows:rows,widths:[14,16,16,16,18,16,16],freeze:"B2"});
   /* sales */
-  rows=[hdr(["Date","Item","Qty","Price","Total","Paid by","Cost / unit","Profit"])];
+  rows=[hdr(["Date","Item","Qty","Price","Total","Paid by","Cost / unit","Profit","Customer","Mobile","Note"])];
   M.live.filter(function(r){ return r.k==="s"; }).sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; }).forEach(function(r){ var p=P[r.x.p], q=+r.x.q||0, pr=+r.x.pr||0, av=SH.unitCost(r.x,P);
-   rows.push([c(UI.dmy(r.d)),c(p?p.n:"?"),c(q),m(pr),m(q*pr),c(r.x.pm==="U"?"UPI":r.x.pm==="K"?"Credit: "+(r.x.cu||""):"Cash"),m(av),m(q*pr-q*av)]); });
-  out.push({name:"Sales",rows:rows,widths:[12,34,8,10,12,9,11,11],freeze:"A2",filter:"A1:H"+rows.length});
+   rows.push([c(UI.dmy(r.d)),c(p?p.n:"?"),c(q),m(pr),m(q*pr),c(UI.pmTxt(r.x,true)),m(av),m(q*pr-q*av),c(r.x.cn||""),c(r.x.cm||""),c(r.x.no||"")]); });
+  out.push({name:"Sales",rows:rows,widths:[12,34,8,10,12,22,11,11,18,14,24],freeze:"A2",filter:"A1:K"+rows.length});
   /* purchases */
   rows=[hdr(["Date","Supplier","Bill no.","Item","Qty (units)","Rate / unit","Transport share","Landing / unit","Total"])];
   M.live.filter(function(r){ return r.k==="b"; }).sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; }).forEach(function(r){ var p=P[r.x.p], q=+r.x.q||0, rt=+r.x.rt||0, tr=+r.x.tr||0;
