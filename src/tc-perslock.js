@@ -62,7 +62,12 @@
  P.lock.listen=function(f){ P.lock.listeners.push(f); };
  P.lock.fire=function(kind,info){ P.lock.listeners.forEach(function(f){ try{ f(kind,info||{}); }catch(e){ if(window.console) console.error("tc-perslock listener",e); } }); };
  function vaults(){ var m=me(); return L("persVault").filter(function(r){ return r&&String(r.u||"")===m&&r.ct&&r.iv; }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); }); }
- function newVault(){ var v=vaults()[0], ap=+(ls("tc_pla:"+me())||0); return (v&&(v.ts||0)>ap)?v:null; }
+ /* WHICH vaults were already opened on this phone: by id (31 Oct 2026). Before, only the newest vault was looked at and only if it was newer than the last applied time -
+    so the vault of the FIRST phone (older than the second phone's own empty vault) was never opened on the second phone. */
+ function applied(){ try{ return JSON.parse(ls("tc_plv:"+me())||"[]")||[]; }catch(e){ return []; } }
+ function markApplied(id){ var a=applied(); if(a.indexOf(id)<0){ a.push(id); if(a.length>40) a=a.slice(-40); ls("tc_plv:"+me(),JSON.stringify(a)); } }
+ function unapplied(){ var a=applied(); return vaults().filter(function(r){ return a.indexOf(r.id)<0; }); }
+ function newVault(){ return unapplied()[0]||null; }
  function snapshot(){
   var m=me(), o={};
   Object.keys(K).forEach(function(c){ o[K[c]]=L(K[c]).filter(function(r){ return r&&String(r.u||"")===m; }); });
@@ -95,8 +100,10 @@
    if(!force&&ls("tc_pls:"+m)===h) return;
    var e=await encObj(raw,snap);
    var rec={id:"pv"+Date.now().toString(36),u:m,ts:Date.now(),salt:mt.salt,iter:mt.iter,iv:e.iv,ct:e.ct,n:countOf(snap)};
-   db.persVault=L("persVault").filter(function(r){ return String(r&&r.u||"")!==m; });
+   var keep=unapplied().slice(0,3).map(function(r){ return r.id; });       /* vaults that came from another phone and are not opened yet stay */
+   db.persVault=L("persVault").filter(function(r){ return String(r&&r.u||"")!==m||keep.indexOf(r.id)>=0; });
    db.persVault.push(rec);
+   markApplied(rec.id);
    ls("tc_pls:"+m,h); ls("tc_pla:"+m,String(rec.ts));
    try{ save(); }catch(x){}
   }catch(e){ if(window.console) console.error("tc-perslock seal",e); }
@@ -260,7 +267,7 @@
   var raw=null; try{ raw=await pbk(cur,unb64(mt.salt),mt.iter||ITER); }catch(e){}
   if(!raw||b64(raw)!==ls("tc_plk:"+m)){ sheetErr(B("Wrong password","പാസ്‌വേഡ് തെറ്റാണ്")); return; }
   if(what==="off"){
-   ls("tc_plm:"+m,null); ls("tc_plk:"+m,null); ls("tc_pls:"+m,null); ls("tc_pla:"+m,null);
+   ls("tc_plm:"+m,null); ls("tc_plk:"+m,null); ls("tc_pls:"+m,null); ls("tc_pla:"+m,null); ls("tc_plv:"+m,null);
    db.persVault=L("persVault").filter(function(r){ return String(r&&r.u||"")!==m; });
    hide(); try{ save(); }catch(e){}
    P.closeSheet(); P.refresh(); say(B("Lock is OFF","ലോക്ക് ഓഫ് ആയി")); pushCloud(); P.lock.fire("off",{oldRaw:raw}); return;
@@ -289,19 +296,27 @@
   var r=await openVault(v,pw);
   if(!r){ sheetErr(B("Wrong password","പാസ്‌വേഡ് തെറ്റാണ്")); return; }
   var add=mergeSnap(r.o), m=me();
-  ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(r.raw)); ls("tc_pla:"+m,String(v.ts||0)); ls("tc_pls:"+m,null);
-  hide(); schedule(500); P.lock.fire("key",{});
+  ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(r.raw)); ls("tc_pla:"+m,String(v.ts||0)); ls("tc_pls:"+m,null); markApplied(v.id);
+  hide(); schedule(500); setTimeout(function(){ try{ autoOpen(); }catch(e){} },300); P.lock.fire("key",{});
   P.closeSheet(); P.refresh();
   say(B(add+" entries added - lock is ON for this phone","ചേർത്തത്: "+add+" എൻട്രികൾ - ഈ ഫോണിലും ലോക്ക് ഓൺ"));
  };
  /* the same copy, but when this phone already holds the key: open silently */
+ var opening=false;
  async function autoOpen(){
-  var v=newVault(); if(!v||!on()||!sup()) return;
+  if(!on()||!sup()||opening) return;
+  var list=unapplied(); if(!list.length) return;
+  opening=true; var add=0;
   try{
-   var o=await decObj(keyRaw(),v), add=mergeSnap(o);
-   ls("tc_pla:"+me(),String(v.ts||0));
-   if(add) say(B(add+" entries added from the locked backup","ലോക്ക് ചെയ്ത ബാക്കപ്പിൽ നിന്ന് "+add+" എൻട്രികൾ ചേർത്തു"));
-  }catch(e){}   /* another password: the "Locked accounts found" card asks for it */
+   for(var i=0;i<list.length;i++){
+    try{ var o=await decObj(keyRaw(),list[i]); add+=mergeSnap(o); markApplied(list[i].id); }catch(e){}   /* another password: stays, the "Locked accounts found" card asks for it */
+   }
+  }finally{ opening=false; }
+  if(add){
+   say(B(add+" entries added from the locked backup","ലോക്ക് ചെയ്ത ബാക്കപ്പിൽ നിന്ന് "+add+" എൻട്രികൾ ചേർത്തു"));
+   try{ schedule(800); }catch(e){}
+   try{ if(P.S&&P.S.open) P.refresh(); }catch(e){}
+  }
  }
 
  /* ---------- backup FILE ---------- */
