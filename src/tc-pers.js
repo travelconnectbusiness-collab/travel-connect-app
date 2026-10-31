@@ -122,6 +122,7 @@
  }
  function closePers(){
   if(!S.open) return;
+  try{ var m0=$("modal"); if(m0) m0.style.zIndex=""; }catch(e){}
   S.open=false; hide();
   try{ if(history.state&&history.state.tcPers) history.back(); }catch(e){}
  }
@@ -387,9 +388,9 @@
   rd.readAsText(f);
  };
  /* Premium: the Cloud Backup entry is hidden from the Menu while a shop is open (tc-menu.js), so My Accounts has its own way in */
+ /* the window opens ON TOP of My Accounts (no Back / history step in between - closing My Accounts first sent the phone to the Dashboard) */
  window.tpCloudRestore=function(){
-  closePers();
-  setTimeout(function(){ try{ if(typeof tcOpenBackupPage==="function") tcOpenBackupPage(); }catch(e){} },450);
+  try{ var m=$("modal"); if(m) m.style.zIndex="95"; if(typeof tcOpenBackupPage==="function") tcOpenBackupPage(); }catch(e){}
  };
  SC.backup=function(){
   var cloud=(typeof tcBkEligible==="function")&&tcBkEligible(), last=(db.settings&&db.settings.persBkAt)||0;
