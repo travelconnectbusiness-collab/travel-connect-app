@@ -106,7 +106,16 @@
   e.textContent=s.s==="busy"?"⟳":s.s==="ok"&&!n?"●":s.s==="auth"?"⚠ login":(n?"⏳ "+n:"○");
   e.title=s.s;
  }
- SH.onChange(function(w){ if(!U.open) return; syncMark(); if(w!=="status"&&U.screen==="home") try{ SC.home(); }catch(e){} });
+ SH.onChange(function(w){
+  if(!U.open) return; syncMark();
+  if(w==="status") return;
+  try{ if(U.screen==="home") SC.home(); else if(U.screen==="sale") saDay(); else if(U.screen==="dead") deDay(); }catch(e){}
+ });
+ /* the other phone's entries arrive without pressing anything: while the shop is open the book is asked for news every 7 seconds (and when the app comes back to the front) */
+ try{
+  setInterval(function(){ try{ if(U.open&&!document.hidden&&SH.status.s!=="busy"&&SH.status.s!=="auth") SH.sync(); }catch(e){} },7000);
+  document.addEventListener("visibilitychange",function(){ try{ if(U.open&&!document.hidden) SH.later(150); }catch(e){} });
+ }catch(e){}
 
  /* ---------- small UI parts ---------- */
  function sheet(html){
@@ -117,12 +126,35 @@
  }
  function closeSheet(){ var d=$("tsSheet"); if(d) d.remove(); }
  window.tsCloseSheet=closeSheet;
+ /* The entry date is STICKY: once another day is chosen on a new-entry screen, every following entry (sale, purchase, loss, expense, money) uses that day until
+    "Today" is pressed (or 90 minutes pass without use) - so a whole evening's notes of an earlier day need the date picked only once. */
+ var STK={d:"",ts:0}, STKIDS=/^(saD|puD|deD|exD|crD)$/;
+ function stick(){ if(STK.d&&(Date.now()-STK.ts>90*60000||STK.d>=H.today())) STK.d=""; return STK.d; }
+ function stickSet(d){ if(/^\d{4}-\d{2}-\d{2}$/.test(d||"")&&d<H.today()){ STK.d=d; STK.ts=Date.now(); } else STK.d=""; }
  function dateRow(id,v){
   if(window.__tcDayPick&&v===H.today()) v=window.__tcDayPick;   /* Day book: entering for another day (tc-shopday.js) */
+  else if(v===H.today()&&STKIDS.test(id)&&stick()){ v=stick(); STK.ts=Date.now(); }
   return '<label>'+E(T("തീയതി","Date"))+'</label><input type="date" id="'+id+'" value="'+E(v)+'" max="'+H.today()+'" onchange="tsDateWarn(this)">'+
    '<div id="'+id+'W" class="tsM" style="color:#a12d2d;font-weight:700"></div>';
  }
- window.tsDateWarn=function(el){ var w=$(el.id+"W"); if(w) w.textContent=(el.value&&el.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; };
+ window.tsDateWarn=function(el){
+  var w=$(el.id+"W"); if(w) w.textContent=(el.value&&el.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):"";
+  if(STKIDS.test(el.id)&&/^\d{4}-\d{2}-\d{2}$/.test(el.value||"")){ stickSet(el.value); stkRefresh(); }
+ };
+ function stkInner(){
+  var d=stick();
+  if(d) return '<div class="tsC" style="background:#fff6df;border:2px solid #c9740c;padding:10px 12px;display:flex;align-items:center;gap:8px"><div style="flex:1"><b>📅 '+E(dmy(d))+'</b> <span class="tsM">'+E(T("ഈ തീയതിക്ക് എഴുതുന്നു","writing for this date"))+'</span></div><button class="tsBtn g s" style="margin:0" onclick="tsStkClear()">'+E(T("ഇന്നത്തേക്ക്","Today"))+'</button></div>';
+  return '<div style="text-align:right;margin:2px 0 -4px"><span class="tsChip" style="padding:5px 11px;font-size:14px;margin:0" onclick="tsStkAsk()">📅 '+E(T("മറ്റൊരു ദിവസത്തെ കണക്കാണോ?","Another day's entries?"))+'</span><div id="stkAsk" class="hidden" style="margin-top:6px"><input type="date" id="stkIn" max="'+H.today()+'" onchange="tsStkPick(this.value)"></div></div>';
+ }
+ function stkBox(){ return '<div id="stkBox">'+stkInner()+'</div>'; }
+ function stkRefresh(){ var b=$("stkBox"); if(b) b.innerHTML=stkInner(); }
+ function stkApply(v,old){
+  ["saD","puD","deD","exD","crD"].forEach(function(id){ var e=$(id); if(e&&(e.value===H.today()||(old&&e.value===old))){ e.value=v||H.today(); var w=$(id+"W"); if(w) w.textContent=(e.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; } });
+  if(U.sale) U.sale.date=v||""; if(U.pur&&U.pur.date) U.pur.date=v||H.today();
+ }
+ window.tsStkAsk=function(){ var a=$("stkAsk"); if(a) a.classList.toggle("hidden"); };
+ window.tsStkPick=function(v){ var old=STK.d; if(!/^\d{4}-\d{2}-\d{2}$/.test(v||"")||v>=H.today()){ stickSet(""); stkApply("",old); } else { stickSet(v); stkApply(v,old); } stkRefresh(); if(U.screen==="home") render(); };
+ window.tsStkClear=function(){ var old=STK.d; stickSet(""); stkApply("",old); stkRefresh(); if(U.screen==="home") render(); };
  function dateVal(id){ var e=$(id), v=e&&e.value; return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:H.today(); }
  function dmy(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }
  function num(id){ var e=$(id); var v=parseFloat(e&&e.value); return isNaN(v)?0:v; }
@@ -170,7 +202,8 @@
    '<label>'+E(T("പേര്","Name"))+'</label><input id="psN" value="'+E(x.n||"")+'">'+
    (AQ?'<label>'+E(T("തരം","Kind"))+'</label><div id="psT"><span class="tsChip'+(t==="f"?" on":"")+'" onclick="tsPsT(\'f\')">🐟 '+E(T("മീൻ","Fish"))+'</span><span class="tsChip'+(t!=="f"?" on":"")+'" onclick="tsPsT(\'i\')">📦 '+E(T("സാധനം","Item"))+'</span></div>':'')+
    '<label>'+E(T("വിഭാഗം","Category"))+'</label><select id="psC">'+cats.map(function(c){ return '<option value="'+E(c)+'"'+(c===PS.c?" selected":"")+'>'+E(SH.catName(c,lang==="ml"))+'</option>'; }).join("")+'</select><input id="psCN" placeholder="'+E(T("പുതിയ വിഭാഗത്തിന്റെ പേര് (വേണമെങ്കിൽ)","New category name (optional)"))+'" style="margin-top:6px">'+
-   '<label>'+E(T("വിൽപ്പന വില (ഒന്നിന്)","Selling price (each)"))+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
+   '<label>'+E(T("ഇത് എങ്ങനെയാണ് വിൽക്കുന്നത്?","How is it sold?"))+'</label><div id="psUn">'+unitChips(x.u||"","tsPsUnit")+'</div>'+
+   '<label id="psPL">'+E(T("വിൽപ്പന വില ","Selling price ")+"("+perTxt(x.u||"")+")")+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
    '<details id="psMore" style="margin-top:10px"'+(OPENMORE?' open':'')+'><summary style="font-weight:800;font-size:16px;padding:8px 0">'+E(T("⚙ കൂടുതൽ ഓപ്ഷനുകൾ (അളവ്, GST, കോമ്പോ...)","⚙ More options (unit, GST, combo...)"))+'</summary>'+
    (SH.cfg("gst","0")==="1"?'<label>GST %</label><select id="psG">'+[0,5,12,18,28].map(function(g){ return '<option value="'+g+'"'+(+x.g===g?" selected":"")+'>'+g+'%</option>'; }).join("")+'</select>':'')+
    '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം / മീറ്റർ / കിലോ? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="decimal" value="'+E(x.pk||1)+'">'+
@@ -203,6 +236,11 @@
  }
  window.tsPsRcQ=function(i,v){ var n=parseFloat(v); if(PS.rc[i]) PS.rc[i].q=n>0?n:1; psRcDraw(); };
  window.tsPsRcDel=function(i){ PS.rc.splice(i,1); psRcDraw(); };
+ window.tsPsUnit=function(u){
+  var e=$("psU"); if(e) e.value=u;
+  var c=document.querySelectorAll("#psUn .tsChip"); for(var i=0;i<c.length;i++){ var v=(c[i].getAttribute("onclick").match(/'([^']*)'/)||[])[1]||""; c[i].classList.toggle("on",v===u); }
+  var l=$("psPL"); if(l) l.textContent=T("വിൽപ്പന വില ","Selling price ")+"("+perTxt(u)+")";
+ };
  window.tsPsT=function(t){
   PS.t=t; var c=$("psC");
   if(c&&(c.value==="Fish"||c.value==="Other")) c.value=t==="f"?"Fish":"Other";
@@ -275,6 +313,7 @@
   var simple=LS.get("tc_shop_simple")==="1";
   function big(bg,ic,ml,en,fn,sub){ return '<button class="tsBig" style="background:'+bg+'" onclick="'+fn+'">'+ic+' '+E(T(ml,en))+(sub?'<small>'+sub+'</small>':'')+'</button>'; }
   $("tsBody").innerHTML=
+   (stick()?stkBox():"")+
    (SH.kind()===""?'<div class="tsC" style="background:#fff6df"><b>'+E(T("ഇത് ഏത് തരം ഷോപ്പ് ആണ്?","What kind of shop is this?"))+'</b>'+
     '<button class="tsBtn" onclick="tsKind(\'aquarium\')">🐠 '+E(T("അക്വേറിയം / വളർത്തുമൃഗങ്ങൾ","Aquarium / pets"))+'</button>'+
     '<button class="tsBtn g" onclick="tsKind(\'general\')">🏪 '+E(T("മറ്റ് കട (സാധനങ്ങൾ വിൽക്കുന്ന)","Another shop (goods)"))+'</button></div>':'')+
@@ -302,12 +341,23 @@
  window.tsLang=function(){ lang=lang==="ml"?"en":"ml"; LS.set("tc_shop_lang",lang); render(); };
  window.tsSimple=function(){ LS.set("tc_shop_simple",LS.get("tc_shop_simple")==="1"?"0":"1"); render(); };
 
+/* ---------- units: how an item is sold ---------- */
+ var UNITS=[["","എണ്ണം","Count","ഒന്നിന്","each"],["kg","കിലോ","kg","ഒരു കിലോയ്ക്ക്","per kg"],["g","ഗ്രാം","g","ഒരു ഗ്രാമിന്","per g"],["L","ലിറ്റർ","L","ഒരു ലിറ്ററിന്","per L"],["ml","മില്ലി","ml","ഒരു മില്ലിക്ക്","per ml"],["m","മീറ്റർ","m","ഒരു മീറ്ററിന്","per m"]];
+ function perTxt(u){ for(var i=0;i<UNITS.length;i++) if(UNITS[i][0]===(u||"")) return T(UNITS[i][3],UNITS[i][4]); return T("ഒന്നിന്","each"); }
+ function unitChips(cur,fn){
+  cur=cur||""; var L=UNITS.slice(), known=L.some(function(x){ return x[0]===cur; });
+  if(!known) L.push([cur,cur,cur,"",""]);
+  return L.map(function(x){ return '<span class="tsChip'+(x[0]===cur?" on":"")+'" style="padding:6px 12px;font-size:15px" onclick="'+fn+'(\''+E(x[0])+'\')">'+E(T(x[1],x[2]))+'</span>'; }).join("");
+ }
+ function rt(n){ return "₹"+(Math.round((+n||0)*100)/100).toLocaleString("en-IN"); }   /* a RATE keeps its paise: 176.47 is not shown as 176 */
+ function enc(k){ return encodeURIComponent(k).replace(/'/g,"%27"); }
+
  /* ---------- SALE ---------- */
  TITLE.sale=function(){ return "🛒 "+T("വിൽപ്പന","Sale"); };
  SC.sale=function(){
   var s=U.sale=U.sale&&U.sale.cart.length?U.sale:{cart:[],pm:"C",sel:null};
   s.sel=null;
-  $("tsBody").innerHTML=
+  $("tsBody").innerHTML=stkBox()+
    '<div class="tsC">'+picker("sa",{pick:saSelect,recent:function(){ return SH.topSellers(8); },ph:T("സാധനം / മീൻ തിരയുക...","Search item / fish...")})+
    '<div id="saSel"></div></div><div class="tsC" id="saCart"></div><div id="saDay"></div>';
   saCart(); saDay();
@@ -315,74 +365,105 @@
  function saSelect(p){
   U.sale.sel=p.id;
   $("saSel").innerHTML='<div style="margin-top:10px;font-size:20px;font-weight:800">'+E(p.n)+'</div><div class="tsM">'+E(stockTxt(p))+(p.low?' <span class="tsLow">LOW</span>':'')+'</div>'+(p.comp?'<div class="tsM">= '+E(partsTxt(p))+'</div>':'')+
-   '<div class="tsG"><div><label>'+E(T("വില (ഒന്നിന്)","Price (each)"))+'</label><input id="saPr" type="number" inputmode="decimal" value="'+E(p.pr||"")+'" oninput="tsSaCalc(\'p\')"></div>'+
+   (p.comp?'':'<div class="tsM" style="margin-top:8px">'+E(T("വിൽക്കുന്നത്:","Sold by:"))+'</div><div id="saUn">'+unitChips(p.u,"tsSaUnit")+'</div>')+
+   '<div class="tsG"><div><label>'+E(T("വില ","Price ")+"("+perTxt(p.u)+")")+'</label><input id="saPr" type="number" inputmode="decimal" value="'+E(p.pr||"")+'" oninput="tsSaCalc(\'p\')"></div>'+
    '<div><label>'+E(T("എണ്ണം","Quantity")+(p.u?" ("+p.u+")":""))+'</label><input id="saQ" type="number" inputmode="decimal" value="1" oninput="tsSaCalc(\'q\')"></div></div>'+
    '<label>'+E(T("ആകെ തുക","Total"))+'</label><input id="saT" type="number" inputmode="decimal" oninput="tsSaCalc(\'t\')">'+
+   '<div class="tsM" id="saHint" style="margin-top:4px"></div>'+
    '<button class="tsBtn" onclick="tsSaAdd()">➕ '+E(T("ചേർക്കുക","Add"))+'</button>';
   tsSaCalc("q"); var q=$("saQ"); if(q){ q.focus(); q.select(); }
  }
+ /* the unit can be set right here (count / kg / g / L / ml / m); typed numbers stay */
+ window.tsSaUnit=function(u){
+  var s=U.sale, p=s&&s.sel?SH.prod(s.sel):null; if(!p) return;
+  var pr=$("saPr").value, q=$("saQ").value, t=$("saT").value, src=s.src;
+  SH.saveProduct({i:p.id,u:(u||"").slice(0,8)});
+  saSelect(SH.prod(p.id)); $("saPr").value=pr; $("saQ").value=q; $("saT").value=t; s.src=src; hint();
+ };
  /* counted items (no unit, stock counted): typing the TOTAL changes the price of each, never the count (80 for 4 fish = 20 each, not 2.667 fish);
-    weighed / measured items (unit set or "not counted") still get quantity = total / price */
+    weighed / measured items (unit set or "not counted") still get quantity = total / price.
+    A small difference (30.6 -> 30, 99 -> 100) is only a ROUND-OFF: quantity AND the rate as typed (180 per kg) stay, only the total differs. */
  function counted(){ var p=U.sale&&U.sale.sel?SH.prod(U.sale.sel):null; return !!p&&!p.u&&!p.nt; }
+ function near(pr,q,t){ return q>0&&pr>0&&t>0&&Math.abs(t-pr*q)<=Math.max(2,pr*q*0.03); }
+ function hint(){
+  var h=$("saHint"); if(!h) return; var q=num("saQ");
+  h.textContent=(counted()&&q>0&&Math.abs(q-Math.round(q))>1e-9)?T("⚠ എണ്ണം പൂർണ്ണസംഖ്യ അല്ല - കിലോ / ലിറ്റർ ആണെങ്കിൽ മുകളിൽ അത് അമർത്തുക","⚠ Not a whole number - if it is sold by kg / litre, press it above"):"";
+  h.style.color="#c9740c"; h.style.fontWeight="700";
+ }
  window.tsSaCalc=function(src){
   var pr=num("saPr"), q=num("saQ"), t=num("saT");
   if(U.sale) U.sale.src=src;
   if(src==="t"){
-   if(counted()){ if(q>0&&t>0) setv("saPr",Math.round(t/q*100)/100); }
+   if(near(pr,q,t)){ /* round-off only: nothing else changes */ }
+   else if(counted()){ if(q>0&&t>0) setv("saPr",Math.round(t/q*100)/100); }
    else if(pr>0) setv("saQ",Math.round(t/pr*1000)/1000);
   }
   else setv("saT",Math.round(pr*q*100)/100||"");
+  hint();
  };
  window.tsSaAdd=function(){
   var s=U.sale, p=SH.prod(s.sel); if(!p) return;
-  var q=num("saQ"), pr=num("saPr");
+  var q=num("saQ"), pr=num("saPr"), rp=null;
   if(!(q>0)){ say(T("എണ്ണം നൽകുക","Enter the quantity")); return; }
   if(!(pr>0)){ say(T("വില നൽകുക","Enter the price")); return; }
-  if(counted()){
-   var tt=num("saT"); if(s.src==="t"&&tt>0) pr=tt/q;      /* total typed last: keep it exact (80 stays 80, not 80.01) */
-   if(Math.abs(q-Math.round(q))>1e-9&&!confirm(T("എണ്ണം "+qty(q)+" ആണ് - പൂർണ്ണസംഖ്യ അല്ല. ഇങ്ങനെ തന്നെ ചേർക്കട്ടേ?","The count is "+qty(q)+" - not a whole number. Add it like this?"))) return;
+  var tt=num("saT");
+  if(s.src==="t"&&tt>0&&Math.abs(tt-pr*q)>0.004){
+   if(near(pr,q,tt)){ rp=pr; pr=tt/q; }          /* round-off: the total is exactly what was typed, the rate shown stays as typed */
+   else if(counted()) pr=tt/q;                      /* total typed last: keep it exact (80 stays 80, not 80.01) */
   }
+  if(counted()&&Math.abs(q-Math.round(q))>1e-9&&!confirm(T("എണ്ണം "+qty(q)+" ആണ് - പൂർണ്ണസംഖ്യ അല്ല. ഇങ്ങനെ തന്നെ ചേർക്കട്ടേ?","The count is "+qty(q)+" - not a whole number. Add it like this?"))) return;
   var have=s.cart.filter(function(l){ return l.p===p.id; }).reduce(function(a,l){ return a+l.q; },0);
   var av=avail(p);
   if(av!=null&&q+have>av+1e-9&&!confirm(p.comp?T("സ്റ്റോക്കിലുള്ളതുകൊണ്ട് "+qty(av)+" എണ്ണം മാത്രമേ ഉണ്ടാക്കാൻ പറ്റൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" can be made from the stock. Add anyway?"):T("സ്റ്റോക്കിൽ "+qty(av)+" മാത്രമേ ഉള്ളൂ. എങ്ങിലും ചേർക്കട്ടേ?","Only "+qty(av)+" in stock. Add anyway?"))) return;
-  s.cart.push({p:p.id,n:p.n,q:q,pr:pr});
+  var ln={p:p.id,n:p.n,q:q,pr:pr}; if(rp) ln.rp=rp;
+  s.cart.push(ln);
   s.sel=null; $("saSel").innerHTML=""; saCart();
   var i=$("pk_sa_i"); if(i) i.focus();
  };
  function saCart(){
   var s=U.sale, tot=s.cart.reduce(function(a,l){ return a+l.q*l.pr; },0);
   $("saCart").innerHTML=!s.cart.length?'<div class="tsM" style="text-align:center">'+E(T("വിൽക്കുന്ന സാധനം തിരഞ്ഞെടുക്കൂ","Pick the items sold"))+'</div>':
-   s.cart.map(function(l,i){ return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+' × '+money(l.pr)+'</div></div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
+   s.cart.map(function(l,i){ var p=SH.prod(l.p), u=p&&p.u?" "+p.u:""; return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+E(u)+' × '+rt(l.rp||l.pr)+(p&&p.u?' / '+E(p.u):'')+'</div></div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
    '<div class="tsRow"><span>'+E(T("ആകെ","Total"))+'</span><span class="tsTot">'+money(tot)+'</span></div>'+
    '<div><span class="tsChip'+(s.pm==="C"?" on":"")+'" onclick="tsSaPm(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip'+(s.pm==="U"?" on":"")+'" onclick="tsSaPm(\'U\')">📱 UPI</span>'+(SH.ledger?'<span class="tsChip'+(s.pm==="K"?" on":"")+'" onclick="tsSaPm(\'K\')">📒 '+E(T("കടം","Credit"))+'</span>':'')+'</div>'+
    (s.pm==="K"?'<label>'+E(T("ആർക്കാണ് കടം? (പേര്)","Credit to whom? (name)"))+'</label><input id="saCu" list="saCuL" value="'+E(s.cu||"")+'" onchange="tsSaCu(this.value)"><datalist id="saCuL">'+SH.ledger().cust.map(function(c){ return '<option value="'+E(c.n)+'">'; }).join("")+'</datalist>':'')+
    dateRow("saD",s.date||H.today())+
+   '<details style="margin-top:8px"'+(s.no?' open':'')+'><summary style="font-weight:700;font-size:15px;color:#35566a">📝 '+E(T("കുറിപ്പ് (വേണമെങ്കിൽ)","Note (optional)"))+'</summary><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(T("ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"))+'" onchange="tsSaNo(this.value)"></details>'+
    '<button class="tsBtn" onclick="tsSaSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save sale"))+'</button>';
-  if(s.cart.length) tsDateWarn($("saD"));
+  if(s.cart.length) tsDateWarn0($("saD"));
  }
+ function tsDateWarn0(el){ var w=el&&$(el.id+"W"); if(w) w.textContent=(el.value&&el.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; }
  window.tsSaDel=function(i){ U.sale.cart.splice(i,1); saCart(); };
  window.tsSaCu=function(v){ U.sale.cu=(v||"").replace(/\s+/g," ").trim(); };
- window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; U.sale.pm=m; saCart(); };
+ window.tsSaNo=function(v){ U.sale.no=(v||"").replace(/\s+/g," ").trim().slice(0,80); };
+ window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; var n=$("saNo"); if(n) tsSaNo(n.value); U.sale.pm=m; saCart(); };
  window.tsSaSave=function(){
   var s=U.sale; if(!s.cart.length) return;
   if(s.pm==="K"){ var cn=$("saCu"); if(cn) tsSaCu(cn.value); if(!s.cu){ say(T("കടം വാങ്ങുന്ന ആളുടെ പേര് നൽകുക","Enter the customer's name")); return; } }
+  var nn=$("saNo"); if(nn) tsSaNo(nn.value);
   var d=dateVal("saD"), g=H.uid(), tot=0;
   s.cart.forEach(function(l){
    var p=SH.prod(l.p), rec={p:l.p,q:l.q,pr:l.pr,pm:s.pm,g:g};
+   if(l.rp) rec.rp=l.rp;
+   if(s.no) rec.no=s.no;
    if(s.pm==="K") rec.cu=s.cu;
    if(p&&p.g>0&&SH.cfg("gst","0")==="1") rec.gr=p.g;
    if(p&&p.comp) rec.rc=p.rc.map(function(c){ return {i:c.i,q:+c.q||0}; });
-   SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.pr});
+   SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.rp||l.pr});
   });
   U.sale={cart:[],pm:"C",sel:null};
-  say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot)+(s.pm==="K"?" · "+s.cu:""));
+  say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot)+(s.pm==="K"?" · "+s.cu:"")+(d!==H.today()?" · "+dmy(d):""));
   render();
  };
  function saDay(){
+  var box=$("saDay"); if(!box) return;
   var t=H.today(), R=SH.report(t,t), L=R.lines.slice().reverse().slice(0,12);
-  $("saDay").innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b>'+
-   L.map(function(l){ return '<div class="tsRow"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(l.r.x.q)+' × '+money(l.r.x.pr)+(l.r.x.pm==="U"?" · UPI":"")+'</div></div><div><b>'+money(l.tot)+'</b> <button class="tsX" onclick="tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
+  box.innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
+   L.map(function(l){ var x=l.r.x, u=l.p&&l.p.u?" "+l.p.u:"";
+    return '<div class="tsRow" onclick="tsEntry(\''+enc(x.g||l.r.id)+'\')"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(x.q)+E(u)+' × '+rt(x.rp||x.pr)+(x.pm==="U"?" · UPI":"")+(x.pm==="K"?" · "+E(x.cu||""):"")+'</div>'+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div><b>'+money(l.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
+ /* tap an entry in a list: the Day book's edit sheet (tc-shopday.js) - quantity, price, total, payment, date, note - or cancel */
+ window.tsEntry=function(k){ if(typeof window.tsDySaleGo==="function") window.tsDySaleGo(k); else if(typeof window.tsDySale==="function") window.tsDySale(k); };
  window.tsCancel=function(id){
   if(!confirm(T("ഈ എൻട്രി റദ്ദാക്കട്ടേ?","Cancel this entry?"))) return;
   SH.cancel(id); say(T("റദ്ദാക്കി","Cancelled")); render();
@@ -492,7 +573,7 @@
  function lossName(){ return SH.kind()==="aquarium"?T("ചത്തത് / നഷ്ടം / കേടായത്","Dead / lost / damaged"):T("നഷ്ടം / കേടായത്","Lost / damaged"); }
  SC.dead=function(){
   var s=U.dead={sel:null,reason:0};
-  $("tsBody").innerHTML='<div class="tsC">'+picker("de",{noRc:true,pick:deSelect,ph:T("മീൻ / സാധനം തിരയുക...","Search fish / item...")})+'<div id="deSel"></div></div><div id="deDay"></div>';
+  $("tsBody").innerHTML=stkBox()+'<div class="tsC">'+picker("de",{noRc:true,pick:deSelect,ph:T("മീൻ / സാധനം തിരയുക...","Search fish / item...")})+'<div id="deSel"></div></div><div id="deDay"></div>';
   deDay();
  };
  function deSelect(p){
@@ -514,7 +595,8 @@
  };
  function deDay(){
   var t=H.today(), R=SH.report(t,t), L=R.deadList.slice().reverse();
-  $("deDay").innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ","Today"))+'</b>'+L.map(function(l){ return '<div class="tsRow"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(l.r.x.q)+' · '+E(l.r.x.r||"")+'</div></div><div><button class="tsX" onclick="tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
+  if(!$("deDay")) return;
+  $("deDay").innerHTML=!L.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ","Today"))+'</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+L.map(function(l){ return '<div class="tsRow" onclick="if(window.tsDyLoss)tsDyLoss(\''+l.r.id+'\')"><div>'+E(l.p?l.p.n:"?")+'<div class="tsM">'+qty(l.r.x.q)+' · '+E(l.r.x.r||"")+'</div></div><div>✏ <button class="tsX" onclick="event.stopPropagation();tsCancel(\''+l.r.id+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
 
  /* ---------- big button on the dashboard (so nobody has to look in the Menu) ---------- */
@@ -584,6 +666,6 @@
  }catch(e){}
 
  window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
-  T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
+  T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,stkBox:stkBox,rt:rt,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
