@@ -79,7 +79,7 @@
    return '<div class="tsRow"><div>'+E(pname(b.P,x.p))+'<div class="tsM">'+qty(x.q)+' × '+(+x.rt||0).toFixed(2)+(tr>0?' + '+E(T("ട്രാൻസ്പോർട്ട് ","transport "))+money(tr):'')+'</div></div><b>'+money(t+tr)+'</b></div>';
   }).join("");
   var pays=b.pays.map(function(r){
-   return '<div class="tsRow"><div>'+E(T("പണം കൊടുത്തു","Paid"))+(r.x.pm==="U"?" · UPI":"")+'<div class="tsM">'+E(dmy(r.d))+'</div></div><div><b style="color:#177044">'+money(r.x.a)+'</b> <button class="tsX" onclick="tsPbPayCancel(\''+r.id+'\',\''+enc(key)+'\')">✕</button></div></div>';
+   return '<div class="tsRow"><div>'+E(T("പണം കൊടുത്തു","Paid"))+(r.x.pm&&r.x.pm!=="C"?" · "+E(UI.pmTxt(r.x)):"")+'<div class="tsM">'+E(dmy(r.d))+'</div></div><div><b style="color:#177044">'+money(r.x.a)+'</b> <button class="tsX" onclick="tsPbPayCancel(\''+r.id+'\',\''+enc(key)+'\')">✕</button></div></div>';
   }).join("");
   UI.sheet('<h3 style="margin:0">'+E(b.su||"—")+'</h3><div class="tsM">'+E(dmy(b.d))+(b.bn?" · "+E(T("ബിൽ ","Bill "))+E(b.bn):"")+'</div>'+
    '<div style="margin-top:8px">'+lines+'</div>'+
@@ -103,8 +103,8 @@
   b.recs.forEach(function(r){ var x=Object.assign({},r.x,{g:g},patch&&patch(r)||{}); Object.keys(x).forEach(function(k){ if(x[k]===undefined) delete x[k]; }); SH.add("b",x,newD||r.d); });
   return g;
  }
- function chips(id,on){ return '<div id="'+id+'"><span class="tsChip'+(on==="C"?" on":"")+'" onclick="tsPbPm(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip'+(on==="U"?" on":"")+'" onclick="tsPbPm(\'U\')">📱 UPI</span></div>'; }
- window.tsPbPm=function(m){ V.pm=m; var c=document.querySelectorAll("#pbPm .tsChip"); if(c.length>1){ c[0].classList.toggle("on",m==="C"); c[1].classList.toggle("on",m==="U"); } };
+ function chips(id,on){ return UI.mchips(id,UI.mchipOk(on),"tsPbPm"); }
+ window.tsPbPm=function(m){ V.pm=m; UI.mchipSet("pbPm",m); };
  window.tsPbPay=function(k){
   var key=decodeURIComponent(k), b=find(key); if(!b) return; V.pm="C";
   UI.sheet('<h3 style="margin:0">'+E(b.su||"—")+'</h3><div class="tsM">'+E(T("ബാക്കി ","Balance "))+money(b.due)+'</div>'+
@@ -205,7 +205,7 @@
    '<div style="margin-top:6px">'+ch("full","✔","മുഴുവനും കൊടുത്തു","Paid in full")+ch("part","◐","കുറച്ച് കൊടുത്തു","Part paid")+ch("none","⏳","കൊടുത്തിട്ടില്ല (കടം)","Not paid yet (due)")+'</div>'+
    (P.mode==="part"?'<label>'+E(T("ഇതുവരെ കൊടുത്ത തുക","Amount paid"))+'</label><input id="tsPayA" type="number" inputmode="decimal" value="'+E(P.amt)+'" oninput="tsPayIn()">':"")+
    (P.mode!=="none"?'<label>'+E(T("പണം കൊടുത്ത തീയതി","Paid on"))+'</label><input id="tsPayD" type="date" value="'+E(P.on||d)+'" max="'+H.today()+'" onchange="tsPayIn()">'+
-    '<div id="tsPayPm"><span class="tsChip'+(P.pm==="C"?" on":"")+'" onclick="tsPayPm(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip'+(P.pm==="U"?" on":"")+'" onclick="tsPayPm(\'U\')">📱 UPI</span></div>':"")+
+    UI.mchips("tsPayPm",P.pm,"tsPayPm"):"")+
    '<div class="tsM" id="tsPaySum" style="margin-top:6px;white-space:pre-line;font-weight:700"></div>';
  }
  function paint(){
@@ -215,7 +215,7 @@
  function refresh(){ var s=UI.pur(), e=$("tsPaySum"); if(!s||!e) return; var t=sumTxt(s); if(e.textContent!==t) e.textContent=t; }
  window.tsPayMode=function(m){ P.mode=m; paint(); };
  window.tsPayIn=function(){ var a=$("tsPayA"), d=$("tsPayD"); if(a) P.amt=a.value; if(d) P.on=d.value; refresh(); };
- window.tsPayPm=function(m){ P.pm=m; var c=document.querySelectorAll("#tsPayPm .tsChip"); if(c.length>1){ c[0].classList.toggle("on",m==="C"); c[1].classList.toggle("on",m==="U"); } };
+ window.tsPayPm=function(m){ P.pm=m; UI.mchipSet("tsPayPm",m); };
  function purchaseForm(bd){
   var s=UI.pur(); if(!s) return;
   if(P.ref!==s){ P.ref=s; P.mode="full"; P.amt=""; P.on=""; P.pm="C"; }
