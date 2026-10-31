@@ -74,10 +74,27 @@
   try{ fn(U.params); }catch(e){ $("tsBody").innerHTML='<div class="tsC">'+E(T("സ്ക്രീൻ തുറക്കാൻ കഴിഞ്ഞില്ല","Could not open this screen"))+'</div>'; }
   syncMark();
  }
- function openShop(screen,reuse){
+ /* The shop gets its own history entry so the phone's Back button returns to the Dashboard. When the shop opens by itself at app start
+    (no tap yet) Chrome would mark a pushed entry "skippable" and Back would leave the app - so for those automatic opens the entry
+    is added at the first tap/key instead. */
+ function pushEntry(){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} }
+ function hadTap(){ try{ return !navigator.userActivation||navigator.userActivation.hasBeenActive; }catch(e){ return true; } }
+ function deferEntry(){
+  if(U.pend) return; U.pend=true;
+  var evs=["pointerup","touchend","click","keydown"];
+  function off(){ U.pend=false; evs.forEach(function(n){ document.removeEventListener(n,h,true); }); }
+  function h(){
+   if(!U.open){ off(); return; }
+   if(!hadTap()) return;
+   off();
+   if(!(history.state&&history.state.tcShop)) pushEntry();
+  }
+  evs.forEach(function(n){ document.addEventListener(n,h,true); });
+ }
+ function openShop(screen,reuse,auto){
   if(U.open){ go(screen||"home"); return; }
   U.open=true; show();
-  if(!reuse){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} }
+  if(!reuse){ if(auto&&!hadTap()) deferEntry(); else pushEntry(); }
   go(screen||"home");
   SH.later(300);
  }
@@ -353,6 +370,13 @@
  function enc(k){ return encodeURIComponent(k).replace(/'/g,"%27"); }
 
 /* ---------- how it was paid: one way (chips) or in parts (cash + UPI + card + bank + credit) ---------- */
+ /* payment chips for money received / paid: Cash, UPI, Card, Bank (the chip's data-m is the code) */
+ var MK=["C","U","D","B"];
+ function mchips(id,on,fn){
+  return '<div id="'+id+'">'+MK.map(function(m){ var p=pmOf(m); return '<span class="tsChip'+(on===m?" on":"")+'" data-m="'+m+'" onclick="'+fn+'(\''+m+'\')">'+p[1]+" "+E(T(p[2],p[3]))+'</span>'; }).join("")+'</div>';
+ }
+ function mchipSet(id,m){ var c=document.querySelectorAll("#"+id+" .tsChip"); for(var i=0;i<c.length;i++) c[i].classList.toggle("on",c[i].getAttribute("data-m")===m); }
+ function mchipOk(m){ return MK.indexOf(m)>=0?m:"C"; }
  var PMS=[["C","💵","പണം","Cash"],["U","📱","UPI","UPI"],["D","💳","കാർഡ്","Card"],["B","🏦","ബാങ്ക് ട്രാൻസ്ഫർ","Bank transfer"],["K","📒","കടം","Credit"]];
  function pmList(){ return PMS.filter(function(m){ return m[0]!=="K"||SH.ledger; }); }
  function pmOf(c){ for(var i=0;i<PMS.length;i++) if(PMS[i][0]===c) return PMS[i]; return PMS[0]; }
@@ -772,11 +796,11 @@
   if(localStorage.getItem("tc_user")){
    /* the page was reloaded while the shop was open: open it again on its own history entry */
    if(history.state&&history.state.tcShop) setTimeout(function(){ if(!U.open) openShop("home",true); },900);
-   else if(location.hash==="#shop") setTimeout(function(){ openShop("home"); },900);
+   else if(location.hash==="#shop") setTimeout(function(){ openShop("home",false,true); },900);
   }
  }catch(e){}
 
  window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
-  T:T,E:E,say:say,num:num,setv:setv,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
+  T:T,E:E,say:say,num:num,setv:setv,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
