@@ -2,7 +2,7 @@
    For the aquarium / pet shop (Mrithasanjeevani): products, sales, purchases (with transport shared over the bill), dead fish / loss,
    expenses, stock corrections. The book is a list of small records (never edited in place):
      p product  {i:productId,n:name,t:'f' fish|'i' item,c:category,pk:units per pack,pr:selling price,lo:low-stock mark,oq:opening qty,ov:opening value,al:other name,off:1 hidden,rc:[{i,q}] recipe,u:unit text,nt:1 stock not counted,ec:estimated cost each}
-     s sale     {p,q,pr,pm:'C'|'U',g:group}            b purchase {p,q,rt:rate per unit,tr:transport share,su:supplier,bn:bill no,g}
+     s sale     {p,q,pr,pm:'C'|'U'|'D' card|'B' bank|'K' credit|'O',g:group,rp:rate as typed,no:note,sp:{C,U,D,B,K: money of the BILL paid each way (split payment),same on every line},bt:sum of sp}            b purchase {p,q,rt:rate per unit,tr:transport share,su:supplier,bn:bill no,g}
      m dead/loss {p,q,r}   e expense {c,a,t}   a stock correction {p,q:+/- units,r}   o money records {t:'rc',cu,a,pm} = received from a credit customer,
        {t:'sp',su,a,pm} = paid to a supplier (older design {t:'in'|'out'} is unused). A sale with pm:'K' + cu:name is on CREDIT; a purchase with cr:amount
        has that part unpaid (dues = sum of cr - payments). Both are never counted as cash taken / paid at the time.
@@ -102,6 +102,13 @@
   }finally{ busy=false; }
  }
  try{ window.addEventListener("online",function(){ later(500); }); }catch(e){}
+
+ /* how one sale line was paid: {C:amount,...}. A split bill (x.sp, x.bt = sum of sp) gives every line the same shares; otherwise the whole line is x.pm (default cash) */
+ function payParts(x,tot){
+  var o={};
+  if(x&&x.sp&&+x.bt>0){ var f=tot/(+x.bt); Object.keys(x.sp).forEach(function(m){ var v=(+x.sp[m]||0)*f; if(v) o[m]=v; }); return o; }
+  o[(x&&x.pm)||"C"]=tot; return o;
+ }
 
  /* ---------- compute (memoised on S.ver) ---------- */
  var FISH_CATS={"Fish":1};
@@ -224,7 +231,7 @@
  /* ---------- reports ---------- */
  function inRange(d,a,b){ return d>=a&&d<=b; }
  function report(d1,d2){
-  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
+  var M=calc(), P=M.P, R={d1:d1,d2:d2,sales:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},credit:0,recv:0,recvCash:0,recvUpi:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
   /* GST tally: prices and purchase rates are taken as GST-INCLUSIVE; a record carries the rate it was made with (gr) */
   function G(rt){ return R.gst[rt]||(R.gst[rt]={rate:+rt,outBase:0,outTax:0,inBase:0,inTax:0}); }
   M.live.forEach(function(r){
@@ -233,7 +240,7 @@
    if(r.k==="s"){
     var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*unitCost(x,P);
     R.sales+=tot; R.cost+=cost;
-    if(x.pm==="U") R.upi+=tot; else if(x.pm==="O") R.other+=tot; else if(x.pm==="K") R.credit+=tot; else R.cash+=tot;
+    var pp=payParts(x,tot); Object.keys(pp).forEach(function(m){ var v=pp[m]; if(m==="U") R.upi+=v; else if(m==="D") R.card+=v; else if(m==="B") R.bank+=v; else if(m==="O") R.other+=v; else if(m==="K") R.credit+=v; else R.cash+=v; });
     if(+x.gr>0){ var tx=tot*x.gr/(100+ +x.gr), g=G(x.gr); g.outBase+=tot-tx; g.outTax+=tx; R.gstOut+=tx; }
     R.lines.push({r:r,p:p,tot:tot,cost:cost});
     R.days[r.d]=(R.days[r.d]||0)+tot;
@@ -263,7 +270,7 @@
   function put(e,r,v){ e.owed+=v; e.rows.push(r); if(r.d>e.last) e.last=r.d; }
   M.live.forEach(function(r){
    var x=r.x||{};
-   if(r.k==="s"&&x.pm==="K") put(ent(C,x.cu),r,(+x.q||0)*(+x.pr||0));
+   if(r.k==="s"&&payParts(x,(+x.q||0)*(+x.pr||0)).K>0) put(ent(C,x.cu),r,payParts(x,(+x.q||0)*(+x.pr||0)).K);
    else if(r.k==="o"&&x.t==="rc") put(ent(C,x.cu),r,-(+x.a||0));
    else if(r.k==="b"&&(+x.cr>0)) put(ent(Q,x.su),r,+x.cr);
    else if(r.k==="o"&&x.t==="sp") put(ent(Q,x.su),r,-(+x.a||0));
@@ -294,7 +301,7 @@
 
  load();
  window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
-  report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
+  pay:payParts,report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
   _S:function(){ return S; }};
