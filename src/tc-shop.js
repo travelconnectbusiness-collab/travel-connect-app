@@ -165,7 +165,7 @@
    var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
    var avg=den>0?(ov+a.pv)/den:0;
    if(!(avg>0)&&+p.ec>0) avg=+p.ec;   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
-   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,als:ex.als,off:!!p.off,rc:p.rc||null,
+   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,mp:p.mp===""||p.mp==null||isNaN(+p.mp)?null:+p.mp,als:ex.als,off:!!p.off,rc:p.rc||null,
     pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
@@ -178,7 +178,7 @@
    p.value=p.stock!=null?Math.max(0,p.stock)*p.avg:0;
    p.low=p.stock!=null&&p.lo!=null&&p.stock<=p.lo;
    var aq=(cfg.kind||(Object.keys(prods).length?"aquarium":""))==="aquarium";
-   var mg=+cfgVal(cfg,"mg:"+p.c,p.t==="f"?100:+cfgVal(cfg,"mgdef",aq?50:30));
+   var mg=p.mp!=null?p.mp:+cfgVal(cfg,"mg:"+p.c,p.t==="f"?100:+cfgVal(cfg,"mgdef",aq?50:30));   /* the item's own profit % first, else the category's, else the shop's usual */
    p.sugg=p.avg>0?r2(p.avg*(1+mg/100)):0; p.mg=mg;
   });
   var unknown=Object.keys(A).filter(function(i){ return !P[i]; });
@@ -221,6 +221,15 @@
     The rate is "Rs. per full Rs.100 sold"; the name shown is the shop's own (wageName, default "Wage"). */
  function hasWage(){ return calc().live.some(function(r){ return r.k==="e"&&r.x&&r.x.c==="Wage"; }); }
  function wageOn(){ return cfg("wageOn",hasWage()?"1":"0")==="1"; }
+ function wageSal(){ var v=parseFloat(cfg("wsal","")); return v>0?v:0; }
+ /* the monthly salary falling in d1..d2: a whole month = the full salary, otherwise each day counts salary / days of its month */
+ function salaryFor(d1,d2){
+  var s=wageSal(); if(!(s>0)) return 0;
+  var a=Date.UTC(+d1.slice(0,4),+d1.slice(5,7)-1,+d1.slice(8,10)), b=Date.UTC(+d2.slice(0,4),+d2.slice(5,7)-1,+d2.slice(8,10)), t=0, n=0;
+  if(d1.slice(0,7)===d2.slice(0,7)&&+d1.slice(8,10)===1&&new Date(Date.UTC(+d2.slice(0,4),+d2.slice(5,7),0)).getUTCDate()===+d2.slice(8,10)) return Math.round(s);
+  for(var x=a;x<=b&&n<3700;x+=86400000,n++){ var d=new Date(x); t+=s/new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate(); }
+  return Math.round(t);
+ }
  function wageRate(){ var v=parseFloat(cfg("wage","")); return isNaN(v)?(hasWage()?10:0):v; }
  function categories(){
   var set={}; (kind()==="aquarium"?CATS:GEN_CATS).forEach(function(c){ set[c]=1; });
@@ -265,7 +274,7 @@
   });
   R.profit=R.sales-R.cost; R.net=R.profit-R.exp-R.dead;
   var pct=wageRate();
-  R.wage=Math.floor(R.sales/100)*pct;   /* the shop's rate (e.g. Rs.10) for every full Rs.100 sold */
+  R.wagePct=Math.floor(R.sales/100)*pct; R.wageSal=wageOn()?salaryFor(d1,d2):0; R.wage=(wageOn()?R.wagePct:0)+R.wageSal;   /* the shop's rate (e.g. Rs.10) for every full Rs.100 sold */
   return R;
  }
  /* credit given to customers and dues to suppliers (open balances, all dates) */
@@ -305,7 +314,7 @@
  function offChange(f){ listeners=listeners.filter(function(g){ return g!==f; }); }
 
  load();
- window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
+ window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,wageSal:wageSal,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
   pay:payParts,report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
