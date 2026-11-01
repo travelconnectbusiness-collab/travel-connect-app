@@ -36,20 +36,23 @@
  var SF=null;
  window.tsStStaff=function(id){
   grab(); var L=SH.staff(), p=null; L.forEach(function(q){ if(q.id===id) p=q; }); SF={id:p?p.id:"",L:L};
-  p=p||{n:"",sal:"",pc:"",s:"",e:""};
+  p=p||{n:"",sal:"",pc:"",s:"",e:"",b:L.length?"own":""}; SF.b=p.b||"";
   UI.sheet('<h3 style="margin:0">'+E(id?T("ജോലിക്കാരൻ","Person"):T("പുതിയ ജോലിക്കാരൻ","New person"))+'</h3>'+
    '<label>'+E(T("പേര്","Name"))+'</label><input id="sfN" maxlength="30" value="'+E(p.n)+'">'+
    '<label>'+E(T("മാസശമ്പളം ₹ (ഉണ്ടെങ്കിൽ)","Monthly salary Rs. (if any)"))+'</label><input id="sfS" type="number" inputmode="decimal" value="'+E(+p.sal>0?p.sal:"")+'" placeholder="'+E(T("ഉദാ: 8000","e.g. 8000"))+'">'+
-   '<label>'+E(T("ഷോപ്പിന്റെ വിൽപ്പനയിൽ നിന്ന്: 100 രൂപയ്ക്ക് എത്ര രൂപ (ഇല്ലെങ്കിൽ ഒഴിച്ചിടുക)","Share of the shop's sales: Rs. per Rs.100 (empty if none)"))+'</label><input id="sfP" type="number" inputmode="decimal" value="'+E(+p.pc>0?p.pc:"")+'" placeholder="'+E(T("ഉദാ: 5","e.g. 5"))+'">'+
+   '<label>'+E(T("വിൽപ്പനയിൽ നിന്ന്: 100 രൂപയ്ക്ക് എത്ര രൂപ (ഇല്ലെങ്കിൽ ഒഴിച്ചിടുക)","Share of sales: Rs. per Rs.100 (empty if none)"))+'</label><input id="sfP" type="number" inputmode="decimal" value="'+E(+p.pc>0?p.pc:"")+'" placeholder="'+E(T("ഉദാ: 5","e.g. 5"))+'">'+
+   '<div id="sfB"><span class="tsChip'+(p.b==="own"?"":" on")+'" data-m="" onclick="tsStB(\'\')">'+E(T("ഷോപ്പിന്റെ ആകെ വിൽപ്പന","All the shop's sales"))+'</span><span class="tsChip'+(p.b==="own"?" on":"")+'" data-m="own" onclick="tsStB(\'own\')">'+E(T("ഇദ്ദേഹം വിറ്റത് മാത്രം","Only what this person sold"))+'</span></div>'+
+   '<div class="tsM">'+E(T("'ഇദ്ദേഹം വിറ്റത്' എടുക്കുമ്പോൾ വിൽപ്പന ചേർക്കുമ്പോൾ \"ആര് വിറ്റു\" തിരഞ്ഞെടുക്കണം.","For 'only what this person sold', pick \"Sold by\" on each sale."))+'</div>'+
    '<details style="margin-top:8px"'+(p.s||p.e?' open':'')+'><summary style="font-weight:800;padding:6px 0">'+E(T("ചേർന്ന / നിർത്തിയ തീയതി (ഓപ്ഷണൽ)","Joined / left date (optional)"))+'</summary>'+
    '<label>'+E(T("ചേർന്ന തീയതി","Joined"))+'</label><input id="sfF" type="date" value="'+E(p.s||"")+'"><label>'+E(T("നിർത്തിയ തീയതി","Left"))+'</label><input id="sfT" type="date" value="'+E(p.e||"")+'"></details>'+
    '<button class="tsBtn" onclick="tsStStaffSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button>'+
    (id?'<button class="tsBtn r" onclick="tsStStaffDel()">🗑 '+E(T("ഒഴിവാക്കുക (പഴയ കണക്ക് മാറും)","Remove (past months change)"))+'</button>':'')+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
  };
+ window.tsStB=function(v){ if(SF) SF.b=v; UI.mchipSet("sfB",v); };
  window.tsStStaffSave=function(){
   if(!SF) return; var L=SF.L.slice(), n=($("sfN").value||"").replace(/\s+/g," ").trim(), s=parseFloat($("sfS").value), pc=parseFloat($("sfP").value);
-  var o={id:SF.id||SH.H.uid(),n:n,sal:s>0?s:0,pc:pc>0?pc:0,s:$("sfF").value||"",e:$("sfT").value||""};
+  var o={id:SF.id||SH.H.uid(),n:n,sal:s>0?s:0,pc:pc>0?pc:0,s:$("sfF").value||"",e:$("sfT").value||"",b:SF.b==="own"?"own":""};
   if(o.s&&o.e&&o.e<o.s){ say(T("നിർത്തിയ തീയതി ചേർന്ന തീയതിക്ക് മുമ്പാണ്","'Left' is before 'Joined'")); return; }
   var k=-1; L.forEach(function(q,i){ if(q.id===o.id) k=i; }); if(k>=0) L[k]=o; else L.push(o);
   SH.setStaff(L); SF=null; UI.closeSheet(); say(T("സേവ് ചെയ്തു","Saved")); draw();
