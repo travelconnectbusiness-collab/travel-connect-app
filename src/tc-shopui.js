@@ -173,7 +173,7 @@
  window.tsStkPick=function(v){ var old=STK.d; if(!/^\d{4}-\d{2}-\d{2}$/.test(v||"")||v>=H.today()){ stickSet(""); stkApply("",old); } else { stickSet(v); stkApply(v,old); } stkRefresh(); if(U.screen==="home") render(); };
  window.tsStkClear=function(){ var old=STK.d; stickSet(""); stkApply("",old); stkRefresh(); if(U.screen==="home") render(); };
  function dateVal(id){ var e=$(id), v=e&&e.value; return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:H.today(); }
- function dmy(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }
+ function dmy(iso){ if(window.tcDateFmt) return window.tcDateFmt(iso); var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }   /* the order chosen in Menu > Date format (tc-datefmt.js) */
  function num(id){ var e=$(id); var v=parseFloat(e&&e.value); return isNaN(v)?0:v; }
  function setv(id,v){ var e=$(id); if(e) e.value=v; }
  function un(p){ return p&&p.u?" "+p.u:""; }
@@ -383,6 +383,16 @@
 
 /* ---------- how it was paid: one way (chips) or in parts (cash + UPI + card + bank + credit) ---------- */
  /* payment chips for money received / paid: Cash, UPI, Card, Bank (the chip's data-m is the code) */
+ /* who sold: the staff of the shop's wage list (Settings > Wage). Asked on a sale only when there are 2 or more people; exactly one person is taken for every sale.
+    The phone remembers the last choice. A sale record carries sb (person id) and sn (name when sold). */
+ function sellerList(){ try{ return SH.wageOn()?SH.staff():[]; }catch(e){ return []; } }
+ function sellerDef(){ var L=sellerList(); if(L.length===1) return L[0].id; var v=LS.get("tc_shop_seller")||""; return L.some(function(p){ return p.id===v; })?v:""; }
+ function sellerName(x){ var id=x&&x.sb; if(!id) return ""; var n=""; sellerList().forEach(function(p){ if(p.id===id) n=p.n; }); return n||(x&&x.sn)||""; }
+ function sellerTxt(x){ var n=sellerName(x); return n?'<div class="tsM">🧑 '+E(n)+'</div>':""; }
+ function sellerChips(id,cur,fn){
+  var L=sellerList(); if(L.length<2) return "";
+  return '<label>'+E(T("ആര് വിറ്റു?","Sold by"))+'</label><div id="'+id+'"><span class="tsChip'+(!cur?" on":"")+'" data-m="" onclick="'+fn+'(\'\')">—</span>'+L.map(function(p){ return '<span class="tsChip'+(cur===p.id?" on":"")+'" data-m="'+E(p.id)+'" onclick="'+fn+'(\''+E(p.id)+'\')">🧑 '+E(p.n||T("കൂലി","Wage"))+'</span>'; }).join("")+'</div>';
+ }
  var MK=["C","U","D","B"];
  function mchips(id,on,fn){
   return '<div id="'+id+'">'+MK.map(function(m){ var p=pmOf(m); return '<span class="tsChip'+(on===m?" on":"")+'" data-m="'+m+'" onclick="'+fn+'(\''+m+'\')">'+p[1]+" "+E(T(p[2],p[3]))+'</span>'; }).join("")+'</div>';
@@ -552,6 +562,7 @@
    s.cart.map(function(l,i){ var p=SH.prod(l.p), u=p&&p.u?" "+p.u:""; return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+E(u)+' × '+rt(l.rp||l.pr)+(p&&p.u?' / '+E(p.u):'')+'</div></div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
    '<div class="tsRow"><span>'+E(T("ആകെ","Total"))+'</span><span class="tsTot">'+money(tot)+'</span></div>'+
    payHtml("sa")+
+   sellerChips("saSb",s.sb!==undefined?s.sb:sellerDef(),"tsSaSb")+
    dateRow("saD",s.date||H.today())+
    '<details style="margin-top:8px"'+((s.no||s.cn||s.cm)?' open':'')+'><summary style="font-weight:700;font-size:15px;color:#35566a">👤 '+E(T("കസ്റ്റമർ / കുറിപ്പ് (വേണമെങ്കിൽ)","Customer / note (optional)"))+'</summary>'+
    '<label>'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="saCn" list="saCnL" maxlength="40" value="'+E(s.cn||"")+'" onchange="tsSaCn(this.value)"><datalist id="saCnL">'+custOpts()+'</datalist>'+
@@ -567,6 +578,7 @@
  window.tsSaCm=function(v){ U.sale.cm=cleanMob(v); };
  window.tsSaNo=function(v){ U.sale.no=(v||"").replace(/\s+/g," ").trim().slice(0,80); };
  window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; var n=$("saNo"); if(n) tsSaNo(n.value); U.sale.pm=m; tsPwPm("sa",m); };
+ window.tsSaSb=function(v){ U.sale.sb=v; LS.set("tc_shop_seller",v); mchipSet("saSb",v); };
  window.tsSaSave=function(){
   var s=U.sale; if(!s.cart.length) return;
   var nn=$("saNo"); if(nn) tsSaNo(nn.value);
@@ -575,6 +587,7 @@
   var d=dateVal("saD"), g=H.uid(), tot=0, all=s.cart.reduce(function(a,l){ return a+l.q*l.pr; },0);
   var pr0=payRes("sa",all); if(!pr0.ok){ say(pr0.msg); return; }
   s.pm=pr0.pm; s.cu=pr0.cu;
+  var sb=s.sb!==undefined?s.sb:sellerDef();
   s.cart.forEach(function(l){
    var p=SH.prod(l.p), rec={p:l.p,q:l.q,pr:l.pr,pm:s.pm,g:g};
    if(pr0.sp){ rec.sp=pr0.sp; rec.bt=pr0.bt; }
@@ -583,6 +596,7 @@
    if(s.cn) rec.cn=s.cn;
    if(s.cm) rec.cm=s.cm;
    if(s.cu) rec.cu=s.cu;
+   if(sb){ rec.sb=sb; rec.sn=sellerName({sb:sb}); }
    if(p&&p.g>0&&SH.cfg("gst","0")==="1") rec.gr=p.g;
    if(p&&p.comp) rec.rc=p.rc.map(function(c){ return {i:c.i,q:+c.q||0}; });
    SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.rp||l.pr});
@@ -601,7 +615,7 @@
   box.innerHTML=!order.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
    order.map(function(g){ var x=g.ls[0].r.x;
     return '<div class="tsRow" onclick="tsEntry(\''+enc(g.k)+'\')"><div>'+g.ls.map(function(l){ var y=l.r.x, u=l.p&&l.p.u?" "+l.p.u:""; return '<div>'+E(l.p?l.p.n:"?")+' <span class="tsM">'+qty(y.q)+E(u)+' × '+rt(y.rp||y.pr)+'</span></div>'; }).join("")+
-     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancelBill(\''+enc(g.k)+'\')">✕</button></div></div>'; }).join("")+'</div>';
+     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+sellerTxt(x)+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancelBill(\''+enc(g.k)+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
  /* tap an entry in a list: the Day book's edit sheet (tc-shopday.js) - quantity, price, total, payment, date, note - or cancel */
  window.tsEntry=function(k){ if(typeof window.tsDySaleGo==="function") window.tsDySaleGo(k); else if(typeof window.tsDySale==="function") window.tsDySale(k); };
@@ -813,6 +827,6 @@
  }catch(e){}
 
  window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
-  T:T,E:E,say:say,num:num,setv:setv,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
+  T:T,E:E,say:say,num:num,setv:setv,sellerChips:sellerChips,sellerName:sellerName,sellerTxt:sellerTxt,sellerList:sellerList,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
