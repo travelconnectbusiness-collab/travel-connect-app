@@ -128,13 +128,21 @@
     gr.map(function(g){ return '<div class="tsM" style="margin-top:4px">'+g.rate+'% · '+E(T("വിൽപ്പന ","sales "))+money(g.outBase)+' + '+money(g.outTax)+' · '+E(T("വാങ്ങൽ ","bought "))+money(g.inBase)+' + '+money(g.inTax)+'</div>'; }).join("")+'</div>';
   }
   if(SH.wageOn()){
-   var left=Math.max(0,R.wage-R.wagePaid), wn=SH.cfg("wageName","")||T("കൂലി","Wage");
-   h+='<div class="tsC"><b>'+E(wn)+'</b>'+
-    (R.wageSal>0?'<div class="tsRow"><span>'+E(isDay?T("മാസശമ്പളം (ഈ ദിവസത്തെ പങ്ക്)","Monthly salary (share of the day)"):T("മാസശമ്പളം","Monthly salary"))+'</span><b>'+money(R.wageSal)+'</b></div>':'')+
-    (SH.wageRate()>0?'<div class="tsRow"><span>'+E(T("വിൽപ്പനയിൽ നിന്ന് (100 രൂപയ്ക്ക് "+SH.wageRate()+")","From sales ("+SH.wageRate()+" per 100)"))+'</span><b>'+money(R.wagePct)+'</b></div>':'')+
-    '<div class="tsRow"><span>'+E(isDay?T("ഇന്നത്തെ കൂലി","Wage for the day"):T("ഈ മാസത്തെ കൂലി","Wage for the month"))+'</span><b>'+money(R.wage)+'</b></div>'+
-    (R.wagePaid?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(R.wagePaid)+'</b></div>':'')+
-    '<button class="tsBtn" onclick="tsRpWage('+left+')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+(left>0?' · '+money(left):'')+'</button></div>';
+   var wdef=T("കൂലി","Wage"), SF=R.staff, multi=SF.length>1;
+   SF.forEach(function(p){
+    h+='<div class="tsC"><b>'+E(p.n||wdef)+'</b>'+
+     (p.sal>0?'<div class="tsRow"><span>'+E(isDay?T("മാസശമ്പളം (ഈ ദിവസത്തെ പങ്ക്)","Monthly salary (share of the day)"):T("മാസശമ്പളം","Monthly salary"))+'</span><b>'+money(p.sal)+'</b></div>':'')+
+     (p.pc>0?'<div class="tsRow"><span>'+E(T("വിൽപ്പനയിൽ നിന്ന് (100 രൂപയ്ക്ക് "+p.pc+")","From sales ("+p.pc+" per 100)"))+'</span><b>'+money(p.pct)+'</b></div>':'')+
+     '<div class="tsRow"><span>'+E(isDay?T("ഇന്നത്തെ കൂലി","Wage for the day"):T("ഈ മാസത്തെ കൂലി","Wage for the month"))+'</span><b>'+money(p.due)+'</b></div>'+
+     (p.paid?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(p.paid)+'</b></div>':'')+
+     '<button class="tsBtn" onclick="tsRpWage('+p.left+',\''+String(p.id).replace(/[^\w-]/g,"")+'\')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+(p.left>0?' · '+money(p.left):'')+'</button></div>';
+   });
+   if(!SF.length||R.wageOther>0){
+    h+='<div class="tsC"><b>'+E(SF.length?T("മറ്റ് കൂലി (ആർക്കെന്ന് അടയാളപ്പെടുത്താത്തത്)","Other wages (not marked for a person)"):wdef)+'</b>'+
+     (R.wageOther>0?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(R.wageOther)+'</b></div>':'')+
+     (!SF.length?'<div class="tsM">'+E(T("ജോലിക്കാരെ ചേർക്കാൻ: Settings › കൂലി","Add people: Settings > Wage"))+'</div><button class="tsBtn" onclick="tsRpWage(0,\'\')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+'</button>':'')+'</div>';
+   }
+   if(multi) h+='<div class="tsC"><div class="tsRow"><span><b>'+E(isDay?T("ആകെ ഇന്നത്തെ കൂലി","Total wage for the day"):T("ആകെ ഈ മാസത്തെ കൂലി","Total wage for the month"))+'</b></span><b>'+money(R.wage)+'</b></div><div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(R.wagePaid)+'</b></div></div>';
   }
   if(isDay){
    var by={}; R.lines.forEach(function(l){ var k=l.r.x.p; (by[k]=by[k]||{n:l.p?l.p.n:"?",q:0,t:0}); by[k].q+=+l.r.x.q||0; by[k].t+=l.tot; });
@@ -154,13 +162,16 @@
  window.tsRpMode=function(m){ V.rep.mode=m; UI.render(); };
  window.tsRpD=function(n){ var r=V.rep, d=H.addDays(r.d,n); if(d>H.today()) return; r.d=d; UI.render(); };
  window.tsRpM=function(n){ var r=V.rep, m=addMonth(r.m,n); if(m>H.today().slice(0,7)) return; r.m=m; UI.render(); };
- window.tsRpWage=function(left){
-  UI.sheet('<h3 style="margin:0">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+'</h3><label>'+E(T("തുക","Amount"))+'</label><input id="wgA" type="number" inputmode="decimal" value="'+(left>0?left:"")+'">'+
+ var WG={sid:"",n:""};
+ window.tsRpWage=function(left,sid){
+  var who=""; try{ SH.staff().forEach(function(p){ if(p.id===sid) who=p.n; }); }catch(e){}
+  WG={sid:sid||"",n:who};
+  UI.sheet('<h3 style="margin:0">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+(who?' · '+E(who):'')+'</h3><label>'+E(T("തുക","Amount"))+'</label><input id="wgA" type="number" inputmode="decimal" value="'+(left>0?left:"")+'">'+
    '<button class="tsBtn" onclick="tsRpWageSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
  };
  window.tsRpWageSave=function(){
   var a=num("wgA"); if(!(a>0)) return;
-  SH.add("e",{c:"Wage",a:a,t:SH.cfg("wageName","")||T("കൂലി","Wage")},V.rep.mode==="day"?V.rep.d:(V.rep.m===H.today().slice(0,7)?H.today():monthEnd(V.rep.m))); UI.render(); say(T("സേവ് ചെയ്തു","Saved"));
+  SH.add("e",Object.assign({c:"Wage",a:a,t:WG.n||T("കൂലി","Wage")},WG.sid?{w:WG.sid}:{}),V.rep.mode==="day"?V.rep.d:(V.rep.m===H.today().slice(0,7)?H.today():monthEnd(V.rep.m))); UI.render(); say(T("സേവ് ചെയ്തു","Saved"));
  };
 
  /* ================= EXCEL ================= */
