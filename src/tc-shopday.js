@@ -70,7 +70,7 @@
    var st=0; goList.forEach(function(g){ g.tot=0; g.recs.forEach(function(r){ g.tot+=(+r.x.q||0)*(+r.x.pr||0); }); st+=g.tot; });
    h+='<div class="tsC"><div class="tsRow" style="border:0"><b>🛒 '+E(T("വിൽപ്പന","Sales"))+' ('+goList.length+')</b><b>'+money(st)+'</b></div>'+goList.map(function(g){
     var names=g.recs.map(function(r){ var p=P[r.x.p]; return (p?p.n:"?")+(+r.x.q!==1?" ×"+qty(r.x.q):""); }).join(", "); if(names.length>70) names=names.slice(0,68)+"…";
-    return '<div class="tsRow" onclick="tsDySale(\''+enc(g.key)+'\')"><div>'+E(names)+'<div class="tsM">'+E(pmTxt(g.recs[0].x))+'</div>'+(g.recs[0].x.cn||g.recs[0].x.cm?'<div class="tsM">👤 '+E(g.recs[0].x.cn||"")+(g.recs[0].x.cn&&g.recs[0].x.cm?" · ":"")+E(g.recs[0].x.cm||"")+'</div>':'')+(g.recs[0].x.no?'<div class="tsM">📝 '+E(g.recs[0].x.no)+'</div>':'')+late(g.recs[0])+'</div><div><b>'+money(g.tot)+'</b> ›</div></div>';
+    return '<div class="tsRow" onclick="tsDySale(\''+enc(g.key)+'\')"><div>'+E(names)+'<div class="tsM">'+E(pmTxt(g.recs[0].x))+'</div>'+(g.recs[0].x.cn||g.recs[0].x.cm?'<div class="tsM">👤 '+E(g.recs[0].x.cn||"")+(g.recs[0].x.cn&&g.recs[0].x.cm?" · ":"")+E(g.recs[0].x.cm||"")+'</div>':'')+UI.sellerTxt(g.recs[0].x)+(g.recs[0].x.no?'<div class="tsM">📝 '+E(g.recs[0].x.no)+'</div>':'')+late(g.recs[0])+'</div><div><b>'+money(g.tot)+'</b> ›</div></div>';
    }).join("")+'</div>';
   }
   if(bl.length){
@@ -113,7 +113,7 @@
   var key=decodeURIComponent(k), g=saleGroup(key); if(!g){ UI.closeSheet(); return; }
   var tot=0, x0=g.recs[0].x;
   var lines=g.recs.map(function(r){ var p=g.P[r.x.p], t=(+r.x.q||0)*(+r.x.pr||0); tot+=t; return '<div class="tsRow"><div>'+E(p?p.n:"?")+'<div class="tsM">'+qty(r.x.q)+(p&&p.u?" "+E(p.u):"")+' × '+UI.rt(r.x.rp||r.x.pr)+'</div></div><b>'+money(t)+'</b></div>'; }).join("");
-  UI.sheet('<h3 style="margin:0">🛒 '+E(T("വിൽപ്പന","Sale"))+' · '+E(dmy(g.recs[0].d))+'</h3><div class="tsM">'+E(pmTxt(x0))+'</div>'+(x0.cn||x0.cm?'<div class="tsM">👤 '+E(x0.cn||"")+(x0.cn&&x0.cm?" · ":"")+E(x0.cm||"")+'</div>':'')+(x0.no?'<div class="tsM">📝 '+E(x0.no)+'</div>':'')+'<div style="margin-top:8px">'+lines+'</div>'+
+  UI.sheet('<h3 style="margin:0">🛒 '+E(T("വിൽപ്പന","Sale"))+' · '+E(dmy(g.recs[0].d))+'</h3><div class="tsM">'+E(pmTxt(x0))+'</div>'+(x0.cn||x0.cm?'<div class="tsM">👤 '+E(x0.cn||"")+(x0.cn&&x0.cm?" · ":"")+E(x0.cm||"")+'</div>':'')+UI.sellerTxt(x0)+(x0.no?'<div class="tsM">📝 '+E(x0.no)+'</div>':'')+'<div style="margin-top:8px">'+lines+'</div>'+
    '<div class="tsRow"><span><b>'+E(T("ആകെ","Total"))+'</b></span><span class="tsTot">'+money(tot)+'</span></div>'+
    (g.dk?'<div class="tsM" style="margin:8px 0">'+E(T("ഇത് ഒരു ഇൻവോയ്സ് / ബില്ലിൽ നിന്ന് വന്നതാണ് - മാറ്റം ആ ഇൻവോയ്സിൽ വരുത്തുക.","This came from an invoice / bill - change it in that document."))+'</div>'+
      (typeof window.tcDocsOpen==="function"?'<button class="tsBtn" onclick="tsCloseSheet();tcDocsOpen(\'view\',{id:\''+E(x0.dk)+'\'})">🧾 '+E(T("ഇൻവോയ്സ് തുറക്കുക","Open the document"))+'</button>':""):
@@ -131,15 +131,16 @@
   return '<div id="dyPm"><span class="tsChip'+(on==="C"?" on":"")+'" onclick="'+fn+'(\'C\')">💵 '+E(T("പണം","Cash"))+'</span><span class="tsChip'+(on==="U"?" on":"")+'" onclick="'+fn+'(\'U\')">📱 UPI</span>'+
    (fn==="tsDyPm"?'<span class="tsChip'+(on==="K"?" on":"")+'" onclick="'+fn+'(\'K\')">📒 '+E(T("കടം","Credit"))+'</span>':"")+'</div>';
  }
+ window.tsDySb=function(v){ V.sb=v; UI.mchipSet("dySb",v); };
  window.tsDyPm=function(m){ V.pm=m; if(typeof window.tsPwPm==="function") window.tsPwPm("dy",m); };
  window.tsDySaleEdit=function(k){
-  var key=decodeURIComponent(k), g=saleGroup(key); if(!g) return; var x0=g.recs[0].x; V.pm=x0.pm||"C";
+  var key=decodeURIComponent(k), g=saleGroup(key); if(!g) return; var x0=g.recs[0].x; V.pm=x0.pm||"C"; V.sb=x0.sb||"";
   var sp0={}; if(x0.sp) Object.keys(x0.sp).forEach(function(m){ sp0[m]=String(x0.sp[m]); });
   UI.payInit("dy",{pm:V.pm,split:!!x0.sp,sp:sp0,cu:x0.cu||"",cuId:"dyCu",tot:g.recs.reduce(function(a,r){ return a+(+r.x.q||0)*(+r.x.pr||0); },0)});
   var lines=g.recs.map(function(r,i){ var p=g.P[r.x.p], q0=+r.x.q||0, rate=+r.x.rp||+r.x.pr||0, tt=r2(q0*(+r.x.pr||0));
    return '<div style="margin-top:8px"><b>'+E(p?p.n:"?")+'</b><div class="tsG"><div><label>'+E(T("എണ്ണം","Quantity")+(p&&p.u?" ("+p.u+")":""))+'</label><input id="dyQ'+i+'" type="number" inputmode="decimal" value="'+E(r.x.q)+'" oninput="tsDyCalc('+i+',\'q\')"></div><div><label>'+E(T("വില ","Price ")+"("+UI.perTxt(p&&p.u||"")+")")+'</label><input id="dyP'+i+'" type="number" inputmode="decimal" value="'+E(rate)+'" oninput="tsDyCalc('+i+',\'p\')"></div></div><label>'+E(T("ആകെ തുക","Total"))+'</label><input id="dyT'+i+'" type="number" inputmode="decimal" value="'+E(tt)+'" data-t0="'+E(tt)+'" oninput="tsDyCalc('+i+',\'t\')"></div>'; }).join("");
   UI.sheet('<h3 style="margin:0">✏ '+E(T("വിൽപ്പന തിരുത്തുക","Edit sale"))+'</h3><div class="tsM">'+E(T("ഒരു സാധനം ഒഴിവാക്കാൻ എണ്ണം 0 ആക്കുക","Set the quantity to 0 to remove an item"))+'</div>'+lines+
-   '<div style="margin-top:8px">'+UI.payHtml("dy")+'</div>'+
+   '<div style="margin-top:8px">'+UI.payHtml("dy")+'</div>'+UI.sellerChips("dySb",V.sb,"tsDySb")+
    UI.dateRow("dyDt",g.recs[0].d)+
    '<label>'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="dyCn" list="dyCnL" maxlength="40" value="'+E(x0.cn||"")+'" onchange="tsCustFill(\'dyCn\',\'dyCm\')"><datalist id="dyCnL">'+UI.custOpts()+'</datalist>'+
    '<label>'+E(T("മൊബൈൽ നമ്പർ","Mobile number"))+'</label><input id="dyCm" type="tel" inputmode="tel" maxlength="15" value="'+E(x0.cm||"")+'">'+
@@ -171,7 +172,7 @@
   g.recs.forEach(function(r){ SH.cancel(r.id); });
   var gid=H.uid();
   var no=($("dyNo")&&$("dyNo").value||"").replace(/\s+/g," ").trim().slice(0,80), cn=UI.cleanName($("dyCn")&&$("dyCn").value), cm=UI.cleanMob($("dyCm")&&$("dyCm").value);
-  keep.forEach(function(z){ var x=Object.assign({},z.r.x,{q:z.q,pr:z.pr,pm:pr0.pm,g:gid}); if(z.rp) x.rp=z.rp; else delete x.rp; if(no) x.no=no; else delete x.no; if(cn) x.cn=cn; else delete x.cn; if(cm) x.cm=cm; else delete x.cm; if(pr0.sp){ x.sp=pr0.sp; x.bt=pr0.bt; } else { delete x.sp; delete x.bt; } if(pr0.cu) x.cu=pr0.cu; else delete x.cu; SH.add("s",x,d); });
+  keep.forEach(function(z){ var x=Object.assign({},z.r.x,{q:z.q,pr:z.pr,pm:pr0.pm,g:gid}); if(z.rp) x.rp=z.rp; else delete x.rp; if(no) x.no=no; else delete x.no; if(cn) x.cn=cn; else delete x.cn; if(cm) x.cm=cm; else delete x.cm; if(pr0.sp){ x.sp=pr0.sp; x.bt=pr0.bt; } else { delete x.sp; delete x.bt; } if(pr0.cu) x.cu=pr0.cu; else delete x.cu; if(V.sb){ x.sb=V.sb; x.sn=UI.sellerName({sb:V.sb}); } else { delete x.sb; delete x.sn; } SH.add("s",x,d); });
   say(T("സേവ് ചെയ്തു","Saved")); UI.closeSheet(); UI.render();
  };
 
