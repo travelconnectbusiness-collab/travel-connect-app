@@ -221,6 +221,8 @@
    '<label>'+E(T("വിഭാഗം","Category"))+'</label><select id="psC">'+cats.map(function(c){ return '<option value="'+E(c)+'"'+(c===PS.c?" selected":"")+'>'+E(SH.catName(c,lang==="ml"))+'</option>'; }).join("")+'</select><input id="psCN" placeholder="'+E(T("പുതിയ വിഭാഗത്തിന്റെ പേര് (വേണമെങ്കിൽ)","New category name (optional)"))+'" style="margin-top:6px">'+
    '<label>'+E(T("ഇത് എങ്ങനെയാണ് വിൽക്കുന്നത്?","How is it sold?"))+'</label><div id="psUn">'+unitChips(x.u||"","tsPsUnit")+'</div>'+
    '<label id="psPL">'+E(T("വിൽപ്പന വില ","Selling price ")+"("+perTxt(x.u||"")+")")+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
+   '<label>'+E(T("ഈ ഇനത്തിന്റെ ലാഭ % (വാങ്ങൽ വിലയുടെ മുകളിൽ)","Profit % for this item (on the cost)"))+'</label><input id="psMp" type="number" inputmode="decimal" value="'+E(x.mp===""||x.mp==null?"":x.mp)+'" placeholder="'+E(T("ഷോപ്പിന്റെ സാധാരണ: ","Shop usual: ")+(t==="f"?100:+SH.cfg("mgdef",AQ?50:30))+"%")+'" oninput="tsPsMg()">'+
+   '<div>'+[10,20,30,50,60,100].map(function(m){ return '<span class="tsChip" onclick="tsPsMp('+m+')">'+m+'%</span>'; }).join("")+'</div><div class="tsM" id="psMh"></div>'+
    '<details id="psMore" style="margin-top:10px"'+(OPENMORE?' open':'')+'><summary style="font-weight:800;font-size:16px;padding:8px 0">'+E(T("⚙ കൂടുതൽ ഓപ്ഷനുകൾ (അളവ്, GST, കോമ്പോ...)","⚙ More options (unit, GST, combo...)"))+'</summary>'+
    (SH.cfg("gst","0")==="1"?'<label>GST %</label><select id="psG">'+[0,5,12,18,28].map(function(g){ return '<option value="'+g+'"'+(+x.g===g?" selected":"")+'>'+g+'%</option>'; }).join("")+'</select>':'')+
    '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം / മീറ്റർ / കിലോ? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="decimal" value="'+E(x.pk||1)+'">'+
@@ -236,8 +238,17 @@
     '<button class="tsBtn r" onclick="tsPsDel()">🗑 '+E(T("ഡിലീറ്റ് ചെയ്യുക","Delete"))+'</button>':'')+
    (pid?'<button class="tsBtn r" onclick="tsPsHide()">'+E(p.off?T("വീണ്ടും കാണിക്കുക","Show again"):T("ഇനി വിൽക്കുന്നില്ല (മറയ്ക്കുക)","Hide (not sold any more)"))+'</button>':'')+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
-  psRcDraw();
+  psRcDraw(); window.tsPsMg();
  }
+ /* the price this profit % gives on the average cost (when the item has bought stock) */
+ window.tsPsMp=function(m){ var e=$("psMp"); if(e){ e.value=m; window.tsPsMg(); } };
+ window.tsPsMg=function(){
+  var h=$("psMh"); if(!h) return; var p=PS&&PS.pid?SH.prod(PS.pid):null, m=parseFloat(($("psMp")||{}).value);
+  if(!(p&&p.avg>0)){ h.innerHTML=""; return; }
+  var mg=m>=0?m:p.mg, price=Math.round(p.avg*(1+mg/100)*100)/100;
+  h.innerHTML=E(T("വാങ്ങൽ വില ≈ ₹","Cost ≈ Rs.")+(Math.round(p.avg*100)/100)+" → "+T("വില ₹","price Rs.")+price)+' <span class="tsChip" onclick="tsPsMpUse('+price+')">'+E(T("ഈ വില ഇടൂ","Use this price"))+'</span>';
+ };
+ window.tsPsMpUse=function(v){ var e=$("psP"); if(e) e.value=v; };
  function psRcDraw(){
   var d=$("psRc"); if(!d) return;
   var cost=0, ok=true;
@@ -270,6 +281,7 @@
   var cn=($("psCN").value||"").replace(/\s+/g," ").trim();
   var x={n:n,t:PS.t,c:cn||$("psC").value,pr:num("psP"),pk:Math.max(1,num("psK")||1),u:($("psU").value||"").trim().slice(0,8),nt:$("psNt").checked?1:0,ec:num("psE")>0?num("psE"):""};
   if($("psG")) x.g=+$("psG").value||0;
+  var mpv=($("psMp").value||"").trim(); x.mp=mpv===""||isNaN(parseFloat(mpv))?"":Math.max(0,parseFloat(mpv));
   var lo=$("psL").value; x.lo=lo===""?"":Math.max(0,parseFloat(lo)||0);
   var cb=PS.cb, pid=PS.pid, np, rc=PS.rc.filter(function(c){ return c.i&&(+c.q||0)>0; });
   if(rc.length&&pid&&SH.products({all:true}).some(function(o){ return o.rc&&o.rc.some(function(c){ return c.i===pid; }); })){ say(T("ഇത് വേറെ ഒരു കോമ്പോയുടെ ഭാഗമാണ്; ഇതിൽ ഭാഗങ്ങൾ ചേർക്കാൻ പറ്റില്ല","This item is a part of another combo, so it cannot have parts")); return; }
