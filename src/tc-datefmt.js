@@ -49,7 +49,11 @@
  function all(){ var L=document.querySelectorAll("input.tcDf"); for(var i=0;i<L.length;i++) refresh(L[i]); }
  if(CH){
   var st=document.createElement("style");
-  st.textContent="input.tcDf{position:relative}input.tcDf::-webkit-datetime-edit{opacity:0}input.tcDf::before{content:attr(data-f);position:absolute;top:50%;transform:translateY(-50%);white-space:nowrap;pointer-events:none}input.tcDf[data-e=\"1\"]::before{color:#8a97a3}";
+  /* hide the box's own text in every way a browser draws it (desktop: datetime-edit fields; Android: date-and-time-value), keep its size, and draw ours */
+  var PS=["datetime-edit","datetime-edit-fields-wrapper","datetime-edit-text","datetime-edit-month-field","datetime-edit-day-field","datetime-edit-year-field","date-and-time-value"];
+  st.textContent="input.tcDf{position:relative;-webkit-text-fill-color:transparent}"+
+   PS.map(function(p){ return "input.tcDf::-webkit-"+p+"{opacity:0}"; }).join("")+
+   "input.tcDf::before{content:attr(data-f);position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);box-sizing:border-box;padding:inherit;padding-right:34px;text-align:inherit;white-space:nowrap;overflow:hidden;pointer-events:none;-webkit-text-fill-color:currentColor}input.tcDf[data-e=\"1\"]::before{color:#8a97a3}";
   (document.head||document.documentElement).appendChild(st);
   /* a value set by the code (el.value=...) does not fire an event: refresh in the setter */
   try{
