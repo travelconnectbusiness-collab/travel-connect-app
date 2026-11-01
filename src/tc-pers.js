@@ -35,7 +35,7 @@
  }
  function pad(n){ return (n<10?"0":"")+n; }
  function today(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
- function dmy(d){ var p=String(d||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:String(d||""); }
+ function dmy(d){ if(window.tcDateFmt) return window.tcDateFmt(d); var p=String(d||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:String(d||""); }
  function norm(s){ return String(s==null?"":s).replace(/\s+/g," ").trim().toLowerCase(); }
  function cap(s,n){ return String(s==null?"":s).replace(/\s+/g," ").trim().slice(0,n); }
  function digits(s){ return String(s==null?"":s).replace(/\D/g,""); }
