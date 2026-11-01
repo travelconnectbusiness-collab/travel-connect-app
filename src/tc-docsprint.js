@@ -14,7 +14,7 @@
  window.__tcDocsPrint=1;
  var E=DX.E, mny=DX.mny, r2=DX.r2, T=DX.T;
  var $=function(id){ return document.getElementById(id); };
- function dmy(s){ return String(s||"").split("-").reverse().join("-"); }
+ function dmy(s){ return window.tcDateFmt?window.tcDateFmt(s):String(s||"").split("-").reverse().join("-"); }
  function titleOf(d){
   var g=!!(DX.biz().gstin&&d.gst>0);
   return d.ty==="Q"?"QUOTATION":d.ty==="I"?(g?"TAX INVOICE":"INVOICE"):(g?"TAX INVOICE (CASH BILL)":"CASH BILL");
