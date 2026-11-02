@@ -351,7 +351,7 @@
   var row=pending().filter(function(x){ return x.id===tripId; })[0]; if(!row) return;
   if(!canWrite()){ locked(); return; }
   modal('<h2>'+E(B("Money received","പണം കിട്ടി"))+'</h2><p class="muted" style="font-size:13px">'+E(row.customer)+' &middot; '+E(B("Balance due","ബാക്കി"))+' <b>'+mny(row.bal)+'</b></p>'+
-   '<div class="grid"><label>'+E(B("Amount received","കിട്ടിയ തുക"))+'<input id="abRecAmt" type="number" inputmode="decimal" min="0" value="'+row.bal+'"></label>'+
+   '<div class="grid"><label>'+E(B("Amount received","കിട്ടിയ തുക"))+'<input id="abRecAmt" type="number" inputmode="decimal" min="0" value="'+(Math.round(row.bal*100)/100)+'"></label>'+
    '<label>'+E(B("Paid by","പേയ്മെന്റ് രീതി"))+sel("abRecMode",[["UPI","UPI"],["Cash","Cash"],["Other","Other"]],"UPI")+'</label></div>'+
    '<p class="muted" style="font-size:12px">'+E(B("This is also recorded as a payment on the bill.","ഇത് ബില്ലിലും പേയ്മെന്റായി രേഖപ്പെടുത്തും."))+'</p>'+
    '<div class="actions"><button class="primary" onclick="tcAbReceiveSave(\''+tripId+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button><button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>');
