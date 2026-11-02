@@ -406,6 +406,8 @@ const MARKERS = [
   ["src/tc-datefmt.js", "tcDateFmtOpen", "Menu > Date format: day-month-year / month-day-year / year-month-day (texts and date boxes)"],
   ["src/tc-datefmt.js", "datetime-edit", "Date boxes show the chosen order (Chrome-based browsers)"],
   ["src/tc-regdocs.js", "tc-datefmt.js", "tc-regdocs.js loads tc-datefmt.js first"],
+  ["src/business.js", "Math.round(Math.max(0,km-r.incKm)*100)/100", "Bill shows Extra KM / Extra Hours rounded (29.2 KM, not 29.200000000000003)"],
+  ["src/tc-bills.js", "Math.round(Math.max(0,total-paid)*100)/100", "Money received: balance is rounded, so the Amount box shows 1000, not 999.9999999999999"],
   ["src/tc-shopui.js", "tcDateFmt", "Shop dates follow the chosen date format"],
   ["src/tc-shopset.js", "tsStB", "Shop staff: share of the whole shop's sales, or only what the person sold"],
   ["src/tc-shopday.js", "tsDySb", "Shop Day book: change who sold an entry"],
