@@ -27,11 +27,11 @@
   try{
    var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]; if(!q) return null;
    var c=db.categories[q.categoryId];
-   var total=billFinalAmount(t,q,c).final;
-   var paid=(t.payments||[]).reduce(function(a,p){ return a+(+p.amount||0); },0);
+   var total=Math.round(billFinalAmount(t,q,c).final*100)/100;
+   var paid=(t.payments||[]).reduce(function(a,p){ return a+(+p.amount||0); },0); paid=Math.round(paid*100)/100;
    var disc=(t.payments||[]).reduce(function(a,p){ return a+(p&&p.method==="Discount"?(+p.amount||0):0); },0);
-   var bal=Math.max(0,total-paid);
-   return {t:t,q:q,total:total,paid:paid,disc:disc,cash:paid-disc,bal:bal>0.5?bal:0};
+   var bal=Math.round(Math.max(0,total-paid)*100)/100;
+   return {t:t,q:q,total:total,paid:paid,disc:disc,cash:Math.round((paid-disc)*100)/100,bal:bal>0.5?bal:0};
   }catch(e){ return null; }
  }
  function rows(){
