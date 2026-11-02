@@ -5,6 +5,8 @@
    "Account" (day) gets a small card: tap "Count what came in" -> type the total. The book compares it with what the sales brought in:
         sales - sales given on credit + credit money received - paid out of it (expenses / wage ... behind "More")
    and shows the difference: less = "kept as coins / change", more = "coins changed into notes (extra)". The month view adds the totals of the days counted.
+   RUNNING COINS: every counted day left (+) or extra (-) is added up from the first day counted, so the book shows "coins / change in the shop now (about)"; the first days may show a
+   minus (the shop had coins before the first count), later it settles near the real amount.
    Stored as shop settings (records k:'c', key "cc:YYYY-MM-DD", value JSON {c,x}: c = typed total, x = paid out); the latest save of a day wins; "Remove" saves an empty value.
    No server change. The Account screen (tc-shoprep.js) calls window.tsCashCard(d1,d2,isDay,R) and puts what it returns under the sales card. Nothing here is shop-specific. */
 (function(){
@@ -19,18 +21,29 @@
  function get(d){ return parse(SH.cfg("cc:"+d,"")); }
  /* what the day's sales brought in: sales that were not left on credit + credit money received - paid out of it */
  function expected(s,R){ return r2(R.sales-R.credit+R.recv-(s?s.x:0)); }
+ /* the coins / change in the shop, worked out from the days counted: every day left (sales brought in - counted) adds to it, every day extra takes from it. It starts from 0 at the
+    first day counted, so the first days can show a minus; with more days it settles near the real amount. Counted up to and including day d. */
+ function running(d){
+  var n=0, tot=0; keys().forEach(function(k){ var dd=k.slice(3); if(dd>d) return; var s2=get(dd); tot+=r2(expected(s2,SH.report(dd,dd))-s2.c); n++; });
+  return {n:n,v:r2(tot)};
+ }
+ function runRow(d){
+  var q=running(d); if(!q.n) return "";
+  return '<div class="tsRow"><span><b>'+E(T("കടയിൽ ഇപ്പോൾ ഏകദേശം ചില്ലറ","Coins / change in the shop now (about)"))+'</b> <span class="tsM">('+E(T(q.n+" ദിവസത്തെ കണക്കിൽ നിന്ന്","from "+q.n+" day(s) counted"))+')</span></span><b style="font-size:20px;color:'+(q.v<0?'#a12d2d':'#0b6b78')+'">'+fm(q.v)+'</b></div>'+
+   (q.v<0?'<div class="tsM">'+E(T("മൈനസ് ആണെങ്കിൽ: തുടക്കത്തിൽ കടയിൽ ചില്ലറ ഉണ്ടായിരുന്നു; കൂടുതൽ ദിവസം എണ്ണുമ്പോൾ ശരിയാകും","A minus means the shop had coins at the start; it settles as more days are counted"))+'</div>':'');
+ }
  var CUR={d:"",R:null};
 
  window.tsCashCard=function(d1,d2,isDay,R){
   try{
    if(isDay){
     var s=get(d1), btn='<span class="tsChip" onclick="tsCashOpen(\''+d1+'\')">💵 '+E(s?T("തിരുത്തുക","Edit"):T("കയ്യിൽ വന്നത് എണ്ണി നോക്കുക","Count what came in"))+'</span>';
-    if(!s) return '<div class="tsC" style="text-align:center">'+btn+'<div class="tsM" style="margin-top:4px">'+E(T("നോട്ട് + UPI എണ്ണിയാൽ ചില്ലറ (കോയിൻ) എത്ര എന്ന് കാണാം","Count notes + UPI to see how much is coins / change"))+'</div></div>';
+    if(!s) return '<div class="tsC" style="text-align:center">'+btn+'<div class="tsM" style="margin-top:4px">'+E(T("നോട്ട് + UPI എണ്ണിയാൽ ചില്ലറ (കോയിൻ) എത്ര എന്ന് കാണാം","Count notes + UPI to see how much is coins / change"))+'</div>'+(running(d1).n?'<div style="text-align:left;margin-top:6px">'+runRow(d1)+'</div>':'')+'</div>';
     var ex=expected(s,R), df=r2(s.c-ex);
     return '<div class="tsC"><b>💵 '+E(T("കയ്യിൽ വന്നത്","Came in"))+'</b>'+
      '<div class="tsRow"><span>'+E(T("വിൽപ്പനയിൽ നിന്ന്","From the sales"))+(s.x?' <span class="tsM">('+E(T("കൊടുത്തത് ","paid out "))+fm(s.x)+')</span>':'')+'</span><b>'+fm(ex)+'</b></div>'+
      '<div class="tsRow"><span>'+E(T("എണ്ണിയത് (നോട്ട് + UPI)","Counted (notes + UPI)"))+'</span><b>'+fm(s.c)+'</b></div>'+
-     '<div class="tsRow"><span><b>'+E(df<0?T("ചില്ലറ / കോയിൻ ആയി ബാക്കി","Left as coins / change"):df>0?T("കൂടുതൽ (കോയിൻ നോട്ടായി മാറിയത്)","Extra (coins changed into notes)"):T("ശരി","Matches"))+'</b></span><b style="font-size:22px;color:'+(df===0?'#177044':df<0?'#7a5a14':'#0b6b78')+'">'+(df?fm(Math.abs(df)):"✔")+'</b></div>'+
+     '<div class="tsRow"><span><b>'+E(df<0?T("ചില്ലറ / കോയിൻ ആയി ബാക്കി","Left as coins / change"):df>0?T("കൂടുതൽ (കോയിൻ നോട്ടായി മാറിയത്)","Extra (coins changed into notes)"):T("ശരി","Matches"))+'</b></span><b style="font-size:22px;color:'+(df===0?'#177044':df<0?'#7a5a14':'#0b6b78')+'">'+(df?fm(Math.abs(df)):"✔")+'</b></div>'+runRow(d1)+
      '<div style="margin-top:6px">'+btn+'</div></div>';
    }
    var ks=keys().filter(function(k){ return k.slice(3)>=d1&&k.slice(3)<=d2; }); if(!ks.length) return "";
@@ -38,7 +51,7 @@
    return '<div class="tsC"><b>💵 '+E(T("കയ്യിൽ വന്നത്","Came in"))+'</b> <span class="tsM">'+E(T(ks.length+" ദിവസം എണ്ണി",ks.length+" day(s) counted"))+'</span>'+
     '<div class="tsRow"><span>'+E(T("ചില്ലറ / കോയിൻ ആയി ബാക്കി","Left as coins / change"))+'</span><b>'+fm(coins)+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("കോയിൻ നോട്ടായി മാറിയത്","Coins changed into notes"))+'</span><b>'+fm(extra)+'</b></div>'+
-    '<div class="tsRow"><span><b>'+E(coins>=extra?T("ആകെ ചില്ലറ കൂടിയത്","Coins up by"):T("ആകെ ചില്ലറ കുറഞ്ഞത്","Coins down by"))+'</b></span><b>'+fm(Math.abs(coins-extra))+'</b></div></div>';
+    '<div class="tsRow"><span><b>'+E(coins>=extra?T("ആകെ ചില്ലറ കൂടിയത്","Coins up by"):T("ആകെ ചില്ലറ കുറഞ്ഞത്","Coins down by"))+'</b></span><b>'+fm(Math.abs(coins-extra))+'</b></div>'+runRow(d2)+'</div>';
   }catch(e){ return ""; }
  };
 
