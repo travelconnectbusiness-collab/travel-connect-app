@@ -684,8 +684,8 @@ function printBill(tripId,asImage){
  if(r.restHours>0) usageRows+=row("Overnight rest hours (excluded)",r.restHours+" hrs");
  if(r.incKm!=null){
   usageRows+=row("Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
-  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+money(r.kmExtra||0));
-  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+money(r.hourExtra||0));
+  usageRows+=row("Extra KM ("+money(r.addKm)+"/KM)",Math.round(Math.max(0,km-r.incKm)*100)/100+" KM = "+money(r.kmExtra||0));
+  usageRows+=row("Extra Hours ("+money(r.addHour)+"/hr)",Math.round(Math.max(0,h-r.incHours)*100)/100+" hrs = "+money(r.hourExtra||0));
  }
 
  const stdBase=standardRaw.invalid?0:standardRaw.base, stdExtra=standardRaw.invalid?0:standardRaw.extra, stdTotal=standardRaw.invalid?0:standardRaw.total;
@@ -1041,8 +1041,8 @@ async function downloadBillPDF(tripId){
  if(r.restHours>0) y=pdfRow(doc,y,"Overnight rest hours (excluded)",r.restHours+" hrs");
  if(r.incKm!=null){
   y=pdfRow(doc,y,"Included Coverage",r.incKm+" KM / "+r.incHours+" hrs");
-  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.max(0,km-r.incKm)+" KM = "+pdfMoney(r.kmExtra||0));
-  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.max(0,h-r.incHours)+" hrs = "+pdfMoney(r.hourExtra||0));
+  y=pdfRow(doc,y,"Extra KM ("+pdfMoney(r.addKm)+"/KM)",Math.round(Math.max(0,km-r.incKm)*100)/100+" KM = "+pdfMoney(r.kmExtra||0));
+  y=pdfRow(doc,y,"Extra Hours ("+pdfMoney(r.addHour)+"/hr)",Math.round(Math.max(0,h-r.incHours)*100)/100+" hrs = "+pdfMoney(r.hourExtra||0));
  }
 
  y=pdfDivider(doc,y);
@@ -1351,7 +1351,7 @@ function calcQuote(){
  const finalWithExtras=preGst+gstAmount;
  qCalc.innerHTML=`<div>Base: <b>${money(r.base)}</b></div>
  ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hours</div>
- <div>Extra KM: ${Math.max(0,km-r.incKm)} KM = ${money(r.kmExtra||0)}</div><div>Extra Hour: ${Math.max(0,h-r.incHours)} hrs = ${money(r.hourExtra||0)}</div>`:
+ <div>Extra KM: ${Math.round(Math.max(0,km-r.incKm)*100)/100} KM = ${money(r.kmExtra||0)}</div><div>Extra Hour: ${Math.round(Math.max(0,h-r.incHours)*100)/100} hrs = ${money(r.hourExtra||0)}</div>`:
  `<div>Extra KM: ${money(r.kmExtra||0)}</div><div>Extra Hour: ${money(r.hourExtra||0)}</div>`}
  ${(r.addKmOverridden||r.addHourOverridden)?`<div class="muted">Using overridden extra rate: Rs.${r.addKm}/KM, Rs.${r.addHour}/hr</div>`:""}
  <div>Applicable extra (higher): <b>${money(r.extra||0)}</b></div>
@@ -1588,7 +1588,7 @@ function ensureBillNo(t){
 
 /* ---------- UPI / QR HELPERS ---------- */
 function buildUpiLink(amount,note){
- const params=new URLSearchParams({pa:db.business.upiId||"",pn:db.business.upiName||db.business.name||"Travel Connect",am:String(amount),cu:"INR",tn:note||""});
+ const params=new URLSearchParams({pa:db.business.upiId||"",pn:db.business.upiName||db.business.name||"Travel Connect",am:String(Math.round((+amount||0)*100)/100),cu:"INR",tn:note||""});
  return "upi://pay?"+params.toString();
 }
 /* Renders into an element genuinely attached to the live document (hidden
@@ -1792,7 +1792,7 @@ function loadBill(){
   ${r.days>1?`<div class="muted">${r.days} day trip</div>`:""}
   ${r.restHours>0?`<div class="muted">Overnight rest hours excluded: ${r.restHours} hrs</div>`:""}
   ${r.incKm!=null?`<div class="muted">Included: ${r.incKm} KM / ${r.incHours} hrs</div>
-  <div>Extra KM: ${Math.max(0,km-r.incKm)} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.max(0,h-r.incHours)} (${money(r.hourExtra||0)})</div>`:""}
+  <div>Extra KM: ${Math.round(Math.max(0,km-r.incKm)*100)/100} (${money(r.kmExtra||0)}) &nbsp; Extra Hours: ${Math.round(Math.max(0,h-r.incHours)*100)/100} (${money(r.hourExtra||0)})</div>`:""}
 
   <h3>2. Standard vs Offer Rate</h3>
   <table style="width:100%;border-collapse:collapse;font-size:14px">
