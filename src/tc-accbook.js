@@ -627,6 +627,17 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   }
   return v;
  }
+ /* optional "For trip" box on an expense: pick the trip this expense belongs to, so it shows in that trip's report (owner 2026-11-02: a Rs.300 driver wage typed in the book was not in the trip's Expenses) */
+ function tripSelHtml(cur){
+  var L=(db.trips||[]).map(function(t){
+   var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]; if(!q) return null;
+   return {id:t.id,d:String(t.startDate||q.startDate||t.created||"").slice(0,10),nm:t.customer||q.customer||"",r:routeOf(t,q)};
+  }).filter(Boolean).sort(function(a,b){ return a.d<b.d?1:a.d>b.d?-1:0; });
+  var shown=L.slice(0,40); if(cur&&!shown.some(function(x){ return x.id===cur; })){ var c=L.filter(function(x){ return x.id===cur; })[0]; if(c) shown.push(c); }
+  if(!shown.length) return "";
+  var opts=[["",B("- not for a trip -","- ട്രിപ്പിന് വേണ്ടിയല്ല -")]].concat(shown.map(function(x){ return [x.id,[x.d?tcFormatDate(x.d):"",x.nm,x.r].filter(Boolean).join(" · ")]; }));
+  return '<label>'+E(B("For trip (optional)","ഏത് ട്രിപ്പിന് (ഓപ്ഷണൽ)"))+sel("abTrip",opts,cur||"")+'</label>';
+ }
  function entryForm(e,type,vehId){
   var isNew=!e, t=e?e.type:type, cur=e?e.cat:((PRE&&PRE.cat)||catList(t)[0]);
   var h='<h2>'+(isNew?(t==="in"?E(B("Add income","വരവ് ചേർക്കുക")):E(B("Add expense","ചെലവ് ചേർക്കുക"))):E(B("Edit entry","എൻട്രി തിരുത്തുക")))+'</h2>';
@@ -640,6 +651,7 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    '<label>'+E(B("Vehicle","വാഹനം"))+vehSelectHtml(e?(vById(e.vehId)?e.vehId:((matchVehicle(e.vehNo,e.vehName)||{}).id||"")):(vehId||(ST.veh!=="all"&&ST.veh!=="none"?ST.veh:(vehicles().length===1?vehicles()[0].id:""))))+'</label>'+
    '<label>'+E(B("Paid by","പേയ്മെന്റ് രീതി"))+sel("abMode",[["",B("- not noted -","- രേഖപ്പെടുത്തിയിട്ടില്ല -")]].concat(MODES.map(function(m){ return [m,m]; })),e?e.mode:"")+'</label>'+
    '<label id="abLitRow" style="display:'+(cur==="Fuel"?"":"none")+'">'+E(B("Fuel litres (optional)","ഇന്ധനം ലിറ്റർ (ഓപ്ഷണൽ)"))+'<input id="abLit" type="number" inputmode="decimal" min="0" value="'+E(e&&e.litres?e.litres:"")+'"></label>'+
+   (t==="out"&&!(e&&e.src==="bill")&&!(isNew&&PRE&&PRE.tripId)?tripSelHtml(e?e.tripId:""):"")+
    '<label>'+E(B("Note","കുറിപ്പ്"))+'<input id="abNote" value="'+E(e?e.note:"")+'"></label></div>'+
    '<div class="actions"><button class="primary" onclick="tcAbSave(\''+(e?e.id:"")+'\',\''+t+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button>'+(e&&e.type==="in"&&e.src==="bill"?'<button onclick="tcAbTripExp(\''+e.id+'\')">- '+E(B("Expense of this trip","ഈ ട്രിപ്പിന്റെ ചെലവ്"))+'</button>':'')+(e?'<button class="danger" onclick="tcAbDel(\''+e.id+'\')">'+E(B("Delete","ഇല്ലാതാക്കുക"))+'</button>':'')+'<button onclick="closeModal()">'+E(B("Cancel","റദ്ദാക്കുക"))+'</button></div>';
   modal(h);
@@ -726,6 +738,11 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   var lit=parseFloat(val("abLit"));
   var o={date:d,amount:Math.round(amt*100)/100,cat:cat,vehId:vehVal()||((id&&eById(id)&&matchVehicle(eById(id).vehNo,eById(id).vehName))||{}).id||"",mode:val("abMode"),note:val("abNote"),litres:(cat==="Fuel"&&lit>0)?lit:""};
   var e=id?eById(id):null, others=0, key="";
+  if($("abTrip")){   /* the "For trip" box: set or clear the link to a trip */
+   var tv=val("abTrip"), tt=(db.trips||[]).filter(function(x){ return x.id===tv; })[0], tq=tt?(db.quotes||[]).filter(function(x){ return x.id===tt.quoteId; })[0]:null;
+   if(tt&&tq){ o.tripId=tt.id; o.customer=tt.customer||tq.customer||""; o.route=routeOf(tt,tq); }
+   else if(e&&e.tripId){ o.tripId=""; o.customer=""; o.route=""; }
+  }
   if(e){
    key=e.vehNo||e.vehName||"";
    var changedVeh=o.vehId&&o.vehId!==e.vehId;
