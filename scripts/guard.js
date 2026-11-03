@@ -409,6 +409,7 @@ const MARKERS = [
   ["src/tc-wasel.js", "tcWaSelOpen", "Menu > WhatsApp to use: WhatsApp / WhatsApp Business / phone decides (Android)"],
   ["src/tc-wasel.js", "com.whatsapp.w4b", "wa.me links open in the chosen WhatsApp app (intent with the normal link as fall-back)"],
   ["src/tc-regdocs.js", "tc-wasel.js", "tc-regdocs.js loads tc-wasel.js"],
+  ["src/tc-regdocs.js", "navigator.storage.persist", "The app asks the browser to keep its data (login / local book) so a phone does not clear it"],
   ["src/tc-shopcash.js", "tsCashCard", "Shop Account (day): count the drawer cash, shows extra / short; month shows the total difference"],
   ["src/tc-shoprep.js", "tsCashCard", "Shop Account screen shows the cash-count card"],
   ["src/tc-regdocs.js", "tc-shopcash.js", "tc-regdocs.js loads tc-shopcash.js"],
