@@ -280,6 +280,7 @@ const MARKERS = [
   ["src/tc-pers.js", "TC_BK_LISTS", "My Accounts: lists are part of the Premium Cloud Backup"],
   ["src/tc-pers.js", "tcPersCard", "My Accounts: card on the customer home page"],
   ["src/tc-pers.js", "tpRestoreFile", "My Accounts: restore from backup file"],
+  ["src/tc-pers.js", "tpSug", "My Accounts: description is a multi-line box (300 letters) with recent-description chips"],
   ["src/tc-persgift.js", "tpgPerson", "My Accounts: ceremony cover ledger - person look-up with same/double guidance (tc-persgift.js)"],
   ["src/tc-persgift.js", "tpgSave", "My Accounts: save a cover given/received"],
   ["src/tc-regdocs.js", "tc-pers.js", "tc-regdocs.js loads tc-pers.js"],
