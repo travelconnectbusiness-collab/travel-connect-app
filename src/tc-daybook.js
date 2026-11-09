@@ -93,6 +93,7 @@
    '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>- '+E(lblOut)+'</span><b style="color:#a12d2d">'+mny(d.dayOut)+'</b></div>'+
    '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cfd8de;margin-top:6px;padding-top:6px"><span style="font-weight:800">= '+E(isT?B("Closing balance (now)","ഇപ്പോഴത്തെ ബാലൻസ് (Closing balance)"):B("Closing balance","ദിവസാവസാന ബാലൻസ്"))+'</span><span style="'+big+';color:'+neg(d.cl.net)+'">'+mny(d.cl.net)+'</span></div>'+
    '<div class="muted" style="font-size:12px;margin-top:4px">'+E(B("Cash ","ക്യാഷ് "))+'<b>'+mny(d.cl.cash)+'</b> &middot; '+E(B("Online (UPI/Bank) ","ഓൺലൈൻ (UPI/ബാങ്ക്) "))+'<b>'+mny(d.cl.online)+'</b>'+(Math.abs(d.cl.unk)>0.5?' &middot; '+E(B("Mode not noted ","രീതി രേഖപ്പെടുത്തിയിട്ടില്ല "))+'<b>'+mny(d.cl.unk)+'</b>':'')+'</div></div>';
+  if(typeof window.tcAbMonthStrip==="function") try{ h+=window.tcAbMonthStrip(d.day); }catch(e){}
   if(d.dates.length){
    h+='<select onchange="if(this.value)tcDbSet(this.value)" style="width:100%;font-size:12.5px;margin:8px 0 2px"><option value="">'+E(B("Jump to a day that has entries...","എൻട്രികളുള്ള ദിവസത്തിലേക്ക് പോവുക..."))+'</option>'+
     d.dates.slice(0,45).map(function(x){ return '<option value="'+x+'">'+E(dFull(x))+'</option>'; }).join("")+'</select>';
