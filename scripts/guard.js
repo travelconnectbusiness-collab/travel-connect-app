@@ -115,6 +115,9 @@ const MARKERS = [
   ["src/tc-accbook.js", "tcAbCsv", "Accounts CSV export (always allowed, also after the free period)"],
   ["src/tc-accbook.js", "tcAbReceive", "Accounts: money received later is added to the bill AND the book"],
   ["src/tc-accbook.js", "tcAbTripExp", "Accounts: expense (diesel etc.) of a trip from its income entry"],
+  ["src/tc-accbook.js", "simpleOutForm", "Accounts: simple new-expense form (amount first, Trip | Vehicle expense, small buttons)"],
+  ["src/tc-accbook.js", "tcAbKind", "Accounts: Trip expense | Vehicle expense switch"],
+  ["src/tc-accbook.js", "abMore", "Accounts: Tip / Drivers / Profit report / Excel / CSV folded under More"],
   ["src/tc-accbook.js", "tcAbTipSave", "Accounts: tip for the vehicle (income) or the driver (not counted)"],
   ["src/tc-accbook.js", "accEntries", "Accounts entries are kept in db.accEntries (never lost until deleted)"],
   ["src/tc-regdocs.js", "tc-accbook.js", "tc-regdocs.js loads tc-accbook.js"],
@@ -593,4 +596,4 @@ try {
   const old = allFiles.filter((f) => /^src\/app-updates[^/]*\.js$/.test(f));
   console.log("OLD-STYLE FILES src/app-updates*.js: " + (old.length ? old.join(", ") : "none"));
   console.log("All files in repo (for the record): " + allFiles.length);
-} catch (e) { console.log("(clean-up report skipped: " + e.message + ")"); } 
+} catch (e) { console.log("(clean-up report skipped: " + e.message + ")"); }
