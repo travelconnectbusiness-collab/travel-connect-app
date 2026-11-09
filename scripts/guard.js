@@ -593,4 +593,4 @@ try {
   const old = allFiles.filter((f) => /^src\/app-updates[^/]*\.js$/.test(f));
   console.log("OLD-STYLE FILES src/app-updates*.js: " + (old.length ? old.join(", ") : "none"));
   console.log("All files in repo (for the record): " + allFiles.length);
-} catch (e) { console.log("(clean-up report skipped: " + e.message + ")"); }
+} catch (e) { console.log("(clean-up report skipped: " + e.message + ")"); } 
