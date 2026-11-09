@@ -36,10 +36,16 @@
  var pick="";
  function listHtml(t){
   var rows=(t.ex||[]).slice().reverse().map(function(e){
-   return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;border-top:1px solid #e3eef0"><span><b>'+E(kname(e.k))+'</b> '+money2(e.a)+' <span class="muted">'+E(hhmm(e.at))+(e.n?' &middot; '+E(e.n):'')+'</span></span>'+
+   return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;border-top:1px solid #e3eef0"><span><b>'+E(kname(e.k))+'</b> '+money2(e.a)+' <span class="muted">'+E(hhmm(e.at))+(e.acc?' &#128210;':'')+(e.n?' &middot; '+E(e.n):'')+'</span></span>'+
     '<button type="button" onclick="tcLtxDel(\''+t.id+'\',\''+e.id+'\')" style="flex:none;padding:0 10px;min-height:0;font-size:15px;line-height:24px" aria-label="remove">&times;</button></div>';
   }).join("");
   return rows;
+ }
+ /* tick: also write it as an expense in Trip & Accounts (only once the book has been opened; remembered) */
+ function accOn(){ try{ return localStorage.getItem("tc_ltx_acc")!=="0"; }catch(e){ return true; } }
+ function accRow(){
+  if(typeof window.tcAbReady!=="function"||!window.tcAbReady()) return "";
+  return '<label id="tcLtxAccRow" style="display:flex;flex-direction:row;align-items:center;gap:8px;font-size:12.5px;margin:6px 0 2px"><input type="checkbox" id="tcLtxAcc" style="width:auto;flex:none"'+(accOn()?' checked':'')+'> <span>'+E(B("Also write this as an expense in my Trip & Accounts","ഇത് എന്റെ Trip & Accounts-ൽ ചെലവായും എഴുതുക"))+'</span></label>';
  }
  function boxInner(t){
   var h='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><b>&#128176; '+E(B("Toll, parking & charges","ടോൾ, പാർക്കിംഗ് മുതലായവ"))+'</b><span id="tcLtxTot" style="font-weight:700">'+(total(t)>0?money2(total(t)):"")+'</span></div>'+
@@ -48,7 +54,7 @@
    }).join("")+(premium()?'<button type="button" id="tcLtxMapBtn" onclick="tcLtxMapKm(\'live\')" style="flex:none;padding:5px 11px;min-height:0;font-size:12.5px;border-radius:999px">&#128205; '+E(B("Map km","മാപ്പ് KM"))+'</button>':'')+'</div>'+
    '<div id="tcLtxForm" style="display:'+(pick?'block':'none')+';margin-bottom:6px"><div style="font-size:12.5px;margin-bottom:3px"><b id="tcLtxWhat">'+E(pick?kname(pick):"")+'</b></div>'+
    '<div style="display:flex;gap:6px"><input id="tcLtxAmt" type="number" inputmode="decimal" placeholder="&#8377;" style="flex:1;min-width:0"><input id="tcLtxNote" placeholder="'+E(B("note (optional)","കുറിപ്പ് (ഓപ്ഷണൽ)"))+'" style="flex:2;min-width:0">'+
-   '<button type="button" class="primary" onclick="tcLtxAdd()" style="flex:none">'+E(B("Add","ചേർക്കുക"))+'</button></div><div id="tcLtxErr" class="danger" style="font-size:12.5px"></div></div>'+
+   '<button type="button" class="primary" onclick="tcLtxAdd()" style="flex:none">'+E(B("Add","ചേർക്കുക"))+'</button></div>'+accRow()+'<div id="tcLtxErr" class="danger" style="font-size:12.5px"></div></div>'+
    '<div id="tcLtxMapMsg" class="muted" style="font-size:12.5px"></div>'+
    '<div id="tcLtxList">'+listHtml(t)+'</div>';
   return h;
@@ -95,12 +101,16 @@
   var a=parseFloat(($("tcLtxAmt")||{}).value);
   if(isNaN(a)||a<=0){ var er=$("tcLtxErr"); if(er) er.textContent=B("Enter the amount","തുക നൽകുക"); return; }
   if(!Array.isArray(t.ex)) t.ex=[];
-  t.ex.push({id:uid(),k:pick,a:Math.round(a*100)/100,at:new Date().toISOString(),n:String((($("tcLtxNote")||{}).value)||"").trim()});
-  pick=""; save2(); draw(); say(B("Added","ചേർത്തു"));
+  var ex={id:uid(),k:pick,a:Math.round(a*100)/100,at:new Date().toISOString(),n:String((($("tcLtxNote")||{}).value)||"").trim()};
+  var tk=$("tcLtxAcc"), wrote=false;
+  if(tk){ try{ localStorage.setItem("tc_ltx_acc",tk.checked?"1":"0"); }catch(e){} if(tk.checked&&typeof window.tcAbLiveExp==="function"){ try{ wrote=!!window.tcAbLiveExp(t,ex); }catch(e){} if(wrote) ex.acc=1; } }
+  t.ex.push(ex);
+  pick=""; save2(); draw(); say(wrote?B("Added - and written in your expenses","ചേർത്തു - ചെലവായും എഴുതി"):B("Added","ചേർത്തു"));
  };
  window.tcLtxDel=function(tid,eid){
   var t=find(tid); if(!t) return;
   t.ex=(t.ex||[]).filter(function(e){ return e.id!==eid; });
+  try{ if(typeof window.tcAbLiveDel==="function") window.tcAbLiveDel(eid); }catch(e){}
   save2(); draw();
  };
  /* the bill carries the charges */
