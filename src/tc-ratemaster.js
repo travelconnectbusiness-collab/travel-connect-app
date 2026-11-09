@@ -85,10 +85,12 @@
   }
   if(oc) h+='<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;font-weight:700"><input type="checkbox" class="tcOffer" style="width:auto;margin:0"> '+E(B("Offer package","ഓഫർ പാക്കേജ്"))+
    '<span class="muted" style="font-weight:400;font-size:12px">'+(hasSet(oc.offer1)?E(B("1 day ","1 ദിവസം "))+money(oc.offer1.rate):"")+(hasSet(oc.offer1)&&hasSet(oc.offerM)?" · ":"")+(hasSet(oc.offerM)?E(B("multi-day ","മൾട്ടി ഡേ "))+money(oc.offerM.rate)+E(B("/day","/ദിവസം")):"")+'</span></label>';
-  h+='<details style="margin:0 0 4px"><summary style="font-size:13px;cursor:pointer">'+E(B("Minimum charge / minimum KM (optional)","ഏറ്റവും കുറഞ്ഞ ചാർജ് / KM (ഓപ്ഷണൽ)"))+'</summary>'+
+  h+='<details style="margin:0 0 4px"><summary style="font-size:13px;cursor:pointer">'+E(B("Minimum charge / KM / hours (optional)","ഏറ്റവും കുറഞ്ഞ ചാർജ് / KM / മണിക്കൂർ (ഓപ്ഷണൽ)"))+'</summary>'+
    '<div class="grid"><label>'+E(B("Minimum charge (₹)","മിനിമം ചാർജ് (₹)"))+'<input class="tcMinFare" type="number" inputmode="decimal"></label>'+
-   '<label>'+E(B("Minimum KM per day","ദിവസം മിനിമം KM"))+'<input class="tcMinKm" type="number" inputmode="decimal"></label></div>'+
-   '<div class="muted" style="font-size:12px">'+E(B("Not used for the Drop rate. The bill never goes below the minimum charge; a shorter trip is charged as the minimum KM.","ഡ്രോപ്പ് റേറ്റിന് ബാധകമല്ല. ബില്ല് മിനിമം ചാർജിൽ കുറയില്ല; കുറഞ്ഞ ദൂരം മിനിമം KM ആയി കണക്കാക്കും."))+'</div></details>';
+   '<label>'+E(B("Minimum KM per day","ദിവസം മിനിമം KM"))+'<input class="tcMinKm" type="number" inputmode="decimal"></label>'+
+   '<label>'+E(B("Minimum hours per day","ദിവസം മിനിമം മണിക്കൂർ"))+'<input class="tcMinHr" type="number" inputmode="decimal"></label></div>'+
+   '<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 2px;font-weight:700"><input type="checkbox" class="tcKmOnly" style="width:auto;margin:0"> '+E(B("Charge by KM only (ignore hours)","KM മാത്രം കണക്കാക്കുക (മണിക്കൂർ നോക്കേണ്ട)"))+'</label>'+
+   '<div class="muted" style="font-size:12px">'+E(B("Not used for the Drop rate. The bill never goes below the minimum charge; a shorter trip / fewer hours is charged as the minimum KM / hours (extra charge = the larger of KM and hours, as always). KM only: hours are not charged at all.","ഡ്രോപ്പ് റേറ്റിന് ബാധകമല്ല. ബില്ല് മിനിമം ചാർജിൽ കുറയില്ല; ദൂരമോ സമയമോ കുറഞ്ഞാൽ മിനിമം KM / മണിക്കൂർ വെച്ച് കണക്കാക്കും (അധിക ചാർജ് എപ്പോഴും KM-ന്റെയും മണിക്കൂറിന്റെയും വലുത് മാത്രം). KM മാത്രം: മണിക്കൂറിന് ചാർജ് ഇല്ല."))+'</div></details>';
   return h;
  }
  function inject(){
@@ -106,8 +108,10 @@
   var bs=document.querySelectorAll(".tcRm");
   for(var i=0;i<bs.length;i++){
    var f=bs[i].querySelector(".tcMinFare"), k=bs[i].querySelector(".tcMinKm"), fv=f?f.value:"", kv=k?k.value:"", open=bs[i].querySelector("details")&&bs[i].querySelector("details").open;
-   var of=bs[i].querySelector(".tcOffer"), ov=!!(of&&of.checked);
+   var of=bs[i].querySelector(".tcOffer"), ov=!!(of&&of.checked), hh=bs[i].querySelector(".tcMinHr"), hv=hh?hh.value:"", ko=bs[i].querySelector(".tcKmOnly"), kv2=!!(ko&&ko.checked);
    bs[i].innerHTML=blockHtml(bs[i].getAttribute("data-for"));
+   if(bs[i].querySelector(".tcMinHr")) bs[i].querySelector(".tcMinHr").value=hv;
+   if(bs[i].querySelector(".tcKmOnly")) bs[i].querySelector(".tcKmOnly").checked=kv2;
    if(bs[i].querySelector(".tcOffer")) bs[i].querySelector(".tcOffer").checked=ov;
    if(bs[i].querySelector(".tcMinFare")) bs[i].querySelector(".tcMinFare").value=fv;
    if(bs[i].querySelector(".tcMinKm")) bs[i].querySelector(".tcMinKm").value=kv;
@@ -143,8 +147,10 @@
    redrawBlocks();
    var b=document.querySelector('.tcRm[data-for="qCat"]'); if(!b) return;
    var f=b.querySelector(".tcMinFare"), k=b.querySelector(".tcMinKm"), o=b.querySelector(".tcOffer");
+   var hr=b.querySelector(".tcMinHr"), ko=b.querySelector(".tcKmOnly");
    if(f&&+q.ownMinFare>0) f.value=q.ownMinFare; if(k&&+q.ownMinKm>0) k.value=q.ownMinKm; if(o&&q.ownOffer) o.checked=true;
-   var d=b.querySelector("details"); if(d&&(+q.ownMinFare>0||+q.ownMinKm>0)) d.open=true;
+   if(hr&&+q.ownMinHours>0) hr.value=q.ownMinHours; if(ko&&q.ownKmOnly) ko.checked=true;
+   var d=b.querySelector("details"); if(d&&(+q.ownMinFare>0||+q.ownMinKm>0||+q.ownMinHours>0||q.ownKmOnly)) d.open=true;
   }catch(e){}
  }
  var oBe=window.tcBeOpen;
@@ -156,8 +162,8 @@
  /* ---------- minimum charge / km ---------- */
  var CTX=null;
  function ctxOf(q){
-  if(!q) return null; var f=+q.ownMinFare||0, k=+q.ownMinKm||0, o=!!q.ownOffer;
-  return (f>0||k>0||o)?{fare:f,km:k,offer:o,plan:q.ratePlan||""}:null;
+  if(!q) return null; var f=+q.ownMinFare||0, k=+q.ownMinKm||0, o=!!q.ownOffer, hh=+q.ownMinHours||0, ko=!!q.ownKmOnly;
+  return (f>0||k>0||o||hh>0||ko)?{fare:f,km:k,hours:hh,kmOnly:ko,offer:o,plan:q.ratePlan||""}:null;
  }
  function withCtx(x,fn){ var old=CTX; CTX=x; try{ return fn(); } finally{ CTX=old; } }
  function formRoot(){
@@ -171,15 +177,18 @@
   var r=formRoot(); if(!r) return null;
   var f=r.querySelector(".tcRm .tcMinFare"), k=r.querySelector(".tcRm .tcMinKm");
   var fare=f?(parseFloat(f.value)||0):0, km=k?(parseFloat(k.value)||0):0, of=r.querySelector(".tcRm .tcOffer"), offer=!!(of&&of.checked);
-  var rs=r.querySelector("#qRate,#qbRate,#beRate");
-  return (fare>0||km>0||offer)?{fare:fare,km:km,offer:offer,plan:rs?rs.value:""}:null;
+  var rs=r.querySelector("#qRate,#qbRate,#beRate"), hr=r.querySelector(".tcRm .tcMinHr"), ko=r.querySelector(".tcRm .tcKmOnly");
+  var hours=hr?(parseFloat(hr.value)||0):0, kmOnly=!!(ko&&ko.checked);
+  return (fare>0||km>0||offer||hours>0||kmOnly)?{fare:fare,km:km,hours:hours,kmOnly:kmOnly,offer:offer,plan:rs?rs.value:""}:null;
  }
  var oCalc=window.calcFare;
  if(typeof oCalc==="function") window.calcFare=function(c,plan,km,h,days,rest,ov){
   var x=CTX||formVals(), offerTag="";
-  /* billBreakdown's FIRST fare call is the plain Standard comparison column: no offer, no minimum on that one */
+  /* billBreakdown's FIRST fare call is the plain Standard comparison column: no offer, no minimum, no KM-only on that one */
   if(x&&x.skipStd&&plan==="standard"){ x.skipStd=false; return oCalc.apply(this,arguments); }
   if(x&&x.offer&&x.plan&&x.plan!==plan) x=Object.assign({},x,{offer:false});      /* the offer only replaces the plan that was chosen */
+  var A=Array.prototype.slice.call(arguments), kmOnly=!!(x&&x.kmOnly&&plan!=="drop"&&plan!=="custom");
+  if(kmOnly) A[3]=0;                                                              /* KM only: the hours are not charged at all */
   if(x&&x.offer&&plan!=="drop"&&plan!=="custom"&&c&&c[plan]){
    try{
     var oneDay=!((Number(days)||1)>1), st=oneDay?c.offer1:c.offerM;
@@ -187,25 +196,26 @@
      var c2=Object.assign({},c), p2=Object.assign({},c[plan]);
      FLD.forEach(function(f){ p2[f[0]]=+st[f[0]]||0; });
      c2[plan]=p2; offerTag=oneDay?"1":"M";
-     var a0=Array.prototype.slice.call(arguments); a0[0]=c2;
+     var a0=A.slice(); a0[0]=c2;
      var ro=oCalc.apply(this,a0);
-     if(ro&&!ro.invalid) ro.offerApplied=offerTag; else offerTag="";
+     if(ro&&!ro.invalid){ ro.offerApplied=offerTag; if(kmOnly) ro.kmOnlyApplied=1; } else offerTag="";
      if(offerTag) return finishMin(ro,x,plan,km,days,a0);
     }
    }catch(e){ offerTag=""; }
   }
-  var r=oCalc.apply(this,arguments);
-  return finishMin(r,x,plan,km,days,arguments);
+  var r=oCalc.apply(this,A);
+  if(kmOnly&&r&&!r.invalid) r.kmOnlyApplied=1;
+  return finishMin(r,x,plan,km,days,A);
  };
  function finishMin(r,x,plan,km,days,args){
   if(!x||plan==="drop"||!r||r.invalid) return r;
-  var oC=oCalc;
   try{
-   var d=Number(days)||1, kmN=Number(km)||0, mk=(x.km||0)*d;
-   if(plan!=="custom"&&mk>kmN){
-    var a2=Array.prototype.slice.call(args); a2[2]=mk;
-    var r1=oC.apply(null,a2);
-    if(r1&&!r1.invalid&&r1.total>r.total){ r.base+=r1.total-r.total; r.total=r1.total; r.minKmApplied=mk; }
+   var d=Number(days)||1, kmN=Number(km)||0, mk=(x.km||0)*d, hN=Number(args[3])||0, rest=Number(args[5])||0, mh=(x.hours||0)*d;
+   var useKm=(plan!=="custom"&&mk>kmN), useHr=(plan!=="custom"&&!x.kmOnly&&mh>Math.max(0,hN-rest));
+   if(useKm||useHr){
+    var a2=args.slice(); if(useKm) a2[2]=mk; if(useHr) a2[3]=mh+rest;
+    var r1=oCalc.apply(null,a2);
+    if(r1&&!r1.invalid&&r1.total>r.total){ r.base+=r1.total-r.total; r.total=r1.total; if(useKm) r.minKmApplied=mk; if(useHr) r.minHoursApplied=mh; }
    }
    if(x.fare>0&&r.total<x.fare){ r.base+=x.fare-r.total; r.total=x.fare; r.minFareApplied=x.fare; }
   }catch(e){}
@@ -219,6 +229,8 @@
  function note(r){
   var p=[];
   if(r.offerApplied) p.push(B("Offer package applied","ഓഫർ പാക്കേജ് ബാധകം"));
+  if(r.kmOnlyApplied) p.push(B("Charged by KM only","KM മാത്രം കണക്കാക്കി"));
+  if(r.minHoursApplied) p.push(B("Minimum hours "+r.minHoursApplied+" applied","മിനിമം മണിക്കൂർ "+r.minHoursApplied+" ബാധകം"));
   if(r.minKmApplied) p.push(B("Minimum KM "+r.minKmApplied+" applied","മിനിമം KM "+r.minKmApplied+" ബാധകം"));
   if(r.minFareApplied) p.push(B("Minimum charge "+money(r.minFareApplied)+" applied","മിനിമം ചാർജ് "+money(r.minFareApplied)+" ബാധകം"));
   return p.join(", ");
@@ -252,7 +264,7 @@
  var oBuild=window.buildQuoteObjFromForm;
  if(typeof oBuild==="function") window.buildQuoteObjFromForm=function(r){
   var o=oBuild.apply(this,arguments);
-  try{ var f=formVals(); o.ownMinFare=f?f.fare:0; o.ownMinKm=f?f.km:0; o.ownOffer=f&&f.offer?1:0; }catch(e){}
+  try{ var f=formVals(); o.ownMinFare=f?f.fare:0; o.ownMinKm=f?f.km:0; o.ownMinHours=f?f.hours:0; o.ownKmOnly=f&&f.kmOnly?1:0; o.ownOffer=f&&f.offer?1:0; if(o.ownKmOnly) o.showHours=false; }catch(e){}
   return o;
  };
  var oQb=window.saveQuickBill;
@@ -260,7 +272,7 @@
   var n=(db.quotes||[]).length, f=null;
   try{ f=formVals(); }catch(e){}
   var r=oQb.apply(this,arguments);
-  try{ if(f&&(db.quotes||[]).length>n){ db.quotes[0].ownMinFare=f.fare; db.quotes[0].ownMinKm=f.km; db.quotes[0].ownOffer=f.offer?1:0; save2(); } }catch(e){}
+  try{ if(f&&(db.quotes||[]).length>n){ db.quotes[0].ownMinFare=f.fare; db.quotes[0].ownMinKm=f.km; db.quotes[0].ownMinHours=f.hours; db.quotes[0].ownKmOnly=f.kmOnly?1:0; db.quotes[0].ownOffer=f.offer?1:0; if(f.kmOnly) db.quotes[0].showHours=false; save2(); } }catch(e){}
   return r;
  };
 
