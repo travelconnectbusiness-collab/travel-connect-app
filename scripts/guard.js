@@ -123,6 +123,7 @@ const MARKERS = [
   ["src/tc-accbook.js", "IN_HIDE", "Accounts: one Trip payment + one Tip (driver tick) offered for income"],
   ["src/tc-accbook.js", "tcAbLiveExp", "Accounts: Live Trip charge written as an expense (and removed with it)"],
   ["src/tc-ltextra.js", "tcLtxAcc", "Live Trip: tick 'also write this as an expense in my Trip & Accounts'"],
+  ["src/tc-accbook.js", "tcAbMonthStrip", "Day Book: this month Income / Expense / Profit strip under the day balance"],
   ["src/tc-accbook.js", "tcAbTipSave", "Accounts: tip for the vehicle (income) or the driver (not counted)"],
   ["src/tc-accbook.js", "accEntries", "Accounts entries are kept in db.accEntries (never lost until deleted)"],
   ["src/tc-regdocs.js", "tc-accbook.js", "tc-regdocs.js loads tc-accbook.js"],
