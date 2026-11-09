@@ -463,6 +463,7 @@ const MARKERS = [
   ["src/tc-ratemaster.js", "db.ownCats", "Own categories of a Premium owner (db.ownCats)"],
   ["src/tc-ratemaster.js", "tcRmMode", "Rate switch Travel Connect | Mine in Quotation / Quick Bill"],
   ["src/tc-ratemaster.js", "ownMinFare", "Own minimum charge / minimum KM on quotes and bills"],
+  ["src/tc-ratemaster.js", "tcKmOnly", "Own minimum hours + KM only (ignore hours) in the bill box"],
   ["src/tc-ratemaster.js", "ownOffer", "Offer package (one-day / multi-day) for special customers on quotes and bills"],
   ["src/tc-ratemaster.js", "String(-(i+1))", "db.categories[-1] ... getters for own categories (old bills keep working)"],
   ["src/tc-regdocs.js", "tc-ratemaster.js", "tc-regdocs.js loads tc-ratemaster.js"],
