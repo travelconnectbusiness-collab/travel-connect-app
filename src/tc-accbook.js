@@ -490,6 +490,20 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
    return '<details style="border:1px solid #e1e1e1;border-radius:10px;padding:6px 10px;margin:6px 0"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:14px"><span><b>'+E(catLabel(g.cat))+'</b> <span class="muted">('+g.items.length+')</span></span><span><b style="color:'+col+'">'+mny(g.sum)+'</b> <span class="muted" style="font-size:12px">'+(total>0?Math.round(g.sum*100/total):0)+'%</span></span></summary>'+rows+'</details>';
   }).join("");
  }
+ /* Day Book: the month of the viewed day, small, under the day's balance (this month's IN / OUT / Profit, same vehicle choice) */
+ window.tcAbMonthStrip=function(day){
+  var pre=String(day||todayIso()).slice(0,7);
+  var l=entries().filter(function(e){
+   if(String(e.date).slice(0,7)!==pre) return false;
+   if(ST.veh==="all") return true;
+   if(ST.veh==="none") return !e.vehId||!vById(e.vehId);
+   return e.vehId===ST.veh;
+  }), t=sums(l), isNow=(pre===todayIso().slice(0,7));
+  var name=isNow?B("This month","ഈ മാസം"):pre.slice(5,7)+"-"+pre.slice(0,4);
+  var cell=function(lb,v,c){ return '<div style="flex:1;text-align:center"><div style="font-size:11.5px;color:#4a5a63">'+E(lb)+'</div><div style="font-size:16px;font-weight:800;color:'+c+'">'+mny(v)+'</div></div>'; };
+  return '<div id="abMonthStrip" style="border:1px solid #cfd8de;border-radius:12px;padding:8px 6px;margin-top:8px;background:#fff"><div style="font-size:12px;font-weight:700;margin:0 6px 2px">&#128197; '+E(name)+'</div><div style="display:flex;gap:4px">'+
+   cell(B("Income","വരവ്"),t.inc,"#1c6b2c")+cell(B("Expense","ചെലവ്"),t.out,"#a12d2d")+cell(B("Profit","ലാഭം"),t.net,t.net<0?"#a12d2d":"#1c6b2c")+'</div></div>';
+ };
  window.tcAbDrill=function(kind){
   var list=filtered().filter(function(e){ return !isDrv(e); });
   var ins=list.filter(function(e){ return e.type==="in"; }), outs=list.filter(function(e){ return e.type!=="in"; });
