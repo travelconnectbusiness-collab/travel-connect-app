@@ -11,10 +11,15 @@
    3) Quotation, Quick Bill and Edit-bill category lists: Premium owners with an own master get a small switch "Rate: Travel Connect | Mine" under the category box
       (last choice remembered in localStorage tc_ratemode; opening a saved quote / bill switches to the set it was made with). Switching refills the category list.
       Not Premium (or no own master) = nothing changes. A lapsed Premium still prints / edits old own-master bills.
-   4) MINIMUM CHARGE / MINIMUM KM (Premium, optional, in a closed "Minimum charge / km" box, not for the Drop rate which has its own minimum): wrapper of calcFare.
+   4) OFFER PACKAGE (owner 2026-11-09, for special customers who treat the driver like family): an own category may hold an optional "Offer package" with two sets,
+      One-day trip and Multi-day trip (per day): package amount (the fare never goes below it), included KM / hours, extra per KM / hour. When the category has an offer
+      the Quotation / Quick Bill shows a small switch "Offer package" (off by default); on = the calculation uses the one-day set (1 day) or the multi-day set (more days,
+      per day) instead of the chosen rate's figures (calcFare gets a copy of the category with that plan replaced). Not for the Drop rate / a typed (custom) base.
+      Stored on the quote (ownOffer), re-applied by billFinalAmount / billBreakdown, the Service line says "Offer package applied".
+   5) MINIMUM CHARGE / MINIMUM KM (Premium, optional, per bill, in a closed "Minimum charge / km" box, not for the Drop rate which has its own minimum): wrapper of calcFare.
       Minimum KM (per day x days): the fare is worked out on that KM when the trip is shorter. Minimum charge: the fare is never lower. The difference is added to
       the Base charge so the bill rows still add up, and the bill's Service line says "Minimum charge Rs.X applied". Stored on the quote (ownMinFare / ownMinKm);
-      billFinalAmount / billBreakdown use them, so print, PDF, list and day book agree. Own categories can hold default minimums that fill the boxes. */
+      billFinalAmount / billBreakdown use them, so print, PDF, list and day book agree. Opening a saved quote puts these values (and the offer switch) back. */
 (function(){
  if(window.__tcRateMaster) return;
  window.__tcRateMaster=1;
@@ -61,12 +66,15 @@
    if(want==="own") s.innerHTML=ownOptions();
    else if(had&&typeof tcCategoryOptions==="function") s.innerHTML=tcCategoryOptions();
    s.dataset.tcSet=want;
-   if(!s.dataset.tcRmL){ s.dataset.tcRmL=1; s.addEventListener("change",function(){ fillMins(id); }); }
+   if(!s.dataset.tcRmL){ s.dataset.tcRmL=1; s.addEventListener("change",function(){ redrawBlocks(); }); }
   });
  }
  /* ---------- the switch + minimum boxes under the category box ---------- */
- function blockHtml(){
-  var h="";
+ function selCat(id){ var s=$(id); var v=s?+s.value:0; return (s&&s.value!==""&&v<0)?(db.ownCats||[])[-v-1]:null; }
+ function hasSet(x){ return !!(x&&+x.rate>0); }
+ function offerOf(c){ return c&&(hasSet(c.offer1)||hasSet(c.offerM))?c:null; }
+ function blockHtml(forId){
+  var h="", oc=offerOf(selCat(forId));
   if(own().length){
    var o=effOwn();
    h+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;margin:2px 0 4px"><b>'+E(B("Rate:","റേറ്റ്:"))+'</b>'+
@@ -75,6 +83,8 @@
   }else{
    h+='<div style="font-size:12.5px;margin:2px 0 4px"><a href="#" onclick="tcRmOpen();return false">+ '+E(B("Make my own Rate Master","എൻ്റെ സ്വന്തം റേറ്റ് മാസ്റ്റർ ഉണ്ടാക്കുക"))+'</a></div>';
   }
+  if(oc) h+='<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;font-weight:700"><input type="checkbox" class="tcOffer" style="width:auto;margin:0"> '+E(B("Offer package","ഓഫർ പാക്കേജ്"))+
+   '<span class="muted" style="font-weight:400;font-size:12px">'+(hasSet(oc.offer1)?E(B("1 day ","1 ദിവസം "))+money(oc.offer1.rate):"")+(hasSet(oc.offer1)&&hasSet(oc.offerM)?" · ":"")+(hasSet(oc.offerM)?E(B("multi-day ","മൾട്ടി ഡേ "))+money(oc.offerM.rate)+E(B("/day","/ദിവസം")):"")+'</span></label>';
   h+='<details style="margin:0 0 4px"><summary style="font-size:13px;cursor:pointer">'+E(B("Minimum charge / minimum KM (optional)","ഏറ്റവും കുറഞ്ഞ ചാർജ് / KM (ഓപ്ഷണൽ)"))+'</summary>'+
    '<div class="grid"><label>'+E(B("Minimum charge (₹)","മിനിമം ചാർജ് (₹)"))+'<input class="tcMinFare" type="number" inputmode="decimal"></label>'+
    '<label>'+E(B("Minimum KM per day","ദിവസം മിനിമം KM"))+'<input class="tcMinKm" type="number" inputmode="decimal"></label></div>'+
@@ -88,7 +98,7 @@
    var nx=lab.nextElementSibling;
    if(nx&&nx.classList.contains("tcRm")) return;
    var d=document.createElement("div"); d.className="tcRm"; d.setAttribute("data-for",p[0]); d.style.cssText="grid-column:1/-1";
-   d.innerHTML=blockHtml();
+   d.innerHTML=blockHtml(p[0]);
    lab.parentNode.insertBefore(d,lab.nextSibling);
   });
  }
@@ -96,18 +106,13 @@
   var bs=document.querySelectorAll(".tcRm");
   for(var i=0;i<bs.length;i++){
    var f=bs[i].querySelector(".tcMinFare"), k=bs[i].querySelector(".tcMinKm"), fv=f?f.value:"", kv=k?k.value:"", open=bs[i].querySelector("details")&&bs[i].querySelector("details").open;
-   bs[i].innerHTML=blockHtml();
+   var of=bs[i].querySelector(".tcOffer"), ov=!!(of&&of.checked);
+   bs[i].innerHTML=blockHtml(bs[i].getAttribute("data-for"));
+   if(bs[i].querySelector(".tcOffer")) bs[i].querySelector(".tcOffer").checked=ov;
    if(bs[i].querySelector(".tcMinFare")) bs[i].querySelector(".tcMinFare").value=fv;
    if(bs[i].querySelector(".tcMinKm")) bs[i].querySelector(".tcMinKm").value=kv;
    if(open&&bs[i].querySelector("details")) bs[i].querySelector("details").open=true;
   }
- }
- function fillMins(id){
-  var s=$(id); if(!s) return; var blk=s.closest("label"); blk=blk&&blk.nextElementSibling; if(!blk||!blk.classList.contains("tcRm")) return;
-  var v=+s.value; if(s.value===""||!(v<0)) return;
-  var c=(db.ownCats||[])[-v-1]; if(!c) return;
-  var f=blk.querySelector(".tcMinFare"), k=blk.querySelector(".tcMinKm");
-  if(f) f.value=c.minFare>0?c.minFare:""; if(k) k.value=c.minKm>0?c.minKm:"";
  }
  window.tcRmMode=function(m){
   setMode(m); force=false; syncSelects(true); redrawBlocks();
@@ -125,9 +130,23 @@
  }
  var oOpenQ=window.openQuote;
  if(typeof oOpenQ==="function") window.openQuote=function(id){
-  try{ modeFromQuote((db.quotes||[]).filter(function(x){ return x.id===id; })[0]); }catch(e){}
-  return oOpenQ.apply(this,arguments);
+  var q0=null;
+  try{ q0=(db.quotes||[]).filter(function(x){ return x.id===id; })[0]; modeFromQuote(q0); }catch(e){}
+  var r=oOpenQ.apply(this,arguments);
+  setTimeout(function(){ restoreFromQuote(q0); },200);
+  return r;
  };
+ /* a saved quote: put its minimum boxes and offer switch back (the category value is set by script, no change event) */
+ function restoreFromQuote(q){
+  try{
+   if(!q||!premium()&&!(+q.categoryId<0)) return;
+   redrawBlocks();
+   var b=document.querySelector('.tcRm[data-for="qCat"]'); if(!b) return;
+   var f=b.querySelector(".tcMinFare"), k=b.querySelector(".tcMinKm"), o=b.querySelector(".tcOffer");
+   if(f&&+q.ownMinFare>0) f.value=q.ownMinFare; if(k&&+q.ownMinKm>0) k.value=q.ownMinKm; if(o&&q.ownOffer) o.checked=true;
+   var d=b.querySelector("details"); if(d&&(+q.ownMinFare>0||+q.ownMinKm>0)) d.open=true;
+  }catch(e){}
+ }
  var oBe=window.tcBeOpen;
  if(typeof oBe==="function") window.tcBeOpen=function(tripId){
   try{ var t=(db.trips||[]).filter(function(x){ return x.id===tripId; })[0]; modeFromQuote(t&&(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]); }catch(e){}
@@ -137,8 +156,8 @@
  /* ---------- minimum charge / km ---------- */
  var CTX=null;
  function ctxOf(q){
-  if(!q) return null; var f=+q.ownMinFare||0, k=+q.ownMinKm||0;
-  return (f>0||k>0)?{fare:f,km:k}:null;
+  if(!q) return null; var f=+q.ownMinFare||0, k=+q.ownMinKm||0, o=!!q.ownOffer;
+  return (f>0||k>0||o)?{fare:f,km:k,offer:o,plan:q.ratePlan||""}:null;
  }
  function withCtx(x,fn){ var old=CTX; CTX=x; try{ return fn(); } finally{ CTX=old; } }
  function formRoot(){
@@ -151,25 +170,47 @@
  function formVals(){
   var r=formRoot(); if(!r) return null;
   var f=r.querySelector(".tcRm .tcMinFare"), k=r.querySelector(".tcRm .tcMinKm");
-  var fare=f?(parseFloat(f.value)||0):0, km=k?(parseFloat(k.value)||0):0;
-  return (fare>0||km>0)?{fare:fare,km:km}:null;
+  var fare=f?(parseFloat(f.value)||0):0, km=k?(parseFloat(k.value)||0):0, of=r.querySelector(".tcRm .tcOffer"), offer=!!(of&&of.checked);
+  var rs=r.querySelector("#qRate,#qbRate,#beRate");
+  return (fare>0||km>0||offer)?{fare:fare,km:km,offer:offer,plan:rs?rs.value:""}:null;
  }
  var oCalc=window.calcFare;
  if(typeof oCalc==="function") window.calcFare=function(c,plan,km,h,days,rest,ov){
+  var x=CTX||formVals(), offerTag="";
+  /* billBreakdown's FIRST fare call is the plain Standard comparison column: no offer, no minimum on that one */
+  if(x&&x.skipStd&&plan==="standard"){ x.skipStd=false; return oCalc.apply(this,arguments); }
+  if(x&&x.offer&&x.plan&&x.plan!==plan) x=Object.assign({},x,{offer:false});      /* the offer only replaces the plan that was chosen */
+  if(x&&x.offer&&plan!=="drop"&&plan!=="custom"&&c&&c[plan]){
+   try{
+    var oneDay=!((Number(days)||1)>1), st=oneDay?c.offer1:c.offerM;
+    if(hasSet(st)){
+     var c2=Object.assign({},c), p2=Object.assign({},c[plan]);
+     FLD.forEach(function(f){ p2[f[0]]=+st[f[0]]||0; });
+     c2[plan]=p2; offerTag=oneDay?"1":"M";
+     var a0=Array.prototype.slice.call(arguments); a0[0]=c2;
+     var ro=oCalc.apply(this,a0);
+     if(ro&&!ro.invalid) ro.offerApplied=offerTag; else offerTag="";
+     if(offerTag) return finishMin(ro,x,plan,km,days,a0);
+    }
+   }catch(e){ offerTag=""; }
+  }
   var r=oCalc.apply(this,arguments);
-  var x=CTX||formVals();
+  return finishMin(r,x,plan,km,days,arguments);
+ };
+ function finishMin(r,x,plan,km,days,args){
   if(!x||plan==="drop"||!r||r.invalid) return r;
+  var oC=oCalc;
   try{
    var d=Number(days)||1, kmN=Number(km)||0, mk=(x.km||0)*d;
    if(plan!=="custom"&&mk>kmN){
-    var a2=Array.prototype.slice.call(arguments); a2[2]=mk;
-    var r1=oCalc.apply(this,a2);
+    var a2=Array.prototype.slice.call(args); a2[2]=mk;
+    var r1=oC.apply(null,a2);
     if(r1&&!r1.invalid&&r1.total>r.total){ r.base+=r1.total-r.total; r.total=r1.total; r.minKmApplied=mk; }
    }
    if(x.fare>0&&r.total<x.fare){ r.base+=x.fare-r.total; r.total=x.fare; r.minFareApplied=x.fare; }
   }catch(e){}
   return r;
- };
+ }
  var oFinal=window.billFinalAmount;
  if(typeof oFinal==="function") window.billFinalAmount=function(t,q,c){
   var a=arguments, self=this;
@@ -177,6 +218,7 @@
  };
  function note(r){
   var p=[];
+  if(r.offerApplied) p.push(B("Offer package applied","ഓഫർ പാക്കേജ് ബാധകം"));
   if(r.minKmApplied) p.push(B("Minimum KM "+r.minKmApplied+" applied","മിനിമം KM "+r.minKmApplied+" ബാധകം"));
   if(r.minFareApplied) p.push(B("Minimum charge "+money(r.minFareApplied)+" applied","മിനിമം ചാർജ് "+money(r.minFareApplied)+" ബാധകം"));
   return p.join(", ");
@@ -184,7 +226,8 @@
  var oBd=window.billBreakdown;
  if(typeof oBd==="function") window.billBreakdown=function(t,q,c){
   var a=arguments, self=this;
-  var bd=withCtx(ctxOf(q),function(){ return oBd.apply(self,a); });
+  var cx=ctxOf(q); if(cx) cx.skipStd=true;
+  var bd=withCtx(cx,function(){ return oBd.apply(self,a); });
   try{
    if(q&&q.ratePlan!=="drop"&&bd&&bd.r){
     var n=note(bd.r);
@@ -194,10 +237,22 @@
   }catch(e){}
   return bd;
  };
+ /* the quotation print / PDF work the fare out again from the category - give them the quote's own offer / minimum too */
+ var oPq=window.printQuoteObj;
+ if(typeof oPq==="function") window.printQuoteObj=function(q){
+  var a=arguments, self=this, cx=ctxOf(q); if(cx) cx.skipStd=false;
+  return withCtx(cx,function(){ return oPq.apply(self,a); });
+ };
+ var oPdf=window.downloadQuotePDFObj;
+ if(typeof oPdf==="function") window.downloadQuotePDFObj=function(q){
+  var cx=ctxOf(q), old=CTX; CTX=cx;
+  var p; try{ p=oPdf.apply(this,arguments); }catch(e){ CTX=old; throw e; }
+  return Promise.resolve(p).then(function(v){ CTX=old; return v; },function(e){ CTX=old; throw e; });
+ };
  var oBuild=window.buildQuoteObjFromForm;
  if(typeof oBuild==="function") window.buildQuoteObjFromForm=function(r){
   var o=oBuild.apply(this,arguments);
-  try{ var f=formVals(); o.ownMinFare=f?f.fare:0; o.ownMinKm=f?f.km:0; }catch(e){}
+  try{ var f=formVals(); o.ownMinFare=f?f.fare:0; o.ownMinKm=f?f.km:0; o.ownOffer=f&&f.offer?1:0; }catch(e){}
   return o;
  };
  var oQb=window.saveQuickBill;
@@ -205,14 +260,14 @@
   var n=(db.quotes||[]).length, f=null;
   try{ f=formVals(); }catch(e){}
   var r=oQb.apply(this,arguments);
-  try{ if(f&&(db.quotes||[]).length>n){ db.quotes[0].ownMinFare=f.fare; db.quotes[0].ownMinKm=f.km; save2(); } }catch(e){}
+  try{ if(f&&(db.quotes||[]).length>n){ db.quotes[0].ownMinFare=f.fare; db.quotes[0].ownMinKm=f.km; db.quotes[0].ownOffer=f.offer?1:0; save2(); } }catch(e){}
   return r;
  };
 
  /* ---------- My Rate Master pages ---------- */
  function sumLine(c){
   var s=c.standard||{};
-  return money(s.rate)+" / "+(+s.incKm||0)+" km / "+(+s.incHours||0)+" hr, "+money(s.addKm)+"/km"+(c.minFare>0?" · min "+money(c.minFare):"")+(c.minKm>0?" · min "+c.minKm+" km":"");
+  return money(s.rate)+" / "+(+s.incKm||0)+" km / "+(+s.incHours||0)+" hr, "+money(s.addKm)+"/km"+(hasSet(c.offer1)?" · "+B("offer 1 day ","ഓഫർ 1 ദിവസം ")+money(c.offer1.rate):"")+(hasSet(c.offerM)?" · "+B("offer multi-day ","ഓഫർ മൾട്ടി ഡേ ")+money(c.offerM.rate)+"/"+B("day","ദിവസം"):"");
  }
  window.tcRmOpen=function(){
   if(!premium()){
@@ -255,10 +310,13 @@
   modal('<h2>'+E(i>=0?B("Edit category","കാറ്റഗറി തിരുത്തുക"):B("New category","പുതിയ കാറ്റഗറി"))+'</h2>'+
    '<div class="grid"><label>'+E(B("Category name","കാറ്റഗറി പേര്"))+'<input id="rmName" value="'+E(c.name||"")+'"></label>'+
    '<label>'+E(B("Driver bata","ഡ്രൈവർ ബാറ്റ"))+'<input id="rmBata" type="number" inputmode="decimal" value="'+((+c.driverBata||0)?E(c.driverBata):"")+'"></label>'+
-   '<label>'+E(B("Minimum charge (optional)","മിനിമം ചാർജ് (ഓപ്ഷണൽ)"))+'<input id="rmMinFare" type="number" inputmode="decimal" value="'+((+c.minFare||0)?E(c.minFare):"")+'"></label>'+
-   '<label>'+E(B("Minimum KM per day (optional)","ദിവസം മിനിമം KM (ഓപ്ഷണൽ)"))+'<input id="rmMinKm" type="number" inputmode="decimal" value="'+((+c.minKm||0)?E(c.minKm):"")+'"></label></div>'+
+   '</div>'+
    '<h4 style="margin:8px 0 2px">'+E(B("Standard rate","സ്റ്റാൻഡേർഡ് റേറ്റ്"))+'</h4>'+planFields("standard",c)+
    '<details style="margin-top:6px"><summary style="font-size:13px;cursor:pointer">'+E(B("More rates (empty = same as Standard)","കൂടുതൽ റേറ്റുകൾ (ഒഴിച്ചിട്ടാൽ Standard പോലെ)"))+'</summary>'+more+'</details>'+
+   '<details style="margin-top:6px"'+((hasSet(c.offer1)||hasSet(c.offerM))?' open':'')+'><summary style="font-size:13px;cursor:pointer">'+E(B("Offer package for special customers (optional)","പ്രത്യേക കസ്റ്റമർക്കുള്ള ഓഫർ പാക്കേജ് (ഓപ്ഷണൽ)"))+'</summary>'+
+   '<div class="muted" style="font-size:12px">'+E(B("Amount = the bill never goes below it. Used when you switch Offer package on in the Quotation / Bill.","തുക = ബില്ല് ഇതിൽ കുറയില്ല. ക്വട്ടേഷൻ / ബില്ലിൽ ഓഫർ പാക്കേജ് ഓൺ ആക്കുമ്പോൾ ഉപയോഗിക്കും."))+'</div>'+
+   '<h4 style="margin:8px 0 2px">'+E(B("One-day trip","ഒരു ദിവസ ട്രിപ്പ്"))+'</h4>'+planFields("offer1",c)+
+   '<h4 style="margin:8px 0 2px">'+E(B("Multi-day trip (per day)","മൾട്ടി ഡേ ട്രിപ്പ് (ഒരു ദിവസത്തിന്)"))+'</h4>'+planFields("offerM",c)+'</details>'+
    '<div id="rmErr" class="danger" style="font-size:12.5px"></div>'+
    '<div class="actions"><button class="primary" onclick="tcRmSave('+i+')">'+E(B("Save","സേവ്"))+'</button>'+(i>=0?'<button class="danger" onclick="tcRmHide('+i+',1)">'+E(B("Remove","നീക്കുക"))+'</button>':'')+'<button onclick="tcRmOpen()">'+E(B("Back","പിന്നോട്ട്"))+'</button></div>');
  };
@@ -271,7 +329,9 @@
   if(!name){ $("rmErr").textContent=B("Enter the category name","കാറ്റഗറി പേര് നൽകുക"); return; }
   var std=readPlan("standard");
   if(!(std.rate>0)){ $("rmErr").textContent=B("Enter the Standard base rate","Standard ബേസ് റേറ്റ് നൽകുക"); return; }
-  var c={name:name,driverBata:Math.max(0,parseFloat($("rmBata").value)||0),minFare:Math.max(0,parseFloat($("rmMinFare").value)||0),minKm:Math.max(0,parseFloat($("rmMinKm").value)||0),standard:std};
+  var c={name:name,driverBata:Math.max(0,parseFloat($("rmBata").value)||0),standard:std};
+  var o1=readPlan("offer1"), oM=readPlan("offerM");
+  if(o1.rate>0) c.offer1=o1; if(oM.rate>0) c.offerM=oM;
   PLANS.slice(1).forEach(function(p){
    var v=readPlan(p[0]);
    c[p[0]]=(v.rate>0||v.addKm>0||v.addHour>0||v.incKm>0)?v:JSON.parse(JSON.stringify(std));
