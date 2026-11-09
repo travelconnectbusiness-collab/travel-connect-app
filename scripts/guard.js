@@ -119,6 +119,7 @@ const MARKERS = [
   ["src/tc-accbook.js", "tcAbKind", "Accounts: Trip expense | Vehicle expense switch"],
   ["src/tc-accbook.js", "abMore", "Accounts: Tip / Drivers / Profit report / Excel / CSV folded under More"],
   ["src/tc-accbook.js", "tidyCats", "Accounts: a sentence typed as a category is turned back into a note + the closest category"],
+  ["src/tc-daybook.js", "up to yesterday", "Day Book: today IN / OUT big, opening balance explained (all income - expenses before the day)"],
   ["src/tc-accbook.js", "tcAbTipSave", "Accounts: tip for the vehicle (income) or the driver (not counted)"],
   ["src/tc-accbook.js", "accEntries", "Accounts entries are kept in db.accEntries (never lost until deleted)"],
   ["src/tc-regdocs.js", "tc-accbook.js", "tc-regdocs.js loads tc-accbook.js"],
