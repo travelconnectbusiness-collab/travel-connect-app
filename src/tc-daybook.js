@@ -78,18 +78,25 @@
    '<input type="date" id="dbDay" value="'+E(d.day)+'" onchange="tcDbSet(this.value)" style="flex:1;min-width:0;font-size:15px;font-weight:700;text-align:center">'+
    '<button onclick="tcDbSet(\''+shift(d.day,1)+'\')" style="padding:8px 14px;font-size:16px">&#9654;</button>'+
    (d.day!==today()?'<button onclick="tcDbSet(\''+today()+'\')" style="padding:8px 10px;font-size:12px">'+E(B("Today","ഇന്ന്"))+'</button>':'')+'</div>';
+  /* the day's own money first, big and plain */
+  var isT=(d.day===today());
+  var lblIn=isT?B("Today's IN","ഇന്നത്തെ വരവ്"):B("This day's IN","ഈ ദിവസത്തെ വരവ്"), lblOut=isT?B("Today's OUT","ഇന്നത്തെ ചെലവ്"):B("This day's OUT","ഈ ദിവസത്തെ ചെലവ്");
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+   '<div style="background:#eaf6ec;border:1px solid #9fcba3;border-radius:12px;padding:10px 8px;text-align:center"><div style="font-size:13px;color:#1c5b27;font-weight:700">&#10133; '+E(lblIn)+'</div><div style="font-size:26px;font-weight:800;color:#1c6b2c;line-height:1.2">'+mny(d.dayIn)+'</div></div>'+
+   '<div style="background:#fdeeee;border:1px solid #e0a3a3;border-radius:12px;padding:10px 8px;text-align:center"><div style="font-size:13px;color:#8a2323;font-weight:700">&#10134; '+E(lblOut)+'</div><div style="font-size:26px;font-weight:800;color:#a12d2d;line-height:1.2">'+mny(d.dayOut)+'</div></div></div>';
+  /* then how the total balance comes about */
+  var big='font-size:22px;font-weight:800';
+  h+='<div style="border:1px solid #cfd8de;border-radius:12px;padding:10px;background:#f7fafc;margin-top:8px">'+
+   '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>'+E(B("Opening balance","തുടക്കത്തിലെ ബാലൻസ്"))+'</span><b style="color:'+neg(d.op.net)+'">'+mny(d.op.net)+'</b></div>'+
+   '<div class="muted" style="font-size:11.5px;margin:1px 0 4px">'+E(isT?B("= all income - all expenses entered up to yesterday","= ഇന്നലെ വരെ ചേർത്ത എല്ലാ വരവും - എല്ലാ ചെലവും"):B("= all income - all expenses entered before this day","= ഈ ദിവസത്തിന് മുൻപ് വരെ ചേർത്ത എല്ലാ വരവും - എല്ലാ ചെലവും"))+'</div>'+
+   '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>+ '+E(lblIn)+'</span><b style="color:#1c6b2c">'+mny(d.dayIn)+'</b></div>'+
+   '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>- '+E(lblOut)+'</span><b style="color:#a12d2d">'+mny(d.dayOut)+'</b></div>'+
+   '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cfd8de;margin-top:6px;padding-top:6px"><span style="font-weight:800">= '+E(isT?B("Closing balance (now)","ഇപ്പോഴത്തെ ബാലൻസ് (Closing balance)"):B("Closing balance","ദിവസാവസാന ബാലൻസ്"))+'</span><span style="'+big+';color:'+neg(d.cl.net)+'">'+mny(d.cl.net)+'</span></div>'+
+   '<div class="muted" style="font-size:12px;margin-top:4px">'+E(B("Cash ","ക്യാഷ് "))+'<b>'+mny(d.cl.cash)+'</b> &middot; '+E(B("Online (UPI/Bank) ","ഓൺലൈൻ (UPI/ബാങ്ക്) "))+'<b>'+mny(d.cl.online)+'</b>'+(Math.abs(d.cl.unk)>0.5?' &middot; '+E(B("Mode not noted ","രീതി രേഖപ്പെടുത്തിയിട്ടില്ല "))+'<b>'+mny(d.cl.unk)+'</b>':'')+'</div></div>';
   if(d.dates.length){
-   h+='<select onchange="if(this.value)tcDbSet(this.value)" style="width:100%;font-size:12.5px;margin-bottom:6px"><option value="">'+E(B("Jump to a day that has entries...","എൻട്രികളുള്ള ദിവസത്തിലേക്ക് പോവുക..."))+'</option>'+
+   h+='<select onchange="if(this.value)tcDbSet(this.value)" style="width:100%;font-size:12.5px;margin:8px 0 2px"><option value="">'+E(B("Jump to a day that has entries...","എൻട്രികളുള്ള ദിവസത്തിലേക്ക് പോവുക..."))+'</option>'+
     d.dates.slice(0,45).map(function(x){ return '<option value="'+x+'">'+E(dFull(x))+'</option>'; }).join("")+'</select>';
   }
-  /* the balance card */
-  var big='font-size:22px;font-weight:800';
-  h+='<div style="border:1px solid #cfd8de;border-radius:12px;padding:10px;background:#f7fafc">'+
-   '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>'+E(B("Opening balance","തുടക്കത്തിലെ ബാലൻസ്"))+' <span class="muted" style="font-size:11px">('+E(B("before this day","ഈ ദിവസത്തിന് മുൻപ്"))+')</span></span><b style="color:'+neg(d.op.net)+'">'+mny(d.op.net)+'</b></div>'+
-   '<div style="display:flex;justify-content:space-between;font-size:13.5px;margin-top:3px"><span>&#10133; '+E(B("Today's IN","ഇന്നത്തെ വരവ്"))+'</span><b style="color:#1c6b2c">'+mny(d.dayIn)+'</b></div>'+
-   '<div style="display:flex;justify-content:space-between;font-size:13.5px"><span>&#10134; '+E(B("Today's OUT","ഇന്നത്തെ ചെലവ്"))+'</span><b style="color:#a12d2d">'+mny(d.dayOut)+'</b></div>'+
-   '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cfd8de;margin-top:6px;padding-top:6px"><span style="font-weight:800">'+E(B("Closing balance","ദിവസാവസാന ബാലൻസ്"))+'</span><span style="'+big+';color:'+neg(d.cl.net)+'">'+mny(d.cl.net)+'</span></div>'+
-   '<div class="muted" style="font-size:12px;margin-top:4px">'+E(B("Cash ","ക്യാഷ് "))+'<b>'+mny(d.cl.cash)+'</b> &middot; '+E(B("Online (UPI/Bank) ","ഓൺലൈൻ (UPI/ബാങ്ക്) "))+'<b>'+mny(d.cl.online)+'</b>'+(Math.abs(d.cl.unk)>0.5?' &middot; '+E(B("Mode not noted ","രീതി രേഖപ്പെടുത്തിയിട്ടില്ല "))+'<b>'+mny(d.cl.unk)+'</b>':'')+'</div></div>';
   /* the day's entries */
   h+='<div style="display:grid;grid-template-columns:1fr 74px 74px;margin-top:10px;font-size:11.5px;color:#666;font-weight:700"><div>'+dFull(d.day)+' &middot; '+d.rows.length+' '+E(B("entries","എൻട്രികൾ"))+'</div><div style="text-align:right;padding-right:6px">OUT</div><div style="text-align:right;padding-right:6px">IN</div></div>';
   h+=d.rows.map(function(e){ return rowHtml(e,a); }).join("")||'<p class="muted" style="margin:8px 0">'+E(B("No entries on this day.","ഈ ദിവസം എൻട്രികളില്ല."))+'</p>';
