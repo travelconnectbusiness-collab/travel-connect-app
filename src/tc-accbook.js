@@ -501,9 +501,34 @@ window.tcAbRefresh=function(){ try{ if($("abPeriod")) renderBook(); }catch(e){} 
   }), t=sums(l), isNow=(pre===todayIso().slice(0,7));
   var name=isNow?B("This month","ഈ മാസം"):pre.slice(5,7)+"-"+pre.slice(0,4);
   var cell=function(lb,v,c){ return '<div style="flex:1;text-align:center"><div style="font-size:11.5px;color:#4a5a63">'+E(lb)+'</div><div style="font-size:16px;font-weight:800;color:'+c+'">'+mny(v)+'</div></div>'; };
-  return '<div id="abMonthStrip" style="border:1px solid #cfd8de;border-radius:12px;padding:8px 6px;margin-top:8px;background:#fff"><div style="font-size:12px;font-weight:700;margin:0 6px 2px">&#128197; '+E(name)+'</div><div style="display:flex;gap:4px">'+
+  return '<div id="abMonthStrip" onclick="tcAbMonthDays(\''+pre+'\')" style="cursor:pointer;border:1px solid #cfd8de;border-radius:12px;padding:8px 6px;margin-top:8px;background:#fff"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin:0 6px 2px"><span>&#128197; '+E(name)+'</span><span style="font-weight:600;color:#0b6b78">'+E(B("day by day","ദിവസം തോറും"))+' &#9656;</span></div><div style="display:flex;gap:4px">'+
    cell(B("Income","വരവ്"),t.inc,"#1c6b2c")+cell(B("Expense","ചെലവ്"),t.out,"#a12d2d")+cell(B("Profit","ലാഭം"),t.net,t.net<0?"#a12d2d":"#1c6b2c")+'</div></div>';
  };
+ /* tap on the month strip: every day of that month with its IN / OUT / difference; tap a day to open it in the Day Book */
+ window.tcAbMonthDays=function(pre){
+  var l=entries().filter(function(e){
+   if(String(e.date).slice(0,7)!==pre) return false;
+   if(ST.veh==="all") return true;
+   if(ST.veh==="none") return !e.vehId||!vById(e.vehId);
+   return e.vehId===ST.veh;
+  }), by={};
+  l.forEach(function(e){ if(isDrv(e)) return; var d=by[e.date]||(by[e.date]={i:0,o:0,n:0}); if(e.type==="in") d.i+=(+e.amount||0); else d.o+=(+e.amount||0); d.n++; });
+  var days=Object.keys(by).sort().reverse(), t=sums(l);
+  var fd=function(x){ try{ return tcFormatDate(x); }catch(e){ return x; } };
+  var name=(pre===todayIso().slice(0,7))?B("This month","ഈ മാസം"):pre.slice(5,7)+"-"+pre.slice(0,4);
+  var h='<h2>&#128197; '+E(name)+'</h2>'+
+   '<div style="display:flex;gap:4px;margin-bottom:8px"><div style="flex:1;text-align:center"><div style="font-size:11.5px">'+E(B("Income","വരവ്"))+'</div><b style="font-size:17px;color:#1c6b2c">'+mny(t.inc)+'</b></div><div style="flex:1;text-align:center"><div style="font-size:11.5px">'+E(B("Expense","ചെലവ്"))+'</div><b style="font-size:17px;color:#a12d2d">'+mny(t.out)+'</b></div><div style="flex:1;text-align:center"><div style="font-size:11.5px">'+E(B("Profit","ലാഭം"))+'</div><b style="font-size:17px;color:'+(t.net<0?"#a12d2d":"#1c6b2c")+'">'+mny(t.net)+'</b></div></div>'+
+   (ST.veh!=="all"?'<p class="muted" style="font-size:12px;margin:0 0 6px">'+E(ST.veh==="none"?B("No vehicle chosen","വാഹനം തിരഞ്ഞെടുത്തിട്ടില്ല"):((vById(ST.veh)||{}).no||(vById(ST.veh)||{}).name||""))+'</p>':'')+
+   '<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;padding:4px 4px;border-bottom:2px solid #cfd8de"><span style="flex:1.3">'+E(B("Day","ദിവസം"))+'</span><span style="flex:1;text-align:right;color:#1c6b2c">'+E(B("IN","വരവ്"))+'</span><span style="flex:1;text-align:right;color:#a12d2d">'+E(B("OUT","ചെലവ്"))+'</span><span style="flex:1;text-align:right">'+E(B("Diff","വ്യത്യാസം"))+'</span></div>';
+  if(!days.length) h+='<p class="muted">'+E(B("No entries in this month.","ഈ മാസത്തിൽ എൻട്രികൾ ഇല്ല."))+'</p>';
+  days.forEach(function(d){
+   var x=by[d], net=x.i-x.o;
+   h+='<div onclick="tcAbOpenDay(\''+d+'\')" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:8px 4px;border-bottom:1px solid #e3eef0;cursor:pointer"><span style="flex:1.3">'+E(fd(d))+'<br><span class="muted" style="font-size:11px">'+x.n+' '+E(B("entries","എൻട്രി"))+'</span></span><span style="flex:1;text-align:right;color:#1c6b2c">'+(x.i?mny(x.i):'-')+'</span><span style="flex:1;text-align:right;color:#a12d2d">'+(x.o?mny(x.o):'-')+'</span><b style="flex:1;text-align:right;color:'+(net<0?"#a12d2d":"#1c6b2c")+'">'+mny(net)+'</b></div>';
+  });
+  h+='<p class="muted" style="font-size:11.5px;margin-top:8px">'+E(B("Tap a day to open it in the Day Book.","ഒരു ദിവസത്തിൽ തൊട്ടാൽ അത് Day Book-ൽ തുറക്കും."))+'</p><div class="actions"><button onclick="closeModal()">'+E(B("Close","അടയ്ക്കുക"))+'</button></div>';
+  modal(h);
+ };
+ window.tcAbOpenDay=function(d){ try{ closeModal(); }catch(e){} ST.tab="day"; if(typeof window.tcDbSet==="function") window.tcDbSet(d); else renderBook(); };
  window.tcAbDrill=function(kind){
   var list=filtered().filter(function(e){ return !isDrv(e); });
   var ins=list.filter(function(e){ return e.type==="in"; }), outs=list.filter(function(e){ return e.type!=="in"; });
