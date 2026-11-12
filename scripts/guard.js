@@ -474,6 +474,7 @@ const MARKERS = [
   ["src/tc-workshop.js", "wsMk", "Workshop: bill / invoice / quotation made from a job through the documents form (stock goes down via tc-docslink)"],
   ["src/tc-workshop.js", "wsHist", "Workshop: history of a vehicle"],
   ["src/tc-docslink.js", "Labour charges", "Workshop: a labour line (unit labour) is recorded as income in Sales, no stock"],
+  ["src/tc-shopui.js", "tcDocsCard", "Workshop dashboard: the shop card sits directly above the documents card (no flicker between the two)"],
   ["src/tc-regdocs.js", "tc-workshop.js", "tc-regdocs.js loads tc-workshop.js"],
   ["src/tc-shopui.js", "Vehicle jobs", "Shop Home: Vehicle jobs / Vehicle history buttons for a Workshop; the shop card and Menu follow workshop businesses"],
   ["src/tc-shop.js", "WS_CATS", "Shop: spare-part categories for kind workshop"],
