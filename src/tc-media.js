@@ -1,8 +1,8 @@
 /* ============================================================================
    tc-media.js  -  "Shop window" for businesses (server: /api/partners, partner_media.js)
      Plus and above, shop / store : ONE shop photo
-     Premium, workshop            : ONE shop photo too (workshop photo is Premium only)
-     Premium, every category      : TWO small ad posts (picture + short text) and links to the business's
+     Plus and above, workshop     : the same as a shop (photo, ad posts, links) - owner 2026-11-12: Free = listing only
+     Premium, every other category: TWO small ad posts (picture + short text) and links to the business's
                                     Instagram, Facebook, YouTube and Google page (no video files - a video is just a link)
    - adds a "Shop window" card to the owner dashboard (below the Verification & Plan card)
    - shows the photo, ad posts and link buttons inside every Directory listing (only what the plan allows)
@@ -86,8 +86,8 @@ function render(){
  const d=st; let h='<h3>&#128444; '+bl("Shop window","ഷോപ്പ് വിൻഡോ")+'</h3>';
  if(!d.can_photo&&!d.can_extras){
   h+='<p class="muted" style="font-size:12.5px">'+bl(
-   "Premium businesses can show 2 ad posts (picture + short text) and their Instagram, Facebook, YouTube and Google links to customers in the Directory. Shops with Plus can add a shop photo.",
-   "പ്രീമിയം ബിസിനസ്സുകൾക്ക് 2 പരസ്യ പോസ്റ്റുകളും (ചിത്രം + ചെറിയ വാചകം) ഇൻസ്റ്റാഗ്രാം, ഫേസ്ബുക്ക്, യൂട്യൂബ്, ഗൂഗിൾ ലിങ്കുകളും ഡയറക്ടറിയിൽ കസ്റ്റമർമാരെ കാണിക്കാം. പ്ലസ് ഉള്ള ഷോപ്പുകൾക്ക് ഷോപ്പ് ഫോട്ടോ ചേർക്കാം.")+'</p>';
+   "Shops and workshops with Plus (and Premium businesses of every category) can show 2 ad posts (picture + short text) and their Instagram, Facebook, YouTube and Google links to customers in the Directory. Shops and workshops with Plus can also add a shop photo.",
+   "പ്ലസ് ഉള്ള ഷോപ്പുകൾക്കും വർക്ക്ഷോപ്പുകൾക്കും (മറ്റ് എല്ലാ വിഭാഗങ്ങളിലും പ്രീമിയത്തിന്) 2 പരസ്യ പോസ്റ്റുകളും (ചിത്രം + ചെറിയ വാചകം) ഇൻസ്റ്റാഗ്രാം, ഫേസ്ബുക്ക്, യൂട്യൂബ്, ഗൂഗിൾ ലിങ്കുകളും ഡയറക്ടറിയിൽ കസ്റ്റമർമാരെ കാണിക്കാം. പ്ലസ് ഉള്ള ഷോപ്പുകൾക്കും വർക്ക്ഷോപ്പുകൾക്കും ഷോപ്പ് ഫോട്ടോയും ചേർക്കാം.")+'</p>';
   box.innerHTML=h; return;
  }
  if(d.can_photo){
@@ -95,10 +95,8 @@ function render(){
    +'<div class="actions"><input type="file" id="tcMdPhoto" accept="image/*" style="display:none" onchange="tcMediaPick(\'photo\')">'
    +'<button class="primary" onclick="document.getElementById(\'tcMdPhoto\').click()">'+(d.photo?bl("Change photo","ഫോട്ടോ മാറ്റുക"):bl("Add shop photo","ഷോപ്പ് ഫോട്ടോ ചേർക്കുക"))+'</button>'
    +(d.photo?'<button onclick="tcMediaRemove(\'photo\')">'+bl("Remove","ഒഴിവാക്കുക")+'</button>':"")+'</div></div>';
- }else if(d.business_type==="shop"){
+ }else if(d.business_type==="shop"||d.business_type==="workshop"){
   h+='<p class="muted" style="font-size:12.5px">'+bl("Shop photo is available from the Plus plan.","ഷോപ്പ് ഫോട്ടോ പ്ലസ് പ്ലാൻ മുതൽ ലഭ്യമാണ്.")+'</p>';
- }else if(d.business_type==="workshop"){
-  h+='<p class="muted" style="font-size:12.5px">'+bl("Workshop photo is available in the Premium plan.","വർക്ക്ഷോപ്പ് ഫോട്ടോ പ്രീമിയം പ്ലാനിൽ ലഭ്യമാണ്.")+'</p>';
  }
  if(d.can_extras){
   h+='<hr><b>'+bl("Ad posts (picture + short text)","പരസ്യ പോസ്റ്റുകൾ (ചിത്രം + ചെറിയ വാചകം)")+'</b>'+hint("Best size: 1080 x 1080 px (square), JPG, under 1 MB. Other shapes are shown complete with side margins, nothing is cut. Keep letters big and few.","ഏറ്റവും നല്ല സൈസ്: 1080 x 1080 px (സമചതുരം), JPG, 1 MB-ൽ താഴെ. മറ്റ് ആകൃതികളും മുഴുവനായി കാണിക്കും, വശങ്ങളിൽ ഒഴിവ് വരും, ഒന്നും മുറിയില്ല. അക്ഷരങ്ങൾ വലുതും കുറച്ചും ആക്കുക.");
