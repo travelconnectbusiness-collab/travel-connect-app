@@ -9,7 +9,9 @@
       "Take my location", else the typed start place looked up on OpenStreetMap), every stop in the order added (saved coordinates or looked up by name), and the closing point
       (the start again when it is the same place, else looked up by name), asks the public OSRM road router for the DRIVING distance and puts it in the Total KM box (the box stays editable).
       The live trip box has a small "Map km" link that shows the distance so far (start to the last stop) without saving it.
-      Places that cannot be found on the map are skipped and named in the message; a failed / slow router only shows a message. The map's road km can differ a little from the trip meter. */
+      Places that cannot be found on the map are skipped and named in the message; a failed / slow router only shows a message. The map's road km can differ a little from the trip meter.
+   3) ROAD KM TO THE NEXT PLACE (Premium, 2026-11-12): in "Add a stop", once the Place is typed (or the Road km button is tapped) a line shows the DRIVING distance from the last point
+      (last stop, else the start) to the typed place, e.g. to see the return km after a drop; "Fill KM" puts last KM + road km in the KM box (editable). Nothing is saved by the line itself. */
 (function(){
  if(window.__tcLtExtra) return;
  window.__tcLtExtra=1;
@@ -79,6 +81,13 @@
    box.innerHTML=boxInner(t);
    anchor.parentNode.insertBefore(box,anchor);
   }
+  var pl=$("ltPlace");
+  if(pl&&tid&&premium()&&!$("tcLtxRoadRow")&&pl.parentNode&&pl.parentNode.parentNode){
+   var rl=pl.parentNode, rr=document.createElement("div"); rr.id="tcLtxRoadRow"; rr.style.cssText="grid-column:1/-1;margin:-2px 0 2px";
+   rr.innerHTML='<button type="button" onclick="tcLtxRoad(false)" style="padding:5px 12px;min-height:0;font-size:13px">&#128739; '+E(B("Road km from the last point","അവസാന സ്ഥലത്ത് നിന്ന് റോഡ് KM"))+'</button><div id="tcLtxRoadMsg" class="muted" style="font-size:12.5px;margin-top:3px"></div>';
+   rl.parentNode.insertBefore(rr,rl.nextSibling);
+   pl.addEventListener("change",function(){ window.tcLtxRoad(true); });
+  }
   var tk=$("ltTotalKm");
   if(tk&&premium()&&tidFromEnd()&&!$("tcLtxKmRow")){
    var lab=tk.parentNode, row=document.createElement("div"); row.id="tcLtxKmRow"; row.style.cssText="margin:-2px 0 8px";
@@ -136,7 +145,7 @@
  function geocode(text){
   var key=String(text||"").trim().toLowerCase(); if(!key) return Promise.resolve(null);
   if(geo[key]!==undefined) return Promise.resolve(geo[key]);
-  if(gcount>=8) return Promise.resolve(null);
+  if(gcount>=20) return Promise.resolve(null);
   gcount++;
   var gps=/^GPS\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i.exec(text);
   if(gps){ geo[key]={lat:+gps[1],lon:+gps[2]}; return Promise.resolve(geo[key]); }
@@ -156,6 +165,9 @@
    if(!et||sameText(et,t.startPlace)) list.push({label:t.startPlace||B("Start","പുറപ്പാട്"),lat:t.startLat,lon:t.startLon,text:t.startPlace});
    else list.push({label:et,lat:null,lon:null,text:et});
   }
+  return resolvePts(list);
+ }
+ function resolvePts(list){
   return list.reduce(function(chain,p){
    return chain.then(function(){
     if(p.lat!=null&&p.lon!=null&&!isNaN(+p.lat)&&!isNaN(+p.lon)){ p.lat=+p.lat; p.lon=+p.lon; p.found=true; return; }
@@ -200,6 +212,39 @@
    busy=false; msgEl.style.color="#a12d2d";
    if(e&&e.code==="few") msgEl.textContent=B("Need the start and at least one place that can be found on the map.","പുറപ്പാടും മാപ്പിൽ കണ്ടെത്താവുന്ന ഒരു സ്ഥലമെങ്കിലും വേണം.")+(e.miss&&e.miss.length?" ("+e.miss.map(function(p){ return p.label; }).join(", ")+")":"");
    else msgEl.textContent=B("The map could not give the distance now. Try again later or type the KM.","മാപ്പിൽ നിന്ന് ഇപ്പോൾ ദൂരം കിട്ടിയില്ല. പിന്നീട് ശ്രമിക്കുക, അല്ലെങ്കിൽ KM ടൈപ്പ് ചെയ്യുക.");
+  });
+ };
+ var roadBusy=false, roadSeq=0, roadKey="";
+ window.tcLtxFillKm=function(v){ var k=$("ltKm"); if(k){ k.value=v; try{ k.dispatchEvent(new Event("input",{bubbles:true})); }catch(e){} } };
+ window.tcLtxRoad=function(auto){
+  var msg=$("tcLtxRoadMsg"), tid=tidOf(), t=find(tid); if(!msg||!t) return;
+  var dest=String((($("ltPlace")||{}).value)||"").trim();
+  if(!dest){ if(!auto){ msg.style.color="#a12d2d"; msg.textContent=B("Type the place first.","ആദ്യം സ്ഥലം ടൈപ്പ് ചെയ്യുക."); } return; }
+  if(!premium()){ if(!auto){ msg.style.color="#a12d2d"; msg.textContent=B("This is a Premium feature.","ഇത് പ്രീമിയം സൗകര്യമാണ്."); } return; }
+  if(roadBusy&&!auto) return;
+  var real=(t.stops||[]).filter(function(s){ return s.type!=="end"; }).sort(function(a,b){ return String(a.at).localeCompare(String(b.at)); });
+  var ls=real.length?real[real.length-1]:null;
+  var lp=ls?{label:ls.place||"-",lat:ls.lat,lon:ls.lon,text:ls.place}:{label:t.startPlace||B("Start","പുറപ്പാട്"),lat:t.startLat,lon:t.startLon,text:t.startPlace};
+  var mx=+t.startKm||0; (t.stops||[]).forEach(function(s){ if((+s.km)>mx) mx=+s.km; });
+  var rkey=(ls?ls.id:"start")+"|"+dest.toLowerCase();
+  if(auto&&rkey===roadKey&&/km/.test(msg.textContent)) return;   /* same place already shown: do not redraw (keeps the Fill KM button steady) */
+  roadBusy=true; var my=++roadSeq;
+  msg.style.color=""; msg.textContent=B("Getting the road distance...","റോഡ് ദൂരം എടുക്കുന്നു...");
+  resolvePts([lp,{label:dest,lat:null,lon:null,text:dest}]).then(function(pts){
+   if(!pts[0].found||!pts[1].found) throw {code:"few",miss:pts.filter(function(p){ return !p.found; })};
+   return osrm(pts).then(function(km){ return {km:km,pts:pts}; });
+  }).then(function(r){
+   roadBusy=false; if(my!==roadSeq||!$("tcLtxRoadMsg")) return;
+   roadKey=rkey;
+   var y=Math.round((mx+r.km)*10)/10;
+   msg.style.color="#1c6b2c";
+   msg.innerHTML='<b>'+r.km+' km</b> '+E(B("by road (map): ","റോഡ് വഴി (മാപ്പ്): "))+E(lp.label)+' &rarr; '+E(dest)+(r.pts.some(function(p){ return p.guess; })?' <span class="muted">('+E(B("found by name","പേര് നോക്കി കണ്ടെത്തിയത്"))+')</span>':'')+
+    '<br>'+E(B("Meter would show about ","മീറ്റർ ഏകദേശം "))+'<b>'+y+'</b> <button type="button" onclick="tcLtxFillKm('+y+')" style="padding:2px 10px;min-height:0;font-size:12.5px">'+E(B("Fill KM","KM നിറയ്ക്കുക"))+'</button>';
+  }).catch(function(e){
+   roadBusy=false; if(my!==roadSeq||!$("tcLtxRoadMsg")) return;
+   msg.style.color="#a12d2d";
+   if(e&&e.code==="few") msg.textContent=B("This place could not be found on the map: ","ഈ സ്ഥലം മാപ്പിൽ കണ്ടെത്താനായില്ല: ")+e.miss.map(function(p){ return p.label; }).join(", ");
+   else msg.textContent=B("The map could not give the distance now. Try again later.","മാപ്പിൽ നിന്ന് ഇപ്പോൾ ദൂരം കിട്ടിയില്ല. പിന്നീട് ശ്രമിക്കുക.");
   });
  };
  function tidFromEnd(){
