@@ -1,6 +1,7 @@
 /* functions/api/partner_media.js  (helper module - used by partners.js, NOT a route of its own)
    Extra "shop window" for a business, depending on its plan:
      Plus and above (shop / store only) : ONE shop photo
+     Premium (workshop / spare parts)   : ONE shop photo too
      Premium (every category)           : TWO small ad posts (picture + short text) and social links
                                           (Instagram, Facebook, YouTube, Google)
    No video files are stored: a video is simply a YouTube / Instagram / Facebook link.
@@ -46,7 +47,7 @@ export function planLevel(p) {
   if (p.plan === "paid" && running) return 1;
   return 0;
 }
-const canPhoto = (p) => p && p.business_type === "shop" && planLevel(p) >= 1;
+const canPhoto = (p) => p && ((p.business_type === "shop" && planLevel(p) >= 1) || (p.business_type === "workshop" && planLevel(p) >= 2));
 const canExtras = (p) => planLevel(p) >= 2;
 
 function cleanLink(kind, v) {
