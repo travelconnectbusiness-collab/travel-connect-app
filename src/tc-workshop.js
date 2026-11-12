@@ -14,7 +14,7 @@
       the money received is income, what is not received is "to get" in Credit & dues. The job remembers its bill (balance / paid shown on the job).
    3) VEHICLE HISTORY (Home > Vehicle history): search a vehicle number -> every job of that vehicle (date, work, KM, total, bill state) and the
       total spent. Typing a known vehicle number in a new job fills the owner, mobile and model of its last job.
-   4) PREMIUM extras for a workshop (tcIsPremiumPlan; everything above stays free for everybody):
+   4) PREMIUM extras for a workshop (tcIsPremiumPlan, or inside the free year of tc-shopplan.js; the job cards, bills and history above follow the same plan rule: free year, then Premium for new entries):
       - NEXT SERVICE on a job (More details: next service date and / or KM) -> "Service reminders" list (due in 30 days or overdue, latest job of each vehicle)
         with Call and a one-tap WhatsApp reminder to the owner;
       - MONTHLY REPORT (Jobs > Report): jobs, labour income, parts sold, parts profit (selling rate - average cost of the stock item), total, jobs without a bill.
@@ -33,7 +33,7 @@
  function vkey(v){ return String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
  function vshow(v){ return String(v||"").toUpperCase().replace(/\s+/g," ").trim(); }
  function dmy(d){ try{ return UI.dmy(d); }catch(e){ return d; } }
- function premium(){ try{ return typeof tcIsPremiumPlan==="function"&&!!tcIsPremiumPlan(); }catch(e){ return false; } }
+ function premium(){ try{ if(typeof tcIsPremiumPlan==="function"&&tcIsPremiumPlan()) return true; var P=window.__tcShopPlan; return !!(P&&P.state().mode==="trial"); }catch(e){ return false; } }   /* Premium, or inside the free year (tc-shopplan.js) */
  function daysTo(iso){ var p=String(iso||"").split("-"); if(p.length<3) return 9999; var a=Date.UTC(+p[0],+p[1]-1,+p[2]), t=new Date(), b=Date.UTC(t.getFullYear(),t.getMonth(),t.getDate()); return Math.round((a-b)/86400000); }
  function lockLine(){ return '<div class="tsC tsM">🔒 '+E(T("പ്രീമിയം: അടുത്ത സർവീസ് ഓർമ്മപ്പെടുത്തൽ (WhatsApp) + മാസത്തെ റിപ്പോർട്ട്","Premium: next-service reminders (WhatsApp) + monthly report"))+'</div>'; }
  function DX(){ return window.__tcDocs||null; }
