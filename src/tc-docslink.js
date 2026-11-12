@@ -4,7 +4,9 @@
    How: after EVERY change of a document (save, edit, payment added / cancelled, delete, made from a quotation) tc-docs.js calls tcDocsRebuild(id).
    It cancels the shop records this document made earlier (records carrying x.dk = the document id) and makes them again from the document as it is now,
    so an edit or a cancelled payment can never leave a wrong sale behind:
-     - only lines whose text is the name (or other name) of a STOCK ITEM are recorded; labour / free text lines are not (a quotation is never recorded)
+     - only lines whose text is the name (or other name) of a STOCK ITEM are recorded; free text lines are not (a quotation is never recorded).
+       EXCEPTION (workshop, 2026-11-12): a line whose unit is "labour" (made by tc-workshop.js from a job's labour charges) is recorded as a sale of the hidden,
+       uncounted item "Labour charges" (no stock, no cost), so the labour is income in Sales / Today's account and its unpaid part is in Credit & dues
      - each stock line becomes a normal sale record {p,q,pr,pm,...}: pr = the line rate x (document total / subtotal), so the discount, the GST and the
        round off are inside the price and the sales add up to the document total (GST rate gr is set when the shop has GST on - the shop's prices are GST-inclusive)
      - paid in ONE payment equal to the total -> a direct sale: Cash / UPI (bank and other = Other)
@@ -18,9 +20,21 @@
  if(!SH||!DX||window.__tcDocsLink) return;
  window.__tcDocsLink=1;
  var r2=DX.r2, T=DX.T;
- function stockLines(d){
+ var SERV="Labour charges";
+ /* the hidden item the labour lines are sold as (made once, only when a labour line is recorded) */
+ function servItem(){
+  var p=null; try{ p=SH.findName(SERV); }catch(e){}
+  if(!p){ try{ p=SH.newProduct({n:SERV,t:"i",c:"Other",nt:1,off:1,pr:0}); }catch(e){} }
+  return p;
+ }
+ function isLab(l){ return String(l[2]||"").trim().toLowerCase()==="labour"; }
+ function stockLines(d,make){
   var out=[], all=d.L||[];
-  all.forEach(function(l){ var p=null; try{ p=SH.findName(l[0]); }catch(e){} out.push({l:l,p:p}); });
+  all.forEach(function(l){
+   var p=null; try{ p=SH.findName(l[0]); }catch(e){}
+   if(!p&&isLab(l)){ try{ p=make?servItem():SH.findName(SERV)||{id:"?",n:SERV}; }catch(e){} }
+   out.push({l:l,p:p});
+  });
   return out;
  }
  window.tcDocsRebuild=function(id){
@@ -28,7 +42,7 @@
    if(r.x&&r.x.dk===id&&(r.k==="s"||(r.k==="o"&&r.x.t==="rc"))) SH.cancel(r.id);
   });
   var d=DX.get(id); if(!d||d.ty==="Q"||!(d.sub>0)) return;
-  var S=stockLines(d).filter(function(x){ return x.p; }); if(!S.length) return;
+  var S=stockLines(d,true).filter(function(x){ return x.p; }); if(!S.length) return;
   var factor=d.total/d.sub, lsub=0;
   S.forEach(function(x){ lsub+=r2((+x.l[1]||0)*(+x.l[3]||0)); });
   var lf=lsub/d.sub, direct=d.pays.length===1&&Math.abs(d.paid-d.total)<=0.5;
