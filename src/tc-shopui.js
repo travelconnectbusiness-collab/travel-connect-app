@@ -796,7 +796,9 @@
    var c=$("tcShopCard"), anchor=null, mode="";
    if(u&&u.role!=="customer"){
     var pb=$("partnerBox"), msg=pb?pb.querySelector("#tcMsgCard"):null;
-    if(pb&&msg&&isShopBox(pb)){ anchor=msg; mode="before"; }   /* directly ABOVE Messages: the Share card must stay directly BELOW it (tc-sharecard.js), two cards fighting for the same slot flicker */
+    /* a Workshop dashboard also has the Quotation / Invoice / Bill card (tc-docsprint.js, directly above Messages): this card sits directly above THAT one, so the two never fight for the same slot (order: this card, documents card, Messages) */
+    var dc=$("tcDocsCard");
+    if(pb&&msg&&isShopBox(pb)){ anchor=(dc&&dc.parentNode===msg.parentNode)?dc:msg; mode="before"; }   /* directly ABOVE Messages: the Share card must stay directly BELOW it (tc-sharecard.js), two cards fighting for the same slot flicker */
    }
    if(!anchor){ if(c&&c.parentNode) c.remove(); return; }
    if(c){ var w2=false; try{ w2=!!(window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop"); }catch(e){} if((c.getAttribute("data-ws")==="1")!==w2){ c.remove(); c=null; } }
