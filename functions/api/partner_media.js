@@ -1,8 +1,7 @@
 /* functions/api/partner_media.js  (helper module - used by partners.js, NOT a route of its own)
    Extra "shop window" for a business, depending on its plan:
-     Plus and above (shop / store only) : ONE shop photo
-     Premium (workshop / spare parts)   : ONE shop photo too
-     Premium (every category)           : TWO small ad posts (picture + short text) and social links
+     Plus and above, shop / store / workshop : ONE shop photo, TWO small ad posts (picture + short text) and social links
+     Premium, every other category           : TWO small ad posts (picture + short text) and social links
                                           (Instagram, Facebook, YouTube, Google)
    No video files are stored: a video is simply a YouTube / Instagram / Facebook link.
    Zero cost design: pictures are shrunk on the phone first (tc-img.js), limited to 3 MB here, a replaced or removed
@@ -47,8 +46,10 @@ export function planLevel(p) {
   if (p.plan === "paid" && running) return 1;
   return 0;
 }
-const canPhoto = (p) => p && ((p.business_type === "shop" && planLevel(p) >= 1) || (p.business_type === "workshop" && planLevel(p) >= 2));
-const canExtras = (p) => planLevel(p) >= 2;
+/* owner 2026-11-12: a shop / workshop shows its window from Plus (Free = directory listing only); every other category keeps the ads and links for Premium */
+const shopLike = (p) => p && (p.business_type === "shop" || p.business_type === "workshop");
+const canPhoto = (p) => shopLike(p) && planLevel(p) >= 1;
+const canExtras = (p) => planLevel(p) >= 2 || (shopLike(p) && planLevel(p) >= 1);
 
 function cleanLink(kind, v) {
   let s = String(v == null ? "" : v).trim();
