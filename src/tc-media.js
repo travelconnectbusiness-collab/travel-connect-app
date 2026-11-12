@@ -1,6 +1,7 @@
 /* ============================================================================
    tc-media.js  -  "Shop window" for businesses (server: /api/partners, partner_media.js)
      Plus and above, shop / store : ONE shop photo
+     Premium, workshop            : ONE shop photo too (workshop photo is Premium only)
      Premium, every category      : TWO small ad posts (picture + short text) and links to the business's
                                     Instagram, Facebook, YouTube and Google page (no video files - a video is just a link)
    - adds a "Shop window" card to the owner dashboard (below the Verification & Plan card)
@@ -96,6 +97,8 @@ function render(){
    +(d.photo?'<button onclick="tcMediaRemove(\'photo\')">'+bl("Remove","ഒഴിവാക്കുക")+'</button>':"")+'</div></div>';
  }else if(d.business_type==="shop"){
   h+='<p class="muted" style="font-size:12.5px">'+bl("Shop photo is available from the Plus plan.","ഷോപ്പ് ഫോട്ടോ പ്ലസ് പ്ലാൻ മുതൽ ലഭ്യമാണ്.")+'</p>';
+ }else if(d.business_type==="workshop"){
+  h+='<p class="muted" style="font-size:12.5px">'+bl("Workshop photo is available in the Premium plan.","വർക്ക്ഷോപ്പ് ഫോട്ടോ പ്രീമിയം പ്ലാനിൽ ലഭ്യമാണ്.")+'</p>';
  }
  if(d.can_extras){
   h+='<hr><b>'+bl("Ad posts (picture + short text)","പരസ്യ പോസ്റ്റുകൾ (ചിത്രം + ചെറിയ വാചകം)")+'</b>'+hint("Best size: 1080 x 1080 px (square), JPG, under 1 MB. Other shapes are shown complete with side margins, nothing is cut. Keep letters big and few.","ഏറ്റവും നല്ല സൈസ്: 1080 x 1080 px (സമചതുരം), JPG, 1 MB-ൽ താഴെ. മറ്റ് ആകൃതികളും മുഴുവനായി കാണിക്കും, വശങ്ങളിൽ ഒഴിവ് വരും, ഒന്നും മുറിയില്ല. അക്ഷരങ്ങൾ വലുതും കുറച്ചും ആക്കുക.");
