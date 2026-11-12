@@ -12,7 +12,7 @@
  function draw(){
   var aq=ST.kind==="aquarium";
   $("tsBody").innerHTML=
-   '<div class="tsC"><label style="margin-top:0">'+E(T("ഷോപ്പിന്റെ പേര്","Shop name"))+'</label><input id="stN" value="'+E(ST.name)+'" placeholder="'+E(T("ഉദാ: മൃതസഞ്ജീവനി","e.g. My Shop"))+'">'+
+   '<div class="tsC"><label style="margin-top:0">'+E(T("ഷോപ്പിന്റെ പേര്","Shop name"))+'</label><input id="stN" value="'+E(ST.name)+'" placeholder="'+E((ST.kind==="aquarium"?T("ഉദാ: ഗ്രീൻ അക്വേറിയം","e.g. Green Aquarium"):ST.kind==="workshop"?T("ഉദാ: ശ്രീ ഓട്ടോ വർക്ക്സ്","e.g. Sri Auto Works"):T("ഉദാ: ന്യൂ സ്റ്റോർ","e.g. New Store")))+'">'+
    '<label>'+E(T("ഷോപ്പിന്റെ തരം","Kind of shop"))+'</label><div>'+chip(aq,"tsStSet('kind','aquarium')","🐠 "+T("അക്വേറിയം / വളർത്തുമൃഗങ്ങൾ","Aquarium / pets"))+chip(ST.kind==='general',"tsStSet('kind','general')","🏪 "+T("മറ്റ് കട","Another shop"))+chip(ST.kind==='workshop',"tsStSet('kind','workshop')","🔧 "+T("വർക്ക്ഷോപ്പ് / സ്പെയർ പാർട്സ്","Workshop / spare parts"))+'</div>'+
    '<div class="tsM">'+E(T("അക്വേറിയം തിരഞ്ഞാൽ മീൻ വിഭാഗവും ചത്തത് എന്ന കാരണവും കാണിക്കും.","Aquarium shows the Fish section and 'Died' as a loss reason."))+'</div></div>'+
    '<div class="tsC"><b>'+E(T("കൂലി (ജോലിക്കാർക്ക്)","Wage (for the one who sells)"))+'</b><div>'+chip(ST.wageOn,"tsStSet('wageOn',1)",T("വേണം","On"))+chip(!ST.wageOn,"tsStSet('wageOn',0)",T("വേണ്ട","Off"))+'</div>'+
