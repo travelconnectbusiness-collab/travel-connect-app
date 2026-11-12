@@ -113,7 +113,8 @@
  /* ---------- compute (memoised on S.ver) ---------- */
  var FISH_CATS={"Fish":1};
  var CATS=["Fish","Fish Food","Cat Food","Dog Food","Bird Food","Medicines","Accessories","Tank","Filters","Air Pump","Other"];
- var CAT_ML={"Fish":"മീൻ","Fish Food":"മീൻ തീറ്റ","Cat Food":"പൂച്ച ഭക്ഷണം","Dog Food":"നായ ഭക്ഷണം","Bird Food":"പക്ഷി തീറ്റ","Medicines":"മരുന്ന്","Accessories":"ആക്സസറീസ്","Tank":"ടാങ്ക് / ബൗൾ","Filters":"ഫിൽട്ടർ","Air Pump":"എയർ പമ്പ്","Other":"മറ്റുള്ളവ","Grocery":"പലചരക്ക്","Stationery":"സ്റ്റേഷനറി","Electronics":"ഇലക്ട്രോണിക്സ്","Electricals":"ഇലക്ട്രിക്കൽ","Hardware":"ഹാർഡ്‌വെയർ","Clothing":"വസ്ത്രം","Toys":"കളിപ്പാട്ടം","Cosmetics":"കോസ്മെറ്റിക്സ്","Food":"ഭക്ഷണം","Drinks":"പാനീയം"};
+ var CAT_ML={"Fish":"മീൻ","Fish Food":"മീൻ തീറ്റ","Cat Food":"പൂച്ച ഭക്ഷണം","Dog Food":"നായ ഭക്ഷണം","Bird Food":"പക്ഷി തീറ്റ","Medicines":"മരുന്ന്","Accessories":"ആക്സസറീസ്","Tank":"ടാങ്ക് / ബൗൾ","Filters":"ഫിൽട്ടർ","Air Pump":"എയർ പമ്പ്","Other":"മറ്റുള്ളവ","Grocery":"പലചരക്ക്","Stationery":"സ്റ്റേഷനറി","Electronics":"ഇലക്ട്രോണിക്സ്","Electricals":"ഇലക്ട്രിക്കൽ","Hardware":"ഹാർഡ്‌വെയർ","Clothing":"വസ്ത്രം","Toys":"കളിപ്പാട്ടം","Cosmetics":"കോസ്മെറ്റിക്സ്","Food":"ഭക്ഷണം","Drinks":"പാനീയം","Engine parts":"എൻജിൻ പാർട്സ്","Brake":"ബ്രേക്ക്","Clutch":"ക്ലച്ച്","Suspension":"സസ്പെൻഷൻ","Electrical":"ഇലക്ട്രിക്കൽ","Battery":"ബാറ്ററി","Tyre / Tube":"ടയർ / ട്യൂബ്","Oil & Lubricants":"ഓയിൽ","Body parts":"ബോഡി പാർട്സ്"};
+ var WS_CATS=["Engine parts","Brake","Clutch","Suspension","Electrical","Battery","Tyre / Tube","Oil & Lubricants","Filters","Body parts","Accessories","Other"];
  var GEN_CATS=["Grocery","Food","Drinks","Stationery","Electronics","Electricals","Hardware","Clothing","Toys","Medicines","Cosmetics","Accessories","Other"];
  function cfgVal(c,k,def){ return c.hasOwnProperty(k)&&c[k]!==""&&c[k]!=null?c[k]:def; }
  function calc(){
@@ -214,7 +215,7 @@
   });
   return s1.concat(s2,s3);
  }
- /* shop settings kept in the book (records k:'c'): kind aquarium|general (an older book with products and no choice = aquarium), name, wageOn, wage, mgdef, gst, gstin */
+ /* shop settings kept in the book (records k:'c'): kind aquarium|general|workshop (workshop = spare parts + vehicle jobs, tc-workshop.js) (an older book with products and no choice = aquarium), name, wageOn, wage, mgdef, gst, gstin */
  function cfg(k,def){ return cfgVal(calc().cfg,k,def); }
  function kind(){ var k=cfg("kind",""); if(k) return k; return products({all:true}).length?"aquarium":""; }
  /* wage (for whoever sells): OFF unless the shop turned it on in Settings - or its book already has "Wage" expenses (an older book that used it keeps it, rate 10).
@@ -242,7 +243,7 @@
  function setStaff(L){ return setCfg("staff",JSON.stringify(L)); }
  function wageRate(){ var v=parseFloat(cfg("wage","")); return isNaN(v)?(hasWage()?10:0):v; }
  function categories(){
-  var set={}; (kind()==="aquarium"?CATS:GEN_CATS).forEach(function(c){ set[c]=1; });
+  var set={}; (kind()==="aquarium"?CATS:kind()==="workshop"?WS_CATS:GEN_CATS).forEach(function(c){ set[c]=1; });
   products({all:true}).forEach(function(p){ if(p.c) set[p.c]=1; });
   return Object.keys(set);
  }
