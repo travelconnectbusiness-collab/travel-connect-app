@@ -16,6 +16,8 @@
  var SH=window.__tcShop, UI=window.__tcShopUi;
  if(!SH||!UI||window.__tcDocs) return;
  var T=UI.T, E=UI.E, H=SH.H;
+ /* an example that fits the business: [other work, workshop, aquarium shop, another shop] - each a [Malayalam, English] pair */
+ function EX(o,w,a,g){ var k=SH.kind(), x=k==="workshop"?w:k==="aquarium"?a:k==="general"?g:o; return T(x[0],x[1]); }
  var $=function(id){ return document.getElementById(id); };
  var say=function(m){ try{ toast(m); }catch(e){ alert(m); } };
  var PRE={Q:"QTN",I:"INV",B:"BILL"};
@@ -226,7 +228,7 @@
  function lineHtml(i){
   var l=F.L[i];
   return '<div class="tdLn"><div style="display:flex;justify-content:space-between;align-items:center"><b>'+(i+1)+'</b>'+(F.L.length>1?'<button class="tdX" onclick="tdDel('+i+')">✕</button>':'')+'</div>'+
-   '<input id="tdd'+i+'" list="tdDl" placeholder="'+E(T("വിവരണം (ഉദാ: CCTV ക്യാമറ, പൈപ്പ് ഫിറ്റിംഗ്, ജോലിക്കൂലി)","Item / work (e.g. CCTV camera, labour)"))+'" value="'+E(l[0])+'" oninput="tdL('+i+',0,this.value)" onchange="tdPick('+i+',this.value)">'+
+   '<input id="tdd'+i+'" list="tdDl" placeholder="'+E(EX(["വിവരണം (ഉദാ: CCTV ക്യാമറ, പൈപ്പ് ഫിറ്റിംഗ്, ജോലിക്കൂലി)","Item / work (e.g. CCTV camera, labour)"],["വിവരണം (ഉദാ: ബ്രേക്ക് പാഡ്, ഓയിൽ, ജോലിക്കൂലി)","Item / work (e.g. brake pad, oil, labour)"],["വിവരണം (ഉദാ: ഫിഷ് ഫുഡ്, ഫിൽട്ടർ, ഡെലിവറി)","Item (e.g. fish food, filter, delivery)"],["വിവരണം (ഉദാ: സാധനത്തിന്റെ പേര്, ഡെലിവറി ചാർജ്)","Item (e.g. item name, delivery charge)"]))+'" value="'+E(l[0])+'" oninput="tdL('+i+',0,this.value)" onchange="tdPick('+i+',this.value)">'+
    '<div class="tdG3"><div><label>'+E(T("എണ്ണം","Qty"))+'</label><input id="tdq'+i+'" type="number" inputmode="decimal" value="'+E(l[1])+'" oninput="tdL('+i+',1,this.value)"></div>'+
    '<div><label>'+E(T("യൂണിറ്റ്","Unit"))+'</label><input id="tdu'+i+'" value="'+E(l[2])+'" placeholder="nos/m/hr" oninput="tdL('+i+',2,this.value)"></div>'+
    '<div><label>'+E(T("നിരക്ക്","Rate"))+'</label><input id="tdr'+i+'" type="number" inputmode="decimal" value="'+E(l[3])+'" oninput="tdL('+i+',3,this.value)"></div></div>'+
@@ -241,7 +243,7 @@
    '<div class="tdC"><label style="margin-top:0">'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="tdcn" list="tdCl" value="'+E(F.cn)+'" oninput="tdS(\'cn\',this.value)" onchange="tdCust(this.value)">'+
    '<label>'+E(T("മൊബൈൽ (ഓപ്ഷണൽ)","Mobile (optional)"))+'</label><input id="tdcm" type="tel" inputmode="tel" value="'+E(F.cm)+'" oninput="tdS(\'cm\',this.value)">'+
    '<label>'+E(T("വിലാസം / സ്ഥലം (ഓപ്ഷണൽ)","Address / site (optional)"))+'</label><input id="tdca" value="'+E(F.ca)+'" oninput="tdS(\'ca\',this.value)">'+
-   '<label>'+E(T("ജോലിയുടെ പേര് (ഓപ്ഷണൽ)","Work / subject (optional)"))+'</label><input id="tdtt" value="'+E(F.tt)+'" placeholder="'+E(T("ഉദാ: 4 ക്യാമറ CCTV സെറ്റ്","e.g. 4-camera CCTV set"))+'" oninput="tdS(\'tt\',this.value)">'+
+   '<label>'+E(T("ജോലിയുടെ പേര് (ഓപ്ഷണൽ)","Work / subject (optional)"))+'</label><input id="tdtt" value="'+E(F.tt)+'" placeholder="'+E(EX(["ഉദാ: 4 ക്യാമറ CCTV സെറ്റ്","e.g. 4-camera CCTV set"],["ഉദാ: എൻജിൻ ഓയിൽ സർവീസ്","e.g. engine oil service"],["ഉദാ: ടാങ്ക് സെറ്റപ്പ്","e.g. tank set-up"],["ഉദാ: ഓർഡർ നമ്പർ / വിഷയം","e.g. order no. / subject"]))+'" oninput="tdS(\'tt\',this.value)">'+
    '<label>'+E(T("തീയതി","Date"))+'</label><input type="date" id="tddt" value="'+E(F.dt)+'" oninput="tdS(\'dt\',this.value)">'+
    (isQ?'<label>'+E(T("ക്വട്ടേഷൻ ബാധകമായ അവസാന തീയതി","Valid until"))+'</label><input type="date" id="tdvu" value="'+E(F.vu)+'" oninput="tdS(\'vu\',this.value)">':'')+'</div>'+
    '<div class="tdC"><b>'+E(T("ഇനങ്ങൾ","Items"))+'</b><div id="tdLines">'+F.L.map(function(l,i){ return lineHtml(i); }).join("")+'</div>'+
