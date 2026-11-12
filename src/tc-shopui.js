@@ -338,6 +338,8 @@
  }
  TITLE.home=function(){ return shopName(); };
  SC.home=function(){
+  /* a business registered as Workshop gets the workshop kind by itself (spare parts + vehicle jobs, tc-workshop.js) */
+  try{ if(SH.kind()===""&&window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop") SH.setCfg("kind","workshop"); }catch(e){}
   var t=H.today(), R=SH.report(t,t), low=SH.products().filter(function(p){ return p.low; });
   var simple=LS.get("tc_shop_simple")==="1";
   function big(bg,ic,ml,en,fn,sub){ return '<button class="tsBig" style="background:'+bg+'" onclick="'+fn+'">'+ic+' '+E(T(ml,en))+(sub?'<small>'+sub+'</small>':'')+'</button>'; }
@@ -345,10 +347,12 @@
    (stick()?stkBox():"")+
    (SH.kind()===""?'<div class="tsC" style="background:#fff6df"><b>'+E(T("ഇത് ഏത് തരം ഷോപ്പ് ആണ്?","What kind of shop is this?"))+'</b>'+
     '<button class="tsBtn" onclick="tsKind(\'aquarium\')">🐠 '+E(T("അക്വേറിയം / വളർത്തുമൃഗങ്ങൾ","Aquarium / pets"))+'</button>'+
-    '<button class="tsBtn g" onclick="tsKind(\'general\')">🏪 '+E(T("മറ്റ് കട (സാധനങ്ങൾ വിൽക്കുന്ന)","Another shop (goods)"))+'</button></div>':'')+
+    '<button class="tsBtn g" onclick="tsKind(\'general\')">🏪 '+E(T("മറ്റ് കട (സാധനങ്ങൾ വിൽക്കുന്ന)","Another shop (goods)"))+'</button>'+
+    '<button class="tsBtn g" onclick="tsKind(\'workshop\')">🔧 '+E(T("വർക്ക്ഷോപ്പ് / സ്പെയർ പാർട്സ്","Workshop / spare parts"))+'</button></div>':'')+
    '<div class="tsC" style="text-align:center"><div class="tsM">'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' · '+E(dmy(t))+'</div><div class="tsTot">'+money(R.sales)+'</div>'+
    (low.length?'<div style="margin-top:6px"><span class="tsLow" onclick="tsOpen(\'stock\')">⚠ '+low.length+' '+E(T("സാധനങ്ങൾ തീരാറായി","items running low"))+'</span></div>':'')+'</div>'+
    '<div class="tsG">'+
+   (SC.jobs&&SH.kind()==="workshop"?big("#8a3b12","🔧","വണ്ടികൾ / പണികൾ","Vehicle jobs","tsOpen('jobs')",window.tcWsSub?window.tcWsSub():"")+big("#5b4a9a","🚗","വണ്ടിയുടെ ഹിസ്റ്ററി","Vehicle history","wsHist('')"):'')+
    big("#1a8f4a","🛒","വിൽപ്പന","Sale","tsOpen('sale')")+
    big("#c9740c","📥","വാങ്ങൽ","Purchase","tsOpen('purchase')")+
    big("#0b6b78","📦","സ്റ്റോക്ക്","Stock","tsOpen('stock')")+
@@ -767,7 +771,7 @@
    /* the app itself knows which business is open (core: db.settings.myBusinessType, window._myPartner); label text is the last fallback */
    var t=window.__tcBizOnScreen?window.__tcBizOnScreen():"";
    if(t){
-    if(t==="shop") return true;
+    if(t==="shop"||t==="workshop") return true;
     var p=window._myPartner;
     return !!(p&&/aquarium|\bpets?\b/i.test((p.business_subtype||"")+" "+(p.business_name||"")));   /* a pet shop registered under another category */
    }
@@ -776,12 +780,13 @@
   }
   window.__tcShopIsShopPage=function(){ return isShopBox($("partnerBox")); };
   function make(){
-   var c=document.createElement("div"); c.id="tcShopCard";
+   var ws=false; try{ ws=!!(window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop"); }catch(e){}
+   var c=document.createElement("div"); c.id="tcShopCard"; c.setAttribute("data-ws",ws?"1":"");
    c.style.cssText="cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0b7a8a,#0b5f6b);box-shadow:0 2px 8px rgba(11,95,107,.3)";
    c.setAttribute("onclick","tsOpen('home')");
    c.innerHTML='<div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#128722;</div>'+
-    '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:17px">'+E(T("ഷോപ്പ് കണക്ക്","Shop accounts"))+'</div>'+
-    '<div style="font-size:12.5px;opacity:.95;line-height:1.35">'+E(T("വിൽപ്പന, വാങ്ങൽ, സ്റ്റോക്ക്, ചെലവ്, ഇന്നത്തെ കണക്ക്","Sales, purchases, stock, expenses, today's account"))+'</div></div>'+
+    '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:17px">'+E(ws?T("വർക്ക്ഷോപ്പ് കണക്ക്","Workshop accounts"):T("ഷോപ്പ് കണക്ക്","Shop accounts"))+'</div>'+
+    '<div style="font-size:12.5px;opacity:.95;line-height:1.35">'+E(ws?T("വണ്ടികളുടെ പണി, സ്പെയർ പാർട്സ് സ്റ്റോക്ക്, വിൽപ്പന, വാങ്ങൽ, ചെലവ്","Vehicle jobs, spare parts stock, sales, purchases, expenses"):T("വിൽപ്പന, വാങ്ങൽ, സ്റ്റോക്ക്, ചെലവ്, ഇന്നത്തെ കണക്ക്","Sales, purchases, stock, expenses, today's account"))+'</div></div>'+
     '<div style="font-size:22px">&#8250;</div>';
    return c;
   }
@@ -794,6 +799,7 @@
     if(pb&&msg&&isShopBox(pb)){ anchor=msg; mode="before"; }   /* directly ABOVE Messages: the Share card must stay directly BELOW it (tc-sharecard.js), two cards fighting for the same slot flicker */
    }
    if(!anchor){ if(c&&c.parentNode) c.remove(); return; }
+   if(c){ var w2=false; try{ w2=!!(window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop"); }catch(e){} if((c.getAttribute("data-ws")==="1")!==w2){ c.remove(); c=null; } }
    if(!c) c=make();
    if(mode==="before"){ if(c.nextElementSibling!==anchor||c.parentNode!==anchor.parentNode) anchor.parentNode.insertBefore(c,anchor); }
    else if(c.previousElementSibling!==anchor||c.parentNode!==anchor.parentNode) anchor.parentNode.insertBefore(c,anchor.nextSibling);
