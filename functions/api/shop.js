@@ -14,20 +14,88 @@
    that does not hold the key can not mix plain records into a locked book. Every push / pull answer carries lock:{locked,salt,iter}.
      POST /api/shop?action=lock    { locked:true, salt, iter } | { locked:false }     -> { ok, lock }
      POST /api/shop?action=reseal  { records:[{id,ts,x}] }  (up to 30)               -> { ok, updated }   replaces the payload of EXISTING records of this mobile
-   (this is how the old plain records are locked once, and how they are unlocked / re-locked after turning off / changing the password). */
+   (this is how the old plain records are locked once, and how they are unlocked / re-locked after turning off / changing the password).
+   FREE YEAR, THEN FREE VERSION (2026-11-12, owner: shops, workshops and every other NON-taxi business get all Premium tools free for ONE year, then new entries need Premium):
+   the SERVER decides, so a second phone, cleared app data or a changed app cannot restart or skip it. planOf(owner) looks at the businesses of this mobile number:
+     - no business, or only Taxi / Auto / Pickup businesses (their own 2 free months are handled elsewhere) -> "prem" (nothing is limited)
+     - any business of this mobile with a running Premium plan (or an owner plan) -> "prem"
+     - otherwise the free year starts on the EARLIEST of: registration day of any business with this mobile number OR the same e-mail address (never before LAUNCH, so
+       businesses that already existed get a full year from LAUNCH), and the first day this server saw the shop book of any of those mobile numbers (table shop_plan).
+       Registering again with the same mobile or the same e-mail therefore does not give a new year.
+   After the year without Premium the book is VIEW ONLY: pull works as always, a push keeps only settings ('c'); every other record is dropped (answer: ok + plan + dropped), so old data stays,
+   keeps syncing to other phones and comes back to life when Premium is taken. Every pull / push answer carries plan:{mode:"prem"|"trial"|"locked", end, left} (the phone shows it).
+   The answer is cached for 5 minutes per mobile (D1 reads are limited on the free plan). */
 import { callerOf } from "./_devauth.js";
 import { allowed } from "./_ratelimit.js";
+import { planLevel } from "./partner_media.js";
 
 const KINDS = new Set(["p", "s", "b", "m", "e", "o", "v", "a", "c"]);   /* product, sale, purchase, dead / loss, expense, owner money, void, stock adjust, setting */
 const MAX_PUSH = 120, ROWS = 16, PAGE = 400, MAX_BYTES = 3000, MAX_BYTES_ENC = 5200, MAX_RECORDS = 150000, MAX_RESEAL = 30;
-let ready = false;
+const LAUNCH = "2026-11-12", YEAR_DAYS = 365, PLAN_TTL = 300000;
+const TAXI_TYPES = new Set(["taxi_travel", "taxi", "auto", "pickup", "vehicle"]);
+const CREATED_COLS = ["created_at", "created", "registered_at", "createdAt", "created_on", "joined_at", "inserted_at"];
+const PLAN_CACHE = new Map();
+let ready = false, createdCol;
 
 async function init(env) {
   if (ready) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_records (seq INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, d TEXT, data TEXT NOT NULL, UNIQUE(owner, id))").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_shop_owner_seq ON shop_records (owner, seq)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_lock (owner TEXT PRIMARY KEY, locked INTEGER NOT NULL DEFAULT 0, salt TEXT, iter INTEGER, ts TEXT)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_plan (owner TEXT PRIMARY KEY, start TEXT NOT NULL)").run();
   ready = true;
+}
+
+/* which column of travel_partners holds the registration time (the name is looked up once) */
+async function createdColumn(env) {
+  if (createdCol !== undefined) return createdCol;
+  createdCol = "";
+  try {
+    const { results } = await env.DB.prepare("PRAGMA table_info(travel_partners)").all();
+    const names = (results || []).map((r) => r.name);
+    createdCol = CREATED_COLS.find((n) => names.includes(n)) || "";
+  } catch (e) { /* no registration date known: the first-seen day below is used */ }
+  return createdCol;
+}
+function dayOf(v) {
+  if (v == null || v === "") return "";
+  let t;
+  if (typeof v === "number") t = v < 1e11 ? v * 1000 : v;
+  else { const s = String(v).trim().replace(" ", "T"); t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) || s.length <= 10 ? s : s + "Z"); }
+  return isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10);
+}
+const addDays = (day, n) => new Date(Date.parse(day + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const daysBetween = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
+
+async function planOf(env, owner) {
+  const hit = PLAN_CACHE.get(owner);
+  if (hit && Date.now() - hit.at < PLAN_TTL) return hit.v;
+  let v = { mode: "prem" };
+  try {
+    const mine = ((await env.DB.prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(owner, owner).all()).results) || [];
+    if (mine.length && mine.some((p) => !TAXI_TYPES.has(String(p.business_type || ""))) && !mine.some((p) => planLevel(p) >= 2)) {
+      const col = await createdColumn(env);
+      const today = new Date().toISOString().slice(0, 10);
+      const emails = [...new Set(mine.map((p) => String(p.email || "").trim().toLowerCase()).filter(Boolean))].slice(0, 5);
+      let group = mine;
+      if (emails.length) {
+        const rel = ((await env.DB.prepare("SELECT * FROM travel_partners WHERE lower(email) IN (" + emails.map(() => "?").join(",") + ")").bind(...emails).all()).results) || [];
+        group = mine.concat(rel);
+      }
+      const mobiles = new Set([owner]);
+      group.forEach((p) => { if (p.mobile1) mobiles.add(String(p.mobile1)); if (p.mobile2) mobiles.add(String(p.mobile2)); });
+      let start = "9999-12-31";
+      if (col) group.forEach((p) => { const d = dayOf(p[col]); const s = d && d > LAUNCH ? d : LAUNCH; if (s < start) start = s; });
+      await env.DB.prepare("INSERT OR IGNORE INTO shop_plan (owner, start) VALUES (?,?)").bind(owner, today > LAUNCH ? today : LAUNCH).run();
+      const list = [...mobiles].slice(0, 12);
+      const row = await env.DB.prepare("SELECT MIN(start) AS s FROM shop_plan WHERE owner IN (" + list.map(() => "?").join(",") + ")").bind(...list).first();
+      if (row && row.s && row.s < start) start = row.s;
+      const end = addDays(start, YEAR_DAYS), left = daysBetween(today, end);
+      v = left > 0 ? { mode: "trial", end, left } : { mode: "locked", end, left: 0 };
+    }
+  } catch (e) { v = { mode: "prem" }; }   /* if the check itself fails, nobody is locked out */
+  PLAN_CACHE.set(owner, { at: Date.now(), v });
+  return v;
 }
 
 const isEnc = (x) => !!(x && x.__e === 1 && typeof x.iv === "string" && typeof x.ct === "string" && x.iv.length <= 40 && x.ct.length <= 6000 && /^[A-Za-z0-9+/=]*$/.test(x.iv) && /^[A-Za-z0-9+/=]*$/.test(x.ct));
@@ -71,7 +139,7 @@ export async function onRequestPost({ request, env }) {
       let o = {}; try { o = JSON.parse(r.data); } catch (e) {}
       return { seq: r.seq, id: r.id, k: r.kind, d: r.d || "", ts: o.ts || "", x: o.x || {} };
     });
-    return Response.json({ ok: true, rows, more, lock: await lockOf(env, owner) });
+    return Response.json({ ok: true, rows, more, lock: await lockOf(env, owner), plan: await planOf(env, owner) });
   }
 
   if (action === "push") {
@@ -82,6 +150,13 @@ export async function onRequestPost({ request, env }) {
     const lk = await lockOf(env, owner);
     if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk });
     if (lk.locked && recs.some((o) => !o.enc)) return Response.json({ ok: false, error: "locked_book", lock: lk }, { status: 409 });
+    /* after the free year without Premium only settings are kept (view only); the phone is told, nothing already stored is touched */
+    const plan = await planOf(env, owner);
+    const asked = recs.length;
+    if (plan.mode === "locked") {
+      for (let i = recs.length - 1; i >= 0; i--) if (recs[i].k !== "c") recs.splice(i, 1);
+      if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk, plan, dropped: asked });
+    }
     const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM shop_records WHERE owner=?").bind(owner).first();
     if (cnt && cnt.n + recs.length > MAX_RECORDS) return Response.json({ ok: false, error: "book_full" }, { status: 413 });
     let saved = 0;
@@ -93,7 +168,7 @@ export async function onRequestPost({ request, env }) {
       saved += (r && r.meta && r.meta.changes) || 0;
     }
     const last = await env.DB.prepare("SELECT MAX(seq) AS m FROM shop_records WHERE owner=?").bind(owner).first();
-    return Response.json({ ok: true, saved, last: (last && last.m) || 0, lock: lk });
+    return Response.json({ ok: true, saved, last: (last && last.m) || 0, lock: lk, plan, dropped: asked - recs.length });
   }
 
   if (action === "lock") {
