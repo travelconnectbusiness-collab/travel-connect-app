@@ -14,6 +14,11 @@
       the money received is income, what is not received is "to get" in Credit & dues. The job remembers its bill (balance / paid shown on the job).
    3) VEHICLE HISTORY (Home > Vehicle history): search a vehicle number -> every job of that vehicle (date, work, KM, total, bill state) and the
       total spent. Typing a known vehicle number in a new job fills the owner, mobile and model of its last job.
+   4) PREMIUM extras for a workshop (tcIsPremiumPlan; everything above stays free for everybody):
+      - NEXT SERVICE on a job (More details: next service date and / or KM) -> "Service reminders" list (due in 30 days or overdue, latest job of each vehicle)
+        with Call and a one-tap WhatsApp reminder to the owner;
+      - MONTHLY REPORT (Jobs > Report): jobs, labour income, parts sold, parts profit (selling rate - average cost of the stock item), total, jobs without a bill.
+      A free workshop sees one grey line saying these are Premium. Job record gets optional nsd (date) / nsk (KM).
    Everything follows the login to every phone like the rest of the shop book. */
 (function(){
  var SH=window.__tcShop, UI=window.__tcShopUi;
@@ -28,6 +33,9 @@
  function vkey(v){ return String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
  function vshow(v){ return String(v||"").toUpperCase().replace(/\s+/g," ").trim(); }
  function dmy(d){ try{ return UI.dmy(d); }catch(e){ return d; } }
+ function premium(){ try{ return typeof tcIsPremiumPlan==="function"&&!!tcIsPremiumPlan(); }catch(e){ return false; } }
+ function daysTo(iso){ var p=String(iso||"").split("-"); if(p.length<3) return 9999; var a=Date.UTC(+p[0],+p[1]-1,+p[2]), t=new Date(), b=Date.UTC(t.getFullYear(),t.getMonth(),t.getDate()); return Math.round((a-b)/86400000); }
+ function lockLine(){ return '<div class="tsC tsM">🔒 '+E(T("പ്രീമിയം: അടുത്ത സർവീസ് ഓർമ്മപ്പെടുത്തൽ (WhatsApp) + മാസത്തെ റിപ്പോർട്ട്","Premium: next-service reminders (WhatsApp) + monthly report"))+'</div>'; }
  function DX(){ return window.__tcDocs||null; }
  var ST={in:["വർക്ക്ഷോപ്പിൽ","In workshop","#c9740c"],rdy:["റെഡി","Ready","#2c5aa0"],out:["കൊടുത്തു","Delivered","#1a8f4a"]};
  function stT(k){ var s=ST[k]||ST.in; return T(s[0],s[1]); }
@@ -111,12 +119,14 @@
   var all=scan(), nin=all.filter(function(j){ return j.st!=="out"; }).length, unb=all.filter(function(j){ return j.st==="out"&&!billOf(j); }).length;
   $("tsBody").innerHTML=
    '<button class="tsBtn" style="margin-top:0;background:#8a3b12" onclick="wsNew()">➕ '+E(T("പുതിയ വണ്ടി / പണി","New vehicle / job"))+'</button>'+
+   (premium()?'<div><button class="tsBtn g s" onclick="UI_go(\'wsrem\')">🔔 '+E(T("സർവീസ് ഓർമ്മ","Service reminders"))+(remDue().length?' ('+remDue().length+')':'')+'</button><button class="tsBtn g s" onclick="UI_go(\'wsrep\')">📊 '+E(T("മാസത്തെ റിപ്പോർട്ട്","Monthly report"))+'</button></div>':lockLine())+
    (unb?'<div class="tsC" style="background:#fdf0d4"><b>'+E(T(unb+" കൊടുത്ത പണികൾക്ക് ബിൽ ഇല്ല",unb+" delivered job(s) have no bill"))+'</b></div>':'')+
    '<div style="margin-top:8px">'+chip(W.tab==="in","wsTab('in')",T("വർക്ക്ഷോപ്പിൽ","In workshop")+" ("+nin+")")+chip(W.tab==="rdy","wsTab('rdy')",T("റെഡി","Ready"))+chip(W.tab==="out","wsTab('out')",T("കൊടുത്തു","Delivered"))+chip(W.tab==="all","wsTab('all')",T("എല്ലാം","All"))+'</div>'+
    '<input id="wsQ" placeholder="'+E(T("വണ്ടി നമ്പർ / പേര് തിരയുക","Search vehicle no. / name"))+'" value="'+E(W.q)+'" oninput="wsSearch(this.value)" style="margin-top:8px">'+
    '<div id="wsRows">'+rowsHtml()+'</div>'+
    '<button class="tsBtn g" onclick="wsHist(\'\')">🚗 '+E(T("വണ്ടിയുടെ ഹിസ്റ്ററി","Vehicle history"))+'</button>';
  },function(){ return "🔧 "+T("വണ്ടികൾ / പണികൾ","Vehicle jobs"); });
+ window.UI_go=function(n){ UI.go(n,{}); };
  window.wsTab=function(t){ W.tab=t; UI.render(); };
  window.wsSearch=function(v){ W.q=v||""; var r=$("wsRows"); if(r) r.innerHTML=rowsHtml(); };
  window.wsOpenJob=function(id){ UI.go("job",{id:id}); };
@@ -124,7 +134,7 @@
  /* ---------- job form ---------- */
  var J=null;
  function blank(vn){
-  var o={id:"",v:0,vn:vn||"",vm:"",on:"",om:"",km:"",cm:"",st:"in",din:H.today(),dout:"",P:[],LB:[["",""]],nt:""};
+  var o={id:"",v:0,vn:vn||"",vm:"",on:"",om:"",km:"",cm:"",st:"in",din:H.today(),dout:"",P:[],LB:[["",""]],nt:"",nsd:"",nsk:""};
   if(vn){ var v=vehicles().filter(function(x){ return x.k===vkey(vn); })[0]; if(v){ var l=v.last; o.vn=v.vn; o.vm=l.vm||""; o.on=l.on||""; o.om=l.om||""; } }
   return o;
  }
@@ -132,7 +142,7 @@
  window.wsEdit=function(id){
   var j=get(id); if(!j) return;
   J={id:j.id,v:+j.v||1,vn:j.vn||"",vm:j.vm||"",on:j.on||"",om:j.om||"",km:j.km||"",cm:j.cm||"",st:j.st||"in",din:j.din||j.d,dout:j.dout||"",
-   P:j.P.map(function(p){ return [p[0],p[1],p[2],p[3]]; }),LB:(j.LB.length?j.LB:[["",""]]).map(function(l){ return [l[0],l[1]]; }),nt:j.nt||""};
+   P:j.P.map(function(p){ return [p[0],p[1],p[2],p[3]]; }),LB:(j.LB.length?j.LB:[["",""]]).map(function(l){ return [l[0],l[1]]; }),nt:j.nt||"",nsd:j.nsd||"",nsk:j.nsk||""};
   UI.go("jobform",{});
  };
  function partRow(i){
@@ -161,7 +171,7 @@
  UI.screen("jobform",function(){
   css();
   if(!J) J=blank("");
-  var V=vehicles(), more=!!(J.vm||J.km||J.nt||J.dout);
+  var V=vehicles(), more=!!(J.vm||J.km||J.nt||J.dout||J.nsd||J.nsk);
   $("tsBody").innerHTML=
    '<datalist id="wsVl">'+V.map(function(v){ return '<option value="'+E(v.vn)+'">'; }).join("")+'</datalist><datalist id="wsOl">'+owners().map(function(n){ return '<option value="'+E(n)+'">'; }).join("")+'</datalist><datalist id="wsLl">'+labNames()+'</datalist>'+
    '<div class="tsC"><label style="margin-top:0">'+E(T("വണ്ടി നമ്പർ","Vehicle number"))+'</label><input id="wsVn" list="wsVl" autocapitalize="characters" placeholder="KL 58 A 1234" value="'+E(J.vn)+'" oninput="wsS(\'vn\',this.value)" onchange="wsVeh(this.value)">'+
@@ -180,7 +190,10 @@
    '<label>'+E(T("വണ്ടിയുടെ മോഡൽ","Vehicle make / model"))+'</label><input value="'+E(J.vm)+'" oninput="wsS(\'vm\',this.value)" placeholder="'+E(T("ഉദാ: Maruti Swift","e.g. Maruti Swift"))+'">'+
    '<label>'+E(T("ഓടിയ KM (മീറ്റർ)","Odometer KM"))+'</label><input type="number" inputmode="decimal" value="'+E(J.km)+'" oninput="wsS(\'km\',this.value)">'+
    '<label>'+E(T("കൊടുത്ത തീയതി","Date out"))+'</label><input type="date" value="'+E(J.dout)+'" oninput="wsS(\'dout\',this.value)">'+
-   '<label>'+E(T("കുറിപ്പ്","Notes"))+'</label><textarea rows="2" oninput="wsS(\'nt\',this.value)">'+E(J.nt)+'</textarea></details>'+
+   '<label>'+E(T("കുറിപ്പ്","Notes"))+'</label><textarea rows="2" oninput="wsS(\'nt\',this.value)">'+E(J.nt)+'</textarea>'+
+   (premium()||J.nsd||J.nsk?'<label>🔔 '+E(T("അടുത്ത സർവീസ് തീയതി","Next service date"))+'</label><input type="date" value="'+E(J.nsd)+'" oninput="wsS(\'nsd\',this.value)">'+
+    '<label>'+E(T("അടുത്ത സർവീസ് KM","Next service KM"))+'</label><input type="number" inputmode="decimal" value="'+E(J.nsk)+'" oninput="wsS(\'nsk\',this.value)">':
+    '<div class="tsM" style="margin-top:8px">🔒 '+E(T("അടുത്ത സർവീസ് ഓർമ്മപ്പെടുത്തൽ പ്രീമിയത്തിൽ","Next-service reminder is in Premium"))+'</div>')+'</details>'+
    '<button class="tsBtn" style="background:#8a3b12" onclick="wsSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button>';
  },function(){ return "🔧 "+(J&&J.id?T("പണി മാറ്റുക","Edit job"):T("പുതിയ പണി","New job")); });
  window.wsS=function(k,v){ if(J) J[k]=v; };
@@ -213,6 +226,7 @@
   var x={t:"job",id:o.id||H.uid(),v:(+o.v||0)+1,vn:vshow(o.vn).slice(0,20),on:cap(o.on,40),st:o.st||"in",din:o.din||H.today(),P:P,LB:LB};
   if(cap(o.vm,30)) x.vm=cap(o.vm,30); if(cap(o.om,15)) x.om=cap(o.om,15); if(+o.km>0) x.km=r2(o.km);
   if(cap(o.cm,200)) x.cm=cap(o.cm,200); if(o.dout) x.dout=o.dout; if(cap(o.nt,200)) x.nt=cap(o.nt,200);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(o.nsd||"")) x.nsd=o.nsd; if(+o.nsk>0) x.nsk=r2(o.nsk);
   return x;
  }
  window.wsSave=function(){
@@ -236,6 +250,7 @@
    (j.vm?'<div class="tsM">'+E(j.vm)+'</div>':'')+
    '<div style="margin-top:6px;font-size:18px"><b>'+E(j.on||"")+'</b></div>'+(j.om?'<div><a href="tel:'+E(j.om)+'">'+E(j.om)+'</a></div>':'')+
    '<div class="tsM" style="margin-top:4px">'+E(T("വന്നത്: ","In: "))+E(dmy(j.din||j.d))+(j.dout?' · '+E(T("കൊടുത്തത്: ","Out: "))+E(dmy(j.dout)):'')+(j.km?' · '+E(j.km)+' km':'')+'</div>'+
+   (j.nsd||j.nsk?'<div class="tsM" style="margin-top:4px">🔔 '+E(T("അടുത്ത സർവീസ്: ","Next service: "))+(j.nsd?E(dmy(j.nsd)):"")+(j.nsd&&j.nsk?" / ":"")+(j.nsk?E(j.nsk)+" km":"")+'</div>':'')+
    (j.cm?'<div style="margin-top:6px;white-space:pre-wrap">'+E(j.cm)+'</div>':'')+(j.nt?'<div class="tsM" style="white-space:pre-wrap">'+E(j.nt)+'</div>':'')+'</div>'+
    '<div class="tsC" style="padding:4px 14px">'+
    (j.P.length?'<div class="tsM" style="margin-top:8px"><b>'+E(T("സ്പെയർ പാർട്സ്","Spare parts"))+'</b></div>'+j.P.map(function(q){ return '<div class="tsRow"><div style="min-width:0">'+E(q[1])+'<div class="tsM">'+E(q[2])+' × '+mny(q[3])+'</div></div><b>'+mny(r2(q[2]*q[3]))+'</b></div>'; }).join(""):'')+
@@ -256,7 +271,7 @@
  },function(){ return "🔧 "+T("പണി","Job"); });
  window.wsSetSt=function(id,k){
   var j=get(id); if(!j) return;
-  var o={id:j.id,v:+j.v||1,vn:j.vn,vm:j.vm,on:j.on,om:j.om,km:j.km,cm:j.cm,st:k,din:j.din||j.d,dout:k==="out"?(j.dout||H.today()):"",P:j.P,LB:j.LB,nt:j.nt};
+  var o={id:j.id,v:+j.v||1,vn:j.vn,vm:j.vm,on:j.on,om:j.om,km:j.km,cm:j.cm,st:k,din:j.din||j.d,dout:k==="out"?(j.dout||H.today()):"",P:j.P,LB:j.LB,nt:j.nt,nsd:j.nsd,nsk:j.nsk};
   SH.add("o",recOf(o),o.din); say(T("സേവ് ചെയ്തു","Saved")); UI.render();
  };
  window.wsDelAsk=function(id){
@@ -302,6 +317,62 @@
   }catch(e){ if(window.console) console.error("tc-workshop",e); }
   return r;
  };
+
+ /* ---------- Premium: service reminders ---------- */
+ function remList(){
+  return vehicles().filter(function(v){ return v.last&&v.last.nsd; }).map(function(v){ return {v:v,j:v.last,dd:daysTo(v.last.nsd)}; }).sort(function(a,b){ return a.dd-b.dd; });
+ }
+ function remDue(){ return remList().filter(function(r){ return r.dd<=30; }); }
+ function waNum(m){ var n=String(m||"").replace(/\D/g,""); if(n.length===10) n="91"+n; return n; }
+ window.wsRemWa=function(id){
+  var j=get(id); if(!j) return;
+  var nm=""; try{ nm=(DX()&&DX().biz().name)||SH.cfg("name",""); }catch(e){}
+  var t=T("നമസ്കാരം "+(j.on||"")+", താങ്കളുടെ "+vshow(j.vn)+" വണ്ടിയുടെ അടുത്ത സർവീസ് "+(j.nsd?dmy(j.nsd)+"-ന്":"")+(j.nsk?(j.nsd?" / ":"")+j.nsk+" km-ൽ":"")+" ആണ്. ബുക്ക് ചെയ്യാൻ വിളിക്കുക."+(nm?" - "+nm:""),
+   "Hello "+(j.on||"")+", your vehicle "+vshow(j.vn)+" is due for its next service"+(j.nsd?" on "+dmy(j.nsd):"")+(j.nsk?(j.nsd?" / ":" at ")+j.nsk+" km":"")+". Please call to book."+(nm?" - "+nm:""));
+  try{ window.open("https://wa.me/"+waNum(j.om)+"?text="+encodeURIComponent(t),"_blank"); }catch(e){}
+ };
+ UI.screen("wsrem",function(){
+  css();
+  if(!premium()){ $("tsBody").innerHTML=lockLine(); return; }
+  var L=remList();
+  $("tsBody").innerHTML=
+   '<div class="tsM" style="margin:2px 2px 8px">'+E(T("ഓരോ വണ്ടിയുടെയും അവസാന പണിയിൽ 'അടുത്ത സർവീസ് തീയതി' വെച്ചാൽ ഇവിടെ വരും.","A vehicle shows here when its last job has a 'Next service date'."))+'</div>'+
+   (L.length?'<div class="tsC" style="padding:4px 14px">'+L.map(function(r){
+    var j=r.j, late=r.dd<0, txt=late?T((-r.dd)+" ദിവസം വൈകി",(-r.dd)+" day(s) late"):(r.dd===0?T("ഇന്ന്","Today"):T(r.dd+" ദിവസം കഴിഞ്ഞ്","in "+r.dd+" day(s)"));
+    return '<div class="tsRow" style="align-items:flex-start"><div style="min-width:0"><b>'+E(vshow(j.vn))+'</b> · '+E(j.on||"")+'<div class="tsM">'+E(dmy(j.nsd))+(j.nsk?' · '+E(j.nsk)+' km':'')+'</div>'+
+     '<div style="font-weight:800;color:'+(late?'#a12d2d':(r.dd<=7?'#c9740c':'#157a3a'))+'">'+E(txt)+'</div></div>'+
+     '<div style="text-align:right">'+(j.om?'<a href="tel:'+E(j.om)+'" class="tsX" style="text-decoration:none;display:inline-block;background:#dce9ef;color:#12303f">📞</a> <button class="tsX" style="background:#d9f2e1;color:#157a3a" onclick="wsRemWa(\''+j.id+'\')">💬</button>':'<span class="tsM">'+E(T("ഫോൺ ഇല്ല","no phone"))+'</span>')+
+     '<div style="margin-top:4px"><button class="tsX" style="background:#dce9ef;color:#12303f" onclick="wsOpenJob(\''+j.id+'\')">'+E(T("തുറക്കുക","Open"))+'</button></div></div></div>';
+   }).join("")+'</div>':'<div class="tsC tsM" style="text-align:center">'+E(T("ഒന്നുമില്ല","Nothing here yet"))+'</div>');
+ },function(){ return "🔔 "+T("സർവീസ് ഓർമ്മ","Service reminders"); });
+
+ /* ---------- Premium: monthly report ---------- */
+ var RM="";
+ function monthOf(d){ return String(d||"").slice(0,7); }
+ function shiftM(m,n){ var p=m.split("-"), t=new Date(+p[0],+p[1]-1+n,1); return t.getFullYear()+"-"+H.pad(t.getMonth()+1); }
+ UI.screen("wsrep",function(){
+  css();
+  if(!premium()){ $("tsBody").innerHTML=lockLine(); return; }
+  if(!RM) RM=monthOf(H.today());
+  var J2=scan().filter(function(j){ return monthOf(j.din||j.d)===RM; }), jt=0, lt=0, pt=0, cost=0, nob=0;
+  J2.forEach(function(j){
+   lt+=j.lt; pt+=j.pt; jt++;
+   j.P.forEach(function(q){ var pr=q[0]?SH.prod(q[0]):null; cost+=(pr?pr.avg:0)*(+q[2]||0); });
+   if(!billOf(j)) nob++;
+  });
+  var pp=r2(pt-cost), tot=r2(lt+pp), mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], p=RM.split("-");
+  $("tsBody").innerHTML=
+   '<div class="tsC" style="display:flex;align-items:center;justify-content:space-between"><button class="tsBtn g s" onclick="wsRm(-1)">&lsaquo;</button><b style="font-size:18px">'+mn[+p[1]-1]+' '+p[0]+'</b><button class="tsBtn g s" onclick="wsRm(1)">&rsaquo;</button></div>'+
+   '<div class="tsC">'+
+   '<div class="tsRow"><span>'+E(T("വണ്ടികൾ / പണികൾ","Jobs"))+'</span><b>'+jt+'</b></div>'+
+   '<div class="tsRow"><span>'+E(T("കൂലി വരുമാനം","Labour income"))+'</span><b>'+mny(lt)+'</b></div>'+
+   '<div class="tsRow"><span>'+E(T("സ്പെയർ വിറ്റത്","Parts sold"))+'</span><b>'+mny(pt)+'</b></div>'+
+   '<div class="tsRow"><span>'+E(T("സ്പെയറിന്റെ ലാഭം","Parts profit"))+'</span><b>'+mny(pp)+'</b></div>'+
+   '<div class="tsRow"><span><b>'+E(T("കൂലി + സ്പെയർ ലാഭം","Labour + parts profit"))+'</b></span><span class="tsTot" style="font-size:24px">'+mny(tot)+'</span></div></div>'+
+   (nob?'<div class="tsC" style="background:#fdf0d4"><b>'+E(T(nob+" പണികൾക്ക് ബിൽ ഉണ്ടാക്കിയിട്ടില്ല",nob+" job(s) have no bill yet"))+'</b></div>':'')+
+   '<div class="tsM" style="margin:6px 2px">'+E(T("സ്പെയറിന്റെ ലാഭം = വിൽപ്പന വില − സ്റ്റോക്കിലെ ശരാശരി വാങ്ങൽ വില. ഇത് ജോബ് കാർഡിലെ കണക്കാണ്; ബില്ലിലെ കിഴിവ് ഉൾപ്പെടുന്നില്ല.","Parts profit = selling rate − average cost of the stock item. It is from the job cards; a discount on the bill is not included."))+'</div>';
+ },function(){ return "📊 "+T("മാസത്തെ റിപ്പോർട്ട്","Monthly report"); });
+ window.wsRm=function(n){ RM=shiftM(RM||monthOf(H.today()),n); UI.render(); };
 
  /* ---------- vehicle history ---------- */
  var VQ="", VK="";
