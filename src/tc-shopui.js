@@ -230,7 +230,7 @@
    '<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="psNt"'+(x.nt?" checked":"")+' style="width:auto"> '+E(T("ഇതിന്റെ സ്റ്റോക്ക് എണ്ണുന്നില്ല (തൂക്കി / അളന്ന് വാങ്ങുന്നത്)","Do not count the stock (weighed / measured)"))+'</label>'+
    '<label>'+E(T("കണക്കാക്കിയ വാങ്ങൽ വില (ഒന്നിന്) - വാങ്ങൽ ചേർക്കുന്നതുവരെ ഉപയോഗിക്കും","Estimated cost each - used until real purchases are entered"))+'</label><input id="psE" type="number" inputmode="decimal" value="'+E(x.ec||"")+'">'+
    '<label>'+E(T("സ്റ്റോക്ക് ഇതിൽ കുറഞ്ഞാൽ അടയാളം കാണിക്കുക","Mark LOW when stock is at or below"))+'</label><input id="psL" type="number" inputmode="numeric" value="'+E(x.lo==null?"":x.lo)+'">'+
-   '<div style="margin-top:12px;padding:8px;border:1px dashed #9bb;border-radius:10px"><b>'+E(T("🧩 ഒന്നിലധികം സാധനങ്ങൾ ചേർന്നതാണോ? (ഉദാ: സോഡ + നാരങ്ങ)","🧩 Made of other items? (e.g. soda + lime)"))+'</b><div class="tsM">'+E(T("ഇതിൽ ഉൾപ്പെടുന്ന സാധനങ്ങൾ ചേർത്താൽ ഇത് വിൽക്കുമ്പോൾ അവയുടെ സ്റ്റോക്ക് തനിയേ കുറയും. അല്ലെങ്കിൽ ഒന്നും ചേർക്കേണ്ട.","Add the parts and each sale will take them out of stock by itself. Leave empty for a normal item."))+'</div><div id="psRc"></div>'+picker("rcp",{noRc:true,allowNew:false,ph:T("ഉൾപ്പെടുന്ന സാധനം തിരയുക...","Search a part..."),pick:psRcAdd})+'</div>'+'</details>'+
+   '<div style="margin-top:12px;padding:8px;border:1px dashed #9bb;border-radius:10px"><b>'+E(T("🧩 ഒന്നിലധികം സാധനങ്ങൾ ചേർന്നതാണോ? ","🧩 Made of other items? ")+EX(["(ഉദാ: ടാങ്ക് + ഫിൽട്ടർ സെറ്റ്)","(e.g. tank + filter set)"],["(ഉദാ: ഓയിൽ + ഫിൽറ്റർ = സർവീസ് കിറ്റ്)","(e.g. oil + filter = service kit)"],["(ഉദാ: സോഡ + നാരങ്ങ)","(e.g. soda + lime)"]))+'</b><div class="tsM">'+E(T("ഇതിൽ ഉൾപ്പെടുന്ന സാധനങ്ങൾ ചേർത്താൽ ഇത് വിൽക്കുമ്പോൾ അവയുടെ സ്റ്റോക്ക് തനിയേ കുറയും. അല്ലെങ്കിൽ ഒന്നും ചേർക്കേണ്ട.","Add the parts and each sale will take them out of stock by itself. Leave empty for a normal item."))+'</div><div id="psRc"></div>'+picker("rcp",{noRc:true,allowNew:false,ph:T("ഉൾപ്പെടുന്ന സാധനം തിരയുക...","Search a part..."),pick:psRcAdd})+'</div>'+'</details>'+
    (pid?'':'<label>'+E(T("ഇപ്പോൾ ഉള്ള സ്റ്റോക്ക് (എണ്ണം)","Stock now (count)"))+'</label><input id="psQ" type="number" inputmode="decimal" placeholder="0">'+
     '<label>'+E(T("ആ സ്റ്റോക്കിന്റെ ആകെ വാങ്ങിയ വില (അറിയാമെങ്കിൽ)","Cost of that stock (if known)"))+'</label><input id="psV" type="number" inputmode="decimal">')+
    '<button class="tsBtn" onclick="tsPsSave()">'+E(T("സേവ് ചെയ്യുക","Save"))+'</button>'+
@@ -498,7 +498,7 @@
   if(fresh||!PW.sa) payInit("sa",{cuId:"saCu"});
   s.sel=null;
   $("tsBody").innerHTML=stkBox()+
-   '<div class="tsC">'+picker("sa",{pick:saSelect,recent:function(){ return SH.topSellers(8); },ph:T("സാധനം / മീൻ തിരയുക...","Search item / fish...")})+
+   '<div class="tsC">'+picker("sa",{pick:saSelect,recent:function(){ return SH.topSellers(8); },ph:EX(["സാധനം / മീൻ തിരയുക...","Search item / fish..."],["സ്പെയർ പാർട്ട് / സാധനം തിരയുക...","Search spare part / item..."],["സാധനം തിരയുക...","Search item..."])})+
    '<div id="saSel"></div></div><div class="tsC" id="saCart"></div><div id="saDay"></div>';
   saCart(); saDay();
  };
@@ -571,7 +571,7 @@
    '<details style="margin-top:8px"'+((s.no||s.cn||s.cm)?' open':'')+'><summary style="font-weight:700;font-size:15px;color:#35566a">👤 '+E(T("കസ്റ്റമർ / കുറിപ്പ് (വേണമെങ്കിൽ)","Customer / note (optional)"))+'</summary>'+
    '<label>'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="saCn" list="saCnL" maxlength="40" value="'+E(s.cn||"")+'" onchange="tsSaCn(this.value)"><datalist id="saCnL">'+custOpts()+'</datalist>'+
    '<label>'+E(T("മൊബൈൽ നമ്പർ","Mobile number"))+'</label><input id="saCm" type="tel" inputmode="tel" maxlength="15" value="'+E(s.cm||"")+'" onchange="tsSaCm(this.value)">'+
-   '<label>'+E(T("കുറിപ്പ്","Note"))+'</label><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(T("ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"))+'" onchange="tsSaNo(this.value)"></details>'+
+   '<label>'+E(T("കുറിപ്പ്","Note"))+'</label><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(EX(["ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"],["ഉദാ: ബ്രേക്ക് പാഡ്, ₹850","e.g. brake pad, ₹850"],["ഉദാ: പ്രത്യേക ഓഫർ, ₹50","e.g. special offer, ₹50"]))+'" onchange="tsSaNo(this.value)"></details>'+
    '<button class="tsBtn" onclick="tsSaSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save sale"))+'</button>';
   if(s.cart.length){ tsDateWarn0($("saD")); payTot("sa",tot); }
  }
@@ -644,7 +644,7 @@
   $("tsBody").innerHTML=
    '<div class="tsC"><label style="margin-top:0">'+E(T("വാങ്ങിയ കട (സപ്ലൈയർ)","Supplier"))+'</label><input id="puS" list="puSL" value="'+E(s.sup)+'" onchange="tsPuHead()"><datalist id="puSL">'+sups.map(function(x){ return '<option value="'+E(x)+'">'; }).join("")+'</datalist>'+
    '<div class="tsG"><div><label>'+E(T("ബിൽ നമ്പർ","Bill no."))+'</label><input id="puB" value="'+E(s.bn)+'" onchange="tsPuHead()"></div><div>'+dateRow("puD",s.date)+'</div></div></div>'+
-   '<div class="tsC">'+picker("pu",{noRc:true,pick:puSelect,ph:T("വാങ്ങിയ സാധനം / മീൻ...","Item / fish bought...")})+'<div id="puSel"></div></div>'+
+   '<div class="tsC">'+picker("pu",{noRc:true,pick:puSelect,ph:EX(["വാങ്ങിയ സാധനം / മീൻ...","Item / fish bought..."],["വാങ്ങിയ സ്പെയർ പാർട്ട് / സാധനം...","Spare part / item bought..."],["വാങ്ങിയ സാധനം...","Item bought..."])})+'<div id="puSel"></div></div>'+
    '<div class="tsC" id="puLines"></div>';
   puLines();
  };
@@ -735,10 +735,12 @@
  TITLE.dead=function(){ return "💀 "+lossName(); };
  var REASONS_ALL=[["ചത്തു","Died"],["തീയതി കഴിഞ്ഞു","Expired"],["കേടായി","Damaged"],["പ്രവർത്തിക്കുന്നില്ല","Not working"],["നഷ്ടപ്പെട്ടു","Lost"],["മറ്റ്","Other"]];
  function reasons(){ return SH.kind()==="aquarium"?REASONS_ALL:REASONS_ALL.slice(1); }
+ /* an example / hint that fits the kind of shop: aquarium, workshop or another shop (each is a [Malayalam, English] pair) */
+ function EX(a,w,g){ var k=SH.kind(), x=k==="aquarium"?a:k==="workshop"?w:g; return T(x[0],x[1]); }
  function lossName(){ return SH.kind()==="aquarium"?T("ചത്തത് / നഷ്ടം / കേടായത്","Dead / lost / damaged"):T("നഷ്ടം / കേടായത്","Lost / damaged"); }
  SC.dead=function(){
   var s=U.dead={sel:null,reason:0};
-  $("tsBody").innerHTML=stkBox()+'<div class="tsC">'+picker("de",{noRc:true,pick:deSelect,ph:T("മീൻ / സാധനം തിരയുക...","Search fish / item...")})+'<div id="deSel"></div></div><div id="deDay"></div>';
+  $("tsBody").innerHTML=stkBox()+'<div class="tsC">'+picker("de",{noRc:true,pick:deSelect,ph:EX(["മീൻ / സാധനം തിരയുക...","Search fish / item..."],["സ്പെയർ പാർട്ട് / സാധനം തിരയുക...","Search spare part / item..."],["സാധനം തിരയുക...","Search item..."])})+'<div id="deSel"></div></div><div id="deDay"></div>';
   deDay();
  };
  function deSelect(p){
