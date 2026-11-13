@@ -19,7 +19,9 @@
    document can carry l[4] = serial number(s) (several = comma separated; not on a quotation) and l[5] = warranty in months (a quotation prints the warranty, an invoice / bill
    counts it from the bill date). Opening a line's "Serial no. / warranty" box is optional. The warranty last used for an item is filled in again next time. "Warranty / serial no."
    on the list screen: type a serial number (or customer name / mobile / item) -> the bill, date, customer and "warranty valid till ... / over". Saving a bill whose serial number is
-   already on another bill gives a warning. Shops use the same (their bills are these documents); the quick Sale screen has no serial box. */
+   already on another bill gives a warning. Shops use the same (their bills are these documents); the quick Sale screen has no serial box.
+   MY PURCHASES (tc-docspur.js, 2026-11-13): where each thing was bought (supplier, phone, bill no, date, serial numbers, supplier warranty), so a complaint can go back to the
+   supplier. This file only gives it the hooks: window.__tcDocs.SC / u, the list button, titles, Back, and the "Bought from" lines in the bill view and the warranty search. */
 (function(){
  var SH=window.__tcShop, UI=window.__tcShopUi;
  if(!SH||!UI||window.__tcDocs) return;
@@ -162,7 +164,7 @@
  window.tdCloseSheet=closeSheet;
  function render(){
   if(!$("tcDocs")) build(); closeSheet();
-  var tt={list:T("ക്വട്ടേഷൻ / ഇൻവോയ്സ് / ബിൽ","Quotation / Invoice / Bill"),form:"",view:"",items:T("എന്റെ സാധനങ്ങൾ","My items"),warranty:T("വാറണ്ടി / സീരിയൽ നമ്പർ","Warranty / serial no.")};
+  var tt={list:T("ക്വട്ടേഷൻ / ഇൻവോയ്സ് / ബിൽ","Quotation / Invoice / Bill"),form:"",view:"",items:T("എന്റെ സാധനങ്ങൾ","My items"),warranty:T("വാറണ്ടി / സീരിയൽ നമ്പർ","Warranty / serial no."),purchases:T("എന്റെ പർച്ചേസുകൾ","My purchases"),purview:T("പർച്ചേസ്","Purchase"),purform:T("പർച്ചേസ് ചേർക്കുക","Add purchase")};
   var title=tt[D.screen]; if(D.screen==="form"&&F) title=(F.id?T("മാറ്റുക: ","Edit: "):T("പുതിയ ","New "))+tn(F.ty);
   if(D.screen==="view"){ var d=get(D.params.id); title=d?tn(d.ty)+" "+d.no:""; }
   $("tdTitle").textContent=title; $("tdBackB").textContent=D.screen==="list"?"✕":"←";
@@ -192,6 +194,8 @@
   else if(s==="form"&&D.params.id) go("view",{id:D.params.id});
   else if(s==="items"&&D.params.fromForm&&F) go("form",F.id?{id:F.id}:{});
   else if(s==="view"&&D.back==="warranty"){ D.back=""; go("warranty"); }
+  else if(s==="purform"&&D.params.g) go("purview",{g:D.params.g});
+  else if(s==="purform"||s==="purview") go("purchases");
   else go("list");
  };
  window.addEventListener("popstate",function(){
@@ -225,6 +229,7 @@
    '<input id="tdQ" placeholder="'+E(T("പേര് / നമ്പർ തിരയുക","Search name / number"))+'" value="'+E(D.q)+'" oninput="tdSearch(this.value)" style="margin-top:8px">'+
    '<div id="tdRows">'+rowsHtml()+'</div>'+
    '<button class="tdBtn g" onclick="tdWarr()">🔖 '+E(T("വാറണ്ടി / സീരിയൽ നമ്പർ തിരയുക","Warranty / serial no. search"))+'</button>'+
+   (itemsOn()&&window.tdPurList?'<button class="tdBtn g" onclick="tdPurList()">🛒 '+E(T("എന്റെ പർച്ചേസുകൾ (എവിടെ നിന്ന് വാങ്ങി)","My purchases (where bought)"))+'</button>':'')+
    (itemsOn()?'<button class="tdBtn g" onclick="tdItems()">📦 '+E(T("എന്റെ സാധനങ്ങൾ (ലിസ്റ്റ് / സ്റ്റോക്ക്)","My items (list / stock)"))+' <span class="tdM">('+myItems().length+')</span></button>':'')+
    '<button class="tdBtn g" onclick="tdSetOpen()">⚙ '+E(T("എന്റെ വിവരങ്ങൾ / GST","My details / GST"))+'</button>';
  };
@@ -504,6 +509,7 @@
  function snView(d,l){
   var h=l[4]?'<div class="tdM">🔖 S/N: '+E(l[4])+'</div>':'', w=wInfo(d,l);
   if(w) h+='<div class="tdM" style="'+(w.ok?'':'color:#a12d2d;font-weight:700')+'">🛡 '+E(w.txt)+'</div>';
+  if(l[4]&&d.ty!=="Q"&&window.tdPurHtml) h+=window.tdPurHtml(pieces(l[4]),1);
   return h;
  }
  function soldLines(){
@@ -512,7 +518,8 @@
  }
  function wRowsHtml(q){
   var raw=String(q||"").trim(), nq=normSn(raw), lq=raw.toLowerCase(), dg=raw.replace(/\D/g,""), all=soldLines(), hits=[], rest=[];
-  if(!all.length) return '<div class="tdC tdM" style="text-align:center;line-height:1.5">'+E(T("സീരിയൽ നമ്പർ / വാറണ്ടി ഉള്ള ബിൽ ഇതുവരെ ഇല്ല. ബില്ലിൽ ഓരോ ഇനത്തിന്റെയും താഴെ '🔖 സീരിയൽ നമ്പർ / വാറണ്ടി' തുറന്ന് ചേർക്കുക.","No bill with a serial number or warranty yet. In a bill, open '🔖 Serial no. / warranty' under an item and fill it."))+'</div>';
+  var extra=(nq&&window.tdPurStockHtml)?window.tdPurStockHtml(raw):"";
+  if(!all.length&&!extra) return '<div class="tdC tdM" style="text-align:center;line-height:1.5">'+E(T("സീരിയൽ നമ്പർ / വാറണ്ടി ഉള്ള ബിൽ ഇതുവരെ ഇല്ല. ബില്ലിൽ ഓരോ ഇനത്തിന്റെയും താഴെ '🔖 സീരിയൽ നമ്പർ / വാറണ്ടി' തുറന്ന് ചേർക്കുക.","No bill with a serial number or warranty yet. In a bill, open '🔖 Serial no. / warranty' under an item and fill it."))+'</div>';
   all.forEach(function(z){
    if(!nq){ rest.push({z:z,hit:[]}); return; }
    var hit=pieces(z.l[4]).filter(function(p){ return normSn(p).indexOf(nq)>=0; });
@@ -520,7 +527,7 @@
    else if((z.d.cn||"").toLowerCase().indexOf(lq)>=0||String(z.l[0]).toLowerCase().indexOf(lq)>=0||(dg.length>=3&&String(z.d.cm||"").replace(/\D/g,"").indexOf(dg)>=0)) rest.push({z:z,hit:[]});
   });
   var L=hits.concat(rest).slice(0,40);
-  if(!L.length) return '<div class="tdC tdM" style="text-align:center">'+E(T("ഈ നമ്പർ / പേര് ഒരു ബില്ലിലും കണ്ടില്ല","Nothing found for this"))+'</div>';
+  if(!L.length&&!extra) return '<div class="tdC tdM" style="text-align:center">'+E(T("ഈ നമ്പർ / പേര് ഒരു ബില്ലിലും കണ്ടില്ല","Nothing found for this"))+'</div>';
   return L.map(function(r){
    var d=r.z.d, l=r.z.l, w=wInfo(d,l), sn=r.hit.length?r.hit.join(", "):(l[4]||"");
    var badge=w?'<span class="tdSt '+(w.ok?'p':'d')+'">'+E(w.ok?T("വാറണ്ടി ഉണ്ട്","In warranty"):T("വാറണ്ടി കഴിഞ്ഞു","Warranty over"))+'</span>':'<span class="tdSt">'+E(T("വാറണ്ടി ഇല്ല","No warranty"))+'</span>';
@@ -528,8 +535,9 @@
     (sn?'<div style="margin-top:4px">🔖 S/N: <b>'+E(sn)+'</b></div>':'')+
     '<div style="margin-top:4px">'+E(d.cn)+(d.cm?' · <a href="tel:'+E(d.cm)+'" onclick="event.stopPropagation()">'+E(d.cm)+'</a>':'')+'</div>'+
     '<div class="tdM">'+E(d.no)+' · '+E(tn(d.ty))+' · '+E(dm(d.d))+'</div>'+
-    (w?'<div style="margin-top:4px;font-weight:700;color:'+(w.ok?'#157a3a':'#a12d2d')+'">🛡 '+E(w.txt)+'</div>':'')+'</div>';
-  }).join("");
+    (w?'<div style="margin-top:4px;font-weight:700;color:'+(w.ok?'#157a3a':'#a12d2d')+'">🛡 '+E(w.txt)+'</div>':'')+
+    (sn&&window.tdPurHtml?window.tdPurHtml(pieces(sn)):'')+'</div>';
+  }).join("")+extra;
  }
  SC.warranty=function(){
   $("tdBody").innerHTML=
@@ -626,5 +634,5 @@
   closeSheet();
  };
 
- window.__tcDocs={warr:wInfo,pieces:pieces,addMonths:addMonths,scan:scan,get:get,nextNo:nextNo,calcDoc:calcDoc,status:status,biz:biz,go:go,open:openDocs,close:closeDocs,isOpen:function(){ return D.open; },T:T,E:E,mny:mny,tn:tn,r2:r2};
+ window.__tcDocs={SC:SC,normSn:normSn,u:{say:say,sheet:sheet,closeSheet:closeSheet,dm:dm,today:today,cap:cap,daysTo:daysTo,myItems:myItems,itemSub:itemSub,snClean:snClean},warr:wInfo,pieces:pieces,addMonths:addMonths,scan:scan,get:get,nextNo:nextNo,calcDoc:calcDoc,status:status,biz:biz,go:go,open:openDocs,close:closeDocs,isOpen:function(){ return D.open; },T:T,E:E,mny:mny,tn:tn,r2:r2};
 })();
