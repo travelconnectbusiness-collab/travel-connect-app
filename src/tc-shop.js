@@ -27,7 +27,8 @@
  function r2(n){ return Math.round((+n||0)*100)/100; }
  function money(n){ n=Math.round(+n||0); return (n<0?"-":"")+"₹"+Math.abs(n).toLocaleString("en-IN"); }
  function qty(n){ n=Math.round((+n||0)*1000)/1000; return String(n); }
- function me(){ try{ var u=getCurrentUser(); return u&&u.mobile?String(u.mobile):""; }catch(e){ return ""; } }
+ function me(){ if(window.__tcShopDemoKey) return String(window.__tcShopDemoKey);   /* admin test pages (tc-demo.js): a separate dummy book */
+  try{ var u=getCurrentUser(); return u&&u.mobile?String(u.mobile):""; }catch(e){ return ""; } }
 
  /* ---------- store ---------- */
  function load(){
@@ -74,6 +75,7 @@
  async function sync(){
   guard();
   if(busy) return; if(!userKey) return;
+  if(String(userKey).indexOf("demo-")===0) return;   /* a test book is never sent to the server */
   if(typeof navigator!=="undefined"&&navigator.onLine===false){ setStatus("off"); return; }
   busy=true; setStatus("busy");
   try{
@@ -339,11 +341,21 @@
   S.recs[id]=r; S.q.push(id); changed(); later();
   return prod(id);
  }
+ /* ADMIN TEST PAGES (tc-demo.js): switch to a separate dummy book "demo-<type>" (key = "" goes back to the real book). The real book is written to the phone first, a dummy book is never synced. wipe = start the dummy book empty again. */
+ function setDemo(key,wipe){
+  clearTimeout(saveT);
+  try{ if(userKey) localStorage.setItem(LSK+":"+userKey,JSON.stringify({recs:S.recs,q:S.q,cur:S.cur,cfg:S.cfg})); }catch(e){}
+  window.__tcShopDemoKey=key||"";
+  if(key&&wipe){ try{ localStorage.removeItem(LSK+":"+key); }catch(e){} }
+  load();
+  listeners.forEach(function(f){ try{ f(); }catch(e){} });
+  if(!key) later(500);
+ }
  function onChange(f){ listeners.push(f); }
  function offChange(f){ listeners=listeners.filter(function(g){ return g!==f; }); }
 
  load();
- window.__tcShop={add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,wageSal:wageSal,staff:staff,setStaff:setStaff,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
+ window.__tcShop={setDemo:setDemo,add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,wageSal:wageSal,staff:staff,setStaff:setStaff,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
   pay:payParts,report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
