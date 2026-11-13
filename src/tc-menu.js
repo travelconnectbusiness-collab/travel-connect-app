@@ -7,6 +7,7 @@
       login) the Menu gets one "Admin" entry instead: tcAdminHub() = requireAdmin(...) then a pop-up list with those same entries, grouped.
       Everyone else sees no Admin entry at all. The pages themselves still ask the password and the server still checks it.
       The hub re-uses the Menu's own entries (icons, Malayalam / English labels, onclick) - copied from the open Menu each time.
+   1b) "Test pages for each business type" (tc-demo.js, owner 2026-11-13) is one more row of the Admin page, group "Preview pages".
    2) TAXI ENTRIES. While the open business is NOT Taxi / Travel (db.settings.myBusinessType, set by core when a business is opened),
       Rate Master, Trip & Accounts, Cloud Backup and Backup file are not shown (they belong to the taxi books of this phone).
       Unknown type (nothing opened yet) = nothing is hidden.
@@ -19,7 +20,7 @@
   ["People & businesses","ആളുകളും ബിസിനസുകളും",["tcOpenPendingApprovals(","tcOpenAllUsersAdmin(","tcOpenAllPartnersAdmin(","tcOpenAllVehiclesAdmin(","tcOpenPartnerPlans(","tcAuthorizedUsersPage("]],
   ["Content & feedback","ഉള്ളടക്കവും അഭിപ്രായങ്ങളും",["tcOpenEmergencyAdmin(","tcOpenPlacesAdmin(","tcOpenFeedbackAdmin("]],
   ["Platform","പ്ലാറ്റ്ഫോം",["view('admin')","tcDevSecOpen"]],
-  ["Preview pages","പ്രിവ്യൂ പേജുകൾ",["tcPreviewPartnerPage(","tcPreviewCustomerPage("]]
+  ["Preview pages","പ്രിവ്യൂ പേജുകൾ",["tcPreviewPartnerPage(","tcPreviewCustomerPage(","tcPreviewBizTypes("]]
  ];
  var TAXI=["view('master')","view('accounts')","tcOpenBackupPage(","tcFbOpenPage("];
  var kept=[];          /* admin entries copied from the last open Menu: [{oc,html}] */
@@ -117,6 +118,14 @@
     }else if(hideTaxi&&hasTaxi(oc)){
      if(items[i].parentNode) items[i].parentNode.removeChild(items[i]);
     }
+   }
+   /* owner 2026-11-13: "Test pages for each business type" (tc-demo.js) sits in the Admin page, group Preview pages (not in the open Menu) */
+   if(owner&&typeof tcMenuItem==="function"&&typeof window.tcPreviewBizTypes==="function"&&kept.every(function(e){ return e.oc.indexOf("tcPreviewBizTypes(")<0; })){
+    try{
+     var tw=document.createElement("div");
+     tw.innerHTML=tcMenuItem('<path d="M9 3h6"></path><path d="M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"></path>',B("Test pages for each business type","ഓരോ ബിസിനസ് തരത്തിന്റെയും ടെസ്റ്റ് പേജ്")+" &#129514;","closeModal();tcPreviewBizTypes()");
+     var tr=tw.firstElementChild; if(tr) kept.push({oc:"closeModal();tcPreviewBizTypes()",html:tr.outerHTML});
+    }catch(x){}
    }
    if(owner&&typeof tcMenuItem==="function"){
     var wrap=document.createElement("div"); wrap.id="tcAdminMenu";
