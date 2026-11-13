@@ -6,6 +6,7 @@
         "Add payment" (amount, Cash/UPI, any date -> a 'money paid' record of that supplier, tagged with the bill: {t:'sp',su,a,pm,bg:bill id}),
         "Change payment" (re-do the payment of this bill: amount + date; a payment dated AFTER the bill keeps the bill fully "due" on its day and records the payment on its own day),
         "Edit details" (date / supplier / bill no.), "Delete bill" (stock goes back).
+      2026-11-13 (owner: "I saved a purchase but cannot edit it to add the transport charge"): "Edit transport / rate / quantity" in the same sheet - see tsPbItems below.
    2) The Purchase form shows the payment choice on the FIRST page, below the items: Paid in full / Part paid / Not paid yet (due) + the day it was paid (+ Cash / UPI) and a live
       line "Bill total - Paid - Balance". Saving takes you straight to the Purchase bills list. (The old single "Paid now" box on page 2 is replaced by the same block.)
    Records are the ordinary shop-book records (kind b with cr = still due when the bill was made, kind o t:'sp' for payments) - the Credit & dues "To pay" list, Today's account
@@ -74,7 +75,7 @@
  function again(key){ UI.render(); setTimeout(function(){ if(find(key)) window.tsPbOpen(enc(key)); },30); }
  window.tsPbOpen=function(k){
   var key=decodeURIComponent(k), b=find(key); if(!b){ UI.closeSheet(); return; }
-  var lines=b.recs.slice().sort(function(a,c){ return a.ts<c.ts?-1:1; }).map(function(r){
+  var lines=evRecs(b).map(function(r){
    var x=r.x, t=(+x.q||0)*(+x.rt||0), tr=+x.tr||0;
    return '<div class="tsRow"><div>'+E(pname(b.P,x.p))+'<div class="tsM">'+qty(x.q)+' × '+(+x.rt||0).toFixed(2)+(tr>0?' + '+E(T("ട്രാൻസ്പോർട്ട് ","transport "))+money(tr):'')+'</div></div><b>'+money(t+tr)+'</b></div>';
   }).join("");
@@ -88,6 +89,7 @@
    '<div class="tsRow"><span><b>'+E(b.due>0.5?T("ബാക്കി കൊടുക്കാനുള്ളത്","Balance to pay"):T("ബാക്കി ഇല്ല - മുഴുവനും കൊടുത്തു","Nothing due - fully paid"))+'</b></span><b style="font-size:20px;color:'+(b.due>0.5?'#a12d2d':'#177044')+'">'+money(b.due)+'</b></div>'+
    (b.due>0.5?'<button class="tsBtn" style="background:#1a8f4a" onclick="tsPbPay(\''+enc(key)+'\')">💸 '+E(T("പണം കൊടുത്തു (ചേർക്കുക)","Add a payment"))+'</button>':"")+
    '<button class="tsBtn g" onclick="tsPbChg(\''+enc(key)+'\')">✏ '+E(T("പണം കൊടുത്തത് മാറ്റുക (തുക / തീയതി)","Change payment (amount / date)"))+'</button>'+
+   '<button class="tsBtn g" onclick="tsPbItems(\''+enc(key)+'\')">✏ '+E(T("ട്രാൻസ്പോർട്ട് / വില / എണ്ണം മാറ്റുക","Edit transport / rate / quantity"))+'</button>'+
    '<button class="tsBtn g" onclick="tsPbEdit(\''+enc(key)+'\')">✏ '+E(T("തീയതി / കട / ബിൽ നമ്പർ മാറ്റുക","Edit date / supplier / bill no."))+'</button>'+
    '<button class="tsBtn g" style="color:#a12d2d" onclick="tsPbDel(\''+enc(key)+'\')">🗑 '+E(T("ഈ ബിൽ ഒഴിവാക്കുക","Delete this bill"))+'</button>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
@@ -175,6 +177,62 @@
   var pays=b.pays.slice(), g=remake(b,function(){ return {su:su||undefined,bn:bn||undefined}; },D);
   pays.forEach(function(r){ SH.cancel(r.id); SH.add("o",Object.assign({},r.x,{su:su,bg:g}),r.d); });
   say(T("സേവ് ചെയ്തു","Saved")); again(g);
+ };
+ /* ---------- change the transport / quantity / rate of a saved bill ----------
+    The records of the bill are made again with the new quantity, rate and transport (shared over the items by value, like the Purchase form does), so the stock and the
+    average cost follow. Payments stay as they are: the part of the bill that was still due (cr) grows or shrinks by the change in the bill total - a bigger bill shows the
+    extra as "Due" (press "Add a payment" if it was paid), a smaller one takes it off the due first. A quantity of 0 removes that item (its stock goes back). */
+ function evRecs(b){ return b.recs.slice().sort(function(a,c){ if(a.x.ln!=null&&c.x.ln!=null&&a.x.ln!==c.x.ln) return a.x.ln-c.x.ln; return a.ts<c.ts?-1:a.ts>c.ts?1:(a.id<c.id?-1:1); }); }   /* ln = the line's place in the bill (records made in the same millisecond have no other stable order) */
+ window.tsPbItems=function(k){
+  var key=decodeURIComponent(k), b=find(key); if(!b) return;
+  var trs=0; b.recs.forEach(function(r){ trs+=+r.x.tr||0; });
+  var rows=evRecs(b).map(function(r,i){
+   var p=b.P&&b.P[r.x.p], u=p&&p.u?" ("+p.u+")":"";
+   return '<div class="tsC" style="margin:8px 0"><b>'+E(pname(b.P,r.x.p))+'</b><div class="tsG"><div><label>'+E(T("എണ്ണം","Quantity"))+E(u)+'</label><input id="pbEq'+i+'" type="number" inputmode="decimal" value="'+E(qty(r.x.q))+'" oninput="tsPbEv()"></div>'+
+    '<div><label>'+E(T("ഒന്നിന്റെ വില","Rate each"))+'</label><input id="pbEr'+i+'" type="number" inputmode="decimal" value="'+E(+r.x.rt||0)+'" oninput="tsPbEv()"></div></div><div class="tsM" id="pbEa'+i+'" style="text-align:right"></div></div>';
+  }).join("");
+  UI.sheet('<h3 style="margin:0">'+E(b.su||"—")+'</h3><div class="tsM">'+E(dmy(b.d))+(b.bn?" · "+E(T("ബിൽ ","Bill "))+E(b.bn):"")+'</div>'+rows+
+   '<label>'+E(T("കൊണ്ടുവരാനുള്ള ചെലവ് - ട്രാൻസ്പോർട്ട് (ബില്ലിൽ ഒരു തവണ)","Transport for the whole bill (once)"))+'</label><input id="pbEt" type="number" inputmode="decimal" value="'+E(trs>0?r2(trs):"")+'" oninput="tsPbEv()">'+
+   '<div class="tsM" id="pbEs" style="margin-top:8px;white-space:pre-line;font-weight:700"></div>'+
+   '<div class="tsM" style="margin:6px 0">'+E(T("ബില്ലിന്റെ തുക കൂടിയാൽ കൂടിയ തുക 'ബാക്കി' ആയി കാണും; കൊടുത്തെങ്കിൽ 'പണം കൊടുത്തു (ചേർക്കുക)' അമർത്തുക. എണ്ണം 0 ആക്കിയാൽ ആ സാധനം ബില്ലിൽ നിന്ന് പോകും.","If the bill gets bigger the extra shows as 'Due' - press 'Add a payment' if it was paid. Quantity 0 removes that item from the bill."))+'</div>'+
+   '<button class="tsBtn" onclick="tsPbItemsSave(\''+enc(key)+'\')">✔ '+E(T("സേവ് ചെയ്യുക","Save"))+'</button><button class="tsBtn g" onclick="tsPbOpen(\''+enc(key)+'\')">← '+E(T("പിന്നോട്ട്","Back"))+'</button>');
+  window.tsPbEv();
+ };
+ window.tsPbEv=function(){
+  var s=$("pbEs"); if(!s) return;
+  var it=0, i=0, a; while((a=$("pbEq"+i))){ var q=Math.max(0,parseFloat(a.value)||0), rt=Math.max(0,parseFloat($("pbEr"+i).value)||0), e=$("pbEa"+i); if(e) e.textContent=q>0?qty(q)+" × "+rt+" = "+money(q*rt):T("ബില്ലിൽ നിന്ന് ഒഴിവാക്കും","Will be removed"); it+=q*rt; i++; }
+  var tr=Math.max(0,parseFloat(($("pbEt")||{}).value)||0);
+  s.textContent=T("സാധനങ്ങൾ ","Items ")+money(it)+(tr?" · "+T("ട്രാൻസ്പോർട്ട് ","Transport ")+money(tr):"")+"\n"+T("ആകെ ","Total ")+money(it+tr);
+ };
+ window.tsPbItemsSave=function(k){
+  var key=decodeURIComponent(k), b=find(key); if(!b) return;
+  var recs=evRecs(b), L=[], i;
+  for(i=0;i<recs.length;i++){
+   var q=parseFloat(($("pbEq"+i)||{}).value), rt=parseFloat(($("pbEr"+i)||{}).value);
+   if(isNaN(q)||q<0||isNaN(rt)||rt<0){ say(T("എണ്ണവും വിലയും ശരിയല്ല","Quantity or rate is not valid")); return; }
+   if(q===0) continue;
+   if(!(rt>0)){ say(T(pname(b.P,recs[i].x.p)+": വില നൽകുക",pname(b.P,recs[i].x.p)+": enter the rate")); return; }
+   L.push({r:recs[i],q:q,rt:rt});
+  }
+  if(!L.length){ say(T("ഒരു സാധനമെങ്കിലും വേണം. മുഴുവൻ ഒഴിവാക്കാൻ 'ഈ ബിൽ ഒഴിവാക്കുക' ഉപയോഗിക്കുക.","At least one item is needed. To remove the whole bill use 'Delete this bill'.")); return; }
+  var tr=Math.max(0,parseFloat(($("pbEt")||{}).value)||0), items=0; L.forEach(function(z){ items+=z.q*z.rt; });
+  var T1=r2(items+tr), cr1=Math.min(T1,Math.max(0,r2(b.cr+(T1-b.total))));
+  if(cr1>0.5&&!b.su){ say(T("ബാക്കി ഉള്ളതുകൊണ്ട് കടയുടെ പേര് വേണം: 'തീയതി / കട / ബിൽ നമ്പർ മാറ്റുക' ൽ ചേർക്കുക","A supplier name is needed while something is due: add it under 'Edit date / supplier / bill no.'")); return; }
+  var trs=L.map(function(z){ return items>0?r2(tr*(z.q*z.rt)/items):0; }), gt=r2(trs.reduce(function(a,v){ return a+v; },0));
+  if(trs.length&&tr>0&&Math.abs(gt-r2(tr))>0.004) trs[trs.length-1]=r2(trs[trs.length-1]+r2(tr)-gt);
+  var lts=L.map(function(z,j){ return z.q*z.rt+trs[j]; }), crs=lts.map(function(v){ return T1>0?r2(v*cr1/T1):0; }), cg=r2(crs.reduce(function(a,v){ return a+v; },0));
+  if(crs.length&&cr1>0&&Math.abs(cg-cr1)>0.004) crs[crs.length-1]=r2(crs[crs.length-1]+cr1-cg);
+  var g=b.hasG?b.key:H.uid(), pays=b.pays.slice(), made=[], ok=true;
+  L.forEach(function(z,j){
+   if(!ok) return;
+   var x=Object.assign({},z.r.x,{g:g,q:z.q,rt:z.rt,tr:trs[j],ln:j});
+   if(crs[j]>0.004) x.cr=crs[j]; else delete x.cr;
+   var rec=SH.add("b",x,z.r.d); if(rec) made.push(rec); else ok=false;
+  });
+  if(!ok){ made.forEach(function(r){ SH.cancel(r.id); }); return; }   /* refused (view-only plan): nothing changes */
+  b.recs.forEach(function(r){ SH.cancel(r.id); });
+  if(!b.hasG) pays.forEach(function(r){ SH.cancel(r.id); SH.add("o",Object.assign({},r.x,{bg:g}),r.d); });
+  say(T("സേവ് ചെയ്തു · ആകെ ","Saved · total ")+money(T1)); again(g);
  };
  window.tsPbDel=function(k){
   var key=decodeURIComponent(k), b=find(key); if(!b) return;
