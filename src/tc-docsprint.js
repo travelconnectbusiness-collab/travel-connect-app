@@ -2,7 +2,7 @@
    1) tdPrint(id, asImage): the document as a printable page through business.js's printContent() - same platform strip + your branding box as the
       taxi bills, then: title (QUOTATION / INVOICE / CASH BILL; TAX INVOICE when you have a GSTIN and the document carries GST), number, date,
       "From" (your name, address, phone, GSTIN - always printed, so the paper is valid on its own), "Bill to", the item table, subtotal / discount / GST /
-      round off / total, payments received and the balance with your UPI QR and bank box (tc-bankdet.js) while a balance is due, a quotation's validity
+      round off / total (under an item: its serial number and warranty), payments received and the balance with your UPI QR and bank box (tc-bankdet.js) while a balance is due, a quotation's validity
       and advance, notes, signature line. With "asImage" the page becomes a picture to share. "Print" gives Save-as-PDF on the phone. Malayalam text
       prints correctly this way (the jsPDF files of the taxi bills cannot draw Malayalam). tc-gst.js wording (CGST + SGST) applies on its own.
    2) tdWa(id): opens WhatsApp to the customer's number with a short text of the document.
@@ -32,7 +32,8 @@
   var brand=""; try{ brand=typeof tcBrandingBox==="function"?tcBrandingBox(partnerPhones):""; }catch(e){}
   var td='padding:5px 6px;border-bottom:1px solid #e5e5e5;font-size:14px;vertical-align:top';
   var rows=d.L.map(function(l,i){
-   return '<tr><td style="'+td+';color:#888">'+(i+1)+'</td><td style="'+td+'">'+E(l[0])+'</td><td style="'+td+';text-align:right;white-space:nowrap">'+E(l[1])+(l[2]?' '+E(l[2]):'')+'</td>'+
+   var w=DX.warr?DX.warr(d,l):null;
+   return '<tr><td style="'+td+';color:#888">'+(i+1)+'</td><td style="'+td+'">'+E(l[0])+(l[4]?'<div style="font-size:11px;color:#555">S/N: '+E(l[4])+'</div>':'')+(w?'<div style="font-size:11px;color:#555">Warranty: '+E(w.pt)+'</div>':'')+'</td><td style="'+td+';text-align:right;white-space:nowrap">'+E(l[1])+(l[2]?' '+E(l[2]):'')+'</td>'+
     '<td style="'+td+';text-align:right;white-space:nowrap">'+mny(l[3])+'</td><td style="'+td+';text-align:right;white-space:nowrap"><b>'+mny(r2(l[1]*l[3]))+'</b></td></tr>';
   }).join("");
   function tr(a,v,bold,big){ return '<tr><td style="padding:3px 6px;color:#555;text-align:right">'+a+'</td><td style="padding:3px 6px;text-align:right;white-space:nowrap;'+(bold?'font-weight:bold;':'')+(big?'font-size:18px;':'')+'">'+v+'</td></tr>'; }
@@ -66,7 +67,7 @@
  window.tdWa=function(id){
   var d=DX.get(id); if(!d) return;
   var b=DX.biz(), t="*"+titleOf(d)+" "+d.no+"*"+(b.name?"\n"+b.name:"")+"\n"+dmy(d.d)+"\n\n"+
-   d.L.map(function(l){ return "- "+l[0]+": "+l[1]+(l[2]?" "+l[2]:"")+" x "+mny(l[3])+" = "+mny(r2(l[1]*l[3])); }).join("\n")+
+   d.L.map(function(l){ var w=DX.warr?DX.warr(d,l):null; return "- "+l[0]+": "+l[1]+(l[2]?" "+l[2]:"")+" x "+mny(l[3])+" = "+mny(r2(l[1]*l[3]))+(l[4]?"\n  S/N: "+l[4]:"")+(w?"\n  Warranty: "+w.pt:""); }).join("\n")+
    (d.disc?"\nDiscount: -"+mny(d.disc):"")+(d.gst?"\nGST @ "+d.gpct+"%: "+mny(d.gst):"")+"\n*Total: "+mny(d.total)+"*"+
    (d.ty!=="Q"?(d.bal>0.5?"\nBalance due: "+mny(d.bal):"\nPaid in full"):(d.vu?"\nValid until: "+dmy(d.vu):""))+(d.nt?"\n\n"+d.nt:"");
   var n=String(d.cm||"").replace(/\D/g,""); if(n.length===10) n="91"+n;
