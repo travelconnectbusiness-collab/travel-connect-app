@@ -69,6 +69,7 @@ const MARKERS = [
   ["src/tc-shopplan.js", "setDemo", "Shop plan can be chosen by hand in the admin test pages"],
   ["src/tc-demo.js", "__tcDemo", "Admin test pages for each business type (tc-demo.js)"],
   ["src/tc-demo.js", "tcDemoStart", "Test pages: start with a dummy book"],
+  ["src/tc-demo.js", "fakePartner", "Test pages: owner dashboard of the other business types (hospital, hotel ...)"],
   ["src/tc-demo.js", "tcPreviewBizTypes", "Test pages: the Admin entry opens the picker"],
   ["src/tc-shop.js", "setDemo", "Shop book can switch to a dummy book that is never synced"],
   ["src/tc-menu.js", "tcPreviewBizTypes", "Admin page lists the test pages (tc-menu.js)"],
