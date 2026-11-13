@@ -7,8 +7,11 @@
    start the sample again, or leave the test.
    SAFE: the dummy book has its own key on the phone ("tc_shop_v1:demo-<type>"), is never sent to the server and never touches the real book (tc-shop.js setDemo);
    while a test is open the business type and the plan seen by the shop pages are replaced, and everything is put back when the test is left.
-   Covered types: Workshop / spare parts, Aquarium / pet shop, Other shop, Skilled work (quotation / invoice / bill). The Taxi / Travel pages and the directory belong to
-   core.js / directory.js and are not copied here. */
+   Covered types: Workshop / spare parts, Aquarium / pet shop, Other shop, Skilled work (quotation / invoice / bill) on the dummy book, AND (owner 2026-11-13: "hotel, hospital
+   and the other categories too") the OWNER DASHBOARD of every other business type of TC_BUSINESS_TYPES (Taxi / Travel, Auto, Pickup, Restaurant, Petrol pump, Hospital,
+   Homestay / Hotel ...): the real dashboard is opened with a made-up business of that type (id -1, "Sample ...") and a Free / Plus / Premium plan chosen by hand
+   (core's tcOpenOneBusiness). The made-up business is not on the server, so cards that need the server (Verification & Plan, Shop window ...) may not show; leaving the test
+   opens the person's real business again (partnerView). The directory and the customer pages are not part of this (use Preview Customer page). */
 (function(){
  var SH=window.__tcShop, UI=window.__tcShopUi;
  if(!SH||!UI||!SH.setDemo||window.__tcDemo) return;
@@ -26,8 +29,23 @@
   ["locked","Year over, no Premium (view only)","വർഷം കഴിഞ്ഞു, പ്രീമിയം ഇല്ല (കാണാൻ മാത്രം)"],
   ["prem","Premium","പ്രീമിയം"]
  ];
+ var DPLANS=[["free","Free","ഫ്രീ"],["paid","Plus","പ്ലസ്"],["premium","Premium","പ്രീമിയം"]];
  var cur=null;          /* {type, plan, biz0, prem0} while a test page is open */
- function typeRow(k){ for(var i=0;i<TYPES.length;i++) if(TYPES[i][0]===k) return TYPES[i]; return TYPES[0]; }
+ /* the other business types: their owner dashboard (values "d:<type>") */
+ function dashTypes(){
+  var out=[];
+  try{
+   if(typeof TC_BUSINESS_TYPES!=="undefined") Object.keys(TC_BUSINESS_TYPES).forEach(function(k){
+    if(k==="workshop"||k==="skilled_work") return;
+    var ml=(typeof TC_BUSINESS_TYPES_ML!=="undefined"&&TC_BUSINESS_TYPES_ML[k])||TC_BUSINESS_TYPES[k];
+    out.push(["d:"+k,TC_BUSINESS_TYPES[k]+" - dashboard",ml+" - ഡാഷ്ബോർഡ്",k]);
+   });
+  }catch(e){}
+  return out;
+ }
+ function isDash(k){ return String(k).indexOf("d:")===0; }
+ function typeRow(k){ var all=TYPES.concat(dashTypes()); for(var i=0;i<all.length;i++) if(all[i][0]===k) return all[i]; return TYPES[0]; }
+ function planList(k){ return isDash(k)?DPLANS:PLANS; }
 
  /* ---------- sample data (only when the dummy book is empty) ---------- */
  function seed(type){
@@ -67,13 +85,32 @@
  /* ---------- the plan chosen for the test ---------- */
  function applyPlan(p){
   cur.plan=p;
+  if(cur.dash){ openDash(); return; }
   var P=window.__tcShopPlan; if(!P||!P.setDemo) return;
   if(p==="trial365") P.setDemo("trial",365); else if(p==="trial20") P.setDemo("trial",20); else if(p==="locked") P.setDemo("locked"); else P.setDemo("prem");
  }
 
  /* ---------- start / leave ---------- */
+ /* the made-up business whose owner dashboard is shown */
+ function fakePartner(type,plan){
+  var k=type.slice(2), row=typeRow(type), u=null; try{ u=getCurrentUser(); }catch(e){}
+  var exp=plan==="free"?null:new Date(Date.now()+30*86400000).toISOString();
+  return {id:-1,business_type:k,business_name:"Sample "+String(row[1]).replace(/ - dashboard$/,""),owner_name:"Test Owner",mobile1:u&&u.mobile||"",mobile2:"",
+   location:"Sample town",description:"This is a made-up business for testing the page.",plan:plan,plan_expires_at:exp,verified:0,email_verified:0,email:"",status:"active",active:1,is_active:1};
+ }
+ function openDash(){
+  if(!cur||!cur.dash) return;
+  try{
+   if(typeof app==="function"&&typeof card==="function") app().innerHTML=card("Travel Partner",'<div id="partnerBox"></div>');
+   tcOpenOneBusiness(fakePartner(cur.type,cur.plan));
+  }catch(e){ try{ toast(T("ഈ പേജ് സാമ്പിൾ ആയി തുറക്കാനായില്ല","This page could not be opened as a sample")); }catch(x){} if(window.console) console.error("tc-demo dash",e); }
+ }
  function start(type,plan,wipe){
   if(cur) leave(true);
+  if(isDash(type)){
+   cur={type:type,plan:plan||"premium",dash:true};
+   pill(); openDash(); return;
+  }
   var row=typeRow(type);
   cur={type:type,plan:plan||"trial365",biz0:window.__tcBizOnScreen,prem0:window.tcIsPremiumPlan};
   window.__tcBizOnScreen=function(){ return row[3]; };
@@ -92,6 +129,14 @@
  }
  function leave(quiet){
   if(!cur) return;
+  if(cur.dash){
+   cur=null;
+   var o0=document.getElementById("tcDemoPill"); if(o0) o0.remove();
+   var q0=document.getElementById("tcDemoPanel"); if(q0) q0.remove();
+   if(typeof partnerView==="function"){ try{ partnerView(); }catch(e){} }   /* the real business is opened again */
+   if(!quiet){ try{ toast(T("ടെസ്റ്റ് അവസാനിപ്പിച്ചു","Test closed")); }catch(e){} }
+   return;
+  }
   closeLayers();
   var c=cur; cur=null;
   window.__tcBizOnScreen=c.biz0; window.tcIsPremiumPlan=c.prem0;
@@ -121,11 +166,11 @@
   var row=typeRow(cur.type);
   q.innerHTML='<div style="background:#fff;border-radius:14px;padding:14px;max-width:380px;width:100%;box-sizing:border-box;font-size:15px;line-height:1.4">'+
    '<div style="font-size:17px;font-weight:800;color:#c0392b">🧪 '+E(T("ടെസ്റ്റ് മോഡ്","Test mode"))+'</div>'+
-   '<div style="margin:4px 0 8px">'+E(T(row[2],row[1]))+'<br><span style="color:#555;font-size:13px">'+E(T("ഇത് ഡമ്മി ബുക്ക് ആണ്. ഒന്നും നിങ്ങളുടെ യഥാർത്ഥ കണക്കിലോ സെർവറിലോ പോകില്ല.","This is a dummy book. Nothing goes to your real books or the server."))+'</span></div>'+
+   '<div style="margin:4px 0 8px">'+E(T(row[2],row[1]))+'<br><span style="color:#555;font-size:13px">'+E(cur.dash?T("ഇത് ഉണ്ടാക്കിയ ഒരു ബിസിനസ് ആണ്, സെർവറിൽ ഇല്ല. അവസാനിപ്പിച്ചാൽ നിങ്ങളുടെ യഥാർത്ഥ ബിസിനസ് തുറക്കും.","This is a made-up business, not on the server. Leaving the test opens your real business again."):T("ഇത് ഡമ്മി ബുക്ക് ആണ്. ഒന്നും നിങ്ങളുടെ യഥാർത്ഥ കണക്കിലോ സെർവറിലോ പോകില്ല.","This is a dummy book. Nothing goes to your real books or the server."))+'</span></div>'+
    '<label style="display:block;font-size:13px;color:#555">'+E(T("പ്ലാൻ","Plan"))+'<select id="tcDemoPlanSel" style="width:100%;padding:8px;font-size:15px;margin-top:2px" onchange="tcDemoPlan(this.value)">'+
-   PLANS.map(function(p){ return '<option value="'+p[0]+'"'+(p[0]===cur.plan?" selected":"")+'>'+E(T(p[2],p[1]))+'</option>'; }).join("")+'</select></label>'+
+   planList(cur.type).map(function(p){ return '<option value="'+p[0]+'"'+(p[0]===cur.plan?" selected":"")+'>'+E(T(p[2],p[1]))+'</option>'; }).join("")+'</select></label>'+
    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
-   '<button style="flex:1;padding:10px" onclick="tcDemoReset()">'+E(T("സാമ്പിൾ വീണ്ടും തുടങ്ങുക","Start the sample again"))+'</button>'+
+   (cur.dash?'':'<button style="flex:1;padding:10px" onclick="tcDemoReset()">'+E(T("സാമ്പിൾ വീണ്ടും തുടങ്ങുക","Start the sample again"))+'</button>')+
    '<button style="flex:1;padding:10px;background:#c0392b;color:#fff;border:0" onclick="tcDemoLeave()">'+E(T("ടെസ്റ്റ് അവസാനിപ്പിക്കുക","Leave the test"))+'</button></div>'+
    '<button style="margin-top:8px;width:100%;padding:10px" onclick="document.getElementById(\'tcDemoPanel\').remove()">'+E(T("തുടരുക","Continue"))+'</button></div>';
   document.body.appendChild(q);
@@ -146,14 +191,23 @@
  /* ---------- the picker (Menu > Admin > Preview pages) ---------- */
  function picker(){
   var last=""; try{ last=localStorage.getItem("tc_demo_last")||""; }catch(e){}
-  var lt=last.split("|");
+  var lt=last.split("|"), dt=dashTypes();
   modal('<h2>🧪 '+E(T("ഓരോ ബിസിനസ് തരത്തിന്റെയും ടെസ്റ്റ് പേജ്","Test pages for each business type"))+'</h2>'+
    '<p class="muted" style="font-size:12.5px">'+E(T("യഥാർത്ഥ പേജുകൾ തന്നെ ഡമ്മി ഡാറ്റയോടെ തുറക്കും. നിങ്ങളുടെ യഥാർത്ഥ കണക്കുകൾ തൊടില്ല, സെർവറിലേക്ക് ഒന്നും പോകില്ല. ടാക്സി / ട്രാവൽ പേജുകൾ ഇതിൽ ഇല്ല.","The real pages open with dummy data. Your real books are not touched and nothing is sent to the server. Taxi / Travel pages are not part of this."))+'</p>'+
-   '<label>'+E(T("ബിസിനസ് തരം","Business type"))+'<select id="tcDemoType">'+TYPES.map(function(r){ return '<option value="'+r[0]+'"'+(r[0]===lt[0]?" selected":"")+'>'+E(T(r[2],r[1]))+'</option>'; }).join("")+'</select></label>'+
-   '<label>'+E(T("പ്ലാൻ","Plan"))+'<select id="tcDemoPlanPick">'+PLANS.map(function(p){ return '<option value="'+p[0]+'"'+(p[0]===lt[1]?" selected":"")+'>'+E(T(p[2],p[1]))+'</option>'; }).join("")+'</select></label>'+
+   '<label>'+E(T("ബിസിനസ് തരം","Business type"))+'<select id="tcDemoType" onchange="tcDemoFillPlans()">'+
+   '<optgroup label="'+E(T("ഷോപ്പ് / വർക്ക്ഷോപ്പ് / സ്കിൽഡ് വർക്ക് (ടൂളുകൾ, ഡമ്മി ബുക്ക്)","Shop / workshop / skilled work (tools, dummy book)"))+'">'+
+   TYPES.map(function(r){ return '<option value="'+r[0]+'"'+(r[0]===lt[0]?" selected":"")+'>'+E(T(r[2],r[1]))+'</option>'; }).join("")+'</optgroup>'+
+   (dt.length?'<optgroup label="'+E(T("മറ്റ് ബിസിനസ് തരങ്ങൾ (ഓണർ ഡാഷ്ബോർഡ്)","Other business types (owner dashboard)"))+'">'+dt.map(function(r){ return '<option value="'+r[0]+'"'+(r[0]===lt[0]?" selected":"")+'>'+E(T(r[2],r[1]))+'</option>'; }).join("")+'</optgroup>':"")+'</select></label>'+
+   '<label>'+E(T("പ്ലാൻ","Plan"))+'<select id="tcDemoPlanPick"></select></label>'+
    '<div class="actions"><button class="primary" onclick="tcDemoGo()">'+E(T("ടെസ്റ്റ് പേജ് തുറക്കുക","Open the test page"))+'</button></div>'+
    '<p class="muted" style="font-size:12px">'+E(T("പ്ലാൻ പിന്നീട് ചുവന്ന TEST ബട്ടണിൽ നിന്ന് മാറ്റാം.","You can change the plan later with the red TEST button."))+'</p>');
+  window.tcDemoFillPlans(lt[1]);
  }
+ window.tcDemoFillPlans=function(want){
+  var t=document.getElementById("tcDemoType"), p=document.getElementById("tcDemoPlanPick"); if(!t||!p) return;
+  var L=planList(t.value);
+  p.innerHTML=L.map(function(x){ return '<option value="'+x[0]+'"'+(x[0]===want?" selected":"")+'>'+E(T(x[2],x[1]))+'</option>'; }).join("");
+ };
  window.tcDemoGo=function(){
   var t=document.getElementById("tcDemoType"), p=document.getElementById("tcDemoPlanPick"); if(!t||!p) return;
   try{ localStorage.setItem("tc_demo_last",t.value+"|"+p.value); }catch(e){}
