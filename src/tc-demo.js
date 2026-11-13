@@ -86,6 +86,13 @@
     SH.add("o",{t:"dp",doc:id,a:tot,pm:"C"},H.addDays(H.today(),z[3]));
     try{ if(typeof window.tcDocsRebuild==="function") window.tcDocsRebuild(id); }catch(e){}
    });
+   /* where those things were bought (My purchases): the camera is still in the supplier's warranty, the DVR's customer warranty is over but the supplier's is not */
+   [["Hikvision Dealer","9846222222","Kozhikode","H-441",-70,"CCTV camera 2MP",4,1000,"HK2201A, HK2201B, HK2201C, HK2201D",24,150],
+    ["Digital Hub","9846333333","Vadakara","DH-9021",-420,"DVR 4 channel",1,2300,"DV77120",24,0]].forEach(function(z){
+    var p=SH.findName(z[5]); if(!p) return;
+    var x={p:p.id,q:z[6],rt:z[7],tr:z[10],su:z[0],bn:z[3],g:H.uid(),ser:z[8],sw:z[9],sph:z[1],spl:z[2]};
+    SH.add("b",x,H.addDays(H.today(),z[4]));
+   });
    return;
   }
   if(SH.products({all:true}).length) return;
