@@ -34,6 +34,7 @@
   cv=S.ver; cd=m; return m;
  }
  var SP=null;   /* the last plan the server sent: {mode,end,left} */
+ var DEMO=null;  /* admin test pages (tc-demo.js): a plan chosen by hand {mode,left}, only while a test page is open */
  function fromServer(){
   if(!SP) return null;
   if(SP.mode==="prem") return {mode:"prem"};
@@ -42,6 +43,7 @@
   return {mode:"trial",left:left,end:SP.end};
  }
  function state(){
+  if(DEMO) return DEMO.mode==="trial"?{mode:"trial",left:DEMO.left,end:H.addDays(H.today(),DEMO.left)}:DEMO.mode==="locked"?{mode:"locked",left:0,end:H.addDays(H.today(),-1)}:{mode:"prem"};
   if(biz()==="taxi_travel") return {mode:"prem"};
   if(typeof tcIsPremiumPlan!=="function") return {mode:"prem"};
   var p=false; try{ p=!!tcIsPremiumPlan(); }catch(e){}
@@ -56,7 +58,7 @@
   return left>0?{mode:"trial",left:left,end:end}:{mode:"locked",left:0,end:end};
  }
  function locked(){ return state().mode==="locked"; }
- window.__tcShopPlan={state:state,locked:locked,server:function(){ return SP; }};
+ window.__tcShopPlan={state:state,locked:locked,server:function(){ return SP; },setDemo:function(mode,left){ DEMO=mode?{mode:mode,left:left||365}:null; try{ later(); }catch(e){} }};
 
  /* ---------- read the plan the server puts in every /api/shop answer ---------- */
  (function(){
