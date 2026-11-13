@@ -31,6 +31,28 @@
  ];
  var DPLANS=[["free","Free","ഫ്രീ"],["paid","Plus","പ്ലസ്"],["premium","Premium","പ്രീമിയം"]];
  var cur=null;          /* {type, plan, biz0, prem0} while a test page is open */
+ /* The made-up business is opened through core's own tcOpenOneBusiness, which writes it into db.settings / db.business on this phone.
+    A copy of the real values is kept while a dashboard test is open, and put back when the test ends - or at the next start if the app was closed in the middle. */
+ var KEYS=["myPlan","myPlanExpiresAt","myPartnerId","myLogoKey","myBrandColor","myBrandFontSize","myBrandFontFamily","myBrandDetailSize","myBrandLogoSize","myBusinessType","myBillingIdentityFor"];
+ function backup(){
+  try{
+   if(localStorage.getItem("tc_demo_bak")||typeof db==="undefined"||!db.settings) return;
+   var s={}; KEYS.forEach(function(k){ s[k]=db.settings[k]===undefined?null:db.settings[k]; });
+   localStorage.setItem("tc_demo_bak",JSON.stringify({s:s,b:db.business||null}));
+  }catch(e){}
+ }
+ function restore(){
+  try{
+   var raw=localStorage.getItem("tc_demo_bak"); if(!raw||typeof db==="undefined"||!db.settings) return;
+   var o=JSON.parse(raw);
+   KEYS.forEach(function(k){ if(o.s[k]===null) delete db.settings[k]; else db.settings[k]=o.s[k]; });
+   if(o.b) db.business=o.b;
+   if(db.billingByPartner) delete db.billingByPartner["-1"];
+   if(typeof save==="function") save();
+   localStorage.removeItem("tc_demo_bak");
+  }catch(e){}
+ }
+ restore();   /* nothing is open when this file loads, so anything left over is from a test that was never closed */
  /* the other business types: their owner dashboard (values "d:<type>") */
  function dashTypes(){
   var out=[];
@@ -109,7 +131,7 @@
   if(cur) leave(true);
   if(isDash(type)){
    cur={type:type,plan:plan||"premium",dash:true};
-   pill(); openDash(); return;
+   backup(); pill(); openDash(); return;
   }
   var row=typeRow(type);
   cur={type:type,plan:plan||"trial365",biz0:window.__tcBizOnScreen,prem0:window.tcIsPremiumPlan};
@@ -130,7 +152,7 @@
  function leave(quiet){
   if(!cur) return;
   if(cur.dash){
-   cur=null;
+   cur=null; restore();
    var o0=document.getElementById("tcDemoPill"); if(o0) o0.remove();
    var q0=document.getElementById("tcDemoPanel"); if(q0) q0.remove();
    if(typeof partnerView==="function"){ try{ partnerView(); }catch(e){} }   /* the real business is opened again */
