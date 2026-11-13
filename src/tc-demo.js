@@ -71,7 +71,23 @@
 
  /* ---------- sample data (only when the dummy book is empty) ---------- */
  function seed(type){
-  if(type==="skilled") return;
+  if(type==="skilled"){
+   /* a CCTV worker's own list: some counted, some not (cable by the metre, labour) */
+   if(SH.products({all:true}).length) return;
+   SH.setCfg("kind","skilled");
+   [["CCTV camera 2MP","nos",1450,900,12],["DVR 4 channel","nos",3200,2300,3],["Camera cable","m",22,14,0],["Power supply 12V","nos",350,220,8],["Hard disk 1TB","nos",3600,3100,2],["Labour","hr",500,0,0]].forEach(function(z){
+    var x={n:z[0],t:"i",c:"Other",u:z[1],pr:z[2]}; if(z[3]) x.ec=z[3]; if(z[4]) x.oq=z[4]; else x.nt=1; SH.newProduct(x);
+   });
+   /* two paid bills with serial numbers: one still in warranty, one over (try Warranty / serial no. search with HK2201A or DV77120) */
+   [["BILL-0001","Rajan","9847000000",-60,[["CCTV camera 2MP",2,"nos",1450,"HK2201A, HK2201B",12],["Camera cable",30,"m",22],["Labour",1,"hr",500]]],
+    ["BILL-0002","Suresh","9846111111",-400,[["DVR 4 channel",1,"nos",3200,"DV77120",12]]]].forEach(function(z){
+    var id=H.uid(), tot=0; z[4].forEach(function(l){ tot+=l[1]*l[3]; });
+    SH.add("o",{t:"doc",id:id,v:1,ty:"B",no:z[0],cn:z[1],cm:z[2],L:z[4]},H.addDays(H.today(),z[3]));
+    SH.add("o",{t:"dp",doc:id,a:tot,pm:"C"},H.addDays(H.today(),z[3]));
+    try{ if(typeof window.tcDocsRebuild==="function") window.tcDocsRebuild(id); }catch(e){}
+   });
+   return;
+  }
   if(SH.products({all:true}).length) return;
   var t=H.today(), d1=H.addDays(t,-1), d2=H.addDays(t,-2), d9=H.addDays(t,-9), P={};
   SH.setCfg("kind",type);
