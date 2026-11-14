@@ -1,7 +1,7 @@
 import { verifyAdminToken, createAdminSession } from "./_auth_helper.js";
 import { getFlag, setFlag } from "./_flags.js";
 import { softStats, forgetFlagCache, callerOf } from "./_devauth.js";
-import { verifiedEmailOf, loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, emailLoginSend, emailLoginVerify, hasEmailProof, useEmailProof, accountByEmail, pinResetSend, pinResetVerify, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
+import { verifiedEmailOf, loginGate, otpEnforcing, forgetOtpFlagCache, secLog, sendLoginCode, verifyLoginCode, securityInfo, revokeOthers, listDevices, removeDevice, admitDevice, otpStats, reminderStats, sendEmailReminder, ensureEmailColumns, emailLoginSend, emailLoginVerify, hasEmailProof, useEmailProof, accountByEmail, pinResetSend, pinResetVerify, sendEmailCode, verifyEmailCode, acceptEmailRisk } from "./_loginotp.js";
 
 
 /* ---------- BLOOD DONORS (optional, opt-in) ----------
@@ -301,10 +301,12 @@ export async function onRequestPost({ request, env }) {
   }
 
   /* new phone on a protected account: e-mailed code (see _loginotp.js) */
-  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others" || action === "email_login_send" || action === "email_login_verify" || action === "pin_reset_send" || action === "pin_reset_verify" || action === "email_otp_send" || action === "email_otp_verify" || action === "accept_email_risk") {
+  if (action === "login_otp_send" || action === "login_otp_verify" || action === "security_info" || action === "revoke_others" || action === "list_devices" || action === "remove_device" || action === "email_login_send" || action === "email_login_verify" || action === "pin_reset_send" || action === "pin_reset_verify" || action === "email_otp_send" || action === "email_otp_verify" || action === "accept_email_risk") {
     const r = action === "login_otp_send" ? await sendLoginCode(env, body)
       : action === "login_otp_verify" ? await verifyLoginCode(env, body)
       : action === "security_info" ? await securityInfo(env, body)
+      : action === "list_devices" ? await listDevices(env, body)
+      : action === "remove_device" ? await removeDevice(env, body)
       : action === "email_login_send" ? await emailLoginSend(env, body)
       : action === "email_login_verify" ? await emailLoginVerify(env, body)
       : action === "pin_reset_send" ? await pinResetSend(env, body)
@@ -422,12 +424,7 @@ export async function onRequestPost({ request, env }) {
     await recordAppMode(env, mobile, body.mode);
     /* remember this device for this mobile (several devices allowed) */
     if (deviceToken) {
-      try {
-        await env.DB
-          .prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)")
-          .bind(mobile, deviceToken, now)
-          .run();
-      } catch (e) {}
+      try { await admitDevice(env, mobile, deviceToken); } catch (e) {}   /* max 3 phones (Platinum 11): a new phone pushes the oldest out */
     }
 
     if (proven) await useEmailProof(env, proofEmail, deviceToken, mobile);
