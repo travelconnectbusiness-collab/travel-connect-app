@@ -159,6 +159,7 @@
    h+='<div class="tsC"><div class="tsRow"><span>'+E(T("ഈ മാസം വാങ്ങിയത്","Bought this month"))+'</span><b>'+money(R.bought)+'</b></div>'+(simple?'':'<div class="tsRow"><span>'+E(T("ഇപ്പോഴത്തെ സ്റ്റോക്ക് വില","Stock value now"))+'</span><b>'+money(SH.stockValue())+'</b></div>')+'</div>';
   }
   h+='<button class="tsBtn g" onclick="tsRpXlsx()">📤 '+E(T("Excel (എല്ലാ കണക്കും)","Excel (the whole book)"))+'</button>';
+  if(!isDay&&!simple&&typeof window.tcCaPack==="function") h+='<button class="tsBtn g" onclick="tcCaPack(\''+r.m+'\')">🧾 '+E(T("CA പാക്ക് (ഈ മാസം, GST + ലാഭ-നഷ്ടം + കടം)","CA pack (this month: GST + profit-loss + dues)"))+'</button>';
   UI.body().innerHTML=h;
  },function(){ return "📊 "+T("കണക്ക്","Account"); });
  window.tsRpMode=function(m){ V.rep.mode=m; UI.render(); };
