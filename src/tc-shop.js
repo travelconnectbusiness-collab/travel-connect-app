@@ -27,7 +27,12 @@
  function r2(n){ return Math.round((+n||0)*100)/100; }
  function money(n){ n=Math.round(+n||0); return (n<0?"-":"")+"₹"+Math.abs(n).toLocaleString("en-IN"); }
  function qty(n){ n=Math.round((+n||0)*1000)/1000; return String(n); }
+ /* STAFF phone (tc-shopstaff.js): {owner,sid,name,role:"sale"|"stock",mobile} in localStorage tc_shop_staff - valid only while the same person is logged in.
+    The server (shop.js) decides what such a phone may read and write; this file only keeps the phone from trying what the server would refuse. */
+ var STAFF_OK={sale:{s:1},stock:{s:1,b:1,m:1,a:1}};
+ function stf(){ try{ var j=JSON.parse(localStorage.getItem("tc_shop_staff")||"null"), u=getCurrentUser(); if(j&&j.owner&&j.sid&&STAFF_OK[j.role]&&u&&String(u.mobile)===String(j.mobile)) return j; }catch(e){} return null; }
  function me(){ if(window.__tcShopDemoKey) return String(window.__tcShopDemoKey);   /* admin test pages (tc-demo.js): a separate dummy book */
+  var s=stf(); if(s) return "st-"+s.owner;   /* a staff phone keeps the shop's book in its own place, apart from any book of the person's own */
   try{ var u=getCurrentUser(); return u&&u.mobile?String(u.mobile):""; }catch(e){ return ""; } }
 
  /* ---------- store ---------- */
@@ -49,6 +54,7 @@
 
  function add(k,x,d){
   guard();
+  var sf=stf(); if(sf&&!STAFF_OK[sf.role][k]) return null;   /* staff can not edit, cancel, add products, expenses, money or settings */
   var r={id:uid(),k:k,d:d||today(),ts:new Date().toISOString(),x:x||{}};
   S.recs[r.id]=r; S.q.push(r.id); changed(); later();
   return r;
@@ -60,14 +66,15 @@
   if(n){ changed(); later(); }
   return n;
  }
- function cancel(id){ var r=S.recs[id]; if(!r||r.k==="v") return null; return add("v",{r:id},r.d); }
- function replace(id,x,d){ var r=S.recs[id]; if(!r) return null; cancel(id); return add(r.k,x,d||r.d); }
+ function cancel(id){ if(stf()) return null; var r=S.recs[id]; if(!r||r.k==="v") return null; return add("v",{r:id},r.d); }
+ function replace(id,x,d){ if(stf()) return null; var r=S.recs[id]; if(!r) return null; cancel(id); return add(r.k,x,d||r.d); }
  function setCfg(k,v){ return add("c",{k:k,v:v}); }
 
  /* ---------- sync ---------- */
  function later(ms){ clearTimeout(syncT); syncT=setTimeout(sync,ms||800); }
  function api(action,body){
-  return fetch("/api/shop?action="+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){
+  var hd={"Content-Type":"application/json"}, sf=stf(); if(sf) hd["X-TC-Shop"]=String(sf.owner);
+  return fetch("/api/shop?action="+action,{method:"POST",headers:hd,body:JSON.stringify(body)}).then(function(r){
    return r.json().catch(function(){ return {ok:false,error:"http_"+r.status}; }).then(function(j){ if(!j.ok&&!j.error) j.error="http_"+r.status; return j; });
   });
  }
@@ -95,13 +102,15 @@
      if(!S.recs[r.id]){ S.recs[r.id]={id:r.id,k:r.k,d:r.d,ts:r.ts,x:r.x}; got++; }
      if(r.seq>S.cur) S.cur=r.seq;
     });
+    if(p.next>S.cur) S.cur=p.next;   /* a staff page can come back empty after the server filtered it: the phone still moves on */
     more=!!p.more;
    }
    if(got){ changed(); } else persist();
    setStatus("ok");
   }catch(e){
    var em=String(e&&e.message);
-   setStatus(em.indexOf("device_unverified")>=0?"auth":em.indexOf("email_required")>=0?"mail":"off");
+   if(em.indexOf("staff_unknown")>=0&&stf()){ try{ localStorage.removeItem("tc_shop_staff"); }catch(x){} window.__tcStaffGone=1; setStatus("gone"); }   /* the owner removed this phone */
+   else setStatus(em.indexOf("device_unverified")>=0?"auth":em.indexOf("email_required")>=0?"mail":"off");
   }finally{ busy=false; }
  }
  try{ window.addEventListener("online",function(){ later(500); }); }catch(e){}
@@ -358,6 +367,7 @@
  load();
  window.__tcShop={setDemo:setDemo,add:add,addMany:addMany,cancel:cancel,replace:replace,setCfg:setCfg,cfg:cfg,kind:kind,wageOn:wageOn,wageRate:wageRate,wageSal:wageSal,staff:staff,setStaff:setStaff,calc:calc,products:products,prod:prod,findName:findName,search:search,categories:categories,catName:catName,suppliers:suppliers,
   pay:payParts,report:report,stockValue:stockValue,topSellers:topSellers,unitCost:unitCost,usage:usage,ledger:ledger,newProduct:newProduct,saveProduct:function(x){ return add("p",Object.assign({},(x.i&&prod(x.i)?prod(x.i).raw:{}),x)); },
+  isStaff:function(){ return !!stf(); },role:function(){ var s=stf(); return s?s.role:"owner"; },staffInfo:stf,
   sync:sync,later:later,status:status,onChange:onChange,offChange:offChange,reload:load,
   H:{today:today,addDays:addDays,nm:nm,r2:r2,money:money,qty:qty,uid:uid,pad:pad},CATS:CATS,
   _S:function(){ return S; }};
