@@ -47,7 +47,8 @@
 
  window.tcCaPack=async function(mon){
   if(!/^\d{4}-\d{2}$/.test(String(mon||""))) mon=today().slice(0,7);
-  if(!allowed()){ say(T("CA പാക്ക് ഈ ഫോണിൽ ലഭ്യമല്ല","The CA pack is not available here")); return; }
+  try{ if(SH&&SH.isStaff&&SH.isStaff()){ say(T("CA പാക്ക് ഈ ഫോണിൽ ലഭ്യമല്ല","The CA pack is not available here")); return; } }catch(e){}
+  if(!allowed()){ say(T("CA പാക്ക് Platinum പ്ലാനിൽ ലഭ്യമാണ്","The CA pack is a Platinum feature - upgrade to use it")); return; }
   var wb=window.__tcXlsxWorkbook; if(typeof wb!=="function"){ say(T("Excel തയ്യാറായിട്ടില്ല","Excel is not ready")); return; }
   var d1=mon+"-01", d2=monthEnd(mon), out=[], i;
   var M=null, P={}, R=null, haveShop=false, live=[];
