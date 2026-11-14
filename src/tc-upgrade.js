@@ -88,7 +88,7 @@ function errText(d){
 function fmtDate(iso){
  try{ return (typeof tcFormatDate==="function")?tcFormatDate(String(iso).slice(0,10)):String(iso).slice(0,10); }catch(e){ return String(iso).slice(0,10); }
 }
-const PLAN_NAME={free:["Free","ഫ്രീ"],paid:["Plus","പ്ലസ്"],premium:["Premium","പ്രീമിയം"],owner_plus:["Owner Plus","ഓണർ പ്ലസ്"],owner_free:["Owner Premium","ഓണർ പ്രീമിയം"]};
+const PLAN_NAME={free:["Free","ഫ്രീ"],paid:["Plus","പ്ലസ്"],premium:["Premium","പ്രീമിയം"],platinum:["Platinum","പ്ലാറ്റിനം"],owner_plus:["Owner Plus","ഓണർ പ്ലസ്"],owner_free:["Owner Premium","ഓണർ പ്രീമിയം"]};
 const planName=(p)=>{ const n=PLAN_NAME[p||"free"]||PLAN_NAME.free; return bl(n[0],n[1]); };
 
 /* ======================================================================
@@ -132,8 +132,8 @@ async function loadOwnerCard(){
  renderOwnerCard();
 }
 function planLine(p){
- const plan=p.plan||"free", exp=p.plan_expires_at;
- if(plan==="owner_free"||plan==="owner_plus") return '<b>'+planName(plan)+'</b> <span class="muted">('+bl("no expiry","കാലാവധി ഇല്ല")+')</span>';
+ const plan=(p.platinum&&p.plan==="premium")?"platinum":(p.plan||"free"), exp=p.plan_expires_at;
+ if(plan==="owner_free"||plan==="owner_plus") return '<b>'+planName(plan)+(p.platinum?" + Platinum":"")+'</b> <span class="muted">('+bl("no expiry","കാലാവധി ഇല്ല")+')</span>';
  if(plan==="free") return '<b>'+planName("free")+'</b>';
  const days=exp?Math.ceil((new Date(exp).getTime()-Date.now())/86400000):null;
  if(days!=null&&days<0) return '<b>'+planName("free")+'</b> <span class="danger">('+bl("your "+planName(plan)+" plan expired on ","നിങ്ങളുടെ "+planName(plan)+" പ്ലാൻ കഴിഞ്ഞത് ")+E(fmtDate(exp))+')</span>';
@@ -260,6 +260,7 @@ window.tcUpOpenUpgrade=function(){
   '<p class="muted">'+(d.period==="month"?bl("Vehicle businesses pay monthly.","വാഹന ബിസിനസുകൾക്ക് മാസം തോറും."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
   planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Blue tick badge, your own business name & UPI QR on bills, tagline in the directory, listed above Free. Shops & workshops: shop photo, 2 ad posts, social links.","നീല ടിക്ക് ബാഡ്ജ്, ബില്ലിൽ സ്വന്തം ബിസിനസ് പേരും UPI QR-ഉം, ഡയറക്ടറിയിൽ ടാഗ്‌ലൈൻ, ഫ്രീയേക്കാൾ മുകളിൽ ലിസ്റ്റിങ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ."))+
   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus + gold Premium badge, your logo, colours & fonts, top of the list, cloud backup. Shops & workshops: stock, sales & purchases, bills / quotations, job cards, reports. Other businesses: ad posts & social links.","Plus-ലെ എല്ലാം + സ്വർണ്ണ Premium ബാഡ്ജ്, സ്വന്തം ലോഗോ, നിറങ്ങൾ, ഫോണ്ടുകൾ, ലിസ്റ്റിൽ ഏറ്റവും മുകളിൽ, ക്ലൗഡ് ബാക്കപ്പ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: സ്റ്റോക്ക്, വിൽപ്പന / വാങ്ങൽ, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ. മറ്റ് ബിസിനസുകൾ: പരസ്യ പോസ്റ്റുകളും സോഷ്യൽ ലിങ്കുകളും."))+
+  ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + shop with up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ.")):"")+
   (payReady?
    '<div id="tcUpPay" style="margin-top:10px"></div>'+
    (needDocs?'<hr><p><b>'+bl("Your documents (first time only)","നിങ്ങളുടെ രേഖകൾ (ആദ്യതവണ മാത്രം)")+'</b></p>'+docFieldsHtml():"")+
@@ -272,13 +273,13 @@ window.tcUpOpenUpgrade=function(){
 };
 window.tcUpPickPlan=function(key){
  upPlan=key;
- ["paid","premium"].forEach(k=>{
+ ["paid","premium","platinum"].forEach(k=>{
   const el=document.querySelector("#tcUpPlan_"+k); if(!el) return;
   el.style.borderColor=(k===key)?"#0f5a55":"#ccc"; el.style.background=(k===key)?"#eef7f6":"";
   const r=el.querySelector("input"); if(r) r.checked=(k===key);
  });
  const d=upState, amt=d.prices[key];
- const note="Travel Connect "+(key==="premium"?"Premium":"Plus")+" "+d.partner.id;
+ const note="Travel Connect "+(key==="platinum"?"Platinum":key==="premium"?"Premium":"Plus")+" "+d.partner.id;
  const link="upi://pay?pa="+encodeURIComponent(d.upi.id)+"&pn="+encodeURIComponent(d.upi.name||"Travel Connect")+"&am="+encodeURIComponent(amt)+"&cu=INR&tn="+encodeURIComponent(note);
  const pay=document.querySelector("#tcUpPay"); if(!pay) return;
  pay.innerHTML='<p><b>'+bl("Pay Rs ","പണമടയ്ക്കുക Rs ")+E(amt)+'</b> '+bl("to","ഇതിലേക്ക്")+' <b>'+E(d.upi.id)+'</b></p>'+
@@ -330,7 +331,7 @@ window.tcAdLoadRequests=async function(){
  if(ubox){
   ubox.innerHTML=d.upgrade_requests.length?d.upgrade_requests.map(r=>
    '<div class="listitem">'+adminHeader(r)+'<br>'+
-   '<b>'+(r.plan==="premium"?"Premium":"Plus")+'</b> &middot; Rs '+E(r.amount)+' / '+E(r.period)+' &middot; UTR <b>'+E(r.utr)+'</b>'+
+   '<b>'+(r.plan==="platinum"?"Platinum":r.plan==="premium"?"Premium":"Plus")+'</b> &middot; Rs '+E(r.amount)+' / '+E(r.period)+' &middot; UTR <b>'+E(r.utr)+'</b>'+
    '<br><span class="muted">Current plan: '+E(r.current_plan||"free")+'</span>'+
    (!r.verified?'<div class="muted" style="font-size:12px">Not verified yet - see Verification requests above.</div>':"")+
    '<div class="actions" style="margin-top:6px;flex-wrap:wrap;align-items:center">'+
@@ -374,7 +375,7 @@ window.tcAdDeleteReq=async function(kind,id){
 };
 window.tcAdEditUpgrade=function(id,plan,amount,utr){
  modal('<h2>Edit plan request</h2><div class="grid">'+
-  '<label>Plan<select id="tcAdEPlan"><option value="paid"'+(plan==="paid"?" selected":"")+'>Plus</option><option value="premium"'+(plan==="premium"?" selected":"")+'>Premium</option></select></label>'+
+  '<label>Plan<select id="tcAdEPlan"><option value="paid"'+(plan==="paid"?" selected":"")+'>Plus</option><option value="premium"'+(plan==="premium"?" selected":"")+'>Premium</option><option value="platinum"'+(plan==="platinum"?" selected":"")+'>Platinum</option></select></label>'+
   '<label>Amount (Rs)<input id="tcAdEAmt" type="number" min="0" value="'+amount+'"></label>'+
   '<label>UTR<input id="tcAdEUtr" value="'+E(utr)+'"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdSaveUpgrade('+id+')">Save</button><button onclick="closeModal()">Cancel</button></div>');
@@ -410,14 +411,25 @@ window.tcAdLoadPriceBox=async function(){
   '<label>Vehicles: Premium (Rs / month)<input id="tcAdP2" type="number" min="0" value="'+E(s.price_premium_month)+'"></label>'+
   '<label>Shops, hotels, others: Plus (Rs / year)<input id="tcAdP3" type="number" min="0" value="'+E(s.price_plus_year)+'"></label>'+
   '<label>Shops, hotels, others: Premium (Rs / year)<input id="tcAdP4" type="number" min="0" value="'+E(s.price_premium_year)+'"></label>'+
+  '<label>Platinum: shops, others (Rs / year)<input id="tcAdP5" type="number" min="0" value="'+E(s.price_platinum_year||"2999")+'"></label>'+
   '<label>Your UPI ID (where owners pay)<input id="tcAdUpi" value="'+E(s.upi_id)+'" placeholder="name@bank"></label>'+
   '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdSavePrices()">Save prices</button></div>'+
+  '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the shop with this number (shops, hotels, other non-vehicle businesses). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
+  '<div class="grid"><label>Shop number<input id="tcAdPlM" type="tel" inputmode="numeric" maxlength="13" placeholder="10-digit number"></label><label>Days<input id="tcAdPlD" type="number" min="1" value="365"></label></div>'+
+  '<div class="actions"><button class="primary" onclick="tcAdPlat(1)">Give Platinum</button><button onclick="tcAdPlat(0)">Remove Platinum</button></div>'+
   '<p class="muted" style="font-size:12px">Email service: '+(d.email_ready?'<span class="ok">connected</span>':'<span class="danger">not set up (RESEND_API_KEY missing) - email codes cannot be sent</span>')+'</p></div>';
+};
+window.tcAdPlat=async function(on){
+ const m=(document.querySelector("#tcAdPlM").value||"").replace(/\D/g,""), days=document.querySelector("#tcAdPlD").value||"365";
+ if(m.length<6){ say("Enter the shop number"); return; }
+ if(!confirm((on?"Give Platinum to ":"Remove Platinum from ")+m+"?")) return;
+ const d=await postJson("admin_set_platinum",{token:adminToken(),mobile:m,on:on?1:0,days:+days});
+ say(d.ok?(on?"Platinum given":"Platinum removed"):(d.error==="not_found"?"No shop / non-vehicle business with this number":"Could not change"));
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
- const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName")}});
+ const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName")}});
  say(d.ok?"Saved":(d.error==="bad_upi"?"UPI ID looks wrong (name@bank)":"Could not save - prices must be whole numbers"));
 };
 if(typeof window.tcRenderPartnerPlans==="function"){
