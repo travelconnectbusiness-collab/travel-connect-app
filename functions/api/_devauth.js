@@ -86,6 +86,20 @@ export async function deviceCheck(env, request, path, allowed) {
   return null;
 }
 
+/* ALWAYS-ON variant (whatever the soft / enforce switch says): for data that must never be served on a mobile number alone
+   (a vehicle's driver licence and phone numbers, the shop book ...). null = allowed, otherwise the 403 answer to return.
+   allowed: the mobile numbers that may act (any of them). An empty list is not accepted here - the caller must name the owner. */
+export async function deviceMust(env, request, allowed) {
+  const list = Array.isArray(allowed) ? allowed.filter(Boolean).map(String) : [];
+  const c = await callerOf(env, request);
+  if (!list.length) return Response.json({ ok: false, error: "device_unverified", why: "no_owner" }, { status: 403 });
+  let why = "";
+  if (!c.valid) why = c.why;
+  else if (!list.includes(c.mobile)) why = "mobile_mismatch";
+  if (!why) return null;
+  return Response.json({ ok: false, error: "device_unverified", why }, { status: 403 });
+}
+
 /* admin screen: what the soft mode has seen in the last 3 days */
 export async function softStats(env) {
   try {
