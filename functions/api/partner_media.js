@@ -41,7 +41,7 @@ async function ensure(env) {
 export function planLevel(p) {
   if (!p) return 0;
   const running = !p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now();
-  if (p.plan === "owner_free") return p.platinum ? 3 : 2;
+  if (p.plan === "owner_free") return 3;   /* the owner plan is always the top level */
   if (p.plan === "premium" && running) return p.platinum ? 3 : 2;
   if (p.plan === "owner_plus") return 1;
   if (p.plan === "paid" && running) return 1;
