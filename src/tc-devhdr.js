@@ -95,16 +95,28 @@
    else say("Could not send");
   }).catch(function(){ say("No connection"); });
  };
+ /* a switch that was refused: an ended admin session (401 "unauthorized") asks for the admin password again and repeats the change; any other
+    answer shows its reason, so "Could not change" is never a mystery */
+ function adminFail(j,retry){
+  var e=j&&j.error?String(j.error):"";
+  if(e==="unauthorized"){
+   try{ sessionStorage.removeItem("tc_admin_token"); }catch(x){}
+   say("Admin session ended - enter the admin password again");
+   try{ closeModal(); }catch(x){}
+   try{ requireAdmin(retry); return; }catch(x){}
+  }
+  say("Could not change"+(e?": "+e:""));
+ }
  window.tcDevOtpSet=function(on){
   if(on&&!confirm("Switch ON the e-mail code for new phones? Owners with a verified e-mail will get a code mail when they log in on a new phone.")) return;
   of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_devotp",token:token(),on:!!on})}).then(function(r){ return r.json(); }).then(function(j){
-   if(j&&j.ok){ say(on?"New-phone code is ON":"New-phone code is OFF"); window.tcDevSecOpen(); } else say("Could not change");
+   if(j&&j.ok){ say(on?"New-phone code is ON":"New-phone code is OFF"); window.tcDevSecOpen(); } else adminFail(j,function(){ window.tcDevOtpSet(on); });
   }).catch(function(){ say("No connection"); });
  };
  window.tcDevSecSet=function(on){
   if(on&&!confirm("Switch the device check ON? Anybody whose app is old (does not send the device headers) will be refused until they update.")) return;
   of("/api/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"set_devauth",token:token(),on:!!on})}).then(function(r){ return r.json(); }).then(function(j){
-   if(j&&j.ok){ say(on?"Device check is ON":"Device check is OFF"); window.tcDevSecOpen(); } else say("Could not change");
+   if(j&&j.ok){ say(on?"Device check is ON":"Device check is OFF"); window.tcDevSecOpen(); } else adminFail(j,function(){ window.tcDevSecSet(on); });
   }).catch(function(){ say("No connection"); });
  };
 
