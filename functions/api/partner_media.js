@@ -36,12 +36,13 @@ async function ensure(env) {
   ready = true;
 }
 
-/* 0 = Free, 1 = Plus, 2 = Premium (same rules as the rest of the app; a lapsed plan counts as Free) */
+/* 0 = Free, 1 = Plus, 2 = Premium, 3 = Platinum (same rules as the rest of the app; a lapsed plan counts as Free).
+   Platinum is a Premium that also carries platinum=1 on the business row - so every Premium check elsewhere keeps working, and a lapsed Platinum falls back with the Premium. */
 export function planLevel(p) {
   if (!p) return 0;
   const running = !p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now();
-  if (p.plan === "owner_free") return 2;
-  if (p.plan === "premium" && running) return 2;
+  if (p.plan === "owner_free") return p.platinum ? 3 : 2;
+  if (p.plan === "premium" && running) return p.platinum ? 3 : 2;
   if (p.plan === "owner_plus") return 1;
   if (p.plan === "paid" && running) return 1;
   return 0;
@@ -66,7 +67,7 @@ function cleanLink(kind, v) {
 }
 
 async function owner(env, partnerId, mobile) {
-  const p = await env.DB.prepare("SELECT id, business_type, plan, plan_expires_at, mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
+  const p = await env.DB.prepare("SELECT * FROM travel_partners WHERE id=?").bind(partnerId).first();
   if (!p || !mobile || (p.mobile1 !== mobile && p.mobile2 !== mobile)) return null;
   return p;
 }
