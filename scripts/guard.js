@@ -242,6 +242,7 @@ const MARKERS = [
   ["functions/api/partners.js", "deviceMust", "Logo upload needs the owner's logged-in phone (partners.js)"],
   ["functions/api/partners.js", "rateAllowed", "Portal password guesses are limited (partners.js)"],
   ["src/tc-acctsec.js", "verify_email_first", "Login page explains 'verify the e-mail on your old phone first'"],
+  ["src/tc-devhdr.js", "adminFail", "Security switches: ended admin session asks for the password again, other refusals show the reason (tc-devhdr.js)"],
   ["src/tc-shop.js", "email_required", "Shop sync shows the e-mail-needed state (tc-shop.js)"],
   ["functions/api/auth.js", "admin_password_hash", "Admin password stored hashed + wrong-try lock"],
   ["functions/api/auth.js", "set_devauth", "Admin switch for the device check"],
