@@ -125,6 +125,10 @@
    if(res.status===200&&$("loginName")){ setTimeout(function(){ LS.set("tc_sec_info",""); forcedDone=false; later(); },900); return res; }
    if(res.status!==403) return res;
    return res.clone().json().then(function(j){
+    if(j&&j.error==="verify_email_first"&&$("loginName")){
+     setTimeout(function(){ var e=$("loginError"); if(e) e.textContent=B("This account keeps a shop book. To log in on a new phone, first verify the e-mail on the phone that is already logged in (Menu > Security), then log in here.","ഈ അക്കൗണ്ടിൽ ഷോപ്പ് ബുക്ക് ഉണ്ട്. പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ, ആദ്യം ഇപ്പോൾ ലോഗിൻ ആയിരിക്കുന്ന ഫോണിൽ ഇമെയിൽ വെരിഫൈ ചെയ്യുക (Menu > Security), എന്നിട്ട് ഇവിടെ ലോഗിൻ ചെയ്യുക."); },30);
+     return res;
+    }
     if(!j||j.error!=="otp_required"||!$("loginName")) return res;
     return askCode(String(lo.mobile||""),j.hint).then(function(okc){
      if(okc) return of.call(self,input,init);
