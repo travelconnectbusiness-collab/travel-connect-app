@@ -150,7 +150,7 @@
   if(!force&&c&&Date.now()-c.at<6*3600*1000) return Promise.resolve(c);
   return api("security_info",{mobile:u.mobile,device_token:dev()}).then(function(j){
    if(!j.ok) return c;
-   var o={at:Date.now(),mobile:u.mobile,verified:!!j.email_verified,hint:j.email_hint||"",devices:j.devices||1,enforce:!!j.enforce,must:!!j.must_verify,typed:j.email_typed||"",risk:!!j.risk_accepted};
+   var o={at:Date.now(),mobile:u.mobile,verified:!!j.email_verified,hint:j.email_hint||"",devices:j.devices||1,limit:j.limit||0,enforce:!!j.enforce,must:!!j.must_verify,typed:j.email_typed||"",risk:!!j.risk_accepted};
    LS.set("tc_sec_info",JSON.stringify(o)); return o;
   }).catch(function(){ return c; });
  }
@@ -279,12 +279,36 @@
     (good?'<b>&#10003; '+E(B("Protected","സംരക്ഷിതം"))+'</b><br>'+E(B("A new phone can log in to your account only with a code sent to ","പുതിയ ഫോണിൽ ലോഗിൻ ചെയ്യാൻ കോഡ് വേണം, കോഡ് പോകുന്നത്: "))+'<b>'+E(info.hint)+'</b>'
          :'<b>&#9888; '+E(B("Not fully protected","പൂർണ്ണമായി സംരക്ഷിതമല്ല"))+'</b><br>'+E(B("Your e-mail is not verified. Anybody who knows your mobile number can log in as you on another phone. Verify your e-mail to protect the account.","നിങ്ങളുടെ ഇമെയിൽ വെരിഫൈ ചെയ്തിട്ടില്ല. മൊബൈൽ നമ്പർ അറിയുന്ന ആർക്കും മറ്റൊരു ഫോണിൽ നിങ്ങളായി ലോഗിൻ ചെയ്യാം. അക്കൗണ്ട് സംരക്ഷിക്കാൻ ഇമെയിൽ വെരിഫൈ ചെയ്യുക.")))+
     '</div>'+
-    '<div style="font-size:13px;margin-bottom:8px">'+E(B("Phones signed in to this account: ","ഈ അക്കൗണ്ടിൽ ലോഗിൻ ചെയ്ത ഫോണുകൾ: "))+'<b>'+E(info.devices)+'</b></div>'+
+    '<div style="font-size:13px;margin-bottom:8px">'+E(B("Phones signed in to this account: ","ഈ അക്കൗണ്ടിൽ ലോഗിൻ ചെയ്ത ഫോണുകൾ: "))+'<b>'+E(info.devices)+'</b>'+(info.limit?' / '+E(info.limit):'')+'</div>'+
+    '<div id="secDevs" style="margin-bottom:8px"></div>'+
     (good?'<button onclick="closeModal();tcEmailOpen(false,true)" style="width:100%;margin-bottom:6px">&#9993; '+E(B("Change e-mail","ഇമെയിൽ മാറ്റുക"))+'</button>':'<button class="primary" onclick="tcSecVerify()" style="width:100%;margin-bottom:6px">&#9993; '+E(B("Verify e-mail","ഇമെയിൽ വെരിഫൈ ചെയ്യുക"))+'</button>')+
     '<button onclick="tcSecSignOutOthers()" style="width:100%;margin-bottom:6px"'+(info.devices>1?'':' disabled')+'>'+E(B("Sign out all other phones","മറ്റെല്ലാ ഫോണുകളും സൈൻ ഔട്ട് ചെയ്യുക"))+'</button>'+
     '<div class="muted" style="font-size:11.5px;margin-bottom:8px">'+E(B("Use this if you lost a phone or somebody else logged in as you. The other phones will have to log in again"+(good?" with the e-mailed code.":"."),"ഫോൺ നഷ്ടപ്പെടുകയോ മറ്റൊരാൾ നിങ്ങളായി ലോഗിൻ ചെയ്യുകയോ ചെയ്താൽ ഇത് ഉപയോഗിക്കുക. മറ്റ് ഫോണുകൾ വീണ്ടും ലോഗിൻ ചെയ്യേണ്ടി വരും"+(good?" (ഇമെയിൽ കോഡ് വേണം).":".")))+'</div>'+
     '<button onclick="closeModal()" style="width:100%">'+E(B("Close","അടയ്ക്കുക"))+'</button>');
+   tcSecDevs();
   });
+ };
+ /* the phones of this account: "this phone" + the others with a Remove button (the oldest one is pushed out by itself when a new phone joins a full account) */
+ window.tcSecDevs=function(){
+  var u=user(), box=$("secDevs"); if(!u||!box) return;
+  api("list_devices",{mobile:u.mobile,device_token:dev()}).then(function(j){
+   box=$("secDevs"); if(!box||!j||!j.ok) return;
+   var n=0;
+   box.innerHTML=(j.devices||[]).map(function(d){
+    if(!d.me) n++;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e8ee;font-size:13px"><span>&#128241; '+
+     E(d.me?B("This phone","ഈ ഫോൺ"):B("Phone ","ഫോൺ ")+n)+' <span class="muted">· '+E(B("added ","ചേർത്തത് "))+E(d.at||"")+'</span></span>'+
+     (d.me?'':'<button onclick="tcSecRemove(\''+d.id+'\')" style="padding:4px 10px">'+E(B("Remove","നീക്കുക"))+'</button>')+'</div>';
+   }).join("")+(j.limit?'<div class="muted" style="font-size:11.5px;margin-top:6px">'+E(B("Up to "+j.limit+" phones. When a new phone joins a full account, the oldest phone is signed out.","പരമാവധി "+j.limit+" ഫോൺ. നിറഞ്ഞിരിക്കുമ്പോൾ പുതിയ ഫോൺ ചേർന്നാൽ ഏറ്റവും പഴയ ഫോൺ സൈൻ ഔട്ട് ആകും."))+'</div>':'');
+  }).catch(function(){});
+ };
+ window.tcSecRemove=function(id){
+  var u=user(); if(!u) return;
+  if(!confirm(B("Sign out this phone?","ഈ ഫോൺ സൈൻ ഔട്ട് ചെയ്യട്ടെ?"))) return;
+  api("remove_device",{mobile:u.mobile,device_token:dev(),target:id}).then(function(j){
+   if(j.ok){ say(B("Phone signed out","ഫോൺ സൈൻ ഔട്ട് ആയി")); try{ LS.set("tc_sec_info",""); }catch(e){} window.tcAcctSecOpen(); }
+   else say(B("Could not sign out the phone","ഫോൺ സൈൻ ഔട്ട് ചെയ്യാനായില്ല"));
+  }).catch(function(){ say(B("No connection","കണക്ഷൻ ഇല്ല")); });
  };
  window.tcSecSignOutOthers=function(){
   var u=user(); if(!u) return;
