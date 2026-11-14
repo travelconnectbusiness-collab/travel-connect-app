@@ -44,6 +44,7 @@
   "#tsSheet{position:fixed;inset:0;z-index:75;background:#0008;display:flex;align-items:flex-end;justify-content:center}"+
   "#tsSheet>div{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px 28px}"+
   "#tcShop .tsX{border:0;background:#fde8e6;color:#a12d2d;border-radius:8px;padding:5px 10px;font-weight:800;font-size:15px}"+
+  "body.tsStaff #tcShop .tsX,body.tsStaff #tsSheet .tsX{display:none!important}"+   /* staff phone: no cancel buttons (the server refuses them anyway) */
   "@media(min-width:700px){#tcShop .tsB{padding-top:20px}}";
   /* the pop-up sheets sit outside #tcShop: give them the same look */
   s.textContent+=s.textContent.split("}").filter(function(r){ return /^#tcShop (input|label|\.ts(Btn|Chip|PkL|Row|M|X|Tot|Low))/.test(r); }).map(function(r){ return r.replace(/#tcShop /g,"#tsSheet ")+"}"; }).join("");
@@ -57,19 +58,24 @@
   d.innerHTML='<div class="tsH"><button id="tsBack" onclick="tsBack()">←</button><b id="tsTitle"></b><span id="tsSync" class="tsM" style="color:#fff" onclick="tsSyncNow()"></span></div><div class="tsB" id="tsBody"></div>';
   document.body.appendChild(d);
  }
- function show(){ build0(); $("tcShop").classList.remove("hidden"); document.body.style.overflow="hidden"; }
+ function show(){ build0(); $("tcShop").classList.remove("hidden"); document.body.style.overflow="hidden"; try{ document.body.classList.toggle("tsStaff",!!SH.isStaff()); }catch(e){} }
  function build0(){ if(!$("tcShop")) build(); }
- function hide(){ var d=$("tcShop"); if(d) d.classList.add("hidden"); document.body.style.overflow=""; closeSheet(); }
+ function hide(){ var d=$("tcShop"); if(d) d.classList.add("hidden"); document.body.style.overflow=""; try{ document.body.classList.remove("tsStaff"); }catch(e){} closeSheet(); }
+ /* a staff phone gets only these screens (the server decides what data it holds; this keeps the pages simple) */
+ function staffOk(name){ if(!SH.isStaff()) return true; var r=SH.role(); return name==="home"||name==="sale"||name==="stock"||(r==="stock"&&(name==="purchase"||name==="dead")); }
  function go(name,params){
+  if(!staffOk(name)) name="home";
+  var isH=name==="home";
+  if(isH&&SH.isStaff()) name="shome";   /* the staff home has its own screen name: the other modules add their home buttons only to "home" */
   U.screen=name; U.params=params||{};
-  if(name==="home") U.stack=[]; else U.stack.push(name);
+  if(isH) U.stack=[]; else U.stack.push(name);
   render();
  }
  function render(){
   build0(); closeSheet();
   var fn=SC[U.screen]||SC.home;
   $("tsTitle").textContent=(TITLE[U.screen]&&TITLE[U.screen]())||T("ഷോപ്പ് കണക്ക്","Shop accounts");
-  $("tsBack").textContent=U.screen==="home"?"✕":"←";
+  $("tsBack").textContent=U.screen==="home"||U.screen==="shome"?"✕":"←";
   $("tsBody").innerHTML=""; $("tcShop").scrollTop=0;
   try{ fn(U.params); }catch(e){ $("tsBody").innerHTML='<div class="tsC">'+E(T("സ്ക്രീൻ തുറക്കാൻ കഴിഞ്ഞില്ല","Could not open this screen"))+'</div>'; }
   syncMark();
@@ -109,11 +115,11 @@
   if(m&&!m.classList.contains("hidden")){ try{ closeModal(); }catch(e){} setTimeout(function(){ openShop(screen); },420); }
   else openShop(screen);
  };
- window.tsBack=function(){ if(U.screen==="home") closeShop(); else go("home"); };
+ window.tsBack=function(){ if(U.screen==="home"||U.screen==="shome") closeShop(); else go("home"); };
  window.addEventListener("popstate",function(){
   if(!U.open) return;
   if(history.state&&history.state.tcShop) return;
-  if(U.screen!=="home"){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} go("home"); }
+  if(U.screen!=="home"&&U.screen!=="shome"){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} go("home"); }
   else { U.open=false; hide(); }
  });
  window.tsSyncNow=function(){
@@ -126,13 +132,14 @@
  function syncMark(){
   var e=$("tsSync"); if(!e) return;
   var s=SH.status, n=(SH._S().q||[]).length;
-  e.textContent=s.s==="busy"?"⟳":s.s==="ok"&&!n?"●":s.s==="auth"?"⚠ login":s.s==="mail"?"✉ e-mail":(n?"⏳ "+n:"○");
+  e.textContent=s.s==="busy"?"⟳":s.s==="ok"&&!n?"●":s.s==="auth"?"⚠ login":s.s==="mail"?"✉ e-mail":s.s==="gone"?"✖":(n?"⏳ "+n:"○");
   e.title=s.s;
  }
  SH.onChange(function(w){
+  if(w==="status"&&SH.status.s==="gone"&&U.open){ say(T("ഈ ഫോണിന്റെ സ്റ്റാഫ് ആക്സസ് ഉടമ നീക്കം ചെയ്തു","The owner removed this phone's staff access")); setTimeout(closeShop,50); return; }
   if(!U.open) return; syncMark();
   if(w==="status") return;
-  try{ if(U.screen==="home") SC.home(); else if(U.screen==="sale") saDay(); else if(U.screen==="dead") deDay(); }catch(e){}
+  try{ if(U.screen==="home"||U.screen==="shome") SC.home(); else if(U.screen==="sale") saDay(); else if(U.screen==="dead") deDay(); }catch(e){}
  });
  /* the other phone's entries arrive without pressing anything: while the shop is open the book is asked for news every 7 seconds (and when the app comes back to the front) */
  try{
@@ -176,8 +183,8 @@
   if(U.sale) U.sale.date=v||""; if(U.pur&&U.pur.date) U.pur.date=v||H.today();
  }
  window.tsStkAsk=function(){ var a=$("stkAsk"); if(a) a.classList.toggle("hidden"); };
- window.tsStkPick=function(v){ var old=STK.d; if(!/^\d{4}-\d{2}-\d{2}$/.test(v||"")||v>=H.today()){ stickSet(""); stkApply("",old); } else { stickSet(v); stkApply(v,old); } stkRefresh(); if(U.screen==="home") render(); };
- window.tsStkClear=function(){ var old=STK.d; stickSet(""); stkApply("",old); stkRefresh(); if(U.screen==="home") render(); };
+ window.tsStkPick=function(v){ var old=STK.d; if(!/^\d{4}-\d{2}-\d{2}$/.test(v||"")||v>=H.today()){ stickSet(""); stkApply("",old); } else { stickSet(v); stkApply(v,old); } stkRefresh(); if(U.screen==="home"||U.screen==="shome") render(); };
+ window.tsStkClear=function(){ var old=STK.d; stickSet(""); stkApply("",old); stkRefresh(); if(U.screen==="home"||U.screen==="shome") render(); };
  function dateVal(id){ var e=$(id), v=e&&e.value; return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:H.today(); }
  function dmy(iso){ if(window.tcDateFmt) return window.tcDateFmt(iso); var p=String(iso||"").split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:iso; }   /* the order chosen in Menu > Date format (tc-datefmt.js) */
  function num(id){ var e=$(id); var v=parseFloat(e&&e.value); return isNaN(v)?0:v; }
@@ -216,6 +223,7 @@
  /* ---------- product form (new / edit) ---------- */
  var PS=null;
  function prodSheet(pid,preset,cb){
+  if(SH.isStaff()){ say(T("ഇത് ചെയ്യാൻ ഉടമയ്ക്ക് മാത്രമേ കഴിയൂ","Only the owner can do this")); return; }
   var p=pid?SH.prod(pid):null, x=p?p.raw:(preset||{});
   var AQ=SH.kind()==="aquarium", t=x.t||(AQ&&preset&&preset.t)||"i";
   var OPENMORE=!!(x.u||x.nt||x.ec||x.g||(x.rc&&x.rc.length)||x.pk>1||(x.lo!==undefined&&x.lo!==""&&x.lo!=null));
@@ -343,7 +351,24 @@
   return T("എന്റെ ഷോപ്പ്","My shop");
  }
  TITLE.home=function(){ return shopName(); };
+ function staffHome(){
+  var t=H.today(), R=SH.report(t,t), me=SH.staffInfo()||{}, r=SH.role(), low=SH.products().filter(function(p){ return p.low; });
+  function big(bg,ic,ml,en,fn){ return '<button class="tsBig" style="background:'+bg+'" onclick="'+fn+'">'+ic+' '+E(T(ml,en))+'</button>'; }
+  $("tsBody").innerHTML=
+   (stick()?stkBox():"")+
+   '<div class="tsC" style="text-align:center"><div class="tsM">🧑 '+E(me.name||"")+' · '+E(r==="stock"?T("വിൽപ്പന + വാങ്ങൽ","Sales + purchases"):T("വിൽപ്പന","Sales"))+'</div>'+
+   '<div class="tsM" style="margin-top:6px">'+E(T("നിങ്ങളുടെ ഇന്നത്തെ വിൽപ്പന","Your sales today"))+' · '+E(dmy(t))+'</div><div class="tsTot">'+money(R.sales)+'</div>'+
+   (low.length?'<div style="margin-top:6px"><span class="tsLow" onclick="tsOpen(\'stock\')">⚠ '+low.length+' '+E(T("സാധനങ്ങൾ തീരാറായി","items running low"))+'</span></div>':'')+'</div>'+
+   '<div class="tsG">'+big("#1a8f4a","🛒","വിൽപ്പന","Sale","tsOpen('sale')")+
+   (r==="stock"?big("#c9740c","📥","വാങ്ങൽ","Purchase","tsOpen('purchase')"):"")+
+   big("#0b6b78","📦","സ്റ്റോക്ക്","Stock","tsOpen('stock')")+
+   (r==="stock"?big("#a12d2d","💀",lossName(),lossName(),"tsOpen('dead')"):"")+'</div>'+
+   '<div class="tsC" style="margin-top:16px"><button class="tsBtn g s" onclick="tsLang()">'+(lang==="ml"?"English":"മലയാളം")+'</button>'+
+   '<button class="tsBtn g s" onclick="tsSyncNow()">⟳ '+E(T("സിങ്ക്","Sync"))+'</button>'+
+   (window.tcStaffLeave?'<button class="tsBtn g s" onclick="tcStaffLeave()">'+E(T("ലോഗ്ഔട്ട് (സ്റ്റാഫ്)","Leave (staff)"))+'</button>':'')+'</div>';
+ }
  SC.home=function(){
+  if(SH.isStaff()){ staffHome(); return; }
   /* a business registered as Workshop gets the workshop kind by itself (spare parts + vehicle jobs, tc-workshop.js) */
   try{ if(SH.kind()===""&&window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop") SH.setCfg("kind","workshop"); }catch(e){}
   var t=H.today(), R=SH.report(t,t), low=SH.products().filter(function(p){ return p.low; });
@@ -371,6 +396,7 @@
    '<div class="tsC" style="margin-top:16px">'+(SC["import"]?'<button class="tsBtn g s" onclick="tsOpen(\'import\')">📥 '+E(T("Excel-ൽ നിന്ന് ചേർക്കുക","Import from Excel"))+'</button>':'')+
    '<button class="tsBtn g s" onclick="tsLang()">'+(lang==="ml"?"English":"മലയാളം")+'</button>'+
    '<button class="tsBtn g s" onclick="tsSimple()">'+E(simple?T("ലാഭം കാണിക്കുക","Show profit"):T("ലാഭം മറയ്ക്കുക","Hide profit"))+'</button>'+
+   (SC.staff?'<button class="tsBtn g s" onclick="tsOpen(\'staff\')">🧑 '+E(T("സ്റ്റാഫ് ഫോണുകൾ","Staff phones"))+'</button>':'')+
    (SC.settings?'<button class="tsBtn g s" onclick="tsOpen(\'settings\')">⚙ '+E(T("സെറ്റിങ്സ്","Settings"))+'</button>':'')+
    '<button class="tsBtn g s" onclick="tsSyncNow()">⟳ '+E(T("സിങ്ക്","Sync"))+'</button></div>'+
    (window.__tcPers&&window.__tcPers.shopLock&&window.__tcPers.shopLock.homeLine?window.__tcPers.shopLock.homeLine():"");
@@ -607,6 +633,7 @@
    if(s.cm) rec.cm=s.cm;
    if(s.cu) rec.cu=s.cu;
    if(sb){ rec.sb=sb; rec.sn=sellerName({sb:sb}); }
+   else if(SH.isStaff()){ var si=SH.staffInfo(); rec.sid=si.sid; rec.sn=si.name; }   /* the server stamps the same; this shows it at once on the staff phone */
    if(p&&p.g>0&&SH.cfg("gst","0")==="1") rec.gr=p.g;
    if(p&&p.comp) rec.rc=p.rc.map(function(c){ return {i:c.i,q:+c.q||0}; });
    SH.add("s",rec,d); tot+=l.q*l.pr; if(p&&!(p.pr>0)) SH.saveProduct({i:p.id,pr:l.rp||l.pr});
@@ -843,6 +870,6 @@
  }catch(e){}
 
  window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
-  T:T,E:E,say:say,num:num,setv:setv,sellerChips:sellerChips,sellerName:sellerName,sellerTxt:sellerTxt,sellerList:sellerList,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return LS.get("tc_shop_simple")==="1"; },
+  T:T,E:E,say:say,num:num,setv:setv,sellerChips:sellerChips,sellerName:sellerName,sellerTxt:sellerTxt,sellerList:sellerList,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return SH.isStaff()||LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
