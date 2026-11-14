@@ -116,11 +116,17 @@
   if(U.screen!=="home"){ try{ history.pushState({tcShop:1},"",location.href); }catch(e){} go("home"); }
   else { U.open=false; hide(); }
  });
- window.tsSyncNow=function(){ SH.sync(); };
+ window.tsSyncNow=function(){
+  if(SH.status.s==="mail"){
+   say(T("ഒന്നിലധികം ഫോണിൽ ഷോപ്പ് ബുക്ക് ഉപയോഗിക്കാൻ ഇമെയിൽ വെരിഫൈ ചെയ്യണം (നിങ്ങളുടെ ഡാറ്റ സുരക്ഷിതമാണ്)","To use the shop book on more than one phone, verify your e-mail first (your data is safe)"));
+   try{ if(typeof window.tcEmailOpen==="function"){ window.tcEmailOpen(false,false); return; } }catch(e){}
+  }
+  SH.sync();
+ };
  function syncMark(){
   var e=$("tsSync"); if(!e) return;
   var s=SH.status, n=(SH._S().q||[]).length;
-  e.textContent=s.s==="busy"?"⟳":s.s==="ok"&&!n?"●":s.s==="auth"?"⚠ login":(n?"⏳ "+n:"○");
+  e.textContent=s.s==="busy"?"⟳":s.s==="ok"&&!n?"●":s.s==="auth"?"⚠ login":s.s==="mail"?"✉ e-mail":(n?"⏳ "+n:"○");
   e.title=s.s;
  }
  SH.onChange(function(w){
@@ -130,7 +136,7 @@
  });
  /* the other phone's entries arrive without pressing anything: while the shop is open the book is asked for news every 7 seconds (and when the app comes back to the front) */
  try{
-  setInterval(function(){ try{ if(U.open&&!document.hidden&&SH.status.s!=="busy"&&SH.status.s!=="auth") SH.sync(); }catch(e){} },7000);
+  setInterval(function(){ try{ if(U.open&&!document.hidden&&SH.status.s!=="busy"&&SH.status.s!=="auth"&&SH.status.s!=="mail") SH.sync(); }catch(e){} },7000);
   document.addEventListener("visibilitychange",function(){ try{ if(U.open&&!document.hidden) SH.later(150); }catch(e){} });
  }catch(e){}
 
