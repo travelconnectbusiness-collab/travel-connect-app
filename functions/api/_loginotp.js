@@ -28,6 +28,7 @@
    Nothing here can read an owner's business data - it only decides whether a phone is trusted. */
 import { getFlag } from "./_flags.js";
 import { sendWebPush } from "./_webpush.js";
+import { planLevel } from "./partner_media.js";
 
 const clean = (s, n) => String(s == null ? "" : s).trim().slice(0, n || 80);
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -129,6 +130,62 @@ async function deviceCount(env, mobile) {
     (results || []).forEach((r) => r.device_token && set.add(r.device_token));
   } catch (e) {}
   return set.size;
+}
+
+/* ---------------- phones per account ----------------
+   Premium (and below): 3 phones logged in to one mobile number; Platinum: 11. (Staff phones of the shop book are separate: they log in with their own
+   numbers and are limited by staffLimit in shop.js.) A NEW phone that is let in while the account is full pushes the OLDEST phone out (it has to log in
+   again, with the e-mailed code where the account is protected) - a lost phone can never lock the owner out, and the number of phones can never grow. */
+export const PHONES_BASE = 3, PHONES_PLATINUM = 11;
+export async function phoneLimit(env, mobile) {
+  mobile = clean(mobile, 20);
+  try {
+    const mine = ((await env.DB.prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results) || [];
+    return mine.some((p) => planLevel(p) >= 3) ? PHONES_PLATINUM : PHONES_BASE;
+  } catch (e) { return PHONES_BASE; }
+}
+export async function admitDevice(env, mobile, device) {
+  mobile = clean(mobile, 20); device = clean(device, 80);
+  if (!mobile || !device) return { ok: false, rotated: 0 };
+  const have = await env.DB.prepare("SELECT 1 AS ok FROM user_devices WHERE mobile=? AND device_token=?").bind(mobile, device).first();
+  if (have) return { ok: true, rotated: 0 };
+  const limit = await phoneLimit(env, mobile);
+  const rows = ((await env.DB.prepare("SELECT device_token FROM user_devices WHERE mobile=? ORDER BY created_at ASC, rowid ASC").bind(mobile).all()).results) || [];
+  let rotated = 0, left = rows.length;
+  for (const r of rows) {
+    if (left < limit) break;
+    await env.DB.prepare("DELETE FROM user_devices WHERE mobile=? AND device_token=?").bind(mobile, r.device_token).run();
+    await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=? AND device_token=?").bind(device, mobile, r.device_token).run();   /* the pushed-out phone was the main one: the new phone takes over */
+    left--; rotated++;
+  }
+  await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(mobile, device, new Date().toISOString()).run();
+  if (rotated) { forgetShopProtect(mobile); await secLog(env, mobile, "oldest_phone_removed", "limit " + limit + ", removed " + rotated); }
+  return { ok: true, rotated };
+}
+const tokId = async (t) => (await sha256Hex("tcdev:" + t)).slice(0, 12);
+/* the phones of this account, without their tokens (an id = a short hash) */
+export async function listDevices(env, body) {
+  await ensureTables(env);
+  const mobile = clean(body.mobile, 20), device = clean(body.device_token, 80);
+  if (!(await deviceKnown(env, mobile, device))) return { status: 403, json: { ok: false, error: "unauthorized" } };
+  const rows = ((await env.DB.prepare("SELECT device_token, created_at FROM user_devices WHERE mobile=? ORDER BY created_at ASC, rowid ASC").bind(mobile).all()).results) || [];
+  const out = [];
+  for (const r of rows) out.push({ id: await tokId(r.device_token), at: String(r.created_at || "").slice(0, 10), me: r.device_token === device });
+  return { status: 200, json: { ok: true, limit: await phoneLimit(env, mobile), devices: out } };
+}
+export async function removeDevice(env, body) {
+  await ensureTables(env);
+  const mobile = clean(body.mobile, 20), device = clean(body.device_token, 80), target = clean(body.target, 20);
+  if (!(await deviceKnown(env, mobile, device))) return { status: 403, json: { ok: false, error: "unauthorized" } };
+  const rows = ((await env.DB.prepare("SELECT device_token FROM user_devices WHERE mobile=?").bind(mobile).all()).results) || [];
+  let hit = null;
+  for (const r of rows) if ((await tokId(r.device_token)) === target) hit = r.device_token;
+  if (!hit || hit === device) return { status: 400, json: { ok: false, error: "bad_request" } };   /* this phone is never removed by itself: use "sign out" for that */
+  await env.DB.prepare("DELETE FROM user_devices WHERE mobile=? AND device_token=?").bind(mobile, hit).run();
+  await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=? AND device_token=?").bind(device, mobile, hit).run();
+  forgetShopProtect(mobile);
+  await secLog(env, mobile, "phone_removed", "");
+  return { status: 200, json: { ok: true } };
 }
 
 /* does this mobile already keep a shop book (money records)? Such an account is protected whatever the soft / enforce switches say. */
@@ -245,9 +302,7 @@ export async function verifyLoginCode(env, body) {
     return { status: 400, json: { ok: false, error: "wrong_code", attempts_left: OTP_MAX_ATTEMPTS - row.attempts - 1 } };
   }
   await env.DB.prepare("DELETE FROM login_otps WHERE mobile=?").bind(mobile).run();
-  try {
-    await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(mobile, device, new Date().toISOString()).run();
-  } catch (e) {}
+  try { await admitDevice(env, mobile, device); } catch (e) {}
   await secLog(env, mobile, "device_trusted", "");
   return { status: 200, json: { ok: true } };
 }
@@ -260,7 +315,7 @@ export async function securityInfo(env, body) {
   const ve = await verifiedEmailOf(env, mobile);
   const u = await env.DB.prepare("SELECT email, email_required, risk_accepted_at FROM app_users WHERE mobile=?").bind(mobile).first();
   const must = !ve && !!(u && u.email_required) && !(u && u.risk_accepted_at);
-  return { status: 200, json: { ok: true, email_verified: !!ve, email_hint: ve ? maskEmail(ve.email) : "", email_typed: !ve && u && u.email ? String(u.email) : "", must_verify: must, risk_accepted: !!(u && u.risk_accepted_at), devices: await deviceCount(env, mobile), enforce: await otpEnforcing(env) } };
+  return { status: 200, json: { ok: true, email_verified: !!ve, email_hint: ve ? maskEmail(ve.email) : "", email_typed: !ve && u && u.email ? String(u.email) : "", must_verify: must, risk_accepted: !!(u && u.risk_accepted_at), devices: await deviceCount(env, mobile), limit: await phoneLimit(env, mobile), enforce: await otpEnforcing(env) } };
 }
 
 /* POST email_otp_send {mobile, device_token, email}: a trusted phone asks for a code to prove an e-mail address */
@@ -508,7 +563,7 @@ export async function emailLoginVerify(env, body) {
   if (bad) return bad;
   if (acc) {
     if (acc.blocked) return { status: 403, json: { ok: false, error: "blocked" } };
-    try { await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(acc.mobile, device, new Date().toISOString()).run(); } catch (e) {}
+    try { await admitDevice(env, acc.mobile, device); } catch (e) {}
     let bt = "";
     try { const p = await env.DB.prepare("SELECT business_type FROM travel_partners WHERE mobile1=? OR mobile2=? ORDER BY id LIMIT 1").bind(acc.mobile, acc.mobile).first(); bt = p && p.business_type ? String(p.business_type) : ""; } catch (e) {}
     let loc = "", pin = "";
