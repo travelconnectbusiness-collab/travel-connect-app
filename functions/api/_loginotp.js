@@ -131,14 +131,43 @@ async function deviceCount(env, mobile) {
   return set.size;
 }
 
-/* the decision used by login: need = true when a code is required (the caller decides soft / enforce) */
-export async function loginGate(env, mobile, device) {
-  const ve = await verifiedEmailOf(env, mobile);
-  if (!ve) return { need: false };
-  if ((await deviceCount(env, clean(mobile, 20))) === 0) return { need: false };   /* first phone of the account */
-  if (device && (await deviceKnown(env, mobile, device))) return { need: false };
-  return { need: true, hint: maskEmail(ve.email), email: ve.email };
+/* does this mobile already keep a shop book (money records)? Such an account is protected whatever the soft / enforce switches say. */
+export async function hasShopBook(env, mobile) {
+  try { return !!(await env.DB.prepare("SELECT 1 AS ok FROM shop_records WHERE owner=? LIMIT 1").bind(clean(mobile, 20)).first()); }
+  catch (e) { return false; }   /* the table does not exist yet: no book */
 }
+
+/* the decision used by login: need = true when a code is required (the caller decides soft / enforce).
+   hard = true: an account that keeps a shop book can never be entered from a new phone on the mobile number alone:
+     - verified e-mail  -> the e-mailed code is required even when the "new-phone code" switch is OFF
+     - no verified e-mail -> block = true (the login is refused: verify the e-mail on the phone that is already logged in first) */
+export async function loginGate(env, mobile, device) {
+  mobile = clean(mobile, 20);
+  const ve = await verifiedEmailOf(env, mobile);
+  const book = await hasShopBook(env, mobile);
+  if (!ve && !book) return { need: false };
+  if ((await deviceCount(env, mobile)) === 0) return { need: false };   /* first phone of the account */
+  if (device && (await deviceKnown(env, mobile, device))) return { need: false };
+  if (!ve) return { need: true, block: true, hard: true };
+  return { need: true, hard: book, hint: maskEmail(ve.email), email: ve.email };
+}
+
+/* The shop book of an account WITHOUT a verified e-mail works only while ONE phone is logged in to it. A second phone (the owner's own
+   or a stranger who knows the number) is accepted only after the e-mail is verified - then every new phone needs the e-mailed code. */
+const SP_CACHE = new Map();
+export async function shopProtect(env, mobile) {
+  mobile = clean(mobile, 20);
+  const hit = SP_CACHE.get(mobile);
+  if (hit && Date.now() - hit.at < 45000) return hit.v;
+  let v = { ok: true };
+  try {
+    if (!(await verifiedEmailOf(env, mobile)) && (await deviceCount(env, mobile)) > 1) v = { ok: false, error: "email_required" };
+  } catch (e) { v = { ok: true }; }
+  if (SP_CACHE.size > 500) SP_CACHE.clear();
+  SP_CACHE.set(mobile, { at: Date.now(), v });
+  return v;
+}
+export function forgetShopProtect(mobile) { if (mobile) SP_CACHE.delete(clean(mobile, 20)); else SP_CACHE.clear(); }
 
 async function sendMail(env, to, subject, html, text) {
   if (!env.RESEND_API_KEY) return { ok: false, error: "email_not_configured" };
@@ -295,6 +324,7 @@ export async function verifyEmailCode(env, body) {
   }
   await env.DB.prepare("UPDATE app_users SET email=?, email_verified=1, email_verified_at=? WHERE mobile=?").bind(email, new Date().toISOString(), mobile).run();
   await env.DB.prepare("DELETE FROM email_verify_otps WHERE mobile=?").bind(mobile).run();
+  forgetShopProtect(mobile);
   await secLog(env, mobile, "email_verified", "");
   return { status: 200, json: { ok: true, email_hint: maskEmail(email) } };
 }
@@ -319,6 +349,7 @@ export async function revokeOthers(env, body) {
   await env.DB.prepare("INSERT OR IGNORE INTO user_devices (mobile, device_token, created_at) VALUES (?,?,?)").bind(mobile, device, new Date().toISOString()).run();
   await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=?").bind(device, mobile).run();
   await env.DB.prepare("DELETE FROM login_otps WHERE mobile=?").bind(mobile).run();
+  forgetShopProtect(mobile);
   await secLog(env, mobile, "signed_out_others", "phones before: " + before);
   return { status: 200, json: { ok: true, removed: Math.max(0, before - 1) } };
 }
