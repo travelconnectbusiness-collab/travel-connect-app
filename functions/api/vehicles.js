@@ -1,6 +1,6 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { istToday, getEnforceDate, vehicleLive } from "./trip_class.js";
-import { deviceCheck } from "./_devauth.js";
+import { deviceCheck, deviceMust } from "./_devauth.js";
 
 const DOC_FIELDS = [
   "front_photo",
@@ -71,7 +71,7 @@ async function ensureNewColumns(env) {
   colsDone = true;
 }
 
-/* GET ?action=list&partner_id=...     - a partner's own vehicles
+/* GET ?action=list&partner_id=...     - a partner's own vehicles (only from that business's logged-in phone: X-TC-Mobile / X-TC-Device)
    GET ?action=active                  - public "Active Board": vehicles currently
                                           marked ready for a trip, verified vehicle +
                                           verified partner only, no private documents
@@ -85,6 +85,10 @@ export async function onRequestGet({ request, env }) {
   if (action === "list") {
     const partnerId = url.searchParams.get("partner_id");
     if (!partnerId) return Response.json({ ok: false, error: "missing_partner_id" });
+    /* driver licence, driver phones and document photo keys: ONLY the logged-in phone of that business (always checked, not a soft switch) */
+    const own = await env.DB.prepare("SELECT mobile1, mobile2 FROM travel_partners WHERE id=?").bind(partnerId).first();
+    if (!own) return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    { const deny = await deviceMust(env, request, [own.mobile1, own.mobile2]); if (deny) return deny; }
     const { results } = await env.DB
       .prepare("SELECT v.*, p.business_type AS business_type FROM vehicles v LEFT JOIN travel_partners p ON p.id=v.partner_id WHERE v.partner_id=? ORDER BY v.created_at DESC")
       .bind(partnerId)
