@@ -101,10 +101,7 @@ async function ownerAuth(env, partnerId, mobile, device) {
   if (!p || (p.mobile1 !== mobile && p.mobile2 !== mobile)) return null;
   const u = await env.DB.prepare("SELECT device_token, blocked FROM app_users WHERE mobile=?").bind(mobile).first();
   if (!u || u.blocked) return null;
-  if (!u.device_token) {
-    await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=?").bind(device, mobile).run();
-    return p;
-  }
+  if (!u.device_token) return null;   /* no "first phone adopts the account": log in again so the phone's token is stored */
   if (u.device_token === device) return p;
   try {
     const known = await env.DB.prepare("SELECT 1 AS ok FROM user_devices WHERE mobile=? AND device_token=?").bind(mobile, device).first();
