@@ -194,6 +194,7 @@
   out.sort(function(a,b){ return a.d<b.d?-1:a.d>b.d?1:0; });
   return {list:out,none:none};
  }
+ window.tcGstRows=rows;   /* used by tc-capack.js (CA pack) */
  function money0(n){ return typeof money==="function"?money(n):"Rs."+n; }
  window.tcGstReport=function(mon){
   if(typeof mon!=="string"||!/^\d{4}-\d{2}$/.test(mon)) mon=new Date().toISOString().slice(0,7);
@@ -206,7 +207,7 @@
    h+=x.list.map(function(r){ return '<div class="listitem"><b>'+E(r.no)+'</b> - '+E(r.cu)+'<br><span class="muted">'+E(r.d)+' | taxable '+money0(r.tx)+' | GST '+r.pc+'% = '+money0(r.gs)+' | total '+money0(r.tot)+'</span></div>'; }).join("");
   }
   if(x.none) h+='<p class="muted">'+x.none+' bill(s) in this month without GST.</p>';
-  h+='<div class="actions">'+(x.list.length?'<button onclick="tcGstCopy()">Copy</button>':'')+'<button onclick="closeModal()">Close</button></div>';
+  h+='<div class="actions">'+(x.list.length?'<button onclick="tcGstCopy()">Copy</button>':'')+(typeof window.tcCaPack==="function"?'<button onclick="tcCaPack(window.__tcGstMon)">CA pack (Excel)</button>':'')+'<button onclick="closeModal()">Close</button></div>';
   window.__tcGstMon=mon;
   modal(h);
  };
