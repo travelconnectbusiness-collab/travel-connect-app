@@ -12,7 +12,7 @@ import { verifiedEmailOf, loginGate, otpEnforcing, forgetOtpFlagCache, secLog, s
    Because turning the switch ON exposes a mobile number, every blood action
    checks the DEVICE TOKEN that was recorded at login - knowing someone's
    mobile number alone is not enough to switch them on or read donor lists.
-   A user row with no device token yet adopts the first one presented. */
+   A user row with no device token is NOT accepted (no "first phone adopts the account"): log in again so the phone's token is stored. */
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 async function bloodAuthUser(env, mobile, device) {
@@ -24,10 +24,9 @@ async function bloodAuthUser(env, mobile, device) {
     .bind(mobile)
     .first();
   if (!row || row.blocked) return null;
-  if (!row.device_token) {
-    await env.DB.prepare("UPDATE app_users SET device_token=? WHERE mobile=?").bind(device, mobile).run();
-    return row;
-  }
+  /* no "first phone adopts the account" here any more: a row without a device token is no proof of anything. The person logs in again
+     (the login stores the phone's token) and then this works. */
+  if (!row.device_token) return null;
   if (row.device_token === device) return row;
   /* The same person may use several devices (phone + another browser). Every
      login records its device in user_devices, so logging in somewhere else no
@@ -379,8 +378,12 @@ export async function onRequestPost({ request, env }) {
 
     /* A protected account (verified e-mail) lets a NEW phone in only with the e-mailed code. Soft mode (default) only counts it. */
     const gate = proven ? { need: false } : await loginGate(env, mobile, deviceToken);
+    if (gate.block) {
+      await secLog(env, mobile, "login_needs_email", "");
+      return Response.json({ ok: false, error: "verify_email_first" }, { status: 403 });
+    }
     if (gate.need) {
-      if (await otpEnforcing(env)) {
+      if (gate.hard || (await otpEnforcing(env))) {
         await secLog(env, mobile, "login_needs_code", "");
         return Response.json({ ok: false, error: "otp_required", hint: gate.hint }, { status: 403 });
       }
