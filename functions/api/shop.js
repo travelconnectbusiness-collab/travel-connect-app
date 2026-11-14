@@ -7,6 +7,8 @@
    WHO: only a logged-in phone (headers X-TC-Mobile + X-TC-Device must be a known, not blocked device of that mobile). This check is
    always ON for shop data (money figures), whatever the soft/enforce switch of the other endpoints says. The book belongs to that
    mobile number: every phone logged in with the same number sees the same book.
+   2026-11-14: an account WITHOUT a verified e-mail may use the book on ONE phone only (answer 403 email_required when a second phone is logged in);
+   login itself refuses / code-gates a new phone on an account that keeps a book (see _loginotp.js loginGate).
    FREE PLAN: a push is at most 8 insert statements of 16 rows (D1 allows 100 bound values per statement) + 3 small queries.
    PASSWORD LOCK (2026-10-30, owner: 'encrypt the shop book too'): the phone can encrypt the payload x of every record (AES-256-GCM, key from the person's password,
    see tc-shoplock.js): x = { __e:1, iv, ct } (base64). The server never sees the key. Table shop_lock holds, per mobile, whether the book is LOCKED plus the (public) salt /
@@ -27,6 +29,7 @@
    The answer is cached for 5 minutes per mobile (D1 reads are limited on the free plan). */
 import { callerOf } from "./_devauth.js";
 import { allowed } from "./_ratelimit.js";
+import { shopProtect } from "./_loginotp.js";
 import { planLevel } from "./partner_media.js";
 
 const KINDS = new Set(["p", "s", "b", "m", "e", "o", "v", "a", "c"]);   /* product, sale, purchase, dead / loss, expense, owner money, void, stock adjust, setting */
@@ -128,6 +131,8 @@ export async function onRequestPost({ request, env }) {
   const c = await callerOf(env, request);
   if (!c.valid) return Response.json({ ok: false, error: "device_unverified", why: c.why }, { status: 403 });
   const owner = c.mobile;
+  /* a book whose account has no verified e-mail works on ONE phone only; a second phone must verify the e-mail first (see _loginotp.js shopProtect) */
+  { const sp = await shopProtect(env, owner); if (!sp.ok) return Response.json({ ok: false, error: sp.error, why: "second_phone_no_email" }, { status: 403 }); }
   try { await init(env); } catch (e) { return Response.json({ ok: false, error: "server_error" }, { status: 500 }); }
 
   if (action === "pull") {
