@@ -100,7 +100,8 @@
    if(got){ changed(); } else persist();
    setStatus("ok");
   }catch(e){
-   setStatus(String(e&&e.message).indexOf("device_unverified")>=0?"auth":"off");
+   var em=String(e&&e.message);
+   setStatus(em.indexOf("device_unverified")>=0?"auth":em.indexOf("email_required")>=0?"mail":"off");
   }finally{ busy=false; }
  }
  try{ window.addEventListener("online",function(){ later(500); }); }catch(e){}
