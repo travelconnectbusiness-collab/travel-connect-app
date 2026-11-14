@@ -1,4 +1,5 @@
 import { verifyAdminToken } from "./_auth_helper.js";
+import { planLevel } from "./partner_media.js";
 
 /* ============================================================================
    /api/upgrade  -  email verification, "request verification", and
@@ -19,7 +20,7 @@ import { verifyAdminToken } from "./_auth_helper.js";
 
    ADMIN actions (admin token): admin_list, file, settings, save_settings,
      admin_verify_decision, admin_upgrade_decision, admin_update_upgrade,
-     admin_delete, admin_set_email.
+     admin_delete, admin_set_email, admin_set_platinum.
 
    Email is sent with Resend (https://resend.com). Add a Cloudflare secret
    RESEND_API_KEY; optionally MAIL_FROM (default
@@ -37,6 +38,7 @@ const DEFAULT_SETTINGS = {
   price_premium_month: "299",
   price_plus_year: "99",
   price_premium_year: "999",
+  price_platinum_year: "2999",   /* Platinum: always yearly, for shops and other non-vehicle businesses */
   upi_id: "",
   upi_name: "Travel Connect",
 };
@@ -63,6 +65,7 @@ async function ensureTables(env) {
   for (const s of [
     "ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0",
     "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN platinum INTEGER DEFAULT 0",
   ]) {
     try { await env.DB.prepare(s).run(); } catch (e) { /* column already exists */ }
   }
@@ -81,10 +84,12 @@ async function getSettings(env) {
   return s;
 }
 
-function periodFor(businessType) {
+function periodFor(businessType, plan) {
+  if (plan === "platinum") return "year";
   return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";
 }
 function priceFor(settings, businessType, plan) {
+  if (plan === "platinum") return parseInt(settings.price_platinum_year, 10) || 0;
   const period = periodFor(businessType);
   const key = "price_" + (plan === "premium" ? "premium" : "plus") + "_" + period;
   return parseInt(settings[key], 10) || 0;
@@ -191,9 +196,11 @@ export async function onRequestGet({ request, env }) {
         verified: p.verified ? 1 : 0,
         plan: p.plan || "free",
         plan_expires_at: p.plan_expires_at || null,
+        platinum: planLevel(p) >= 3 ? 1 : 0,
       },
       period: periodFor(p.business_type),
-      prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium") },
+      platinum_ok: !VEHICLE_TYPES.includes(p.business_type || "taxi_travel"),
+      prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
       email_ready: !!env.RESEND_API_KEY,
       verify: vr ? { id: vr.id, status: vr.status, admin_note: vr.admin_note, created_at: vr.created_at } : null,
@@ -338,7 +345,8 @@ export async function onRequestPost({ request, env }) {
     if (!p) return j({ ok: false, error: "unauthorized" }, 403);
     if (!p.email_verified) return j({ ok: false, error: "email_not_verified" }, 403);
     const plan = (field("plan") || "").toString();
-    if (plan !== "paid" && plan !== "premium") return j({ ok: false, error: "bad_plan" }, 400);
+    if (plan !== "paid" && plan !== "premium" && plan !== "platinum") return j({ ok: false, error: "bad_plan" }, 400);
+    if (plan === "platinum" && VEHICLE_TYPES.includes(p.business_type || "taxi_travel")) return j({ ok: false, error: "bad_plan" }, 400);
     if (p.plan === "owner_free" || p.plan === "owner_plus") return j({ ok: false, error: "owner_plan" }, 409);
     const pend = await env.DB.prepare("SELECT 1 AS x FROM upgrade_requests WHERE partner_id=? AND status='pending'").bind(p.id).first();
     if (pend) return j({ ok: false, error: "already_pending" }, 409);
@@ -362,7 +370,7 @@ export async function onRequestPost({ request, env }) {
     }
     const ins = await env.DB
       .prepare("INSERT INTO upgrade_requests (partner_id, plan, period, amount, utr, status, created_at) VALUES (?,?,?,?,?, 'pending', ?)")
-      .bind(p.id, plan, periodFor(p.business_type), amount, utr, new Date().toISOString())
+      .bind(p.id, plan, periodFor(p.business_type, plan), amount, utr, new Date().toISOString())
       .run();
     return j({ ok: true, id: ins.meta.last_row_id, amount });
   }
@@ -401,9 +409,11 @@ export async function onRequestPost({ request, env }) {
       const now = Date.now();
       const cur = p.plan_expires_at ? new Date(p.plan_expires_at).getTime() : 0;
       /* Same plan still running: add on top of the remaining time, like set_plan does. */
-      const base = p.plan === r.plan && cur > now ? cur : now;
+      /* Platinum is stored as Premium + platinum=1 (so every Premium check keeps working); Plus / Premium requests switch platinum off. */
+      const newPlan = r.plan === "platinum" ? "premium" : r.plan;
+      const base = p.plan === newPlan && cur > now ? cur : now;
       const expiresAt = new Date(base + days * 86400000).toISOString();
-      await env.DB.prepare("UPDATE travel_partners SET plan=?, plan_expires_at=? WHERE id=?").bind(r.plan, expiresAt, r.partner_id).run();
+      await env.DB.prepare("UPDATE travel_partners SET plan=?, plan_expires_at=?, platinum=? WHERE id=?").bind(newPlan, expiresAt, r.plan === "platinum" ? 1 : 0, r.partner_id).run();
       await env.DB.prepare("UPDATE upgrade_requests SET status='approved', admin_note=?, decided_at=? WHERE id=?").bind(adminNote, new Date().toISOString(), id).run();
       return j({ ok: true, plan_expires_at: expiresAt });
     } else if (decision === "reject") {
@@ -418,7 +428,7 @@ export async function onRequestPost({ request, env }) {
     const plan = field("plan");
     const amount = parseInt(field("amount"), 10);
     const utr = (field("utr") || "").toString().trim();
-    if (!id || (plan !== "paid" && plan !== "premium") || !(amount >= 0) || !/^[A-Za-z0-9]{6,30}$/.test(utr)) {
+    if (!id || (plan !== "paid" && plan !== "premium" && plan !== "platinum") || !(amount >= 0) || !/^[A-Za-z0-9]{6,30}$/.test(utr)) {
       return j({ ok: false, error: "invalid_input" }, 400);
     }
     await env.DB.prepare("UPDATE upgrade_requests SET plan=?, amount=?, utr=? WHERE id=?").bind(plan, amount, utr, id).run();
@@ -448,6 +458,25 @@ export async function onRequestPost({ request, env }) {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return j({ ok: false, error: "bad_email" }, 400);
     await env.DB.prepare("UPDATE travel_partners SET email=?, email_verified=? WHERE id=?").bind(email || null, email ? verified : 0, partnerId).run();
     return j({ ok: true });
+  }
+
+  /* Admin: give / take away Platinum for the shop (or other non-vehicle business) with this number. Platinum = Premium + platinum=1. */
+  if (action === "admin_set_platinum") {
+    const mobile = (field("mobile") || "").toString().replace(/\D/g, "").slice(-13);
+    const on = field("on") ? 1 : 0;
+    const days = Math.min(3660, Math.max(1, parseInt(field("days"), 10) || 365));
+    if (!/^\d{6,13}$/.test(mobile)) return j({ ok: false, error: "invalid_input" }, 400);
+    const rows = ((await env.DB.prepare("SELECT id, plan, plan_expires_at, business_type FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || [])
+      .filter((p) => !VEHICLE_TYPES.includes(p.business_type || "taxi_travel"));
+    if (!rows.length) return j({ ok: false, error: "not_found" }, 404);
+    for (const p of rows) {
+      if (!on) { await env.DB.prepare("UPDATE travel_partners SET platinum=0 WHERE id=?").bind(p.id).run(); continue; }
+      if (p.plan === "owner_free") { await env.DB.prepare("UPDATE travel_partners SET platinum=1 WHERE id=?").bind(p.id).run(); continue; }
+      const cur = p.plan_expires_at ? new Date(p.plan_expires_at).getTime() : 0;
+      const base = p.plan === "premium" && cur > Date.now() ? cur : Date.now();
+      await env.DB.prepare("UPDATE travel_partners SET plan='premium', plan_expires_at=?, platinum=1 WHERE id=?").bind(new Date(base + days * 86400000).toISOString(), p.id).run();
+    }
+    return j({ ok: true, count: rows.length });
   }
 
   if (action === "save_settings") {
