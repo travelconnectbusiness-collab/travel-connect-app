@@ -1,6 +1,7 @@
 import { verifyAdminToken } from "./_auth_helper.js";
 import { getFlag } from "./_flags.js";
-import { deviceCheck } from "./_devauth.js";
+import { deviceCheck, deviceMust } from "./_devauth.js";
+import { allowed as rateAllowed } from "./_ratelimit.js";
 import { isComplete, applyLivePartnerVerified } from "./trip_class.js";
 import { mediaGet, mediaPost, attachMedia, mediaPurge } from "./partner_media.js";
 
@@ -194,6 +195,7 @@ export async function onRequestPost({ request, env }) {
     if (!row || (row.mobile1 !== mobile && row.mobile2 !== mobile)) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
+    { const deny = await deviceMust(env, request, [mobile]); if (deny) return deny; }   /* a number alone never changes a logo */
     if (row.plan !== "premium" && row.plan !== "owner_free") {
       return Response.json({ ok: false, error: "not_premium" }, { status: 403 });
     }
@@ -585,6 +587,11 @@ export async function onRequestPost({ request, env }) {
 
   if (action === "verify_password") {
     const password = (body.password || "").trim();
+    /* guessing limit: per business 10 tries / 15 min, per sender address 30 tries / 15 min */
+    const ip = (request.headers.get("CF-Connecting-IP") || "x").slice(0, 45);
+    if (!(await rateAllowed(env, "pwv:" + String(body.partner_id || "").slice(0, 12), 10, 900)) || !(await rateAllowed(env, "pwvip:" + ip, 30, 900))) {
+      return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
+    }
     const row = await env.DB
       .prepare("SELECT verified, portal_password_hash FROM travel_partners WHERE id=?")
       .bind(body.partner_id)
