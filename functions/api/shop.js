@@ -94,6 +94,7 @@ async function planOf(env, owner) {
   let v = { mode: "prem" };
   try {
     const mine = ((await env.DB.prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(owner, owner).all()).results) || [];
+    const lvl = mine.reduce((m, p) => Math.max(m, planLevel(p)), 0);   /* 3 = Platinum: the app shows the Platinum tools */
     if (mine.length && mine.some((p) => !TAXI_TYPES.has(String(p.business_type || ""))) && !mine.some((p) => planLevel(p) >= 2)) {
       const col = await createdColumn(env);
       const today = new Date().toISOString().slice(0, 10);
@@ -114,6 +115,7 @@ async function planOf(env, owner) {
       const end = addDays(start, YEAR_DAYS), left = daysBetween(today, end);
       v = left > 0 ? { mode: "trial", end, left } : { mode: "locked", end, left: 0 };
     }
+    v.lvl = lvl;
   } catch (e) { v = { mode: "prem" }; }   /* if the check itself fails, nobody is locked out */
   PLAN_CACHE.set(owner, { at: Date.now(), v });
   return v;
