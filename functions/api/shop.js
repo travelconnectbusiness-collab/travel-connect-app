@@ -9,6 +9,19 @@
    mobile number: every phone logged in with the same number sees the same book.
    2026-11-14: an account WITHOUT a verified e-mail may use the book on ONE phone only (answer 403 email_required when a second phone is logged in);
    login itself refuses / code-gates a new phone on an account that keeps a book (see _loginotp.js loginGate).
+   STAFF (2026-11-14, owner: "staff record sales / purchases on the spot, the owner sees everything, staff must NOT see profit or purchase cost or delete"):
+   the OWNER (logged in with the shop's mobile) makes staff entries (name + role) and gets a one-time 6-digit join code per staff (valid 24 h). The staff member logs in
+   to the app with HIS OWN number as usual, opens "Shop staff login", types the shop's mobile + the code: this phone (device token) is bound to that staff entry
+   (one phone per staff; a new code unbinds the old phone). Afterwards the phone sends the header X-TC-Shop = the shop's mobile and the SERVER treats every call as that staff:
+     role "sale"  : may push sales only                        role "stock": may push sales, purchases, dead/loss and stock corrections
+     never        : cancel / edit (kind v), products, settings, expenses, money records, lock, reseal, staff management
+   pull for staff drops expenses and money records, drops settings except name / kind / gst / gstin, removes cost fields (product opening value / estimated cost / own profit %,
+   purchase rate / transport / unpaid part / supplier / bill no.) and shows other people's sales as quantities only (no price, payment or customer); the staff's own sales are complete.
+   Every record pushed by staff is stamped by the server with sid (staff id) and sn (staff name) - a phone cannot name another seller.
+   A shop with staff can not switch the password lock ON (the server could not strip or stamp encrypted records), and staff are refused while the book is locked.
+     POST ?action=staff_list | staff_save {sid?,name,role,active?,regen?} | staff_remove {sid}   (owner only; staff_save answers a new join code when one is made)
+     POST ?action=staff_login {owner, code}   (any logged-in phone; rate limited)         POST ?action=me   -> { ok, role, name, owner }
+   Pull answers carry next = the last seq of the page (staff pages can be empty after filtering, the phone must still move on).
    FREE PLAN: a push is at most 8 insert statements of 16 rows (D1 allows 100 bound values per statement) + 3 small queries.
    PASSWORD LOCK (2026-10-30, owner: 'encrypt the shop book too'): the phone can encrypt the payload x of every record (AES-256-GCM, key from the person's password,
    see tc-shoplock.js): x = { __e:1, iv, ct } (base64). The server never sees the key. Table shop_lock holds, per mobile, whether the book is LOCKED plus the (public) salt /
@@ -35,6 +48,9 @@ import { planLevel } from "./partner_media.js";
 const KINDS = new Set(["p", "s", "b", "m", "e", "o", "v", "a", "c"]);   /* product, sale, purchase, dead / loss, expense, owner money, void, stock adjust, setting */
 const MAX_PUSH = 120, ROWS = 16, PAGE = 400, MAX_BYTES = 3000, MAX_BYTES_ENC = 5200, MAX_RECORDS = 150000, MAX_RESEAL = 30;
 const LAUNCH = "2026-11-12", YEAR_DAYS = 365, PLAN_TTL = 300000;
+const STAFF_KINDS = { sale: new Set(["s"]), stock: new Set(["s", "b", "m", "a"]) };
+const STAFF_CFG = new Set(["name", "kind", "gst", "gstin"]);
+const CODE_HOURS = 24;
 const TAXI_TYPES = new Set(["taxi_travel", "taxi", "auto", "pickup", "vehicle"]);
 const CREATED_COLS = ["created_at", "created", "registered_at", "createdAt", "created_on", "joined_at", "inserted_at"];
 const PLAN_CACHE = new Map();
@@ -46,6 +62,8 @@ async function init(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_shop_owner_seq ON shop_records (owner, seq)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_lock (owner TEXT PRIMARY KEY, locked INTEGER NOT NULL DEFAULT 0, salt TEXT, iter INTEGER, ts TEXT)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_plan (owner TEXT PRIMARY KEY, start TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS shop_staff (owner TEXT NOT NULL, sid TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, code_hash TEXT, code_exp INTEGER, device TEXT, smobile TEXT, created TEXT, PRIMARY KEY(owner, sid))").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_shop_staff_dev ON shop_staff (device)").run();
   ready = true;
 }
 
@@ -107,6 +125,46 @@ async function lockOf(env, owner) {
   return r ? { locked: r.locked ? 1 : 0, salt: r.salt || "", iter: r.iter || 0 } : { locked: 0, salt: "", iter: 0 };
 }
 
+/* ---------------- staff ---------------- */
+const sha256Hex = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+const cleanName = (s) => String(s == null ? "" : s).replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+function newCode() { const a = new Uint32Array(1); crypto.getRandomValues(a); return String(100000 + (a[0] % 900000)); }
+function newSid() { const a = new Uint8Array(5); crypto.getRandomValues(a); return "s" + [...a].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+async function staffLimit(env, owner) {
+  try {
+    const mine = ((await env.DB.prepare("SELECT * FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(owner, owner).all()).results) || [];
+    return mine.some((p) => planLevel(p) >= 3) ? 10 : 2;
+  } catch (e) { return 2; }
+}
+/* who is calling: the owner of the book (logged in with its mobile) or a bound staff phone (header X-TC-Shop) */
+async function whoIs(env, c, request) {
+  const shopHdr = String(request.headers.get("X-TC-Shop") || "").trim().slice(0, 20);
+  if (!shopHdr || shopHdr === c.mobile) return { role: "owner", owner: c.mobile };
+  const st = await env.DB.prepare("SELECT sid, name, role FROM shop_staff WHERE owner=? AND device=? AND smobile=? AND active=1").bind(shopHdr, c.device, c.mobile).first();
+  if (!st || !STAFF_KINDS[st.role]) return null;
+  return { role: "staff", owner: shopHdr, sid: st.sid, name: st.name, srole: st.role };
+}
+/* one pulled row as a staff phone may see it (null = not at all) */
+function forStaff(row, w) {
+  const x = row.x || {};
+  if (x.__e === 1) return null;
+  switch (row.k) {
+    case "p": { const o = Object.assign({}, x); delete o.ov; delete o.ec; delete o.mp; return Object.assign({}, row, { x: o }); }
+    case "s": {
+      if (x.sid === w.sid) return row;
+      return Object.assign({}, row, { x: { p: x.p, q: x.q, g: x.g, sid: x.sid, sn: x.sn } });
+    }
+    case "b": { const o = Object.assign({}, x); ["rt", "tr", "cr", "su", "bn", "ln", "pr", "no"].forEach((k) => { delete o[k]; }); return Object.assign({}, row, { x: o }); }
+    case "m": case "a": case "v": return row;
+    case "c": return STAFF_CFG.has(x.k) ? row : null;
+    default: return null;   /* e expenses, o money records */
+  }
+}
+function stamp(r, w) {
+  if (!r || typeof r !== "object" || !r.x || typeof r.x !== "object" || Array.isArray(r.x)) return r;
+  return Object.assign({}, r, { x: Object.assign({}, r.x, { sid: w.sid, sn: w.name }) });
+}
+
 function clean(r) {
   if (!r || typeof r !== "object") return null;
   const id = String(r.id == null ? "" : r.id);
@@ -130,37 +188,108 @@ export async function onRequestPost({ request, env }) {
   try { body = await request.json(); } catch (e) { return Response.json({ ok: false, error: "bad_request" }, { status: 400 }); }
   const c = await callerOf(env, request);
   if (!c.valid) return Response.json({ ok: false, error: "device_unverified", why: c.why }, { status: 403 });
-  const owner = c.mobile;
-  /* a book whose account has no verified e-mail works on ONE phone only; a second phone must verify the e-mail first (see _loginotp.js shopProtect) */
-  { const sp = await shopProtect(env, owner); if (!sp.ok) return Response.json({ ok: false, error: sp.error, why: "second_phone_no_email" }, { status: 403 }); }
   try { await init(env); } catch (e) { return Response.json({ ok: false, error: "server_error" }, { status: 500 }); }
+
+  /* a staff member joining: any logged-in phone, the code is the proof */
+  if (action === "staff_login") {
+    const ip = (request.headers.get("CF-Connecting-IP") || "x").slice(0, 45);
+    const own = String(body && body.owner || "").trim().slice(0, 20), code = String(body && body.code || "").trim();
+    if (!(await allowed(env, "stl:" + own, 10, 900)) || !(await allowed(env, "stlip:" + ip, 30, 900)) || !(await allowed(env, "stlm:" + c.mobile, 10, 900))) return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
+    if (!/^\d{6,13}$/.test(own) || !/^\d{6}$/.test(code) || own === c.mobile) return Response.json({ ok: false, error: "bad_code" }, { status: 400 });
+    const hash = await sha256Hex(own + ":" + code);
+    const st = await env.DB.prepare("SELECT sid, name, role FROM shop_staff WHERE owner=? AND code_hash=? AND code_exp>? AND active=1").bind(own, hash, Date.now()).first();
+    if (!st) return Response.json({ ok: false, error: "bad_code" }, { status: 400 });
+    await env.DB.prepare("UPDATE shop_staff SET device=NULL, smobile=NULL WHERE owner=? AND device=?").bind(own, c.device).run();   /* a phone is one staff member only */
+    await env.DB.prepare("UPDATE shop_staff SET device=?, smobile=?, code_hash=NULL, code_exp=NULL WHERE owner=? AND sid=?").bind(c.device, c.mobile, own, st.sid).run();
+    return Response.json({ ok: true, owner: own, sid: st.sid, name: st.name, role: st.role });
+  }
+
+  const w = await whoIs(env, c, request);
+  if (!w) return Response.json({ ok: false, error: "staff_unknown" }, { status: 403 });
+  const owner = w.owner, isStaff = w.role === "staff";
+  /* a book whose account has no verified e-mail works on ONE phone only; a second phone must verify the e-mail first (see _loginotp.js shopProtect) */
+  { const sp = await shopProtect(env, c.mobile); if (!sp.ok && !isStaff) return Response.json({ ok: false, error: sp.error, why: "second_phone_no_email" }, { status: 403 }); }
+  if (isStaff && !["pull", "push", "me"].includes(action)) return Response.json({ ok: false, error: "forbidden" }, { status: 403 });
+
+  if (action === "me") return Response.json({ ok: true, role: isStaff ? w.srole : "owner", name: isStaff ? w.name : "", owner });
+
+  if (action === "staff_list") {
+    const { results } = await env.DB.prepare("SELECT sid, name, role, active, code_hash, code_exp, device, created FROM shop_staff WHERE owner=? ORDER BY created").bind(owner).all();
+    const now = Date.now();
+    return Response.json({ ok: true, limit: await staffLimit(env, owner), staff: (results || []).map((r) => ({ sid: r.sid, name: r.name, role: r.role, active: r.active ? 1 : 0, bound: !!r.device, pending: !!(r.code_hash && r.code_exp > now) })) });
+  }
+  if (action === "staff_save") {
+    if (!(await allowed(env, "stsave:" + owner, 60, 3600))) return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
+    const name = cleanName(body && body.name), role = String(body && body.role || "");
+    if (!name || !STAFF_KINDS[role]) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
+    const lk = await lockOf(env, owner);
+    if (lk.locked) return Response.json({ ok: false, error: "lock_on" }, { status: 409 });   /* a locked book can not be shown to staff */
+    let sid = String(body && body.sid || "");
+    const active = body && body.active === 0 ? 0 : 1;
+    let existing = null;
+    if (sid) { existing = await env.DB.prepare("SELECT sid FROM shop_staff WHERE owner=? AND sid=?").bind(owner, sid).first(); if (!existing) return Response.json({ ok: false, error: "not_found" }, { status: 404 }); }
+    if (!existing || active) {
+      const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM shop_staff WHERE owner=? AND active=1 AND sid<>?").bind(owner, sid || "-").first();
+      if (n && n.n + 1 > (await staffLimit(env, owner))) return Response.json({ ok: false, error: "staff_limit", limit: await staffLimit(env, owner) }, { status: 409 });
+    }
+    let code = "";
+    const regen = !existing || !!(body && body.regen);
+    if (!existing) sid = newSid();
+    if (regen && active) code = newCode();
+    if (!existing) {
+      await env.DB.prepare("INSERT INTO shop_staff (owner, sid, name, role, active, code_hash, code_exp, created) VALUES (?,?,?,?,?,?,?,?)")
+        .bind(owner, sid, name, role, active, code ? await sha256Hex(owner + ":" + code) : null, code ? Date.now() + CODE_HOURS * 3600000 : null, new Date().toISOString()).run();
+    } else {
+      await env.DB.prepare("UPDATE shop_staff SET name=?, role=?, active=? WHERE owner=? AND sid=?").bind(name, role, active, owner, sid).run();
+      if (!active) await env.DB.prepare("UPDATE shop_staff SET device=NULL, smobile=NULL, code_hash=NULL, code_exp=NULL WHERE owner=? AND sid=?").bind(owner, sid).run();
+      if (code) await env.DB.prepare("UPDATE shop_staff SET code_hash=?, code_exp=?, device=NULL, smobile=NULL WHERE owner=? AND sid=?").bind(await sha256Hex(owner + ":" + code), Date.now() + CODE_HOURS * 3600000, owner, sid).run();
+    }
+    return Response.json({ ok: true, sid, code, hours: CODE_HOURS });
+  }
+  if (action === "staff_remove") {
+    const sid = String(body && body.sid || "");
+    await env.DB.prepare("DELETE FROM shop_staff WHERE owner=? AND sid=?").bind(owner, sid).run();
+    return Response.json({ ok: true });
+  }
 
   if (action === "pull") {
     const since = Math.max(0, parseInt(body && body.since, 10) || 0);
     const { results } = await env.DB.prepare("SELECT seq, id, kind, d, data FROM shop_records WHERE owner=? AND seq>? ORDER BY seq LIMIT ?").bind(owner, since, PAGE + 1).all();
     const list = results || [];
     const more = list.length > PAGE;
-    const rows = list.slice(0, PAGE).map((r) => {
+    const page = list.slice(0, PAGE);
+    let rows = page.map((r) => {
       let o = {}; try { o = JSON.parse(r.data); } catch (e) {}
       return { seq: r.seq, id: r.id, k: r.kind, d: r.d || "", ts: o.ts || "", x: o.x || {} };
     });
-    return Response.json({ ok: true, rows, more, lock: await lockOf(env, owner), plan: await planOf(env, owner) });
+    const lkP = await lockOf(env, owner);
+    if (isStaff) {
+      if (lkP.locked) return Response.json({ ok: false, error: "locked_book" }, { status: 409 });
+      rows = rows.map((r) => forStaff(r, w)).filter(Boolean);
+    }
+    return Response.json({ ok: true, rows, more, next: page.length ? page[page.length - 1].seq : since, lock: isStaff ? { locked: 0, salt: "", iter: 0 } : lkP, plan: await planOf(env, owner) });
   }
 
   if (action === "push") {
-    if (!(await allowed(env, "shop:" + owner, 400, 3600))) return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
+    if (!(await allowed(env, "shop:" + owner + (isStaff ? ":" + w.sid : ""), 400, 3600))) return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
     const src = Array.isArray(body && body.records) ? body.records.slice(0, MAX_PUSH) : [];
     const recs = [], seen = new Set();
-    for (const r of src) { const o = clean(r); if (o && !seen.has(o.id)) { seen.add(o.id); recs.push(o); } }
+    let rejected = 0;
+    for (const r of src) {
+      if (isStaff && !(r && STAFF_KINDS[w.srole].has(String(r.k)))) { rejected++; continue; }   /* staff: only the kinds of the role, never cancel / edit / money */
+      const o = clean(isStaff ? stamp(r, w) : r);
+      if (o && !seen.has(o.id)) { seen.add(o.id); recs.push(o); }
+    }
     const lk = await lockOf(env, owner);
-    if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk });
+    if (isStaff && lk.locked) return Response.json({ ok: false, error: "locked_book" }, { status: 409 });
+    if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk, rejected });
     if (lk.locked && recs.some((o) => !o.enc)) return Response.json({ ok: false, error: "locked_book", lock: lk }, { status: 409 });
     /* after the free year without Premium only settings are kept (view only); the phone is told, nothing already stored is touched */
     const plan = await planOf(env, owner);
     const asked = recs.length;
     if (plan.mode === "locked") {
       for (let i = recs.length - 1; i >= 0; i--) if (recs[i].k !== "c") recs.splice(i, 1);
-      if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk, plan, dropped: asked });
+      if (!recs.length) return Response.json({ ok: true, saved: 0, last: 0, lock: lk, plan, dropped: asked, rejected });
     }
     const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM shop_records WHERE owner=?").bind(owner).first();
     if (cnt && cnt.n + recs.length > MAX_RECORDS) return Response.json({ ok: false, error: "book_full" }, { status: 413 });
@@ -173,12 +302,14 @@ export async function onRequestPost({ request, env }) {
       saved += (r && r.meta && r.meta.changes) || 0;
     }
     const last = await env.DB.prepare("SELECT MAX(seq) AS m FROM shop_records WHERE owner=?").bind(owner).first();
-    return Response.json({ ok: true, saved, last: (last && last.m) || 0, lock: lk, plan, dropped: asked - recs.length });
+    return Response.json({ ok: true, saved, last: (last && last.m) || 0, lock: lk, plan, dropped: asked - recs.length, rejected });
   }
 
   if (action === "lock") {
     if (!(await allowed(env, "shoplock:" + owner, 60, 3600))) return Response.json({ ok: false, error: "slow_down" }, { status: 429 });
     if (body && body.locked) {
+      const sc = await env.DB.prepare("SELECT COUNT(*) AS n FROM shop_staff WHERE owner=? AND active=1").bind(owner).first();
+      if (sc && sc.n > 0) return Response.json({ ok: false, error: "staff_exist" }, { status: 409 });   /* staff could not read or be stamped in an encrypted book */
       const salt = String(body.salt || ""), iter = parseInt(body.iter, 10) || 0;
       if (!/^[A-Za-z0-9+/=]{16,64}$/.test(salt) || iter < 100000 || iter > 2000000) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
       await env.DB.prepare("INSERT INTO shop_lock (owner, locked, salt, iter, ts) VALUES (?,1,?,?,?) ON CONFLICT(owner) DO UPDATE SET locked=1, salt=excluded.salt, iter=excluded.iter, ts=excluded.ts").bind(owner, salt, iter, new Date().toISOString()).run();
