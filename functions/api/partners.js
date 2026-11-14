@@ -52,6 +52,7 @@ async function ensureNewColumns(env) {
     "ALTER TABLE travel_partners ADD COLUMN tagline TEXT",
     "ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0",
     "ALTER TABLE travel_partners ADD COLUMN public_phone TEXT",
+    "ALTER TABLE travel_partners ADD COLUMN platinum INTEGER DEFAULT 0",
   ]) {
     try { await env.DB.prepare(stmt).run(); } catch (e) { /* column already exists */ }
   }
