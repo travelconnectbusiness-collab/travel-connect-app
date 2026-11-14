@@ -60,6 +60,12 @@
  function locked(){ return state().mode==="locked"; }
  window.__tcShopPlan={state:state,locked:locked,server:function(){ return SP; },setDemo:function(mode,left){ DEMO=mode?{mode:mode,left:left||365}:null; try{ later(); }catch(e){} }};
 
+ /* Platinum (level 3): the server says it in every /api/shop answer (plan.lvl); the last answer is remembered so the tools also show when the phone starts offline */
+ function platKey(){ var m=""; try{ var u=getCurrentUser(); m=u&&u.mobile?String(u.mobile):""; }catch(e){} return "tc_plat:"+m; }
+ window.tcIsPlatinumPlan=function(){
+  if(SP&&SP.lvl!=null) return SP.lvl>=3;
+  try{ return localStorage.getItem(platKey())==="1"; }catch(e){ return false; }
+ };
  /* ---------- read the plan the server puts in every /api/shop answer ---------- */
  (function(){
   var of=window.fetch; if(typeof of!=="function") return;
@@ -69,7 +75,7 @@
     var url=typeof u==="string"?u:((u&&u.url)||"");
     if(url.indexOf("/api/shop")>=0) p.then(function(r){
      try{ r.clone().json().then(function(j){
-      if(j&&j.plan&&j.plan.mode){ SP={mode:String(j.plan.mode),end:String(j.plan.end||"")}; try{ later(); }catch(e){} }
+      if(j&&j.plan&&j.plan.mode){ SP={mode:String(j.plan.mode),end:String(j.plan.end||""),lvl:+j.plan.lvl||0}; try{ localStorage.setItem(platKey(),SP.lvl>=3?"1":"0"); }catch(e){} try{ later(); }catch(e){} }
       if(j&&j.dropped>0) deny();
      }).catch(function(){}); }catch(e){}
     }).catch(function(){});
@@ -125,8 +131,8 @@
 
  /* ---------- the one-line notice on the shop Home and the Vehicle jobs page ---------- */
  function banner(s){
-  var ml="ഫ്രീ: ഡയറക്ടറിയിൽ ലിസ്റ്റിംഗ് മാത്രം.\nപ്ലസ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ.\nപ്രീമിയം: സ്റ്റോക്ക്, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ, ക്ലൗഡ് സേവ്.\nപ്രീമിയം എടുക്കാൻ: ഡാഷ്ബോർഡിലെ 'Verification & Plan' കാർഡ്.";
-  var en="Free: directory listing only.\nPlus: shop photo, 2 ad posts, social links.\nPremium: stock, bills / quotations, job cards, reports, cloud save.\nTo get Premium: the 'Verification & Plan' card on the Dashboard.";
+  var ml="ഫ്രീ: ഡയറക്ടറിയിൽ ലിസ്റ്റിംഗ് മാത്രം.\nപ്ലസ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ.\nപ്രീമിയം: സ്റ്റോക്ക്, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ, ക്ലൗഡ് സേവ്.\nപ്ലാറ്റിനം: 10 സ്റ്റാഫ് ഫോൺ, നിങ്ങളുടെ 11 ഫോൺ, CA Excel (GST + ലാഭ-നഷ്ടം + കടം).\nപ്രീമിയം എടുക്കാൻ: ഡാഷ്ബോർഡിലെ 'Verification & Plan' കാർഡ്.";
+  var en="Free: directory listing only.\nPlus: shop photo, 2 ad posts, social links.\nPremium: stock, bills / quotations, job cards, reports, cloud save.\nPlatinum: 10 staff phones, 11 of your own phones, CA Excel (GST + profit-loss + dues).\nTo get Premium / Platinum: the 'Verification & Plan' card on the Dashboard.";
   var note='<details style="margin-top:4px"><summary class="tsM" style="cursor:pointer">'+E(T("ഫ്രീ / പ്ലസ് / പ്രീമിയം: എന്തൊക്കെ?","Free / Plus / Premium: what is in each?"))+'</summary><div class="tsM" style="white-space:pre-line;margin-top:4px">'+E(T(ml,en))+'</div></details>';
   if(s.mode==="trial"){
    var amber=s.left<=30;
