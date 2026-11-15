@@ -1,0 +1,326 @@
+/* Voice (tc-voice.js, loaded by tc-regdocs.js).
+   One small round microphone button, for the business owner (shop and taxi / travel), on every page:
+   1. A text box is open (cursor in it) -> tap the mic and SAY it: the words are typed into that box (Malayalam or English).
+   2. No box open -> a voice window: say a COMMAND or a QUESTION.
+        Commands (nothing is saved until the owner taps "Yes, save"):   "ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്"  /  "2 Alpha വിറ്റു" (shop)
+        Questions (answered from the owner's own figures):             "ഈ മാസം ലാഭം എത്ര?"  /  "ആരൊക്കെ പണം തരാനുണ്ട്?"  /  "Alpha സ്റ്റോക്ക് എത്ര?"
+   Understanding the words is rule based and runs inside the phone (a fixed set of sentences); the speech-to-text itself is done by the phone's Chrome (needs internet).
+   The words can also be typed or corrected in the window, so it works on a phone without speech support too. Never shown to customers or to a shop staff phone. */
+(function(){
+ if(window.__tcVoice) return;
+ window.__tcVoice=1;
+ var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ var $=function(id){ return document.getElementById(id); };
+ var E=function(v){ return typeof esc==="function"?esc(v):String(v==null?"":v).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); };
+ var LSg=function(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, LSs=function(k,v){ try{ localStorage.setItem(k,v); }catch(e){} };
+ var p2=function(n){ return (n<10?"0":"")+n; };
+ function ymd(d){ return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate()); }
+ function today(){ return ymd(new Date()); }
+ function addDays(s,n){ var d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return ymd(d); }
+ function shopUi(){ return window.__tcShopUi&&window.__tcShop?window.__tcShopUi:null; }
+ function shopOpen(){ var u=shopUi(); return !!(u&&u.isOpen()); }
+ function travelOn(){ return !shopOpen()&&!!window.db&&(Array.isArray(db.trips)||Array.isArray(db.expenses)); }
+ function tr(en,ml){ var u=shopOpen()?shopUi():null; if(u) return u.T(ml,en); try{ if(typeof tcBl==="function") return tcBl(en,ml); }catch(e){} return ml; }
+ function say(m){ var u=shopUi(); try{ if(u&&shopOpen()) u.say(m); else toast(m); }catch(e){ try{ toast(m); }catch(e2){} } }
+ function money0(n){ n=Math.round(+n||0); try{ return typeof money==="function"?money(n):"Rs."+n; }catch(e){ return "Rs."+n; } }
+ function lang(){ return LSg("tc_voice_lang")==="en-IN"?"en-IN":"ml-IN"; }
+
+ /* ---------- understanding the words ---------- */
+ function norm(s){
+  s=String(s||"").toLowerCase().replace(/[‌‍]/g,"");
+  s=s.replace(/[൦-൯]/g,function(c){ return String(c.charCodeAt(0)-0x0d66); });   /* Malayalam digits */
+  return s.replace(/\s+/g," ").trim();
+ }
+ function has(s,L){ for(var i=0;i<L.length;i++) if(s.indexOf(L[i])>=0) return true; return false; }
+ var WORDS=[["പതിനായിരം",10000],["തൊള്ളായിരം",900],["അയ്യായിരം",5000],["നാലായിരം",4000],["മൂവായിരം",3000],["രണ്ടായിരം",2000],["ആയിരം",1000],["എണ്ണൂറ്",800],["എഴുനൂറ്",700],["അറുനൂറ്",600],["അഞ്ഞൂറ്",500],["നാനൂറ്",400],["മുന്നൂറ്",300],["ഇരുനൂറ്",200],["നൂറ്",100]];
+ var CUR="(?:രൂപ|rs\\.?|rupees?|inr|₹)";
+ /* the amount in the words: a number next to "രൂപ / Rs / ₹" first, otherwise the first number; "5 thousand / 5 ആയിരം / 2 lakh" are understood; a few Malayalam number words too */
+ function amount(s){
+  var m=new RegExp("(\\d+(?:[.,]\\d+)*)\\s*"+CUR).exec(s)||new RegExp(CUR+"\\s*(\\d+(?:[.,]\\d+)*)").exec(s)||/(\d+(?:[.,]\d+)*)/.exec(s);
+  if(m){
+   var v=parseFloat(m[1].replace(/,/g,"")), rest=s.slice(m.index+m[0].length);
+   if(/^\s*(thousand|k\b|ആയിരം)/.test(rest)) v*=1000; else if(/^\s*(lakh|ലക്ഷം)/.test(rest)) v*=100000; else if(/^\s*(hundred|നൂറ്)/.test(rest)) v*=100;
+   return v>0?v:0;
+  }
+  for(var i=0;i<WORDS.length;i++) if(s.indexOf(WORDS[i][0])>=0) return WORDS[i][1];
+  return 0;
+ }
+ function qtyOf(s){   /* a number NOT written as money: "2 Alpha വിറ്റു" -> 2 */
+  var re=/(\d+(?:\.\d+)?)/g, m;
+  while((m=re.exec(s))){ var after=s.slice(m.index+m[0].length), before=s.slice(0,m.index);
+   if(new RegExp("^\\s*"+CUR).test(after)||new RegExp(CUR+"\\s*$").test(before)) continue;
+   return parseFloat(m[1])>0?parseFloat(m[1]):1; }
+  return 1;
+ }
+ function dateOf(s){ return has(s,["ഇന്നലെ","yesterday"])?addDays(today(),-1):today(); }
+ function period(s){
+  var t=today(), mon=t.slice(0,7);
+  if(has(s,["ഇന്നലെ","yesterday"])) { var y=addDays(t,-1); return {a:y,b:y,ml:"ഇന്നലെ",en:"yesterday"}; }
+  if(has(s,["ഇന്ന്","ഇന്നത്തെ","today"])) return {a:t,b:t,ml:"ഇന്ന്",en:"today"};
+  if(has(s,["കഴിഞ്ഞ മാസ","last month","previous month"])){ var y0=+mon.slice(0,4), m0=+mon.slice(5,7)-1; if(m0<1){ m0=12; y0--; } var last=new Date(y0,m0,0).getDate(), pm=y0+"-"+p2(m0); return {a:pm+"-01",b:pm+"-"+p2(last),ml:"കഴിഞ്ഞ മാസം",en:"last month"}; }
+  if(has(s,["ഈ ആഴ്ച","this week","last 7 days"])) return {a:addDays(t,-6),b:t,ml:"കഴിഞ്ഞ 7 ദിവസം",en:"the last 7 days"};
+  return {a:mon+"-01",b:t,ml:"ഈ മാസം ഇതുവരെ",en:"this month so far"};
+ }
+ var KW={
+  sold:["വിറ്റു","വിറ്റ","വില്പന","വിൽപ്പന നടത്തി","sold","sale of"],
+  qWord:["?","എത്ര","how much","how many","what","which","who","ആർക്കൊക്കെ","ആരൊക്കെ","ആരാണ്","ഏതൊക്കെ","ഏതാണ്","ഉണ്ടോ","പറയൂ","പറയു","കാണിക്ക","tell me","show me","list"],
+  expense:["ചെലവ","ചിലവ","expense","spent","spend","ഡീസൽ","ഡീസല്","പെട്രോൾ","ഇന്ധന","diesel","petrol","fuel","ടോൾ","toll","പാർക്കിംഗ്","പാർക്കിങ്","parking","വാടക","rent","വൈദ്യുതി","കറന്റ്","electric","കൂലി","ശമ്പള","salary","wage","റിപ്പയർ","repair","സർവീസ്","service","പാക്കിംഗ്","packing","emi","ഭക്ഷണം","food"],
+  profit:["ലാഭ","profit"], sales:["വിൽപ്പന","വില്പന","വരുമാനം","sales","income","revenue","ബില്ലിംഗ്","ബില്ല്","billing","collection"],
+  exp:["ചെലവ","ചിലവ","expense","spent","spending"], dues:["തരാനുണ്ട്","കിട്ടാനുണ്ട്","തരാനുള്ള","കിട്ടാനുള്ള","ബാക്കി തരാൻ","dues","owe","pending","outstanding","credit","കടം"], sup:["സപ്ലൈയർ","supplier","കൊടുക്കാനുണ്ട്","കൊടുക്കാനുള്ള"],
+  stock:["സ്റ്റോക്ക്","സ്റ്റോക്","stock","തീർന്ന","തീർന്നു","തീരാറായ","out of stock","running out"], trips:["ട്രിപ്പ്","trip","ഓട്ടം"], insight:["ഇൻസൈറ്റ്","insight","ശ്രദ്ധിക്കേണ്ട","attention"]
+ };
+ function expCat(s){
+  if(travelOn()){
+   if(has(s,["ഡീസൽ","ഡീസല്","പെട്രോൾ","ഇന്ധന","diesel","petrol","fuel"])) return "Fuel";
+   if(has(s,["ടോൾ","toll"])) return "Toll";
+   if(has(s,["പാർക്കിംഗ്","പാർക്കിങ്","parking"])) return "Parking";
+   if(has(s,["റിപ്പയർ","repair","സർവീസ്","service"])) return "Repair";
+   if(has(s,["വാടക","rent"])) return "Rent";
+   if(has(s,["ശമ്പള","salary","കൂലി","wage","bata","ബത്ത"])) return "Salary";
+   if(has(s,["ഭക്ഷണം","food"])) return "Food";
+   return "Other";
+  }
+  if(has(s,["വാടക","rent"])) return "Rent";
+  if(has(s,["വൈദ്യുതി","കറന്റ്","electric"])) return "Electricity";
+  if(has(s,["കൂലി","ശമ്പള","salary","wage"])) return "Wage";
+  if(has(s,["പാക്കിംഗ്","packing"])) return "Packing";
+  if(has(s,["emi","ലോൺ","loan"])) return "Loan EMI";
+  return "Miscellaneous";
+ }
+ function findProduct(s){
+  if(!shopUi()) return null;
+  var best=null;
+  window.__tcShop.products().forEach(function(p){
+   var n=norm(p.n); if(n.length>=2&&s.indexOf(n)>=0&&(!best||n.length>norm(best.n).length)) best=p;
+  });
+  return best;
+ }
+
+ /* ---------- the answers (each {ml,en}) ---------- */
+ function A(ml,en){ return {kind:"answer",ml:ml,en:en}; }
+ function shopQuestion(s){
+  var SH=window.__tcShop, P=period(s), p;
+  if(has(s,KW.stock)){
+   p=findProduct(s);
+   if(p){ if(p.nt||p.stock==null) return A(p.n+": സ്റ്റോക്ക് എണ്ണുന്നില്ല.",p.n+": stock is not counted."); return A(p.n+": "+p.stock+" ബാക്കിയുണ്ട്"+(p.stock<=0?" (തീർന്നു)":"")+".",p.n+": "+p.stock+" left"+(p.stock<=0?" (out of stock)":"")+"."); }
+   var out=SH.products().filter(function(x){ return !x.nt&&!x.comp&&x.stock!=null&&x.stock<=0; }).map(function(x){ return x.n; });
+   var low=SH.products().filter(function(x){ return !x.nt&&!x.comp&&x.stock>0&&x.low>0&&x.stock<=x.low; }).map(function(x){ return x.n+" ("+x.stock+")"; });
+   if(!out.length&&!low.length) return A("സ്റ്റോക്ക് തീർന്നതോ തീരാറായതോ ആയ സാധനം ഇല്ല.","Nothing is out of stock or running low.");
+   return A((out.length?"തീർന്നത്: "+out.slice(0,6).join(", ")+(out.length>6?" +"+(out.length-6):"")+". ":"")+(low.length?"തീരാറായത്: "+low.slice(0,6).join(", ")+".":""),(out.length?"Out of stock: "+out.slice(0,6).join(", ")+(out.length>6?" +"+(out.length-6):"")+". ":"")+(low.length?"Running low: "+low.slice(0,6).join(", ")+".":""));
+  }
+  if(has(s,KW.sup)&&!has(s,KW.dues.slice(0,2).concat(["കിട്ടാ"]))){ var Ls=SH.ledger(); return A("സപ്ലൈയർമാർക്ക് ആകെ "+money0(Ls.supTotal)+" കൊടുക്കാനുണ്ട്.","You owe suppliers "+money0(Ls.supTotal)+" in all."); }
+  if(has(s,KW.dues)){
+   var L=SH.ledger(), list=L.cust.filter(function(e){ return e.owed>0.004; }).sort(function(a,b){ return b.owed-a.owed; });
+   if(!list.length) return A("ആരും പണം തരാനില്ല.","Nobody owes you anything.");
+   return A("ആകെ "+money0(L.custTotal)+" കിട്ടാനുണ്ട്: "+list.slice(0,4).map(function(e){ return e.n+" "+money0(e.owed); }).join(", ")+(list.length>4?" +"+(list.length-4)+" പേർ":"")+".","You have "+money0(L.custTotal)+" to collect: "+list.slice(0,4).map(function(e){ return e.n+" "+money0(e.owed); }).join(", ")+(list.length>4?" +"+(list.length-4)+" more":"")+".");
+  }
+  if(has(s,KW.profit)){
+   if(LSg("tc_shop_simple")==="1") return A("ലാഭം മറച്ചിരിക്കുകയാണ് (ലാഭം മറയ്ക്കുക ഓൺ ആണ്).","Profit is hidden (Hide profit is on).");
+   var R=SH.report(P.a,P.b);
+   return A(P.ml+" ലാഭം "+money0(R.profit)+(R.gstOut>0?" (GST ഒഴികെ)":"")+". ചെലവ് "+money0(R.exp+R.dead)+" കഴിഞ്ഞ് "+money0(R.net)+".",P.en+": profit "+money0(R.profit)+(R.gstOut>0?" (without GST)":"")+". After expenses "+money0(R.exp+R.dead)+": "+money0(R.net)+".");
+  }
+  if(has(s,KW.exp)){ var R2=SH.report(P.a,P.b); return A(P.ml+" ചെലവ് "+money0(R2.exp)+".",P.en+": expenses "+money0(R2.exp)+"."); }
+  if(has(s,KW.sales)){ var R3=SH.report(P.a,P.b); return A(P.ml+" വിൽപ്പന "+money0(R3.sales)+(R3.gstOut>0?" (GST ഉൾപ്പെടെ; GST "+money0(R3.gstOut)+")":"")+".",P.en+": sales "+money0(R3.sales)+(R3.gstOut>0?" (with GST; GST "+money0(R3.gstOut)+")":"")+"."); }
+  return null;
+ }
+ function travelQuestion(s){
+  var P=period(s), B=typeof window.tcTrBills==="function"?window.tcTrBills():[], ex=(window.db&&db.expenses)||[];
+  function inP(d){ return d>=P.a&&d<=P.b; }
+  var bl=B.filter(function(b){ return inP(b.d); }), billed=0; bl.forEach(function(b){ billed+=b.fin; });
+  var spent=0; ex.forEach(function(e){ var d=String(e.created||"").slice(0,10); if(inP(d)) spent+=+e.amount||0; });
+  if(has(s,KW.dues)){
+   var owing=B.filter(function(b){ return b.bal>=1; }), by={}, tot=0;
+   owing.forEach(function(b){ var c=by[b.key]||(by[b.key]={nm:b.nm||"-",v:0}); c.v+=b.bal; tot+=b.bal; });
+   var cl=Object.keys(by).map(function(k){ return by[k]; }).sort(function(a,b){ return b.v-a.v; });
+   if(!cl.length) return A("ആരും പണം തരാനില്ല.","Nobody owes you anything.");
+   return A("ആകെ "+money0(tot)+" കിട്ടാനുണ്ട്: "+cl.slice(0,4).map(function(c){ return c.nm+" "+money0(c.v); }).join(", ")+(cl.length>4?" +"+(cl.length-4)+" പേർ":"")+".","You have "+money0(tot)+" to collect: "+cl.slice(0,4).map(function(c){ return c.nm+" "+money0(c.v); }).join(", ")+(cl.length>4?" +"+(cl.length-4)+" more":"")+".");
+  }
+  if(has(s,KW.trips)) return A(P.ml+" "+bl.length+" ട്രിപ്പ് (ബില്ല് "+money0(billed)+").",P.en+": "+bl.length+" trip(s), billed "+money0(billed)+".");
+  if(has(s,KW.profit)) return A(P.ml+" ബില്ല് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+" (ഏകദേശ ലാഭം).",P.en+": billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+" (about the profit).");
+  if(has(s,KW.exp)) return A(P.ml+" ചെലവ് "+money0(spent)+".",P.en+": expenses "+money0(spent)+".");
+  if(has(s,KW.sales)) return A(P.ml+" ബില്ല് "+money0(billed)+" ("+bl.length+" ട്രിപ്പ്).",P.en+": billed "+money0(billed)+" ("+bl.length+" trip(s)).");
+  return null;
+ }
+
+ /* ---------- what to do with the words: {kind:'confirm'|'answer'|'open'|'none'} ---------- */
+ function run(raw){
+  var s=norm(raw); if(!s) return {kind:"none",ml:"ഒന്നും കേട്ടില്ല.",en:"Nothing heard."};
+  var shop=shopOpen()&&shopUi(), trv=travelOn(), isQ=has(s,KW.qWord);
+  if(has(s,KW.insight)&&!isQ||/^(insights?|ഇൻസൈറ്റ്)/.test(s)){
+   if(shop&&window.tsOpen) return {kind:"open",fn:function(){ window.tsOpen("insight"); },ml:"ഇൻസൈറ്റ് തുറക്കുന്നു.",en:"Opening insights."};
+   if(trv&&window.tcTrInsightAll) return {kind:"open",fn:function(){ window.tcTrInsightAll(); },ml:"ഇൻസൈറ്റ് തുറക്കുന്നു.",en:"Opening insights."};
+  }
+  /* a sale (shop) */
+  if(shop&&has(s,KW.sold)&&!isQ){
+   var p=findProduct(s);
+   if(!p) return {kind:"none",ml:"ഏത് സാധനം എന്ന് മനസ്സിലായില്ല. സാധനത്തിന്റെ പേര് ആപ്പിൽ ഉള്ളതുപോലെ പറയൂ, ഉദാ: \"2 Alpha വിറ്റു\".",en:"I could not find which item. Say the item's name as in the app, e.g. \"2 Alpha sold\"."};
+   if(p.comp) return {kind:"none",ml:p.n+" ഒന്നിലധികം സാധനങ്ങൾ ചേർന്നതാണ് - വിൽപ്പന സ്ക്രീനിൽ ചേർക്കൂ.",en:p.n+" is a made-up item - add it from the Sale screen."};
+   if(!(p.pr>0)) return {kind:"none",ml:p.n+"-ന് വില ഇല്ല - വിൽപ്പന സ്ക്രീനിൽ ചേർക്കൂ.",en:p.n+" has no price - add it from the Sale screen."};
+   if(has(s,KW.dues)||has(s,["കടം","credit","ക്രെഡിറ്റ്"])) return {kind:"none",ml:"കടം വിൽപ്പനയ്ക്ക് കസ്റ്റമറുടെ പേര് വേണം - വിൽപ്പന സ്ക്രീനിൽ ചേർക്കൂ.",en:"A credit sale needs the customer's name - add it from the Sale screen."};
+   var q=qtyOf(s.replace(norm(p.n)," ")), pm=has(s,["upi","യുപിഐ","gpay","ജിപേ","ഗൂഗിൾ പേ","phonepe","ഫോൺപേ"])?"U":has(s,["card","കാർഡ്"])?"D":"C", tot=q*p.pr;
+   var warn=(!p.nt&&p.stock!=null&&p.stock<q)?{ml:" ⚠ സ്റ്റോക്ക് "+p.stock+" മാത്രമേ ഉള്ളൂ.",en:" ⚠ only "+p.stock+" in stock."}:{ml:"",en:""};
+   var d=dateOf(s);
+   return {kind:"confirm",ml:"വിൽപ്പന: "+p.n+" × "+q+" = "+money0(tot)+" ("+(pm==="U"?"UPI":pm==="D"?"കാർഡ്":"ക്യാഷ്")+(d!==today()?", "+d:"")+")."+warn.ml,en:"Sale: "+p.n+" × "+q+" = "+money0(tot)+" ("+(pm==="U"?"UPI":pm==="D"?"card":"cash")+(d!==today()?", "+d:"")+")."+warn.en,
+    save:function(){
+     var rec={p:p.id,q:q,pr:p.pr,pm:pm,g:window.__tcShop.H.uid()};
+     if(p.g>0&&window.__tcShop.cfg("gst","0")==="1") rec.gr=p.g;
+     if(window.__tcShop.isStaff()){ return false; }
+     return !!window.__tcShop.add("s",rec,d);
+    }};
+  }
+  /* an expense (shop or travel): needs an amount, and is not a question */
+  if((shop||trv)&&has(s,KW.expense)&&!isQ){
+   var a=amount(s);
+   if(!(a>0)) return {kind:"none",ml:"തുക കേട്ടില്ല. ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\".",en:"I did not catch the amount. Example: \"500 rupees diesel expense today\"."};
+   var cat=expCat(s), d2=dateOf(s), note=String(raw).trim().slice(0,80);
+   return {kind:"confirm",ml:"ചെലവ്: "+money0(a)+" - "+cat+(d2!==today()?" ("+d2+")":"")+".",en:"Expense: "+money0(a)+" - "+cat+(d2!==today()?" ("+d2+")":"")+".",
+    save:function(){
+     if(shop) return !!window.__tcShop.add("e",{c:cat,a:a,t:note},d2);
+     if(!Array.isArray(db.expenses)) db.expenses=[];
+     var n=new Date(); db.expenses.push({category:cat,description:note,amount:a,created:d2+"T"+p2(n.getHours())+":"+p2(n.getMinutes())+":"+p2(n.getSeconds())});
+     try{ save(); }catch(e){} try{ if(window.tcTrInsightRefresh) tcTrInsightRefresh(); }catch(e){} return true;
+    }};
+  }
+  /* a question */
+  var ans=shop?shopQuestion(s):trv?travelQuestion(s):null;
+  if(ans) return ans;
+  if(!shop&&!trv) return {kind:"none",ml:"ഇവിടെ വോയിസ് കമാൻഡ് ഇല്ല. ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് അമർത്തിയാൽ പറഞ്ഞത് ടൈപ്പ് ആകും.",en:"No voice commands here. Tap a text box, then the mic, and what you say is typed."};
+  return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ പറയൂ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\"" +(shop?", \"2 Alpha വിറ്റു\", \"Alpha സ്റ്റോക്ക് എത്ര\"":"")+", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\".",
+   en:"I did not understand. Try: \"500 rupees diesel expense today\""+(shop?", \"2 Alpha sold\", \"how much Alpha stock\"":"")+", \"profit this month\", \"who owes me money\"."};
+ }
+ window.tcVoiceRun=function(t){ var r=run(t); return {kind:r.kind,ml:r.ml,en:r.en}; };   /* used by the test */
+ window.tcVoiceParse={amount:function(t){ return amount(norm(t)); },run:run};
+
+ /* ---------- listening ---------- */
+ var rec=null, listening=false;
+ function stopListen(){ try{ if(rec) rec.stop(); }catch(e){} }
+ function listen(onText,onDone){
+  if(!SR){ say(tr("This phone cannot recognise speech - type it instead","ഈ ഫോണിൽ ശബ്ദം തിരിച്ചറിയില്ല - ടൈപ്പ് ചെയ്താലും മതി")); if(onDone) onDone(); return; }
+  if(listening){ stopListen(); return; }
+  var r=new SR(), got="";
+  r.lang=lang(); r.interimResults=true; r.continuous=false; r.maxAlternatives=1;
+  r.onresult=function(ev){
+   var s=""; for(var i=0;i<ev.results.length;i++) s+=ev.results[i][0].transcript+" ";
+   got=s.trim(); onText(got,!!(ev.results[ev.results.length-1]&&ev.results[ev.results.length-1].isFinal));
+  };
+  r.onerror=function(ev){ var e=ev&&ev.error;
+   if(e==="not-allowed"||e==="service-not-allowed") say(tr("Allow the microphone for this site in Chrome","Chrome-ൽ ഈ സൈറ്റിന് മൈക്ക് അനുവദിക്കുക"));
+   else if(e==="no-speech") say(tr("Nothing heard - try again","ഒന്നും കേട്ടില്ല - ഒന്നുകൂടി പറയൂ"));
+   else if(e==="network") say(tr("Speech needs the internet","ശബ്ദം തിരിച്ചറിയാൻ ഇന്റർനെറ്റ് വേണം")); };
+  r.onend=function(){ listening=false; rec=null; setFab(); if(onDone) onDone(got); };
+  try{ rec=r; listening=true; setFab(); r.start(); }catch(e){ listening=false; rec=null; setFab(); }
+ }
+
+ /* ---------- the button ---------- */
+ var fab=null;
+ function textField(){
+  var a=document.activeElement; if(!a) return null;
+  if(a.tagName==="TEXTAREA") return a;
+  if(a.tagName==="INPUT"&&/^(text|search|tel|number|email|url|)$/i.test(a.getAttribute("type")||"")) return a;
+  return null;
+ }
+ function allowed(){
+  try{ var u=window.getCurrentUser&&getCurrentUser(); if(!u||u.role==="customer") return false; }catch(e){ return false; }
+  try{ if(window.__tcShop&&window.__tcShop.isStaff()) return false; }catch(e){}
+  return true;
+ }
+ function setFab(){
+  if(!fab) return;
+  var ok=allowed(); fab.style.display=ok?"flex":"none";
+  fab.style.background=listening?"#d93025":"linear-gradient(135deg,#5b3fb5,#7c5bd6)";
+  fab.firstChild.nodeValue=listening?"⏹":"🎤";
+  var f=textField(); fab.querySelector("i").style.display=f?"block":"none";
+ }
+ function makeFab(){
+  if(fab||!document.body) return;
+  fab=document.createElement("button"); fab.id="tcVoiceFab"; fab.type="button";
+  fab.setAttribute("aria-label","Voice");
+  fab.style.cssText="position:fixed;right:12px;bottom:84px;z-index:99990;width:46px;height:46px;border-radius:50%;border:0;color:#fff;font-size:21px;box-shadow:0 2px 8px rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:0;cursor:pointer;opacity:.93";
+  fab.appendChild(document.createTextNode("🎤"));
+  var badge=document.createElement("i"); badge.textContent="✍"; badge.style.cssText="position:absolute;top:-4px;right:-2px;font-style:normal;font-size:13px;background:#fff;border-radius:50%;width:18px;height:18px;line-height:18px;color:#333;display:none";
+  fab.appendChild(badge);
+  /* keep the cursor in the text box while the button is tapped */
+  fab.addEventListener("pointerdown",function(e){ e.preventDefault(); });
+  fab.addEventListener("mousedown",function(e){ e.preventDefault(); });
+  fab.addEventListener("click",function(){ tap(); });
+  document.body.appendChild(fab);
+  setFab();
+ }
+ function tap(){
+  var f=textField();
+  if(f){   /* dictation into the box */
+   if(listening){ stopListen(); return; }
+   var base=f.value, isNum=f.getAttribute("type")==="number";
+   listen(function(txt){
+    var v;
+    if(isNum){ var a=amount(norm(txt)); v=a>0?String(a):""; }
+    else v=(base&&!/\s$/.test(base)?base+" ":base)+txt;
+    if(v!==""){ f.value=v; try{ f.dispatchEvent(new Event("input",{bubbles:true})); }catch(e){} }
+   },function(){ try{ f.dispatchEvent(new Event("change",{bubbles:true})); }catch(e){} });
+   return;
+  }
+  openSheet();
+ }
+
+ /* ---------- the voice window ---------- */
+ var pending=null, last=null;
+ function sheetHtml(){
+  var l=lang();
+  return '<div style="font-weight:700;font-size:16px;margin-bottom:6px">🎤 '+E(tr("Say it","പറയൂ"))+'</div>'+
+   '<div style="display:flex;gap:6px;margin-bottom:6px"><button type="button" id="tcVoMic" style="flex:1;padding:12px;border:0;border-radius:12px;background:#5b3fb5;color:#fff;font-size:16px">🎤 '+E(tr("Tap and speak","അമർത്തി പറയൂ"))+'</button>'+
+   '<button type="button" id="tcVoLg" style="padding:0 12px;border:1px solid #bbb;border-radius:12px;background:#fff;font-size:13px">'+(l==="ml-IN"?"മലയാളം":"English")+'</button></div>'+
+   '<textarea id="tcVoTx" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #bbb;border-radius:10px;padding:8px;font-size:15px" placeholder="'+E(tr("what you said appears here - you can also type","പറഞ്ഞത് ഇവിടെ വരും - ടൈപ്പ് ചെയ്യുകയും ആവാം"))+'"></textarea>'+
+   '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoGo" style="flex:1;padding:10px;border:0;border-radius:10px;background:#148c76;color:#fff;font-size:15px">'+E(tr("Do it","ചെയ്യൂ"))+'</button><button type="button" id="tcVoX" style="padding:10px 14px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("Close","അടയ്ക്കുക"))+'</button></div>'+
+   '<div id="tcVoOut" style="margin-top:8px"></div>'+
+   '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
+ }
+ function openSheet(){
+  closeSheet();
+  var o=document.createElement("div"); o.id="tcVoSheet";
+  o.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99995;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -4px 18px rgba(0,0,0,.35);padding:12px 12px calc(14px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow:auto;font-family:inherit;color:#222";
+  o.innerHTML=sheetHtml(); document.body.appendChild(o);
+  $("tcVoMic").onclick=function(){ listen(function(txt,fin){ $("tcVoTx").value=txt; },function(txt){ if(txt) go(); }); };
+  $("tcVoLg").onclick=function(){ LSs("tc_voice_lang",lang()==="ml-IN"?"en-IN":"ml-IN"); $("tcVoLg").textContent=lang()==="ml-IN"?"മലയാളം":"English"; };
+  $("tcVoGo").onclick=go; $("tcVoX").onclick=closeSheet;
+  $("tcVoTx").addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); go(); } });
+ }
+ function closeSheet(){ stopListen(); var o=$("tcVoSheet"); if(o) o.remove(); pending=null; }
+ function speak(text){
+  try{ if(!window.speechSynthesis) return; speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(text); u.lang=lang(); speechSynthesis.speak(u); }catch(e){}
+ }
+ function go(){
+  var tx=$("tcVoTx"), out=$("tcVoOut"); if(!tx||!out) return;
+  var r=run(tx.value); last=r; pending=null;
+  var msg=tr(r.en,r.ml), h="";
+  if(r.kind==="confirm"){
+   pending=r;
+   h='<div style="background:#fff6df;border-radius:10px;padding:10px;font-size:15px">'+E(msg)+'</div>'+
+    '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoYes" style="flex:1;padding:11px;border:0;border-radius:10px;background:#148c76;color:#fff;font-size:15px">✔ '+E(tr("Yes, save","ശരി, സേവ് ചെയ്യൂ"))+'</button><button type="button" id="tcVoNo" style="padding:11px 16px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">✖</button></div>';
+  }else if(r.kind==="answer"){
+   h='<div style="background:#eef6f1;border-radius:10px;padding:10px;font-size:15px;line-height:1.45">'+E(msg)+'</div>'+(window.speechSynthesis?'<button type="button" id="tcVoSay" style="margin-top:6px;padding:8px 12px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:13px">🔊 '+E(tr("Read aloud","വായിച്ച് കേൾപ്പിക്കൂ"))+'</button>':'');
+  }else if(r.kind==="open"){
+   closeSheet(); try{ r.fn(); }catch(e){} return;
+  }else h='<div style="background:#fdecec;border-radius:10px;padding:10px;font-size:14px;line-height:1.4">'+E(msg)+'</div>';
+  out.innerHTML=h;
+  var y=$("tcVoYes"), n=$("tcVoNo"), sy=$("tcVoSay");
+  if(y) y.onclick=function(){
+   var ok=false; try{ ok=pending&&pending.save(); }catch(e){ ok=false; }
+   say(ok?tr("Saved","സേവ് ചെയ്തു"):tr("Could not save on this phone","ഈ ഫോണിൽ സേവ് ചെയ്യാൻ പറ്റില്ല"));
+   try{ var u=shopUi(); if(ok&&u&&shopOpen()) u.render(); }catch(e){}
+   closeSheet();
+  };
+  if(n) n.onclick=function(){ pending=null; out.innerHTML=""; };
+  if(sy) sy.onclick=function(){ speak(msg); };
+ }
+
+ /* ---------- start ---------- */
+ var t0=null;
+ function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ makeFab(); setFab(); }catch(e){} },200); }
+ function start(){
+  makeFab();
+  document.addEventListener("focusin",later); document.addEventListener("focusout",later);
+  if(window.MutationObserver&&document.body) new MutationObserver(later).observe(document.body,{childList:true,subtree:true});
+  setInterval(function(){ try{ setFab(); }catch(e){} },3000);
+ }
+ if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start); else start();
+})();
