@@ -396,6 +396,7 @@
     '<button class="tsBtn g" onclick="tsKind(\'workshop\')">🔧 '+E(T("വർക്ക്ഷോപ്പ് / സ്പെയർ പാർട്സ്","Workshop / spare parts"))+'</button></div>':'')+
    '<div class="tsC" style="text-align:center"><div class="tsM">'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' · '+E(dmy(t))+'</div><div class="tsTot">'+money(R.sales)+'</div>'+
    (low.length?'<div style="margin-top:6px"><span class="tsLow" onclick="tsOpen(\'stock\')">⚠ '+low.length+' '+E(T("സാധനങ്ങൾ തീരാറായി","items running low"))+'</span></div>':'')+'</div>'+
+   (window.tsInsightCard?window.tsInsightCard():"")+
    '<div class="tsG">'+
    (SC.jobs&&SH.kind()==="workshop"?big("#8a3b12","🔧","വണ്ടികൾ / പണികൾ","Vehicle jobs","tsOpen('jobs')",window.tcWsSub?window.tcWsSub():"")+big("#5b4a9a","🚗","വണ്ടിയുടെ ഹിസ്റ്ററി","Vehicle history","wsHist('')"):'')+
    big("#1a8f4a","🛒","വിൽപ്പന","Sale","tsOpen('sale')")+
