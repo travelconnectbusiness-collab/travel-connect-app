@@ -133,8 +133,8 @@
    SF.forEach(function(p){
     h+='<div class="tsC"><b>'+E(p.n||wdef)+'</b>'+
      (p.sal>0?'<div class="tsRow"><span>'+E(isDay?T("മാസശമ്പളം (ഈ ദിവസത്തെ പങ്ക്)","Monthly salary (share of the day)"):T("മാസശമ്പളം","Monthly salary"))+'</span><b>'+money(p.sal)+'</b></div>':'')+
-     (p.own>0?'<div class="tsRow"><span>'+E(T("ഇദ്ദേഹം വിറ്റത്","Sold by this person"))+'</span><b>'+money(p.own)+'</b></div>':'')+
-     (p.pc>0?'<div class="tsRow"><span>'+E(T("വിൽപ്പനയിൽ നിന്ന് (100 രൂപയ്ക്ക് "+p.pc+(p.b==="own"?", ഇദ്ദേഹം വിറ്റതിന്":", ഷോപ്പിന്റെ ആകെ വിൽപ്പനയ്ക്ക്")+")","From sales ("+p.pc+" per 100 of "+(p.b==="own"?"what this person sold":"all the shop's sales")+")"))+'</span><b>'+money(p.pct)+'</b></div>':'')+
+     (p.own>0?'<div class="tsRow"><span>'+E(p.m==="pf"?T("ഇദ്ദേഹം വിറ്റതിലെ ലാഭം (GST ഒഴികെ)","Profit on what this person sold (without GST)"):T("ഇദ്ദേഹം വിറ്റത് (GST ഒഴികെ)","Sold by this person (without GST)"))+'</span><b>'+money(p.own)+'</b></div>':'')+
+     (p.pc>0?'<div class="tsRow"><span>'+E(T("വിൽപ്പനയിൽ നിന്ന് (100 രൂപയ്ക്ക് "+p.pc+(p.m==="pf"?(p.b==="own"?", ഇദ്ദേഹം വിറ്റതിലെ ലാഭത്തിന്":", ഷോപ്പിന്റെ ആകെ ലാഭത്തിന്"):(p.b==="own"?", ഇദ്ദേഹം വിറ്റതിന്":", ഷോപ്പിന്റെ ആകെ വിൽപ്പനയ്ക്ക്"))+", GST ഒഴികെ)","Commission ("+p.pc+" per 100 of "+(p.m==="pf"?(p.b==="own"?"the profit on what this person sold":"all the shop's profit"):(p.b==="own"?"what this person sold":"all the shop's sales"))+", without GST)"))+'</span><b>'+money(p.pct)+'</b></div>':'')+
      '<div class="tsRow"><span>'+E(isDay?T("ഇന്നത്തെ കൂലി","Wage for the day"):T("ഈ മാസത്തെ കൂലി","Wage for the month"))+'</span><b>'+money(p.due)+'</b></div>'+
      (p.paid?'<div class="tsRow"><span>'+E(T("കൊടുത്തത്","Paid"))+'</span><b>'+money(p.paid)+'</b></div>':'')+
      '<button class="tsBtn" onclick="tsRpWage('+p.left+',\''+String(p.id).replace(/[^\w-]/g,"")+'\')">'+E(T("കൂലി കൊടുത്തു","Wage paid"))+(p.left>0?' · '+money(p.left):'')+'</button></div>';
