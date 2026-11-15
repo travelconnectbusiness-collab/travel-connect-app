@@ -234,11 +234,13 @@
    (AQ?'<label>'+E(T("തരം","Kind"))+'</label><div id="psT"><span class="tsChip'+(t==="f"?" on":"")+'" onclick="tsPsT(\'f\')">🐟 '+E(T("മീൻ","Fish"))+'</span><span class="tsChip'+(t!=="f"?" on":"")+'" onclick="tsPsT(\'i\')">📦 '+E(T("സാധനം","Item"))+'</span></div>':'')+
    '<label>'+E(T("വിഭാഗം","Category"))+'</label><select id="psC">'+cats.map(function(c){ return '<option value="'+E(c)+'"'+(c===PS.c?" selected":"")+'>'+E(SH.catName(c,lang==="ml"))+'</option>'; }).join("")+'</select><input id="psCN" placeholder="'+E(T("പുതിയ വിഭാഗത്തിന്റെ പേര് (വേണമെങ്കിൽ)","New category name (optional)"))+'" style="margin-top:6px">'+
    '<label>'+E(T("ഇത് എങ്ങനെയാണ് വിൽക്കുന്നത്?","How is it sold?"))+'</label><div id="psUn">'+unitChips(x.u||"","tsPsUnit")+'</div>'+
-   '<label id="psPL">'+E(T("വിൽപ്പന വില ","Selling price ")+"("+perTxt(x.u||"")+")")+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(x.pr||"")+'">'+
+   '<label id="psPL">'+E(T("വിൽപ്പന വില ","Selling price ")+"("+perTxt(x.u||"")+")")+'</label><input id="psP" type="number" inputmode="decimal" value="'+E(psShow(x))+'" oninput="tsPsGh()">'+
+   '<div class="tsM" id="psGh"></div>'+
    '<label>'+E(T("ഈ ഇനത്തിന്റെ ലാഭ % (വാങ്ങൽ വിലയുടെ മുകളിൽ)","Profit % for this item (on the cost)"))+'</label><input id="psMp" type="number" inputmode="decimal" value="'+E(x.mp===""||x.mp==null?"":x.mp)+'" placeholder="'+E(T("ഷോപ്പിന്റെ സാധാരണ: ","Shop usual: ")+(t==="f"?100:+SH.cfg("mgdef",AQ?50:30))+"%")+'" oninput="tsPsMg()">'+
    '<div>'+[10,20,30,50,60,100].map(function(m){ return '<span class="tsChip" onclick="tsPsMp('+m+')">'+m+'%</span>'; }).join("")+'</div><div class="tsM" id="psMh"></div>'+
    '<details id="psMore" style="margin-top:10px"'+(OPENMORE?' open':'')+'><summary style="font-weight:800;font-size:16px;padding:8px 0">'+E(T("⚙ കൂടുതൽ ഓപ്ഷനുകൾ (അളവ്, GST, കോമ്പോ...)","⚙ More options (unit, GST, combo...)"))+'</summary>'+
-   (SH.cfg("gst","0")==="1"?'<label>GST %</label><select id="psG">'+[0,5,12,18,28].map(function(g){ return '<option value="'+g+'"'+(+x.g===g?" selected":"")+'>'+g+'%</option>'; }).join("")+'</select>':'')+
+   (SH.cfg("gst","0")==="1"?'<label>GST %</label><select id="psG" onchange="tsPsGh()">'+[0,5,12,18,28].map(function(g){ return '<option value="'+g+'"'+(+x.g===g?" selected":"")+'>'+g+'%</option>'; }).join("")+'</select>':'')+
+   (gstOn()?'<label>'+E(T("ഈ വില എങ്ങനെയാണ്?","This price is"))+'</label><select id="psGx" onchange="tsPsGh()"><option value="0"'+(x.gx?"":" selected")+'>'+E(T("GST ഉൾപ്പെടെ","With GST included"))+'</option><option value="1"'+(x.gx?" selected":"")+'>'+E(T("GST കൂടാതെ (GST മുകളിൽ ചേർക്കും)","Without GST (GST is added on top)"))+'</option></select>':'')+
    '<label>'+E(T("ഒരു പാക്കിൽ എത്ര എണ്ണം / മീറ്റർ / കിലോ? (ഒറ്റയാണെങ്കിൽ 1)","Units in one pack (1 if single)"))+'</label><input id="psK" type="number" inputmode="decimal" value="'+E(x.pk||1)+'">'+
    '<label>'+E(T("അളവിന്റെ പേര് (m, kg, ml... ; എണ്ണമാണെങ്കിൽ ഒഴിച്ചിടുക)","Unit name (m, kg, ml... leave empty for pieces)"))+'</label><input id="psU" maxlength="8" value="'+E(x.u||"")+'">'+
    '<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="psNt"'+(x.nt?" checked":"")+' style="width:auto"> '+E(T("ഇതിന്റെ സ്റ്റോക്ക് എണ്ണുന്നില്ല (തൂക്കി / അളന്ന് വാങ്ങുന്നത്)","Do not count the stock (weighed / measured)"))+'</label>'+
@@ -288,13 +290,25 @@
   if(c&&(c.value==="Fish"||c.value==="Other")) c.value=t==="f"?"Fish":"Other";
   var ct=$("psT"), ch=ct&&ct.children; if(ch&&ch.length>1){ ch[0].classList.toggle("on",t==="f"); ch[1].classList.toggle("on",t!=="f"); }
  };
+ /* ---------- GST shown plainly: base + rate + tax = price. Prices are STORED GST-inclusive (so every total / report keeps working);
+    an item or purchase rate entered "without GST" is converted once, at its GST rate, when it is saved. ---------- */
+ function gstOn(){ return SH.cfg("gst","0")==="1"; }
+ function gSplit(incl,rate){ rate=+rate||0; if(!(rate>0)) return {base:incl,tax:0}; var b=Math.round(incl*100/(100+rate)*100)/100; return {base:b,tax:Math.round((incl-b)*100)/100}; }
+ function gTxt(incl,rate){ var g=gSplit(incl,rate); return money(g.base)+" + "+(+rate)+"% GST "+money(g.tax)+" = "+money(incl); }
+ function psShow(x){ var v=x.pr; if(x.gx&&+x.g>0&&v>0) v=gSplit(v,x.g).base; return v||""; }
+ window.tsPsGh=function(){
+  var h=$("psGh"); if(!h) return; var g=$("psG")?+$("psG").value||0:0, gx=$("psGx")?+$("psGx").value:0, v=num("psP");
+  var l=$("psPL"); 
+  if(!(g>0)){ h.textContent=""; return; }
+  h.textContent=v>0?(gx?(money(v)+" + "+g+"% GST "+money(Math.round(v*g)/100)+" = "+money(Math.round(v*(100+g))/100)+T(" (ഇതാണ് കസ്റ്റമർ കൊടുക്കുന്നത്)"," (the customer pays this)")):gTxt(v,g)):"";
+ };
  window.tsPsSave=function(){
   var n=($("psN").value||"").replace(/\s+/g," ").trim();
   if(!n){ say(T("പേര് വേണം","Enter the name")); return; }
   var dup=SH.findName(n); if(dup&&dup.id!==PS.pid){ say(T("ഈ പേരിൽ ഒരു ഇനം ഉണ്ട്","An item with this name exists")); return; }
   var cn=($("psCN").value||"").replace(/\s+/g," ").trim();
   var x={n:n,t:PS.t,c:cn||$("psC").value,pr:num("psP"),pk:Math.max(1,num("psK")||1),u:($("psU").value||"").trim().slice(0,8),nt:$("psNt").checked?1:0,ec:num("psE")>0?num("psE"):""};
-  if($("psG")) x.g=+$("psG").value||0;
+  if($("psG")){ x.g=+$("psG").value||0; x.gx=($("psGx")&&+$("psGx").value===1&&x.g>0)?1:0; if(x.gx&&x.pr>0) x.pr=Math.round(x.pr*(100+x.g))/100; }
   var mpv=($("psMp").value||"").trim(); x.mp=mpv===""||isNaN(parseFloat(mpv))?"":Math.max(0,parseFloat(mpv));
   var lo=$("psL").value; x.lo=lo===""?"":Math.max(0,parseFloat(lo)||0);
   var cb=PS.cb, pid=PS.pid, np, rc=PS.rc.filter(function(c){ return c.i&&(+c.q||0)>0; });
@@ -592,11 +606,17 @@
   s.sel=null; $("saSel").innerHTML=""; saCart();
   var i=$("pk_sa_i"); if(i) i.focus();
  };
+ function saGstRow(s){
+  if(!gstOn()) return ""; var tax=0;
+  s.cart.forEach(function(l){ var p=SH.prod(l.p); if(p&&p.g>0) tax+=gSplit(l.q*l.pr,p.g).tax; });
+  return tax>0?'<div class="tsM" style="text-align:right">'+E(T("ഇതിൽ GST ","Of this, GST ")+money(tax)+T(" · GST ഇല്ലാതെ ",", without GST ")+money(s.cart.reduce(function(a,l){ return a+l.q*l.pr; },0)-tax))+'</div>':"";
+ }
  function saCart(){
   var s=U.sale, tot=s.cart.reduce(function(a,l){ return a+l.q*l.pr; },0);
   $("saCart").innerHTML=!s.cart.length?'<div class="tsM" style="text-align:center">'+E(T("വിൽക്കുന്ന സാധനം തിരഞ്ഞെടുക്കൂ","Pick the items sold"))+'</div>':
-   s.cart.map(function(l,i){ var p=SH.prod(l.p), u=p&&p.u?" "+p.u:""; return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+E(u)+' × '+rt(l.rp||l.pr)+(p&&p.u?' / '+E(p.u):'')+'</div></div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
+   s.cart.map(function(l,i){ var p=SH.prod(l.p), u=p&&p.u?" "+p.u:""; return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.q)+E(u)+' × '+rt(l.rp||l.pr)+(p&&p.u?' / '+E(p.u):'')+'</div>'+((gstOn()&&p&&p.g>0)?'<div class="tsM">'+E(gTxt(l.pr,p.g))+'</div>':'')+'</div><div><b>'+money(l.q*l.pr)+'</b> <button class="tsX" onclick="tsSaDel('+i+')">✕</button></div></div>'; }).join("")+
    '<div class="tsRow"><span>'+E(T("ആകെ","Total"))+'</span><span class="tsTot">'+money(tot)+'</span></div>'+
+   saGstRow(s)+
    payHtml("sa")+
    sellerChips("saSb",s.sb!==undefined?s.sb:sellerDef(),"tsSaSb")+
    dateRow("saD",s.date||H.today())+
@@ -681,6 +701,7 @@
    '<div class="tsC" id="puLines"></div>';
   puLines();
  };
+ window.tsPuGxSet=function(v){ v=v==="1"?"1":"0"; try{ if(SH.cfg("pugx","0")!==v) SH.setCfg("pugx",v); }catch(e){} };
  window.tsPuHead=function(){ var s=U.pur; s.sup=($("puS").value||"").trim(); s.bn=($("puB").value||"").trim(); var d=$("puD"); if(d) s.date=d.value; var t=$("puT"); if(t) s.tr=t.value; };
  function puSelect(p){
   tsPuHead(); U.pur.sel=p.id;
@@ -688,6 +709,7 @@
    '<div class="tsG"><div><label>'+E(T("എണ്ണം (പാക്ക്)","Count (packs)"))+'</label><input id="puQ" type="number" inputmode="decimal" oninput="tsPuCalc()"></div>'+
    '<div><label>'+E(T("ഒരു പാക്കിൽ എത്ര","Units per pack"))+'</label><input id="puK" type="number" inputmode="numeric" value="'+E(p.pk||1)+'" oninput="tsPuCalc()"></div></div>'+
    '<label id="puRL">'+E(T("ഒന്നിന്റെ വില","Price each"))+'</label><input id="puR" type="number" inputmode="decimal" oninput="tsPuCalc()">'+
+   ((gstOn()&&p.g>0)?'<select id="puGx" onchange="tsPuGxSet(this.value);tsPuCalc()" style="margin-top:6px"><option value="0"'+(SH.cfg("pugx","0")==="1"?"":" selected")+'>'+E(T("ഈ വിലയിൽ GST ഉൾപ്പെടെ","This price includes GST"))+'</option><option value="1"'+(SH.cfg("pugx","0")==="1"?" selected":"")+'>'+E(T("ഈ വിലയിൽ GST ഇല്ല (കൂട്ടണം) ","This price is without GST (add "+p.g+"%)"))+'</option></select>':'')+
    '<div class="tsM" id="puInfo" style="margin-top:6px"></div>'+
    '<button class="tsBtn" onclick="tsPuAdd()">➕ '+E(T("ചേർക്കുക","Add"))+'</button>';
   tsPuCalc(); var q=$("puQ"); if(q) q.focus();
@@ -695,21 +717,24 @@
  window.tsPuCalc=function(){
   var k=Math.max(1,num("puK")), q=num("puQ"), r=num("puR");
   var l=$("puRL"); if(l) l.textContent=k>1?T("ഒരു പാക്കിന്റെ വില","Price of one pack"):T("ഒന്നിന്റെ വില","Price each");
-  var i=$("puInfo"); if(i) i.textContent=(q>0&&r>0)?(qty(q*k)+" "+T("എണ്ണം","units")+" · "+T("ഒന്നിന് ","each ")+"₹"+(r/k).toFixed(2)+" · "+T("ആകെ ","total ")+money(q*r)):"";
+  var gp=SH.prod(U.pur.sel), gx=$("puGx")&&+$("puGx").value===1&&gp&&gp.g>0, rr=gx?r*(100+gp.g)/100:r;
+  var i=$("puInfo"); if(i) i.textContent=(q>0&&r>0)?(qty(q*k)+" "+T("എണ്ണം","units")+" · "+T("ഒന്നിന് ","each ")+"₹"+(r/k).toFixed(2)+(gx?" + "+gp.g+"% GST = ₹"+(rr/k).toFixed(2):"")+" · "+T("ആകെ ","total ")+money(q*rr)+(gx?" ("+T("GST ","GST ")+money(q*rr-q*r)+")":"")):"";
  };
  window.tsPuAdd=function(){
   var s=U.pur, p=SH.prod(s.sel); if(!p) return;
   var q=num("puQ"), k=Math.max(1,num("puK")||1), r=num("puR");
   if(!(q>0)){ say(T("എണ്ണം നൽകുക","Enter the count")); return; }
   if(!(r>0)){ say(T("വില നൽകുക","Enter the price")); return; }
-  s.lines.push({p:p.id,n:p.n,units:q*k,perUnit:r/k,total:q*r,pk:k});
+  var gxs=$("puGx")&&+$("puGx").value===1&&p.g>0;
+  if(gxs){ var rb=r; r=Math.round(r*(100+p.g))/100; s.lines.push({p:p.id,n:p.n,units:q*k,perUnit:r/k,total:q*r,pk:k,gx:1,rb:rb/k,gp:p.g}); }
+  else s.lines.push({p:p.id,n:p.n,units:q*k,perUnit:r/k,total:q*r,pk:k});
   s.sel=null; $("puSel").innerHTML=""; puLines();
   var i=$("pk_pu_i"); if(i) i.focus();
  };
  function puLines(){
   var s=U.pur, tot=s.lines.reduce(function(a,l){ return a+l.total; },0);
   $("puLines").innerHTML=!s.lines.length?'<div class="tsM" style="text-align:center">'+E(T("വാങ്ങിയ സാധനങ്ങൾ ഒന്ന് ഒന്നായി ചേർക്കുക","Add the items bought one by one"))+'</div>':
-   s.lines.map(function(l,i){ return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.units)+' × '+l.perUnit.toFixed(2)+'</div></div><div><b>'+money(l.total)+'</b> <button class="tsX" onclick="tsPuDel('+i+')">✕</button></div></div>'; }).join("")+
+   s.lines.map(function(l,i){ return '<div class="tsRow"><div>'+E(l.n)+'<div class="tsM">'+qty(l.units)+' × '+(l.gx?l.rb.toFixed(2)+' + '+l.gp+'% GST = '+l.perUnit.toFixed(2):l.perUnit.toFixed(2))+'</div></div><div><b>'+money(l.total)+'</b> <button class="tsX" onclick="tsPuDel('+i+')">✕</button></div></div>'; }).join("")+
    '<div class="tsRow"><span>'+E(T("സാധനങ്ങൾ","Items"))+'</span><b>'+money(tot)+'</b></div>'+
    '<label>'+E(T("കൊണ്ടുവരാനുള്ള ചെലവ് (ട്രാൻസ്പോർട്ട്) - ബില്ലിൽ ഒരു തവണ മാത്രം","Transport for the whole bill (once)"))+'</label><input id="puT" type="number" inputmode="decimal" value="'+E(s.tr)+'" onchange="tsPuHead()">'+
    '<button class="tsBtn" onclick="tsPuNext()">'+E(T("അടുത്തത് → വില ഉറപ്പിക്കുക","Next → selling prices"))+'</button>';
