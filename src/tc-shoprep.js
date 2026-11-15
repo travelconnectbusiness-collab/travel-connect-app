@@ -113,7 +113,7 @@
    (R.recv>0?'<div class="tsRow"><span>💰 '+E(T("കടം തിരിച്ചു കിട്ടിയത്","Credit money received"))+'</span><b>'+money(R.recv)+'</b></div>':'')+
    (R.supPaid>0?'<div class="tsRow"><span>💸 '+E(T("സപ്ലയർക്ക് കൊടുത്തത്","Paid to suppliers"))+'</span><b>'+money(R.supPaid)+'</b></div>':'');
   if(!simple){
-   h+='<div class="tsRow"><span>'+E(T("ലാഭം (വിൽപ്പനയിൽ)","Gross profit"))+'</span><b>'+money(R.profit)+'</b></div>'+
+   h+='<div class="tsRow"><span>'+E((R.gstOut>0?T("ലാഭം (GST ഒഴികെ)","Gross profit (without GST)"):T("ലാഭം (വിൽപ്പനയിൽ)","Gross profit")))+'</span><b>'+money(R.profit)+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("ചെലവ്","Expenses"))+'</span><b>'+money(R.exp)+'</b></div>'+
     '<div class="tsRow"><span>'+E(isAq()?T("ചത്ത മീൻ / നഷ്ടം","Dead fish / loss"):T("നഷ്ടം / കേടായത്","Loss / damaged"))+(R.deadQty?' ('+qty(R.deadQty)+')':'')+'</span><b>'+money(R.dead)+'</b></div>'+
     '<div class="tsRow"><span><b>'+E(R.net>=0?T("അറ്റ ലാഭം","Net profit"):T("അറ്റ നഷ്ടം","Net loss"))+'</b></span><b style="font-size:24px;color:'+(R.net>=0?'#177044':'#a12d2d')+'">'+money(R.net)+'</b></div>';
@@ -122,7 +122,7 @@
   if(typeof window.tsCashCard==="function") h+=window.tsCashCard(d1,d2,isDay,R);   /* tc-shopcash.js: count the drawer cash, difference */
   if(SH.cfg("gst","0")==="1"){
    var gr=Object.keys(R.gst).map(function(k){ return R.gst[k]; }).sort(function(a,b){ return a.rate-b.rate; });
-   h+='<div class="tsC"><b>GST</b> <span class="tsM">'+E(T("(വിലകൾ GST ഉൾപ്പെടെ എന്ന് കണക്കാക്കുന്നു)","(prices are taken as GST-inclusive)"))+'</span>'+
+   h+='<div class="tsC"><b>GST</b> <span class="tsM">'+E(T("(ലാഭത്തിൽ GST ഉൾപ്പെടുത്തിയിട്ടില്ല)","(profit is shown without GST)"))+'</span>'+
     '<div class="tsRow"><span>'+E(T("വിൽപ്പനയിലെ GST","GST on sales"))+'</span><b>'+money(R.gstOut)+'</b></div>'+
     '<div class="tsRow"><span>'+E(T("വാങ്ങലിലെ GST","GST on purchases"))+'</span><b>'+money(R.gstIn)+'</b></div>'+
     '<div class="tsRow"><span><b>'+E(R.gstOut-R.gstIn>=0?T("അടയ്ക്കേണ്ടത്","To pay"):T("തിരിച്ചു കിട്ടാനുള്ളത്","To claim back"))+'</b></span><b style="font-size:22px">'+money(Math.abs(R.gstOut-R.gstIn))+'</b></div>'+
