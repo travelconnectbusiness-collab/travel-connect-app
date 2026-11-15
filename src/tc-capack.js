@@ -106,7 +106,7 @@
    rows.push(line("The shop still owes suppliers / കൊടുക്കാനുള്ളത്",m(Lg.supTotal)));
   }
   rows.push([c("",{border:0}),c("",{border:0})]);
-  rows.push([c("Prices and purchase rates are taken as GST-inclusive. Figures are as entered in the Travel Connect book - please verify before filing.",{border:0,color:"666666",wrap:true}),c("",{border:0})]);
+  rows.push([c("Prices are kept GST-inclusive in the book (items priced without GST are converted at their GST rate when entered; the Sales and Purchases sheets show base value, rate and GST). Figures are as entered in the Travel Connect book - please verify before filing.",{border:0,color:"666666",wrap:true}),c("",{border:0})]);
   out.push({name:"Summary",rows:rows,widths:[62,22]});
 
   /* ---------- Profit & Loss (simple) ---------- */
