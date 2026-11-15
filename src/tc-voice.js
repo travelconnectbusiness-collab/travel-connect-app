@@ -212,6 +212,9 @@
  }
 
  /* ---------- the button ---------- */
+ var ICON_MIC='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3"/></svg>';
+ var ICON_STOP='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>';
+ var ICON_PEN='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>';
  var fab=null;
  function textField(){
   var a=document.activeElement; if(!a) return null;
@@ -227,17 +230,18 @@
  function setFab(){
   if(!fab) return;
   var ok=allowed(); fab.style.display=ok?"flex":"none";
-  fab.style.background=listening?"#d93025":"linear-gradient(135deg,#5b3fb5,#7c5bd6)";
-  fab.firstChild.nodeValue=listening?"⏹":"🎤";
-  var f=textField(); fab.querySelector("i").style.display=f?"block":"none";
+  fab.style.background=listening?"#c5372c":"#0b6b78";
+  fab.style.boxShadow=listening?"0 0 0 5px rgba(197,55,44,.22),0 1px 4px rgba(0,0,0,.3)":"0 1px 4px rgba(0,0,0,.28)";
+  var ic=fab.querySelector("span"); var want=listening?"s":"m"; if(ic.getAttribute("data-i")!==want){ ic.setAttribute("data-i",want); ic.innerHTML=listening?ICON_STOP:ICON_MIC; }
+  var f=textField(); fab.querySelector("i").style.display=f?"flex":"none";
  }
  function makeFab(){
   if(fab||!document.body) return;
   fab=document.createElement("button"); fab.id="tcVoiceFab"; fab.type="button";
   fab.setAttribute("aria-label","Voice");
-  fab.style.cssText="position:fixed;right:12px;bottom:84px;z-index:99990;width:46px;height:46px;border-radius:50%;border:0;color:#fff;font-size:21px;box-shadow:0 2px 8px rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:0;cursor:pointer;opacity:.93";
-  fab.appendChild(document.createTextNode("🎤"));
-  var badge=document.createElement("i"); badge.textContent="✍"; badge.style.cssText="position:absolute;top:-4px;right:-2px;font-style:normal;font-size:13px;background:#fff;border-radius:50%;width:18px;height:18px;line-height:18px;color:#333;display:none";
+  fab.style.cssText="position:fixed;right:14px;bottom:84px;z-index:99990;width:42px;height:42px;border-radius:50%;border:0;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28);display:none;align-items:center;justify-content:center;padding:0;cursor:pointer;opacity:.92;position:fixed;-webkit-tap-highlight-color:transparent";
+  var ic=document.createElement("span"); ic.style.cssText="display:flex;line-height:0"; fab.appendChild(ic);
+  var badge=document.createElement("i"); badge.innerHTML=ICON_PEN; badge.style.cssText="position:absolute;top:-3px;right:-3px;background:#fff;border-radius:50%;width:17px;height:17px;color:#0b6b78;display:none;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(0,0,0,.15)";
   fab.appendChild(badge);
   /* keep the cursor in the text box while the button is tapped */
   fab.addEventListener("pointerdown",function(e){ e.preventDefault(); });
@@ -266,11 +270,11 @@
  var pending=null, last=null;
  function sheetHtml(){
   var l=lang();
-  return '<div style="font-weight:700;font-size:16px;margin-bottom:6px">🎤 '+E(tr("Say it","പറയൂ"))+'</div>'+
-   '<div style="display:flex;gap:6px;margin-bottom:6px"><button type="button" id="tcVoMic" style="flex:1;padding:12px;border:0;border-radius:12px;background:#5b3fb5;color:#fff;font-size:16px">🎤 '+E(tr("Tap and speak","അമർത്തി പറയൂ"))+'</button>'+
+  return '<div style="font-weight:700;font-size:16px;margin-bottom:8px;color:#0b6b78">'+E(tr("Say it","പറയൂ"))+'</div>'+
+   '<div style="display:flex;gap:6px;margin-bottom:6px"><button type="button" id="tcVoMic" style="flex:1;padding:12px;border:0;border-radius:12px;background:#0b6b78;color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="display:flex;line-height:0">'+ICON_MIC+'</span>'+E(tr("Tap and speak","അമർത്തി പറയൂ"))+'</button>'+
    '<button type="button" id="tcVoLg" style="padding:0 12px;border:1px solid #bbb;border-radius:12px;background:#fff;font-size:13px">'+(l==="ml-IN"?"മലയാളം":"English")+'</button></div>'+
    '<textarea id="tcVoTx" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #bbb;border-radius:10px;padding:8px;font-size:15px" placeholder="'+E(tr("what you said appears here - you can also type","പറഞ്ഞത് ഇവിടെ വരും - ടൈപ്പ് ചെയ്യുകയും ആവാം"))+'"></textarea>'+
-   '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoGo" style="flex:1;padding:10px;border:0;border-radius:10px;background:#148c76;color:#fff;font-size:15px">'+E(tr("Do it","ചെയ്യൂ"))+'</button><button type="button" id="tcVoX" style="padding:10px 14px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("Close","അടയ്ക്കുക"))+'</button></div>'+
+   '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoGo" style="flex:1;padding:10px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Do it","ചെയ്യൂ"))+'</button><button type="button" id="tcVoX" style="padding:10px 14px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("Close","അടയ്ക്കുക"))+'</button></div>'+
    '<div id="tcVoOut" style="margin-top:8px"></div>'+
    '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
  }
@@ -295,9 +299,9 @@
   if(r.kind==="confirm"){
    pending=r;
    h='<div style="background:#fff6df;border-radius:10px;padding:10px;font-size:15px">'+E(msg)+'</div>'+
-    '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoYes" style="flex:1;padding:11px;border:0;border-radius:10px;background:#148c76;color:#fff;font-size:15px">✔ '+E(tr("Yes, save","ശരി, സേവ് ചെയ്യൂ"))+'</button><button type="button" id="tcVoNo" style="padding:11px 16px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">✖</button></div>';
+    '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoYes" style="flex:1;padding:11px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Yes, save","ശരി, സേവ് ചെയ്യൂ"))+'</button><button type="button" id="tcVoNo" style="padding:11px 16px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("No","വേണ്ട"))+'</button></div>';
   }else if(r.kind==="answer"){
-   h='<div style="background:#eef6f1;border-radius:10px;padding:10px;font-size:15px;line-height:1.45">'+E(msg)+'</div>'+(window.speechSynthesis?'<button type="button" id="tcVoSay" style="margin-top:6px;padding:8px 12px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:13px">🔊 '+E(tr("Read aloud","വായിച്ച് കേൾപ്പിക്കൂ"))+'</button>':'');
+   h='<div style="background:#eef6f1;border-radius:10px;padding:10px;font-size:15px;line-height:1.45">'+E(msg)+'</div>'+(window.speechSynthesis?'<button type="button" id="tcVoSay" style="margin-top:6px;padding:8px 12px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:13px">'+E(tr("Read aloud","വായിച്ച് കേൾപ്പിക്കൂ"))+'</button>':'');
   }else if(r.kind==="open"){
    closeSheet(); try{ r.fn(); }catch(e){} return;
   }else h='<div style="background:#fdecec;border-radius:10px;padding:10px;font-size:14px;line-height:1.4">'+E(msg)+'</div>';
