@@ -251,10 +251,10 @@
     A book that has no list yet uses the single wage settings (wsal / wage / wageName) as one person, id "w0". */
  function staff(){
   var j=cfg("staff","");
-  if(j){ try{ var L=JSON.parse(j); if(Array.isArray(L)) return L.map(function(p){ return {id:String(p.id||""),n:String(p.n||""),sal:+p.sal>0?+p.sal:0,pc:+p.pc>0?+p.pc:0,s:p.s||"",e:p.e||"",b:p.b==="own"?"own":""}; }).filter(function(p){ return p.id; }); }catch(e){} }
+  if(j){ try{ var L=JSON.parse(j); if(Array.isArray(L)) return L.map(function(p){ return {id:String(p.id||""),n:String(p.n||""),sal:+p.sal>0?+p.sal:0,pc:+p.pc>0?+p.pc:0,s:p.s||"",e:p.e||"",b:p.b==="own"?"own":"",m:p.m==="pf"?"pf":""}; }).filter(function(p){ return p.id; }); }catch(e){} }
   if(!wageOn()) return [];
   var sal=wageSal(), pc=wageRate(), nmv=String(cfg("wageName","")||"");
-  return (sal>0||pc>0||nmv)?[{id:"w0",n:nmv,sal:sal,pc:pc,s:"",e:"",b:""}]:[];
+  return (sal>0||pc>0||nmv)?[{id:"w0",n:nmv,sal:sal,pc:pc,s:"",e:"",b:"",m:""}]:[];
  }
  function setStaff(L){ return setCfg("staff",JSON.stringify(L)); }
  function wageRate(){ var v=parseFloat(cfg("wage","")); return isNaN(v)?(hasWage()?10:0):v; }
@@ -272,7 +272,7 @@
  /* ---------- reports ---------- */
  function inRange(d,a,b){ return d>=a&&d<=b; }
  function report(d1,d2){
-  var M=calc(), P=M.P, wl=[], R={d1:d1,d2:d2,sales:0,costX:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},sb:{},credit:0,recv:0,recvCash:0,recvUpi:0,recvCard:0,recvBank:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
+  var M=calc(), P=M.P, wl=[], R={d1:d1,d2:d2,sales:0,costX:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},sb:{},xd:{},xsb:{},pd:{},psb:{},credit:0,recv:0,recvCash:0,recvUpi:0,recvCard:0,recvBank:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
   /* GST tally: prices and purchase rates are taken as GST-INCLUSIVE; a record carries the rate it was made with (gr) */
   function G(rt){ return R.gst[rt]||(R.gst[rt]={rate:+rt,outBase:0,outTax:0,inBase:0,inTax:0}); }
   M.live.forEach(function(r){
@@ -286,6 +286,10 @@
     R.lines.push({r:r,p:p,tot:tot,cost:cost,costX:costX});
     R.days[r.d]=(R.days[r.d]||0)+tot;
     if(x.sb){ var sbd=R.sb[x.sb]||(R.sb[x.sb]={}); sbd[r.d]=(sbd[r.d]||0)+tot; }   /* sold by (staff id) */
+    /* what a share-of-sales wage is worked out on: the money the shop really keeps - sales WITHOUT GST (xd / xsb), or the profit without GST (pd / psb). GST is never commissioned. */
+    var tx2=+x.gr>0?tot*x.gr/(100+ +x.gr):0, lp=tot-tx2-costX;
+    R.xd[r.d]=(R.xd[r.d]||0)+tot-tx2; R.pd[r.d]=(R.pd[r.d]||0)+lp;
+    if(x.sb){ var xb=R.xsb[x.sb]||(R.xsb[x.sb]={}), pb=R.psb[x.sb]||(R.psb[x.sb]={}); xb[r.d]=(xb[r.d]||0)+tot-tx2; pb[r.d]=(pb[r.d]||0)+lp; }
    }else if(r.k==="e"){
     var a=+x.a||0; R.exp+=a; R.expBy[x.c||"Other"]=(R.expBy[x.c||"Other"]||0)+a; R.expList.push(r);
     if(x.c==="Wage"){ R.wagePaid+=a; wl.push({w:x.w||"",t:x.t||"",a:a}); }
@@ -308,11 +312,12 @@
   if(wageOn()){
    var SL=staff(), byId={}; SL.forEach(function(p){ byId[p.id]=p; });
    R.staff=SL.map(function(p){
-    var inR=function(d){ return (!p.s||d>=p.s)&&(!p.e||d<=p.e); }, shopSold=0, own=0, mine=R.sb[p.id]||{};
-    Object.keys(R.days).forEach(function(d){ if(inR(d)) shopSold+=R.days[d]; });
-    Object.keys(mine).forEach(function(d){ if(inR(d)) own+=mine[d]; });
-    var base=p.b==="own"?own:shopSold, pct=Math.floor(base/100)*p.pc, sal=salaryFor(p.sal,d1,d2,p.s,p.e);   /* share of the whole shop's sales, or only what this person sold (b:"own") */
-    return {id:p.id,n:p.n,sal:sal,pct:pct,due:sal+pct,paid:0,left:0,pc:p.pc,msal:p.sal,own:own,b:p.b};
+    var inR=function(d){ return (!p.s||d>=p.s)&&(!p.e||d<=p.e); }, shopSold=0, own=0, pf=p.m==="pf";
+    var DAYS=pf?R.pd:R.xd, MINE=(pf?R.psb:R.xsb)[p.id]||{};   /* sales without GST, or profit without GST - per person's choice (m) */
+    Object.keys(DAYS).forEach(function(d){ if(inR(d)) shopSold+=DAYS[d]; });
+    Object.keys(MINE).forEach(function(d){ if(inR(d)) own+=MINE[d]; });
+    var base=Math.max(0,p.b==="own"?own:shopSold), pct=Math.floor(base/100)*p.pc, sal=salaryFor(p.sal,d1,d2,p.s,p.e);   /* share of the whole shop, or only what this person sold (b:"own") */
+    return {id:p.id,n:p.n,sal:sal,pct:pct,due:sal+pct,paid:0,left:0,pc:p.pc,msal:p.sal,own:own,b:p.b,m:p.m||""};
    });
    wl.forEach(function(w){
     var t=null; R.staff.forEach(function(p){ if(w.w&&p.id===w.w) t=p; });
