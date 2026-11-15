@@ -76,7 +76,7 @@
    rows.push(line("  of which GST paid on purchases / വാങ്ങലിലെ GST",m(R.gstIn)));
    rows.push(line("Expenses / ചെലവ്",m(R.exp)));
    rows.push(line("Dead / damaged stock / നഷ്ടം",m(R.dead)));
-   rows.push(line("Gross profit on sales / ലാഭം",m(R.profit)));
+   rows.push(line("Gross profit on sales, without GST / ലാഭം",m(R.profit)));
    rows.push(line("NET PROFIT / അറ്റ ലാഭം",m(R.net,{b:true,color:R.net>=0?"177044":"A12D2D"}),{color:R.net>=0?"177044":"A12D2D"}));
    outGst+=R.gstOut; inGst+=R.gstIn;
    rows.push([c("",{border:0}),c("",{border:0})]);
@@ -112,9 +112,11 @@
   /* ---------- Profit & Loss (simple) ---------- */
   if(haveShop&&R){
    rows=[hdr(["Profit & Loss - "+mname(mon)+" / ലാഭ-നഷ്ടം","Amount / തുക"])];
-   var sales=R.sales, cost=R.cost;
-   rows.push([c("Sales (as billed) / വിൽപ്പന"),m(sales)]);
-   rows.push([c("Cost of the goods sold / വിറ്റ സാധനങ്ങളുടെ വില"),m(-cost)]);
+   var sales=R.sales-R.gstOut, cost=R.costX;
+   rows.push([c("Sales as billed (with GST) / വിൽപ്പന"),m(R.sales)]);
+   if(R.gstOut>0) rows.push([c("  less GST collected / പിരിച്ച GST"),m(-R.gstOut)]);
+   rows.push([c("Sales without GST / GST ഇല്ലാത്ത വിൽപ്പന"),m(sales)]);
+   rows.push([c("Cost of the goods sold (without GST) / വിറ്റ സാധനങ്ങളുടെ വില"),m(-cost)]);
    rows.push([c("Gross profit / ലാഭം",{b:true,bg:TOT}),m(sales-cost,{b:true,bg:TOT})]);
    Object.keys(R.expBy).sort().forEach(function(k){ rows.push([c("  Expense - "+k),m(-R.expBy[k])]); });
    rows.push([c("Total expenses / ആകെ ചെലവ്"),m(-R.exp)]);
@@ -122,7 +124,7 @@
    var net=sales-cost-R.exp-R.dead;
    rows.push([c("NET PROFIT / (LOSS)  അറ്റ ലാഭം / നഷ്ടം",{b:true,bg:TOT}),m(net,{b:true,bg:TOT,color:net>=0?"177044":"A12D2D"})]);
    rows.push([c("",{border:0}),c("",{border:0})]);
-   rows.push([c("Sales and costs are as entered in the book (GST-inclusive); GST collected and paid is shown in the Summary sheet. Taxi bills are not part of this statement - see 'Taxi GST bills'.",{border:0,color:"666666",wrap:true}),c("",{border:0})]);
+   rows.push([c("Profit is worked out without GST: GST collected is not income and GST paid on purchases is not a cost (it is set off in the GST summary). Dead / damaged stock is shown at its full cost. Taxi bills are not part of this statement - see 'Taxi GST bills'.",{border:0,color:"666666",wrap:true}),c("",{border:0})]);
    out.push({name:"Profit & Loss",rows:rows,widths:[62,22]});
   }
 
