@@ -178,7 +178,7 @@
    var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
    var avg=den>0?(ov+a.pv)/den:0;
    if(!(avg>0)&&+p.ec>0) avg=+p.ec;   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
-   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,mp:p.mp===""||p.mp==null||isNaN(+p.mp)?null:+p.mp,als:ex.als,off:!!p.off,rc:p.rc||null,
+   P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,gx:+p.gx?1:0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,mp:p.mp===""||p.mp==null||isNaN(+p.mp)?null:+p.mp,als:ex.als,off:!!p.off,rc:p.rc||null,
     pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
