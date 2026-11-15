@@ -158,11 +158,11 @@
    Object.keys(prods).forEach(function(i){ if(prods[i].rc&&prods[i].rc.length) prods[i]=Object.assign({},prods[i],{rc:prods[i].rc.map(function(c){ return {i:canon(c.i),q:c.q}; })}); });
   }
   Object.keys(MG).forEach(function(i){ delete prods[i]; }); Object.keys(GONE).forEach(function(i){ delete prods[i]; });
-  var A={}; Object.keys(prods).forEach(function(i){ A[i]={pq:0,pv:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:0}; });
-  function acc(i){ return A[i]||(A[i]={pq:0,pv:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:0,missing:1}); }
+  var A={}; Object.keys(prods).forEach(function(i){ A[i]={pq:0,pv:0,pt:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:""}; });
+  function acc(i){ return A[i]||(A[i]={pq:0,pv:0,pt:0,sq:0,sv:0,dq:0,adj:0,last:"",lastBuy:"",missing:1}); }
   live.forEach(function(r){
    var x=r.x||{}, a;
-   if(r.k==="b"&&x.p){ a=acc(x.p); a.pq+=+x.q||0; a.pv+=(+x.q||0)*(+x.rt||0)+(+x.tr||0); a.lastBuy=r.d>a.lastBuy?r.d:a.lastBuy; }
+   if(r.k==="b"&&x.p){ a=acc(x.p); a.pq+=+x.q||0; a.pv+=(+x.q||0)*(+x.rt||0)+(+x.tr||0); if(+x.gr>0) a.pt+=((+x.q||0)*(+x.rt||0)+(+x.tr||0))*x.gr/(100+ +x.gr); a.lastBuy=r.d>a.lastBuy?r.d:a.lastBuy; }
    else if(r.k==="s"&&x.p){
     var pr=prods[x.p];
     var rcs=x.rc&&x.rc.length?x.rc:(pr&&pr.rc&&pr.rc.length?pr.rc:null);   /* the sale keeps the recipe it was made with, so changing a recipe later never rewrites old stock */
@@ -176,15 +176,15 @@
   var P={};
   Object.keys(prods).forEach(function(i){
    var p=prods[i], a=A[i], ex=EX[i]||{oq:0,ov:0,als:[]}, oq=(+p.oq||0)+ex.oq, ov=(+p.ov||0)+ex.ov, den=(ov>0?oq:0)+a.pq;   /* opening stock without a known value does not pull the average cost down */
-   var avg=den>0?(ov+a.pv)/den:0;
-   if(!(avg>0)&&+p.ec>0) avg=+p.ec;   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
+   var avg=den>0?(ov+a.pv)/den:0, avgx=den>0?Math.max(0,(ov+a.pv-a.pt)/den):0;   /* avgx = cost each WITHOUT the GST paid on purchases (that GST is claimed back, it is not a cost) */
+   if(!(avg>0)&&+p.ec>0){ avg=+p.ec; avgx=avg; }   /* estimated cost each, used until real purchases are entered (weighed / measured items) */
    P[i]={id:i,n:p.n||"?",t:p.t||"i",c:p.c||"Other",pk:+p.pk||1,pr:+p.pr||0,g:+p.g||0,gx:+p.gx?1:0,lo:p.lo===""||p.lo==null?null:+p.lo,oq:oq,ov:ov,al:p.al||"",u:p.u||"",nt:!!p.nt,ec:+p.ec||0,mp:p.mp===""||p.mp==null||isNaN(+p.mp)?null:+p.mp,als:ex.als,off:!!p.off,rc:p.rc||null,
-    pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,avg:avg,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
+    pq:a.pq,sq:a.sq,sv:a.sv,dq:a.dq,adj:a.adj,last:a.last,lb:a.lastBuy,avg:avg,avgx:avgx,stock:p.nt?null:oq+a.pq-a.sq-a.dq+a.adj,raw:p};
   });
   Object.keys(P).forEach(function(i){
    var p=P[i];
    if(p.rc&&p.rc.length){
-    p.avg=p.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0); p.stock=null; p.comp=true;
+    p.avg=p.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0); p.avgx=p.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avgx:0)*(+c.q||0); },0); p.stock=null; p.comp=true;
     /* how many can still be made from the parts in stock */
     p.can=null; p.rc.forEach(function(c){ var q=P[c.i], n=(+c.q||0)>0&&q&&q.stock!=null?Math.max(0,Math.floor(q.stock/(+c.q)+1e-9)):null; if(n!=null&&(p.can==null||n<p.can)) p.can=n; });
    }
@@ -202,6 +202,10 @@
  function unitCost(x,P){
   if(x&&x.rc&&x.rc.length) return x.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avg:0)*(+c.q||0); },0);
   var p=x&&P[x.p]; return p?p.avg:0;
+ }
+ function unitCostX(x,P){
+  if(x&&x.rc&&x.rc.length) return x.rc.reduce(function(s,c){ var q=P[c.i]; return s+(q?q.avgx:0)*(+c.q||0); },0);
+  var p=x&&P[x.p]; return p?p.avgx:0;
  }
  function products(opt){
   opt=opt||{}; var M=calc();
@@ -268,18 +272,18 @@
  /* ---------- reports ---------- */
  function inRange(d,a,b){ return d>=a&&d<=b; }
  function report(d1,d2){
-  var M=calc(), P=M.P, wl=[], R={d1:d1,d2:d2,sales:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},sb:{},credit:0,recv:0,recvCash:0,recvUpi:0,recvCard:0,recvBank:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
+  var M=calc(), P=M.P, wl=[], R={d1:d1,d2:d2,sales:0,costX:0,cash:0,upi:0,card:0,bank:0,other:0,cost:0,profit:0,lines:[],exp:0,expBy:{},expList:[],dead:0,deadQty:0,deadList:[],bought:0,wage:0,wagePaid:0,days:{},sb:{},credit:0,recv:0,recvCash:0,recvUpi:0,recvCard:0,recvBank:0,supPaid:0,gst:{},gstOut:0,gstIn:0};
   /* GST tally: prices and purchase rates are taken as GST-INCLUSIVE; a record carries the rate it was made with (gr) */
   function G(rt){ return R.gst[rt]||(R.gst[rt]={rate:+rt,outBase:0,outTax:0,inBase:0,inTax:0}); }
   M.live.forEach(function(r){
    if(!inRange(r.d,d1,d2)) return;
    var x=r.x||{}, p=P[x.p];
    if(r.k==="s"){
-    var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*unitCost(x,P);
-    R.sales+=tot; R.cost+=cost;
+    var tot=(+x.q||0)*(+x.pr||0), cost=(+x.q||0)*unitCost(x,P), costX=(+x.q||0)*unitCostX(x,P);
+    R.sales+=tot; R.cost+=cost; R.costX+=costX;
     var pp=payParts(x,tot); Object.keys(pp).forEach(function(m){ var v=pp[m]; if(m==="U") R.upi+=v; else if(m==="D") R.card+=v; else if(m==="B") R.bank+=v; else if(m==="O") R.other+=v; else if(m==="K") R.credit+=v; else R.cash+=v; });
     if(+x.gr>0){ var tx=tot*x.gr/(100+ +x.gr), g=G(x.gr); g.outBase+=tot-tx; g.outTax+=tx; R.gstOut+=tx; }
-    R.lines.push({r:r,p:p,tot:tot,cost:cost});
+    R.lines.push({r:r,p:p,tot:tot,cost:cost,costX:costX});
     R.days[r.d]=(R.days[r.d]||0)+tot;
     if(x.sb){ var sbd=R.sb[x.sb]||(R.sb[x.sb]={}); sbd[r.d]=(sbd[r.d]||0)+tot; }   /* sold by (staff id) */
    }else if(r.k==="e"){
@@ -296,7 +300,9 @@
     R.supPaid+=+x.a||0;
    }
   });
-  R.profit=R.sales-R.cost; R.net=R.profit-R.exp-R.dead;
+  /* profit WITHOUT GST: the GST collected on sales belongs to the government and the GST paid on purchases is claimed back, so neither is profit or cost
+     (with no GST in the book gstOut = 0 and costX = cost, so nothing changes) */
+  R.profit=R.sales-R.gstOut-R.costX; R.net=R.profit-R.exp-R.dead;
   /* wages per person: salary share + (Rs. per full Rs.100 of the shop's sales on the days the person was there); payments carry the person's id (w) */
   R.staff=[]; R.wagePct=0; R.wageSal=0; R.wageOther=0;
   if(wageOn()){
