@@ -114,7 +114,7 @@
  function title(){
   var t=TITLE[S.screen]||["",""], s=B(t[0],t[1]);
   if(S.screen==="person") s=S.params.name||"";
-  if(S.screen==="gperson"||S.screen==="gevent"||S.screen==="chit") s=S.params.title||"";
+  if(S.screen==="gperson"||S.screen==="gevent"||S.screen==="chit"||S.screen==="bill") s=S.params.title||"";   /* "bill" was missing: the page of one bill had an empty heading */
   return s;
  }
  function render(){
@@ -151,6 +151,8 @@
  window.addEventListener("popstate",function(){
   if(!S.open) return;
   if(history.state&&history.state.tcPers) return;
+  /* the phone's Back button while an entry box is open: only the box closes (it used to jump a whole screen back and the typing was lost) */
+  if($("tpSheet")){ closeSheet(); try{ history.pushState({tcPers:1},"",location.href); }catch(e){} return; }
   if(S.screen!=="home"){ try{ history.pushState({tcPers:1},"",location.href); }catch(e){} go(UP[S.screen]||"home"); }
   else{ S.open=false; hide(); }
  });
@@ -164,7 +166,7 @@
   var pe=persons(), owedMe=0, iOwe=0;
   pe.forEach(function(p){ if(p.bal>0) owedMe+=p.bal; else if(p.bal<0) iOwe-=p.bal; });
   var gv=0,gt=0,gn=0; mine(K.g).forEach(function(r){ gn++; if(r.w==="gave") gv+=r.a; else gt+=r.a; });
-  var cloud=(typeof tcBkEligible==="function")&&tcBkEligible(), n=mine(K.m).length+mine(K.l).length+gn;
+  var cloud=(typeof tcBkEligible==="function")&&tcBkEligible(), n=0; Object.keys(K).forEach(function(c){ n+=mine(K[c]).length; });   /* every book counts (chitty and bills too) for the "no backup file" warning */
   var last=(typeof db!=="undefined"&&db.settings&&db.settings.persBkAt)||0, old=!last||(Date.now()-last)>30*86400000;
   var note=cloud?'<div class="tpNote tpOkN">☁ '+E(B("Your Premium Cloud Backup keeps these accounts safe automatically.","നിങ്ങളുടെ Premium ക്ലൗഡ് ബാക്കപ്പ് ഈ കണക്കുകൾ തനിയെ സുരക്ഷിതമായി സൂക്ഷിക്കും."))+'</div>':
    '<div class="tpNote">📱 '+E(B("These accounts are stored only on THIS phone (free). If the phone is lost or the app data is cleared, they are lost - take a backup file now and then.","ഈ കണക്കുകൾ ഈ ഫോണിൽ മാത്രമാണ് സൂക്ഷിക്കുന്നത് (സൗജന്യം). ഫോൺ നഷ്ടപ്പെട്ടാലോ ആപ്പ് ഡാറ്റ ക്ലിയർ ചെയ്താലോ പോകും - ഇടയ്ക്കിടെ ബാക്കപ്പ് ഫയൽ എടുത്തുവയ്ക്കൂ."))+'</div>'+
