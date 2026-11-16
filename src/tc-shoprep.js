@@ -49,7 +49,7 @@
     '<div class="tsRow"><span>'+E(T("നിർദേശിക്കുന്ന വില","Suggested price"))+' ('+p.mg+'%)</span><b>'+(p.sugg>0?money(p.sugg):"—")+'</b></div>')+
    '<div class="tsRow"><span>'+E(T("അവസാനം വിറ്റത്","Last sold"))+'</span><b>'+E(last||"—")+'</b></div>'+
    (p.comp||p.nt?'':'<button class="tsBtn" onclick="tsStAdj(\''+id+'\')">🔢 '+E(T("എണ്ണം ശരിയാക്കുക","Correct the count"))+'</button>')+
-   '<button class="tsBtn g" onclick="tsCloseSheet();tsStEdit(\''+id+'\')">✏ '+E(T("വിലയും വിവരങ്ങളും മാറ്റുക","Edit price / details"))+'</button>'+
+   '<button class="tsBtn g" onclick="tsCloseSheet();tsStEdit(\''+id+'\')">✏ '+E(T("പേര്, വില, വിവരങ്ങൾ തിരുത്തുക","Edit name / price / details"))+'</button>'+
    '<button class="tsBtn g" onclick="tsStHist(\''+id+'\')">📜 '+E(T("ചരിത്രം","History"))+'</button>'+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("അടയ്ക്കുക","Close"))+'</button>');
  };
