@@ -80,6 +80,29 @@
   /* 10. GST so far this month */
   if(SH.cfg("gst","0")==="1"&&(cur.gstOut>0||cur.gstIn>0)){ var gp=cur.gstOut-cur.gstIn;
    add(0,"🧮",gp>=0?"ഈ മാസം ഇതുവരെ അടയ്ക്കേണ്ട GST ഏകദേശം "+money(gp)+" (പിരിച്ചത് "+money(cur.gstOut)+", കൊടുത്തത് "+money(cur.gstIn)+").":"ഈ മാസം ഇതുവരെ GST "+money(-gp)+" തിരിച്ചു കിട്ടാനുണ്ട്.",gp>=0?"GST to pay so far this month is about "+money(gp)+" (collected "+money(cur.gstOut)+", paid "+money(cur.gstIn)+").":"GST of "+money(-gp)+" is to be claimed back this month so far."); }
+  /* ---- the item list itself: things that look entered wrongly (the owner corrects them in Stock > item > Edit) ---- */
+  function bg(x){ x=String(x||"").toLowerCase().replace(/[^a-z0-9\u0d00-\u0d7f]/g,""); var m={}, k=0; for(var i=0;i<x.length-1;i++){ m[x.substr(i,2)]=(m[x.substr(i,2)]||0)+1; k++; } return {m:m,n:k,s:x}; }
+  var BG=prods.map(function(p){ return bg(p.n); }), pairs=[];
+  for(var a1=0;a1<prods.length&&prods.length<=600;a1++) for(var b1=a1+1;b1<prods.length;b1++){
+   var A=BG[a1], B2=BG[b1]; if(A.n<3||B2.n<3||Math.abs(A.n-B2.n)>3) continue;
+   var cm=0; Object.keys(A.m).forEach(function(k){ if(B2.m[k]) cm+=Math.min(A.m[k],B2.m[k]); });
+   var sc=2*cm/(A.n+B2.n);
+   if(sc>=0.82&&A.s.replace(/[0-9]/g,"")===B2.s.replace(/[0-9]/g,"")&&A.s!==B2.s) continue;   /* "Tank 12 inch" / "Tank 18 inch": sizes, not a spelling slip */
+   if(sc>=0.82) pairs.push(prods[a1].n+" / "+prods[b1].n);
+  }
+  if(pairs.length) add(1,"🔀","ഒരേ സാധനം രണ്ട് പേരിൽ ചേർത്തതായി തോന്നുന്നു: "+pairs.slice(0,3).join("; ")+(pairs.length>3?" +"+(pairs.length-3):"")+". സ്റ്റോക്കിൽ ആ ഇനം തുറന്ന് 'ഒന്നാക്കുക' അമർത്താം (ഒരേ സ്റ്റോക്ക് ആണെങ്കിൽ ഇരട്ടിയാകില്ല).","These look like one item under two names: "+pairs.slice(0,3).join("; ")+(pairs.length>3?" +"+(pairs.length-3):"")+". Open the item in Stock and tap Merge (the stock will not double if it is the same stock).");
+  /* fish kept under a goods category, or goods under Fish (aquarium shops) */
+  if(SH.kind&&SH.kind()==="aquarium"){
+   var wc=prods.filter(function(p){ return (p.t==="f"&&p.c!=="Fish"&&/^(Other|Food|Medicine|Tank|Equipment|Accessories)$/i.test(p.c))||(p.t!=="f"&&p.c==="Fish"); });
+   if(wc.length) add(1,"🗂","വിഭാഗം തെറ്റിയതായി തോന്നുന്നു (മീൻ / സാധനം): "+names(wc,4)+". ഇനം തുറന്ന് 'തിരുത്തുക'-യിൽ തരവും വിഭാഗവും മാറ്റാം.","Category looks wrong (fish / goods): "+names(wc,4)+". Open the item and change its kind and category in Edit.");
+  }
+  /* sold in fractions but still counted as pieces: it is really a kg / litre / metre item */
+  var frac={}; SH.calc().live.forEach(function(r){ if(r.k==="s"&&r.x&&r.x.p){ var q=+r.x.q||0; if(Math.abs(q-Math.round(q))>1e-6) frac[r.x.p]=1; } });
+  var fu=prods.filter(function(p){ return frac[p.id]&&!p.u&&!p.comp; });
+  if(fu.length) add(1,"⚖","അളവ് വച്ചിട്ടില്ല, പക്ഷേ ഭാഗികമായി വിറ്റിട്ടുണ്ട്: "+names(fu,4)+". ഇവ കിലോ / ലിറ്റർ / മീറ്റർ കണക്കിനാണെങ്കിൽ ഇനം തുറന്ന് അളവ് തിരഞ്ഞെടുക്കൂ.","Sold in fractions but no unit is set: "+names(fu,4)+". If these go by kg / litre / metre, open the item and choose the unit.");
+  /* no selling price */
+  var np=prods.filter(function(p){ return !(p.pr>0)&&!p.comp; });
+  if(np.length) add(0,"🏷","വിൽപ്പന വില ചേർക്കാത്ത ഇനങ്ങൾ: "+names(np,4)+".","Items with no selling price: "+names(np,4)+".");
   out.sort(function(a,b){ return b.sev-a.sev; });
   return out;
  }
