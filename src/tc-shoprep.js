@@ -149,7 +149,15 @@
   if(isDay){
    var by={}; R.lines.forEach(function(l){ var k=l.r.x.p; (by[k]=by[k]||{n:l.p?l.p.n:"?",q:0,t:0}); by[k].q+=+l.r.x.q||0; by[k].t+=l.tot; });
    var items=Object.keys(by).map(function(k){ return by[k]; }).sort(function(a,b){ return b.t-a.t; });
-   if(items.length) h+='<div class="tsC"><b>'+E(T("വിറ്റവ","Sold"))+'</b>'+items.map(function(i){ return '<div class="tsRow"><span>'+E(i.n)+' <span class="tsM">× '+qty(i.q)+'</span></span><b>'+money(i.t)+'</b></div>'; }).join("")+'</div>';
+   /* every sale on its own line, in the order it was made (time, items, customer, how it was paid) - tap a line to see / change it or give the bill; the totals per item are folded below */
+   var BG={}, bord=[];
+   R.lines.forEach(function(l){ var k=l.r.x.g||l.r.id; if(!BG[k]){ BG[k]={k:k,ls:[],tot:0,ts:l.r.ts}; bord.push(BG[k]); } BG[k].ls.push(l); BG[k].tot+=l.tot; if(l.r.ts<BG[k].ts) BG[k].ts=l.r.ts; });
+   bord.sort(function(a,b){ return a.ts<b.ts?-1:a.ts>b.ts?1:0; });
+   function hm(ts){ var x=new Date(ts); return isNaN(x)?"":H.pad(x.getHours())+":"+H.pad(x.getMinutes()); }
+   if(bord.length) h+='<div class="tsC"><b>'+E(T("വിൽപ്പനകൾ","Sales"))+' ('+bord.length+')</b><div class="tsM">'+E(T("ഒരു വരിയിൽ അമർത്തി വിവരം / ബില്ല് കാണുക","Tap a line for details / the bill"))+'</div>'+bord.map(function(g){ var x=g.ls[0].r.x;
+    return '<div class="tsRow" onclick="if(window.tsEntry)tsEntry(\''+UI.enc(g.k)+'\')"><div><span class="tsM">'+E(hm(g.ts))+'</span>'+g.ls.map(function(l){ var y=l.r.x, u=l.p&&l.p.u?" "+l.p.u:""; return '<div>'+E(l.p?l.p.n:"?")+' <span class="tsM">'+qty(y.q)+E(u)+' × '+UI.rt(y.rp||y.pr)+'</span></div>'; }).join("")+
+     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(UI.pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b>'+((typeof window.tsBillSheet==="function"&&!x.dk)?' <button class="tsX" style="width:auto;padding:0 8px" onclick="event.stopPropagation();tsBillSheet(\''+UI.enc(g.k)+'\')">🧾</button>':'')+'</div></div>'; }).join("")+'</div>';
+   if(items.length) h+='<div class="tsC"><details><summary style="font-weight:700;font-size:15px;color:#35566a">'+E(T("ഇനം തിരിച്ച് ആകെ","Total per item"))+'</summary>'+items.map(function(i){ return '<div class="tsRow"><span>'+E(i.n)+' <span class="tsM">× '+qty(i.q)+'</span></span><b>'+money(i.t)+'</b></div>'; }).join("")+'</details></div>';
    if(R.expList.length) h+='<div class="tsC"><b>'+E(T("ചെലവുകൾ","Expenses"))+'</b>'+R.expList.map(function(e){ return '<div class="tsRow"><span>'+E(ecName(e.x.c))+(e.x.t?' <span class="tsM">'+E(e.x.t)+'</span>':'')+'</span><b>'+money(e.x.a)+'</b></div>'; }).join("")+'</div>';
   }else{
    var cats=Object.keys(R.expBy);
