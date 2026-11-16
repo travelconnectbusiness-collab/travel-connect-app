@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
   price_premium_month: "299",
   price_plus_year: "99",
   price_premium_year: "999",
-  price_platinum_year: "2999",   /* Platinum: always yearly, for shops and other non-vehicle businesses */
+  price_platinum_year: "2999",   /* Platinum: always yearly, for every kind of business (taxi / travel too) */
   upi_id: "",
   upi_name: "Travel Connect",
 };
@@ -199,7 +199,7 @@ export async function onRequestGet({ request, env }) {
         platinum: planLevel(p) >= 3 ? 1 : 0,
       },
       period: periodFor(p.business_type),
-      platinum_ok: !VEHICLE_TYPES.includes(p.business_type || "taxi_travel"),
+      platinum_ok: true,
       prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
       email_ready: !!env.RESEND_API_KEY,
@@ -346,7 +346,6 @@ export async function onRequestPost({ request, env }) {
     if (!p.email_verified) return j({ ok: false, error: "email_not_verified" }, 403);
     const plan = (field("plan") || "").toString();
     if (plan !== "paid" && plan !== "premium" && plan !== "platinum") return j({ ok: false, error: "bad_plan" }, 400);
-    if (plan === "platinum" && VEHICLE_TYPES.includes(p.business_type || "taxi_travel")) return j({ ok: false, error: "bad_plan" }, 400);
     if (p.plan === "owner_free" || p.plan === "owner_plus") return j({ ok: false, error: "owner_plan" }, 409);
     const pend = await env.DB.prepare("SELECT 1 AS x FROM upgrade_requests WHERE partner_id=? AND status='pending'").bind(p.id).first();
     if (pend) return j({ ok: false, error: "already_pending" }, 409);
@@ -460,14 +459,13 @@ export async function onRequestPost({ request, env }) {
     return j({ ok: true });
   }
 
-  /* Admin: give / take away Platinum for the shop (or other non-vehicle business) with this number. Platinum = Premium + platinum=1. */
+  /* Admin: give / take away Platinum for the business with this number (any kind, taxi / travel too). Platinum = Premium + platinum=1. */
   if (action === "admin_set_platinum") {
     const mobile = (field("mobile") || "").toString().replace(/\D/g, "").slice(-13);
     const on = field("on") ? 1 : 0;
     const days = Math.min(3660, Math.max(1, parseInt(field("days"), 10) || 365));
     if (!/^\d{6,13}$/.test(mobile)) return j({ ok: false, error: "invalid_input" }, 400);
-    const rows = ((await env.DB.prepare("SELECT id, plan, plan_expires_at, business_type FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || [])
-      .filter((p) => !VEHICLE_TYPES.includes(p.business_type || "taxi_travel"));
+    const rows = (await env.DB.prepare("SELECT id, plan, plan_expires_at, business_type FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || [];
     if (!rows.length) return j({ ok: false, error: "not_found" }, 404);
     for (const p of rows) {
       if (!on) { await env.DB.prepare("UPDATE travel_partners SET platinum=0 WHERE id=?").bind(p.id).run(); continue; }
