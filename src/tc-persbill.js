@@ -155,7 +155,7 @@
    P.fld("tpbA",B("Usual amount (₹) - can be changed when you pay","സാധാരണ തുക (₹) - അടയ്ക്കുമ്പോൾ മാറ്റാം"),"number",b?b.a:"",'inputmode="decimal" min="0" step="any"')+
    '<div class="tpM" style="margin-top:8px">'+E(B("How often","എത്ര ദിവസം കൂടുമ്പോൾ"))+'</div><div>'+
     CYC.map(function(c){ return chipK("tpBCy",c,c===BS.cy,"tpBCy",cyName(c)); }).join("")+'</div>'+
-   ((b&&!b.nx)?'<div class="tpNote" style="margin-top:8px">'+E(B("This bill is finished.","ഈ ബിൽ കഴിഞ്ഞു."))+'</div>':
+   ((b&&!b.nx)?'<div class="tpNote" style="margin-top:8px">'+E(B("This bill is finished. To start it again, give the next due date here (and more instalments below, if it had a number).","ഈ ബിൽ കഴിഞ്ഞു. വീണ്ടും തുടങ്ങാൻ അടുത്ത തീയതി ഇവിടെ നൽകുക (തവണകളുടെ എണ്ണം ഉണ്ടായിരുന്നെങ്കിൽ താഴെ അത് കൂട്ടുക)."))+'</div>'+P.fld("tpbD",B("Next due date (only to start again)","അടുത്ത തീയതി (വീണ്ടും തുടങ്ങാൻ മാത്രം)"),"date",""):
     P.fld("tpbD",b?B("Next due date","അടുത്ത തീയതി"):B("First / next due date","ആദ്യത്തെ / അടുത്ത തീയതി"),"date",b?b.nx:P.today()))+
    P.fld("tpbK",B("Number of instalments (EMI) - empty = no end","തവണകളുടെ എണ്ണം (EMI) - ഇല്ലെങ്കിൽ ഒഴിച്ചിടുക"),"number",b&&b.k>0?b.k:"",'inputmode="numeric" min="1" max="600" step="1"')+
    '<label class="tpL" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="tpbR" style="width:auto;margin-top:3px"'+((!b||b.rm===1)?" checked":"")+'><span><b>🔔 '+E(B("Remind me by notification","നോട്ടിഫിക്കേഷൻ വഴി ഓർമ്മിപ്പിക്കുക"))+'</b><br><span class="tpM">'+E(B("The day before, on the day and once if late. Only the bill NAME and DATE go to our server for this (never the amount).","തലേന്ന്, അന്ന്, വൈകിയാൽ ഒരു തവണ. ഇതിനായി ബില്ലിന്റെ പേരും തീയതിയും മാത്രം സെർവറിലേക്ക് പോകും (തുക ഒരിക്കലും പോകില്ല)."))+'</span></span></label>'+
@@ -191,6 +191,10 @@
   if(b){
    b.nm=nm; b.a=a; b.cy=BS.cy; b.k=k; b.nt=nt; b.ty=BS.ty; b.rm=rm;
    if(!fin){ b.nx=d; b.ad=P.okDate(d)?+d.slice(8,10):b.ad; }
+   else if(P.okDate(d)){   /* a finished bill is started again: only when something can still fall due */
+    if(k>0&&k<=cnt){ say(B("All "+k+" instalments are paid - increase the number to continue","എല്ലാ "+k+" തവണയും അടച്ചു - തുടരാൻ എണ്ണം കൂട്ടുക")); return; }
+    b.nx=d; b.ad=+d.slice(8,10);
+   }
    P.touch(b);
   }else bid=P.put(KB,{nm:nm,ty:BS.ty,a:a,cy:BS.cy,nx:d,ad:+d.slice(8,10),k:k,nt:nt,rm:rm}).id;
   P.closeSheet(); P.go("bill",{id:bid,title:nm}); say(B("Saved","സേവ് ചെയ്തു"));
