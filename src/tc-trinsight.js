@@ -19,12 +19,14 @@
  function prevMonth(m){ var y=+m.slice(0,4), k=+m.slice(5,7)-1; if(k<1){ k=12; y--; } return y+"-"+p2(k); }
  function dayName(i){ return B(["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i],["ഞായർ","തിങ്കൾ","ചൊവ്വ","ബുധൻ","വ്യാഴം","വെള്ളി","ശനി"][i]); }
  function names(L,n){ var s=L.slice(0,n).join(", "); return L.length>n?s+" +"+(L.length-n):s; }
+ /* the app keeps its data in a global "db" that is NOT a property of window - read it by its bare name */
+ function DB(){ try{ return typeof db!=="undefined"&&db?db:(window.db||null); }catch(e){ return window.db||null; } }
  function okDate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s||""); }
 
  /* one row per bill (a completed trip with its quotation): date, customer, vehicle, route, billed, paid, balance */
  function bills(){
   var out=[];
-  (window.db&&db.trips||[]).forEach(function(t){
+  (DB()&&DB().trips||[]).forEach(function(t){
    if(!t||t.status!=="completed") return;
    var q=(db.quotes||[]).filter(function(x){ return x.id===t.quoteId; })[0]||null;
    var d=String(t.entryDate||t.startDate||(q&&q.startDate)||(t.created||"")).slice(0,10);
@@ -42,7 +44,7 @@
 
  /* the list of insights, most important first. sev: 2 act now, 1 look at, 0 good news / information */
  function compute(){
-  var out=[], t=today(), mon=t.slice(0,7), B0=bills(), live=(window.db&&db.liveTrips)||[], i;
+  var out=[], t=today(), mon=t.slice(0,7), B0=bills(), live=(DB()&&DB().liveTrips)||[], i;
   function add(sev,ic,ml,en){ out.push({sev:sev,ic:ic,ml:ml,en:en}); }
   var cap=function(s){ return s||"-"; };
 
@@ -67,7 +69,7 @@
 
   /* 3. trips coming up (today and tomorrow) */
   var tm=addDays(t,1), up=[];
-  (window.db&&db.trips||[]).forEach(function(x){
+  (DB()&&DB().trips||[]).forEach(function(x){
    if(!x||x.status!=="confirmed") return;
    var q=(db.quotes||[]).filter(function(y){ return y.id===x.quoteId; })[0]||null;
    var d=String(x.startDate||(q&&q.startDate)||"").slice(0,10);
@@ -95,7 +97,7 @@
    else if(ch>=15) add(0,"📈","ഈ മാസം ഇതുവരെ ബില്ല് "+money0(cv)+" - കഴിഞ്ഞ മാസത്തെക്കാൾ "+ch+"% കൂടുതൽ.","Billing this month so far is "+money0(cv)+" - "+ch+"% more than last month.");
   }
   /* 5b. the month in one line: trips, billed, spent */
-  var ex=(window.db&&db.expenses)||[], exM=0;
+  var ex=(DB()&&DB().expenses)||[], exM=0;
   ex.forEach(function(e){ if(String(e.created||"").slice(0,7)===mon) exM+=+e.amount||0; });
   if(cur.length||exM>0) add(0,"🧮","ഈ മാസം ഇതുവരെ: "+cur.length+" ട്രിപ്പ്, ബില്ല് "+money0(cv)+", ചെലവ് "+money0(exM)+(cv>0?(cv>=exM?", ബാക്കി "+money0(cv-exM):", ചെലവ് ബില്ലിനെക്കാൾ "+money0(exM-cv)+" കൂടുതൽ"):"")+".","This month so far: "+cur.length+" trip(s), billed "+money0(cv)+", spent "+money0(exM)+(cv>0?(cv>=exM?", left "+money0(cv-exM):", spending is "+money0(exM-cv)+" more than billed"):"")+".");
 
@@ -129,15 +131,19 @@
  }
  function txt(i){ return B(i.en,i.ml); }
  function row(i){ var c=i.sev===2?"#fdecec":i.sev===1?"#fff6df":"#eef6f1"; return '<div style="background:'+c+';border-radius:10px;margin:6px 0;padding:9px 10px;font-size:13.5px;line-height:1.4"><span style="font-size:18px">'+i.ic+'</span> '+E(txt(i))+'</div>'; }
- window.tcTrBills=bills;   /* used by the voice questions (tc-voice.js) */
+ window.tcTrDB=DB; window.tcTrBills=bills;   /* used by the voice questions (tc-voice.js) */
  window.tcTrInsightList=compute;   /* used by the test */
 
  function isOwner(){ try{ var u=getCurrentUser(); return !!u&&u.role!=="customer"; }catch(e){ return false; } }
+ function allowed(){ try{ return typeof window.tcInsightsOk==="function"?!!window.tcInsightsOk():true; }catch(e){ return true; } }
+ window.tcTrInsightLocked=function(){ try{ toast(B("Insights are a Platinum feature - upgrade to use them","ഇൻസൈറ്റ് Platinum പ്ലാനിൽ ലഭ്യമാണ് - അപ്ഗ്രേഡ് ചെയ്യുക")); }catch(e){} };
  function cardHtml(L){
+  if(!allowed()) return '<div onclick="tcTrInsightLocked()"><h3 style="margin:0 0 4px;font-size:15px;color:#4a2a8a">💡 '+E(B("Insights","ഇൻസൈറ്റ്"))+' <span style="font-size:12px;font-weight:normal;color:#777">(Platinum)</span></h3><div style="font-size:13px;color:#555">'+E(B(L.length+" things found in your bills and trips - open with Platinum","നിങ്ങളുടെ ബില്ലുകളിലും ട്രിപ്പുകളിലും "+L.length+" കാര്യങ്ങൾ കണ്ടെത്തി - Platinum ഉപയോഗിച്ച് തുറക്കൂ"))+'</div></div>';
   return '<h3 style="margin:0 0 4px;font-size:15px;color:#4a2a8a">💡 '+E(B("Insights","ഇൻസൈറ്റ്"))+'</h3>'+L.slice(0,3).map(row).join("")+
    (L.length>3?'<div class="actions"><button onclick="tcTrInsightAll()">'+E(B("See all","എല്ലാം കാണുക")+" ("+L.length+")")+'</button></div>':'');
  }
  window.tcTrInsightAll=function(){
+  if(!allowed()){ window.tcTrInsightLocked(); return; }
   var L=[]; try{ L=compute(); }catch(e){}
   var h='<h2>💡 '+E(B("Insights","ഇൻസൈറ്റ്"))+'</h2><p class="muted" style="font-size:12.5px">'+E(B("Found by the app from your own bills and trips. Nothing is sent anywhere.","നിങ്ങളുടെ ബില്ലുകളും ട്രിപ്പുകളും നോക്കി ആപ്പ് തന്നെ കണ്ടെത്തിയത്. ഒന്നും പുറത്തേക്ക് അയയ്ക്കുന്നില്ല."))+'</p>'+
    (L.length?L.map(row).join(""):'<p class="muted">'+E(B("Nothing special right now - keep adding trips and bills.","ഇപ്പോൾ പ്രത്യേകിച്ച് ഒന്നുമില്ല - ട്രിപ്പുകളും ബില്ലുകളും ചേർക്കുന്നത് തുടരുക."))+'</p>')+
@@ -153,6 +159,7 @@
  }
  function arrange(){
   var app=$("app"); if(!app||!isOwner()) return;
+  try{ if(typeof window.tcPlanSync==="function") window.tcPlanSync(); }catch(e){}
   var h2=app.querySelector(".card>h2");
   if(!h2||!/Travel Connect Dashboard|ഡാഷ്ബോർഡ്/i.test(h2.textContent)) return;
   var anchor=$("tcLiveCard")||h2, c=$("tcTrInsight");
