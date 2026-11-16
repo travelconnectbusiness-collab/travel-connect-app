@@ -19,10 +19,12 @@
  function addDays(s,n){ var d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return ymd(d); }
  function shopUi(){ return window.__tcShopUi&&window.__tcShop?window.__tcShopUi:null; }
  function shopOpen(){ var u=shopUi(); return !!(u&&u.isOpen()); }
- function travelOn(){ return !shopOpen()&&!!window.db&&(Array.isArray(db.trips)||Array.isArray(db.expenses)); }
+ function DB(){ try{ return typeof db!=="undefined"&&db?db:(window.db||null); }catch(e){ return window.db||null; } }   /* the app's "db" is a global that is not on window */
+ function travelOn(){ var d=DB(); return !shopOpen()&&!!d&&(Array.isArray(d.trips)||Array.isArray(d.expenses)); }
  function tr(en,ml){ var u=shopOpen()?shopUi():null; if(u) return u.T(ml,en); try{ if(typeof tcBl==="function") return tcBl(en,ml); }catch(e){} return ml; }
  function say(m){ var u=shopUi(); try{ if(u&&shopOpen()) u.say(m); else toast(m); }catch(e){ try{ toast(m); }catch(e2){} } }
  function money0(n){ n=Math.round(+n||0); try{ return typeof money==="function"?money(n):"Rs."+n; }catch(e){ return "Rs."+n; } }
+ function aiOk(){ try{ return typeof window.tcInsightsOk==="function"?!!window.tcInsightsOk():true; }catch(e){ return true; } }   /* questions and commands: the top plan (dictation into a box stays free) */
  function lang(){ return LSg("tc_voice_lang")==="en-IN"?"en-IN":"ml-IN"; }
 
  /* ---------- understanding the words ---------- */
@@ -124,7 +126,7 @@
   return null;
  }
  function travelQuestion(s){
-  var P=period(s), B=typeof window.tcTrBills==="function"?window.tcTrBills():[], ex=(window.db&&db.expenses)||[];
+  var P=period(s), B=typeof window.tcTrBills==="function"?window.tcTrBills():[], ex=(DB()&&DB().expenses)||[];
   function inP(d){ return d>=P.a&&d<=P.b; }
   var bl=B.filter(function(b){ return inP(b.d); }), billed=0; bl.forEach(function(b){ billed+=b.fin; });
   var spent=0; ex.forEach(function(e){ var d=String(e.created||"").slice(0,10); if(inP(d)) spent+=+e.amount||0; });
@@ -145,6 +147,7 @@
  /* ---------- what to do with the words: {kind:'confirm'|'answer'|'open'|'none'} ---------- */
  function run(raw){
   var s=norm(raw); if(!s) return {kind:"none",ml:"ഒന്നും കേട്ടില്ല.",en:"Nothing heard."};
+  if(!aiOk()) return {kind:"none",ml:"വോയിസ് കമാൻഡും ചോദ്യവും Platinum പ്ലാനിൽ ലഭ്യമാണ്. (പറഞ്ഞ് ടൈപ്പ് ചെയ്യൽ - ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് - എല്ലാവർക്കും ഉണ്ട്.)",en:"Voice commands and questions are a Platinum feature. (Speaking into a text box - tap the box, then the mic - is for everyone.)"};
   var shop=shopOpen()&&shopUi(), trv=travelOn(), isQ=has(s,KW.qWord);
   if(has(s,KW.insight)&&!isQ||/^(insights?|ഇൻസൈറ്റ്)/.test(s)){
    if(shop&&window.tsOpen) return {kind:"open",fn:function(){ window.tsOpen("insight"); },ml:"ഇൻസൈറ്റ് തുറക്കുന്നു.",en:"Opening insights."};
@@ -176,8 +179,8 @@
    return {kind:"confirm",ml:"ചെലവ്: "+money0(a)+" - "+cat+(d2!==today()?" ("+d2+")":"")+".",en:"Expense: "+money0(a)+" - "+cat+(d2!==today()?" ("+d2+")":"")+".",
     save:function(){
      if(shop) return !!window.__tcShop.add("e",{c:cat,a:a,t:note},d2);
-     if(!Array.isArray(db.expenses)) db.expenses=[];
-     var n=new Date(); db.expenses.push({category:cat,description:note,amount:a,created:d2+"T"+p2(n.getHours())+":"+p2(n.getMinutes())+":"+p2(n.getSeconds())});
+     var D=DB(); if(!Array.isArray(D.expenses)) D.expenses=[];
+     var n=new Date(); D.expenses.push({category:cat,description:note,amount:a,created:d2+"T"+p2(n.getHours())+":"+p2(n.getMinutes())+":"+p2(n.getSeconds())});
      try{ save(); }catch(e){} try{ if(window.tcTrInsightRefresh) tcTrInsightRefresh(); }catch(e){} return true;
     }};
   }
