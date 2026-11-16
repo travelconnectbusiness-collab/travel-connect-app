@@ -32,6 +32,9 @@
   rows.forEach(function(r){ if(r.w!==w||r.id===skip) return; if(!b||(r.d||"")>(b.d||"")||((r.d||"")===(b.d||"")&&(r.ts||0)>(b.ts||0))) b=r; });
   return b;
  }
+ /* is the last cover of kind w still "open", i.e. nothing went the other way after it?  (he gave me 1000 in 2020, I gave him 1000 at his function in 2022 -> nothing to return now) */
+ function later(a,b){ return (a.d||"")>(b.d||"")||((a.d||"")===(b.d||"")&&(a.ts||0)>(b.ts||0)); }
+ function openOf(rows,w,skip){ var x=lastOf(rows,w,skip), y=lastOf(rows,w==="got"?"gave":"got",skip); return x&&(!y||later(x,y))?x:null; }
  P.gPeople=people;
  /* the person that has this mobile number (last 10 digits) */
  function byPhone(ph){ var t=tail(ph); if(t.length<10) return null; var L=people().filter(function(p){ return tail(p.ph)===t; }); return L.length?L[0]:null; }
@@ -48,7 +51,7 @@
   L.sort(function(a,b){ return (b.last||"")<(a.last||"")?-1:(b.last||"")>(a.last||"")?1:0; });
   if(!L.length) return '<div class="tpC tpM" style="text-align:center">'+E(q?B("No such person - add the cover with ➕","ഈ പേരിൽ ആരുമില്ല - ➕ അമർത്തി ചേർക്കൂ"):B("Nothing recorded yet","ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>';
   return '<div class="tpC" style="padding:4px 14px">'+L.map(function(p){
-   var lg=lastOf(p.rows,"got"), ex=lg?'<div style="font-size:13px;color:#8a5a00;font-weight:700">'+E(B("Return: same ","തിരിച്ചു കൊടുക്കാൻ: തുല്യം "))+mny(lg.a)+' · '+E(B("double ","ഇരട്ടി "))+mny(lg.a*2)+'</div>':"";
+   var lg=openOf(p.rows,"got"), ex=lg?'<div style="font-size:13px;color:#8a5a00;font-weight:700">'+E(B("Return: same ","തിരിച്ചു കൊടുക്കാൻ: തുല്യം "))+mny(lg.a)+' · '+E(B("double ","ഇരട്ടി "))+mny(lg.a*2)+'</div>':"";
    return '<div class="tpRow" '+oc("tpgPerson",enc(p.k))+'><div style="min-width:0"><b>'+E(p.name)+'</b><div class="tpM">'+E(p.ad||"-")+(p.ph?" · "+E(p.ph):"")+'</div>'+
     '<div class="tpM">'+E(B("I gave ","ഞാൻ കൊടുത്തത് "))+mny(p.gave)+(p.ng>1?" ("+p.ng+")":"")+' · '+E(B("I got ","എനിക്ക് കിട്ടിയത് "))+mny(p.got)+(p.nr>1?" ("+p.nr+")":"")+'</div>'+ex+'</div><span style="font-size:22px;color:#5b7787">&rsaquo;</span></div>';
   }).join("")+'</div>';
@@ -78,10 +81,15 @@
     E(B("He gave me ","ഇവർ എനിക്ക് തന്നത് "))+'<b>'+mny(lg.a)+'</b> ('+E(tyName(lg.ty))+', '+E(dmy(lg.d))+')<div style="margin-top:6px">'+E(B("To return: ","തിരിച്ചു കൊടുക്കാൻ: "))+
     '<span class="tpChip" onclick="tpgAdd(\'gave\',\''+enck+'\','+lg.a+')">'+E(B("Same ","തുല്യം "))+mny(lg.a)+'</span><span class="tpChip" onclick="tpgAdd(\'gave\',\''+enck+'\','+(lg.a*2)+')">'+E(B("Double ","ഇരട്ടി "))+mny(lg.a*2)+'</span></div>');
   else h1=adviceBox("background:#fff",B("If I go to HIS ceremony","ഇവരുടെ ചടങ്ങിന് ഞാൻ പോകുമ്പോൾ"),'<span class="tpM">'+E(B("He has not given me a cover before.","ഇവർ എനിക്ക് മുമ്പ് കവർ തന്നിട്ടില്ല."))+'</span>');
+  /* already returned: say so plainly, so the same cover is not given back twice */
+  if(lg&&lv&&later(lv,lg)) h1=adviceBox("background:#e6f4ea",B("If I go to HIS ceremony","ഇവരുടെ ചടങ്ങിന് ഞാൻ പോകുമ്പോൾ"),
+    E(B("He gave me ","ഇവർ എനിക്ക് തന്നത് "))+'<b>'+mny(lg.a)+'</b> ('+E(dmy(lg.d))+'). '+E(B("After that I already gave him ","അതിനു ശേഷം ഞാൻ ഇവർക്ക് കൊടുത്തു: "))+'<b>'+mny(lv.a)+'</b> ('+E(dmy(lv.d))+'). ✓ '+E(B("Nothing pending to return.","തിരിച്ചു കൊടുക്കാൻ ബാക്കിയില്ല.")));
   if(lv) h2=adviceBox("background:#e8f5f4",B("If HE comes to MY ceremony","ഇവർ എന്റെ ചടങ്ങിന് വരുമ്പോൾ"),
     E(B("I gave him ","ഞാൻ ഇവർക്ക് കൊടുത്തത് "))+'<b>'+mny(lv.a)+'</b> ('+E(tyName(lv.ty))+', '+E(dmy(lv.d))+')<div style="margin-top:6px">'+E(B("To expect back: ","തിരിച്ചു കിട്ടേണ്ടത്: "))+
     '<span class="tpChip" onclick="tpgAdd(\'got\',\''+enck+'\','+lv.a+')">'+E(B("Same ","തുല്യം "))+mny(lv.a)+'</span><span class="tpChip" onclick="tpgAdd(\'got\',\''+enck+'\','+(lv.a*2)+')">'+E(B("Double ","ഇരട്ടി "))+mny(lv.a*2)+'</span></div>');
   else h2="";
+  if(lg&&lv&&later(lg,lv)) h2=adviceBox("background:#e6f4ea",B("If HE comes to MY ceremony","ഇവർ എന്റെ ചടങ്ങിന് വരുമ്പോൾ"),
+    E(B("I gave him ","ഞാൻ ഇവർക്ക് കൊടുത്തത് "))+'<b>'+mny(lv.a)+'</b> ('+E(dmy(lv.d))+'). '+E(B("After that he already gave me ","അതിനു ശേഷം ഇവർ എനിക്ക് തന്നു: "))+'<b>'+mny(lg.a)+'</b> ('+E(dmy(lg.d))+'). ✓');
   $("tpBody").innerHTML=
    '<div class="tpC"><b style="font-size:19px">'+E(p.name)+'</b><div class="tpM">'+E(p.ad||"-")+'</div>'+(p.ph?'<div class="tpM">📞 <a href="tel:'+E(digits(p.ph)?(/^\s*\+/.test(p.ph)?"+":"")+digits(p.ph):"")+'">'+E(p.ph)+'</a></div>':"")+
     '<div class="tpG2" style="margin-top:8px"><div><div class="tpM">'+E(B("I gave","ഞാൻ കൊടുത്തത്"))+'</div><div class="tpBig tpOut">'+mny(p.gave)+'</div></div><div><div class="tpM">'+E(B("I got","എനിക്ക് കിട്ടിയത്"))+'</div><div class="tpBig tpIn">'+mny(p.got)+'</div></div></div></div>'+h1+h2+
@@ -115,6 +123,9 @@
  };
 
  /* ---------- add / edit ---------- */
+ /* the covers received at MY function (or given on one day) are typed one after another: the ceremony, its name and the date of the last saved cover
+    are offered again for the next one of the same kind (only while My Accounts stays open) */
+ var LASTC={};
  function sheetFor(r,w,key,amt){
   w=r?r.w:w;
   var p=key?findP(key):null, name=r?r.p:(p?p.name:""), ad=r?(r.ad||""):(p?p.ad:""), ph=r?(r.ph||""):(p?p.ph:""), all=P.mine(K);
@@ -124,9 +135,10 @@
    P.fld("tpgPh",B("Mobile (optional)","മൊബൈൽ നമ്പർ (വേണമെങ്കിൽ)"),"tel",ph,'inputmode="tel" maxlength="20" autocomplete="off" oninput="tpgByPh()"')+
    P.fld("tpgA",B("Amount (₹)","തുക (₹)"),"number",r?r.a:(amt||""),'inputmode="decimal" min="0" step="any"')+
    '<div id="tpgHint"></div>'+
-   '<label class="tpL">'+E(B("Ceremony","ചടങ്ങ്"))+'<select id="tpgTy">'+TYPES.map(function(t){ return '<option value="'+t[0]+'"'+((r?r.ty:"wd")===t[0]?" selected":"")+'>'+E(B(t[2],t[1]))+'</option>'; }).join("")+'</select></label>'+
-   P.fld("tpgNm",B("Whose ceremony / name (optional)","ആരുടെ ചടങ്ങ് (വേണമെങ്കിൽ)"),"text",r?r.nm:"",'maxlength="60" placeholder="'+E(B("e.g. Rajesh's wedding","ഉദാ: രാജേഷിന്റെ വിവാഹം"))+'"')+
-   P.fld("tpgD",B("Date","തീയതി"),"date",r?r.d:P.today())+
+   '<label class="tpL">'+E(B("Ceremony","ചടങ്ങ്"))+'<select id="tpgTy">'+TYPES.map(function(t){ return '<option value="'+t[0]+'"'+((r?r.ty:(LASTC[w]?LASTC[w].ty:"wd"))===t[0]?" selected":"")+'>'+E(B(t[2],t[1]))+'</option>'; }).join("")+'</select></label>'+
+   P.fld("tpgNm",B("Whose ceremony / name (optional)","ആരുടെ ചടങ്ങ് (വേണമെങ്കിൽ)"),"text",r?r.nm:(LASTC[w]?LASTC[w].nm:""),'maxlength="60" placeholder="'+E(B("e.g. Rajesh's wedding","ഉദാ: രാജേഷിന്റെ വിവാഹം"))+'"')+
+   P.fld("tpgD",B("Date","തീയതി"),"date",r?r.d:(LASTC[w]?LASTC[w].d:P.today()))+
+   (!r&&LASTC[w]?'<div class="tpM">'+E(B("Ceremony, name and date are kept from the last cover - change them if this is another function.","ചടങ്ങും പേരും തീയതിയും കഴിഞ്ഞ കവറിലേത് തന്നെ വച്ചിട്ടുണ്ട് - വേറെ ചടങ്ങാണെങ്കിൽ മാറ്റുക."))+'</div>':"")+
    '<button class="tpBtn" onclick="tpgSave(\''+(r?r.id:"")+'\',\''+w+'\')">'+E(B("Save","സേവ് ചെയ്യുക"))+'</button>'+
    (r?'<button class="tpBtn r" onclick="tpDel(\''+K+'\',\''+r.id+'\')">'+E(B("Delete","ഡിലീറ്റ്"))+'</button>':"")+
    '<button class="tpBtn g" onclick="tpCloseSheet()">'+E(B("Cancel","വേണ്ട"))+'</button>');
@@ -165,7 +177,7 @@
   var dup=P.mine(K).filter(function(r){ return r.id!==id&&r.w===w&&norm(r.p)===norm(p)&&norm(r.ad)===norm(ad)&&r.d===d&&r.a===a; });
   if(dup.length&&!confirm(B("The same cover is already recorded. Save again?","ഇതേ കവർ നേരത്തേ ചേർത്തിട്ടുണ്ട്. വീണ്ടും ചേർക്കട്ടേ?"))) return;
   if(id){ var r=P.rec(K,id); if(!r) return; r.p=p; r.ad=ad; r.ph=ph; r.a=a; r.d=d; r.ty=ty; r.nm=nm; P.touch(r); }
-  else P.put(K,{d:d,w:w,p:p,ad:ad,ph:ph,a:a,ty:ty,nm:nm});
+  else{ P.put(K,{d:d,w:w,p:p,ad:ad,ph:ph,a:a,ty:ty,nm:nm}); LASTC[w]={ty:ty,nm:nm,d:d}; }
   S.gsheet=null; P.closeSheet();
   var k=norm(p)+"|"+norm(ad);
   if(S.screen==="gperson"&&S.params.key!==k) P.go("gifts"); else if(S.screen==="gperson") P.go("gperson",{key:k,title:p}); else P.refresh();
