@@ -87,6 +87,93 @@ label.tcTick .tcTickTitle{ display:block; font-weight:800; color:#0b4f5a; font-s
 label.tcTick .tcTickHint{ display:block; font-weight:500; color:#4d6270; font-size:12px; margin-top:3px; line-height:1.35; }
 label.tcTick .tcTickGo{ display:inline-block; font-weight:800; color:#0b6b78; font-size:11.5px; margin-top:4px; }
 
+/* ---- Premium look, layer 2 (2026-11-16) ----
+   One calm colour family (navy #082b49, teal #0b6b78, soft greys), flat cards, clear buttons and a bottom bar with icons.
+   CSS only: nothing in the app's code changes, so every page keeps working exactly as before. Scoped to #app, the pop-up (#modalBody),
+   the header and the bottom bar - the shop book and other full-screen tools keep their own styles. */
+:root{ --tcNavy:#082b49; --tcTeal:#0b6b78; --tcTealSoft:#e7f2f3; --tcInk:#132436; --tcMute:#657888; --tcLine:#e2e9ef; --tcBg:#f2f5f8; }
+body{ background:var(--tcBg); color:var(--tcInk); -webkit-font-smoothing:antialiased; }
+.container{ padding:12px; padding-bottom:92px; }
+#app .card{ border-radius:18px; padding:16px; margin:10px 0; box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06); }
+#app .card .card{ box-shadow:none; border:1px solid var(--tcLine) !important; border-radius:14px; }
+#app .card h2{ font-size:20px; line-height:1.25; margin:0 0 12px; letter-spacing:-.2px; }
+#app .card h3{ font-size:15.5px; }
+#app .muted,#modalBody .muted{ color:var(--tcMute); }
+#app .metric{ background:#f6f9fb; border:1px solid var(--tcLine); border-radius:14px; }
+#app .metric b{ font-size:21px; color:var(--tcNavy); }
+#app .listitem{ border-color:var(--tcLine); }
+#app .chip{ background:var(--tcTealSoft); color:#0b4f5a; font-weight:600; }
+
+/* buttons: one neutral kind, one main kind */
+#app button,#modalBody button{ background:#e9eff4; color:#16324a; border-radius:12px; font-weight:650; box-shadow:none; }
+#app button.primary,#modalBody button.primary{ background:var(--tcTeal); color:#fff; box-shadow:0 2px 6px rgba(11,107,120,.28); }
+#app button.danger,#modalBody button.danger{ background:#c5372c; color:#fff; box-shadow:none; }
+#app .actions,#modalBody .actions{ gap:8px; }
+
+/* text boxes */
+#app input:not([type=checkbox]):not([type=radio]),#app select,#app textarea,
+#modalBody input:not([type=checkbox]):not([type=radio]),#modalBody select,#modalBody textarea{ border-radius:12px; border-color:#cdd8e0; }
+#app input:focus,#app select:focus,#app textarea:focus,#modalBody input:focus,#modalBody select:focus,#modalBody textarea:focus{ outline:none; border-color:var(--tcTeal); box-shadow:0 0 0 3px rgba(11,107,120,.14); }
+#app label,#modalBody label{ color:#33485a; }
+
+/* pop-up */
+.modal{ background:rgba(8,27,45,.55); }
+.modalbox{ border-radius:20px; padding:18px 16px; box-shadow:0 18px 50px rgba(8,27,45,.35); }
+.modalbox h2{ font-size:19px; margin:0 0 10px; }
+
+/* header */
+.top{ box-shadow:0 1px 0 rgba(255,255,255,.06),0 4px 14px rgba(8,43,73,.18); }
+#tcMenuBtn{ border-radius:11px !important; }
+
+/* bottom bar: icon + word, the open page in teal */
+.tabs{ gap:2px; padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px)) !important; border-top:1px solid var(--tcLine); box-shadow:0 -4px 16px rgba(8,43,73,.06); }
+.tabs button{ flex:1 0 auto; min-width:66px; background:transparent; color:#75869a; font-size:11px; font-weight:650; padding:5px 8px 4px; border-radius:12px; line-height:1.2; }
+.tabs button::before{ content:""; display:block; width:21px; height:21px; margin:0 auto 3px; background:currentColor;
+ -webkit-mask:var(--tcIc) center/contain no-repeat; mask:var(--tcIc) center/contain no-repeat;
+ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3C/svg%3E"); }
+.tabs button.active{ background:var(--tcTealSoft); color:var(--tcTeal); box-shadow:none; }
+.tabs button[data-view="dashboard"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 11l8-7 8 7v9h-5v-6H9v6H4z'/%3E%3C/svg%3E"); }
+.tabs button[data-view="enquiries"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5h16v11H9l-5 4z'/%3E%3C/svg%3E"); }
+.tabs button[data-view="quotations"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5M9 13h6M9 17h4'/%3E%3C/svg%3E"); }
+.tabs button[data-view="trips"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 16v-4l2-5h12l2 5v4z'/%3E%3Cpath d='M4 12h16'/%3E%3Ccircle cx='7.5' cy='17.5' r='1.5'/%3E%3Ccircle cx='16.5' cy='17.5' r='1.5'/%3E%3C/svg%3E"); }
+.tabs button[data-view="billing"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12v18l-3-2-3 2-3-2-3 2z'/%3E%3Cpath d='M9 8h6M9 12h6'/%3E%3C/svg%3E"); }
+.tabs button[data-view="master"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5h16v14H4zM4 10h16M10 10v9'/%3E%3C/svg%3E"); }
+.tabs button[data-view="accounts"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V11M12 20V4M19 20v-6'/%3E%3C/svg%3E"); }
+
+/* ---- Dashboard ---- */
+/* the page itself becomes the background; each block is its own white card */
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]){ background:transparent; box-shadow:none; padding:0; margin-top:6px; }
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > h2{ font-size:13px; font-weight:650; color:var(--tcMute); margin:4px 4px 8px; letter-spacing:0; }
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > .card,#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > details.card{ background:#fff; border:0 !important; box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06); border-radius:16px !important; padding:14px !important; margin:0 0 10px !important; }
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > .actions{ margin:0 0 8px; }
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > .actions > button{ background:#fff; box-shadow:0 1px 2px rgba(8,43,73,.05),0 4px 12px rgba(8,43,73,.05); padding:14px 10px; border-radius:14px; }
+/* the four main actions: same shape, one colour family; "New Enquiry" is the main one */
+#app .actions > button[style*="#3b7bbf"],#app .actions > button[style*="#148c76"],#app .actions > button[style*="#c9820d"],#app .actions > button[style*="#6b7280"]{
+ background:#fff !important; color:#0b4f5a !important; border:0 !important; padding:12px 4px 10px !important; font-size:12.5px; line-height:1.25; border-radius:16px !important; }
+#app .actions > button[style*="#3b7bbf"]{ background:var(--tcTeal) !important; color:#fff !important; box-shadow:0 4px 12px rgba(11,107,120,.3) !important; }
+#app .actions > button[style*="#3b7bbf"]::before,#app .actions > button[style*="#148c76"]::before,#app .actions > button[style*="#c9820d"]::before,#app .actions > button[style*="#6b7280"]::before{
+ content:""; display:block; width:24px; height:24px; margin:0 auto 6px; background:currentColor; -webkit-mask:var(--tcIc) center/contain no-repeat; mask:var(--tcIc) center/contain no-repeat; }
+#app .actions > button[style*="#3b7bbf"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E"); }
+#app .actions > button[style*="#148c76"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5M9 13h6M9 17h4'/%3E%3C/svg%3E"); }
+#app .actions > button[style*="#c9820d"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12v18l-3-2-3 2-3-2-3 2z'/%3E%3Cpath d='M9 8h6M9 12h6'/%3E%3C/svg%3E"); }
+#app .actions > button[style*="#6b7280"]::before{ --tcIc:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 16v-4l2-5h12l2 5v4z'/%3E%3Cpath d='M4 12h16'/%3E%3Ccircle cx='7.5' cy='17.5' r='1.5'/%3E%3Ccircle cx='16.5' cy='17.5' r='1.5'/%3E%3C/svg%3E"); }
+/* Messages: a clean white row (the unread count keeps its red pill) */
+#tcMsgCard{ background:#fff !important; color:var(--tcInk) !important; box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06) !important; border-radius:16px !important; padding:12px 14px !important; margin:0 0 10px !important; }
+#tcMsgCard > div:first-child{ background:var(--tcTealSoft) !important; color:var(--tcTeal) !important; width:42px !important; height:42px !important; border-radius:12px !important; font-size:20px !important; }
+#tcMsgCard > div:last-child{ color:#a9b6c1; }
+#tcMsgCard .tcMsgSub{ color:var(--tcMute); opacity:1 !important; }
+/* Find Nearby Vehicle: the one strong button of the page */
+#app button[onclick="tcOpenTripRequest()"]{ background:var(--tcNavy) !important; color:#fff !important; }
+/* Share card: white, like the rest */
+#tcShareCard{ background:#fff !important; color:var(--tcInk) !important; box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06) !important; margin:0 0 10px !important; }
+#tcShareCard > div:first-child > div:first-child{ background:var(--tcTealSoft) !important; border-radius:12px !important; }
+#tcShareCard > div:first-child > div:last-child > div:last-child{ color:var(--tcMute); }
+#tcShareCard button[onclick="tcShareApp()"]{ background:var(--tcTeal) !important; color:#fff !important; }
+#tcShareCard button[onclick="tcShareCopy()"]{ background:#e9eff4 !important; color:#16324a !important; border:0 !important; }
+#app button,#modalBody button,.tabs button{ font-family:inherit; }
+#app .card:has(> #tcMsgCard):has(button[onclick*="view('partner')"]) > div:first-of-type .actions > button{ background:#fff; box-shadow:0 1px 2px rgba(8,43,73,.05),0 4px 12px rgba(8,43,73,.05); }
+#app .backbtn{ background:transparent; color:var(--tcTeal); padding:2px 0; margin:0 0 6px; font-weight:700; }
+
 </style>
 </head>
 <body>
