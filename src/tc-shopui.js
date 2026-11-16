@@ -177,7 +177,7 @@
   return '<div style="text-align:right;margin:2px 0 -4px"><span class="tsChip" style="padding:5px 11px;font-size:14px;margin:0" onclick="tsStkAsk()">📅 '+E(T("മറ്റൊരു ദിവസത്തെ കണക്കാണോ?","Another day's entries?"))+'</span><div id="stkAsk" class="hidden" style="margin-top:6px"><input type="date" id="stkIn" max="'+H.today()+'" onchange="tsStkPick(this.value)"></div></div>';
  }
  function stkBox(){ return '<div id="stkBox">'+stkInner()+'</div>'; }
- function stkRefresh(){ var b=$("stkBox"); if(b) b.innerHTML=stkInner(); }
+ function stkRefresh(){ var b=$("stkBox"); if(b) b.innerHTML=stkInner(); try{ if(U.open&&U.screen==="sale") saDay(); }catch(e){} }
  function stkApply(v,old){
   ["saD","puD","deD","exD","crD"].forEach(function(id){ var e=$(id); if(e&&(e.value===H.today()||(old&&e.value===old))){ e.value=v||H.today(); var w=$(id+"W"); if(w) w.textContent=(e.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; } });
   if(U.sale) U.sale.date=v||""; if(U.pur&&U.pur.date) U.pur.date=v||H.today();
@@ -472,9 +472,8 @@
  function pwInner(id){
   var w=PW[id], h="";
   if(!w.split){
-   h+='<div>'+pmList().map(function(m){ return '<span class="tsChip'+(w.pm===m[0]?" on":"")+'" onclick="tsPwPm(\''+id+'\',\''+m[0]+'\')">'+m[1]+' '+E(T(m[2],m[3]))+'</span>'; }).join("")+'</div>';
+   h+='<div>'+pmList().map(function(m){ return '<span class="tsChip'+(w.pm===m[0]?" on":"")+'" onclick="tsPwPm(\''+id+'\',\''+m[0]+'\')">'+m[1]+' '+E(T(m[2],m[3]))+'</span>'; }).join("")+'<span class="tsChip" style="border-style:dashed" onclick="tsPwSplit(\''+id+'\')">➗ '+E(T("പകുതി-പകുതി (ക്യാഷ് + UPI...)","Split (cash + UPI...)"))+'</span></div>';
    if(w.pm==="K"&&SH.ledger) h+=pwCu(w);
-   h+='<div style="margin-top:6px"><span class="tsChip" style="padding:5px 11px;font-size:14px;margin:0" onclick="tsPwSplit(\''+id+'\')">➗ '+E(T("പല രീതിയിൽ കിട്ടി (ഭാഗികമായി)","Paid in parts (cash + UPI...)"))+'</span></div>';
   }else{
    h+='<div class="tsM" style="margin-top:8px;font-weight:700">'+E(T("ഓരോ രീതിയിലും എത്ര കിട്ടി? (പേരിൽ അമർത്തിയാൽ ബാക്കി തുക വരും)","How much came each way? (tap a name to put the rest)"))+'</div>'+
     pmList().map(function(m){ return '<div class="tsRow" style="border:0;padding:3px 0"><span style="min-width:150px" onclick="tsPwFill(\''+id+'\',\''+m[0]+'\')">'+m[1]+' <b>'+E(T(m[2],m[3]))+'</b></span><input id="pw_'+id+'_'+m[0]+'" type="number" inputmode="decimal" value="'+E(w.sp[m[0]]||"")+'" oninput="tsPwIn(\''+id+'\')" style="width:120px;padding:8px"></div>'; }).join("")+
@@ -625,7 +624,8 @@
    '<label>'+E(T("കസ്റ്റമറുടെ പേര്","Customer name"))+'</label><input id="saCn" list="saCnL" maxlength="40" value="'+E(s.cn||"")+'" onchange="tsSaCn(this.value)"><datalist id="saCnL">'+custOpts()+'</datalist>'+
    '<label>'+E(T("മൊബൈൽ നമ്പർ","Mobile number"))+'</label><input id="saCm" type="tel" inputmode="tel" maxlength="15" value="'+E(s.cm||"")+'" onchange="tsSaCm(this.value)">'+
    '<label>'+E(T("കുറിപ്പ്","Note"))+'</label><input id="saNo" maxlength="80" value="'+E(s.no||"")+'" placeholder="'+E(EX(["ഉദാ: 2 അടി ടാങ്ക്, ₹1500","e.g. 2 ft tank, ₹1500"],["ഉദാ: ബ്രേക്ക് പാഡ്, ₹850","e.g. brake pad, ₹850"],["ഉദാ: പ്രത്യേക ഓഫർ, ₹50","e.g. special offer, ₹50"]))+'" onchange="tsSaNo(this.value)"></details>'+
-   '<button class="tsBtn" onclick="tsSaSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save sale"))+'</button>';
+   '<button class="tsBtn" onclick="tsSaSave()">✔ '+E(T("സേവ് ചെയ്യുക","Save sale"))+'</button>'+
+   (typeof window.tsBillSheet==="function"?'<button class="tsBtn g" onclick="tsSaSave(1)">🧾 '+E(T("സേവ് ചെയ്ത് ബില്ല് കൊടുക്കുക","Save and give bill"))+'</button>':'');
   if(s.cart.length){ tsDateWarn0($("saD")); payTot("sa",tot); }
  }
  function tsDateWarn0(el){ var w=el&&$(el.id+"W"); if(w) w.textContent=(el.value&&el.value!==H.today())?T("ഇന്നത്തെ തീയതി അല്ല!","Not today's date!"):""; }
@@ -636,7 +636,7 @@
  window.tsSaNo=function(v){ U.sale.no=(v||"").replace(/\s+/g," ").trim().slice(0,80); };
  window.tsSaPm=function(m){ var d=$("saD"); if(d) U.sale.date=d.value; var n=$("saNo"); if(n) tsSaNo(n.value); U.sale.pm=m; tsPwPm("sa",m); };
  window.tsSaSb=function(v){ U.sale.sb=v; LS.set("tc_shop_seller",v); mchipSet("saSb",v); };
- window.tsSaSave=function(){
+ window.tsSaSave=function(wb){
   var s=U.sale; if(!s.cart.length) return;
   var nn=$("saNo"); if(nn) tsSaNo(nn.value);
   var cn0=$("saCn"); if(cn0) U.sale.cn=cleanName(cn0.value); var cm0=$("saCm"); if(cm0) U.sale.cm=cleanMob(cm0.value);
@@ -662,18 +662,19 @@
   U.sale={cart:[],pm:"C",sel:null}; payInit("sa",{cuId:"saCu"});
   say(T("സേവ് ചെയ്തു · ","Saved · ")+money(tot)+(s.cu?" · "+s.cu:"")+(d!==H.today()?" · "+dmy(d):""));
   render();
+  if(wb===1&&typeof window.tsBillSheet==="function") setTimeout(function(){ window.tsBillSheet(g); },80);   /* "Save and give bill" (tc-salebill.js) */
  };
  function saDay(){
   var box=$("saDay"); if(!box) return;
-  var t=H.today(), R=SH.report(t,t), L=R.lines.slice().reverse().slice(0,12);
+  var t=stick()||window.__tcDayPick||H.today(), R=SH.report(t,t), L=R.lines.slice().reverse().slice(0,12);   /* the day being entered (sticky date / Day book), else today */
   /* one row per BILL (lines of one sale share x.g): the items under each other, customer, payment, note */
   var G={}, order=[];
   R.lines.forEach(function(l){ var k=l.r.x.g||l.r.id; if(!G[k]){ G[k]={k:k,ls:[],tot:0}; order.push(G[k]); } G[k].ls.push(l); G[k].tot+=l.tot; });
   order=order.slice().reverse().slice(0,12);
-  box.innerHTML=!order.length?"":'<div class="tsC"><b>'+E(T("ഇന്നത്തെ വിൽപ്പന","Today's sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
+  box.innerHTML=!order.length?"":'<div class="tsC"><b>'+E(t===H.today()?T("ഇന്നത്തെ വിൽപ്പന","Today's sales"):dmy(t)+" "+T("വിൽപ്പന","sales"))+' ('+money(R.sales)+')</b><div class="tsM">'+E(T("തിരുത്താൻ ഒരു വരിയിൽ അമർത്തുക","Tap a line to edit"))+'</div>'+
    order.map(function(g){ var x=g.ls[0].r.x;
     return '<div class="tsRow" onclick="tsEntry(\''+enc(g.k)+'\')"><div>'+g.ls.map(function(l){ var y=l.r.x, u=l.p&&l.p.u?" "+l.p.u:""; return '<div>'+E(l.p?l.p.n:"?")+' <span class="tsM">'+qty(y.q)+E(u)+' × '+rt(y.rp||y.pr)+'</span></div>'; }).join("")+
-     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+sellerTxt(x)+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b> ✏ <button class="tsX" onclick="event.stopPropagation();tsCancelBill(\''+enc(g.k)+'\')">✕</button></div></div>'; }).join("")+'</div>';
+     ((x.pm&&x.pm!=="C")||x.sp?'<div class="tsM">'+E(pmTxt(x))+'</div>':'')+(x.cn||x.cm?'<div class="tsM">👤 '+E(x.cn||"")+(x.cn&&x.cm?" · ":"")+E(x.cm||"")+'</div>':'')+sellerTxt(x)+(x.no?'<div class="tsM">📝 '+E(x.no)+'</div>':'')+'</div><div style="white-space:nowrap"><b>'+money(g.tot)+'</b> ✏ '+((typeof window.tsBillSheet==="function"&&!g.ls[0].r.x.dk)?'<button class="tsX" style="width:auto;padding:0 8px" onclick="event.stopPropagation();tsBillSheet(\''+enc(g.k)+'\')">🧾</button> ':'')+'<button class="tsX" onclick="event.stopPropagation();tsCancelBill(\''+enc(g.k)+'\')">✕</button></div></div>'; }).join("")+'</div>';
  }
  /* tap an entry in a list: the Day book's edit sheet (tc-shopday.js) - quantity, price, total, payment, date, note - or cancel */
  window.tsEntry=function(k){ if(typeof window.tsDySaleGo==="function") window.tsDySaleGo(k); else if(typeof window.tsDySale==="function") window.tsDySale(k); };
