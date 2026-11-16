@@ -66,6 +66,21 @@
   if(SP&&SP.lvl!=null) return SP.lvl>=3;
   try{ return localStorage.getItem(platKey())==="1"; }catch(e){ return false; }
  };
+ /* AI insights and voice questions / commands: the top plan (Platinum) - and also while the free period runs (a shop's free year) or, for a taxi / travel business, on Premium
+    (Platinum is on sale for every kind of business now; the taxi free months are given as Premium). */
+ var VEH={taxi_travel:1,auto_rickshaw:1,pickup_goods:1};
+ window.tcInsightsOk=function(){
+  try{
+   if(window.tcIsPlatinumPlan()) return true;
+   var b=biz();
+   if(VEH[b]){
+    var m="", pl=""; try{ m=String(getCurrentUser().mobile||""); pl=localStorage.getItem("tc_plan:"+m)||""; }catch(e){}
+    if(pl) return pl==="premium"||pl==="owner_free"||pl==="owner_plus";
+    return typeof tcIsPremiumPlan==="function"?!!tcIsPremiumPlan():false;
+   }
+   return state().mode==="trial";
+  }catch(e){ return false; }
+ };
  /* ---------- read the plan the server puts in every /api/shop answer ---------- */
  (function(){
   var of=window.fetch; if(typeof of!=="function") return;
