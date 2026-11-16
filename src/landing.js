@@ -143,7 +143,7 @@ const TC_SITE_VIDEOS=[];
   <div class="tcl-how" id="tclHelp">${howHtml()}</div>
  </div>
 
- <div class="tcl-card"><div class="tcl-st"><i>2</i><div><h2>${T("ആപ്പ് തുറന്ന് ലോഗിൻ ചെയ്യൂ","Open the app and log in")}</h2><p>${T("ഇൻസ്റ്റാൾ ചെയ്യാതെയും ഇപ്പോൾ തന്നെ ഉപയോഗിക്കാം. മൊബൈൽ നമ്പർ മതി.","You can also use it right now without installing. Only your mobile number is needed.")}</p></div></div>
+ <div class="tcl-card"><div class="tcl-st"><i>2</i><div><h2>${T("ആപ്പ് തുറന്ന് ലോഗിൻ ചെയ്യൂ","Open the app and log in")}</h2><p>${T("ഇൻസ്റ്റാൾ ചെയ്യാതെയും ഇപ്പോൾ തന്നെ ഉപയോഗിക്കാം. മൊബൈൽ നമ്പറും ഇമെയിലും വേണം.","You can also use it right now without installing. You need your mobile number and e-mail.")}</p></div></div>
   <button class="tcl-btn n" data-open>${T("ആപ്പ് തുറക്കൂ","Open the app")}${IC.go}</button>
  </div>
 
@@ -158,8 +158,9 @@ const TC_SITE_VIDEOS=[];
    <li>${T("കടയുടെ കണക്ക്: വിൽപ്പന, വാങ്ങൽ, സ്റ്റോക്ക്, കടം, ലാഭം, സ്റ്റാഫ്","Shop book: sales, purchases, stock, dues, profit, staff")}</li>
    <li>${T("ടാക്സി: ട്രിപ്പ്, വണ്ടി തിരിച്ചുള്ള വരവ്-ചെലവ്, അടുത്തുള്ള ട്രിപ്പ് അലർട്ട്, SOS","Taxi: trips, income and expense per vehicle, nearby trip alerts, SOS")}</li>
    <li>${T("ഇൻസൈറ്റ്, വോയിസ്, CA റിപ്പോർട്ട്, ക്ലൗഡ് ബാക്കപ്പ് (പ്ലാൻ അനുസരിച്ച്)","Insights, voice, CA report, cloud backup (by plan)")}</li></ul>
-   <ol style="margin-top:10px"><li>${T("പേര്, മൊബൈൽ നമ്പർ, ബിസിനസ് തരം അഡ്മിന് WhatsApp ചെയ്യുക","WhatsApp your name, mobile number and business type to the admin")}</li><li>${T("അനുമതി കിട്ടിയാൽ ആപ്പിൽ റജിസ്റ്റർ ചെയ്ത് വിവരങ്ങൾ ചേർക്കുക","After approval, register in the app and add your details")}</li><li>${T("അഡ്മിൻ പരിശോധിച്ചാൽ എല്ലാവർക്കും കാണാം","Once the admin verifies, everyone can see you")}</li></ol>
-   <a class="tcl-btn g" href="${wa("Hello, I want to register my business on Travel Connect.\nName:\nMobile number:\nBusiness type:")}" target="_blank" rel="noopener">${IC.wa}WhatsApp ${PHONE_SHOW}</a>`)}
+   <ol style="margin-top:10px"><li>${T("ആപ്പ് തുറന്ന് ലോഗിൻ ചെയ്യുക - മൊബൈൽ നമ്പറും ഇമെയിലും വേണം (ഇമെയിലിൽ വരുന്ന കോഡ് നൽകണം)","Open the app and log in - you need your mobile number and e-mail (enter the code sent to your e-mail)")}</li><li>${T("ബിസിനസ് റജിസ്റ്റർ ചെയ്ത് വിഭാഗവും വിവരങ്ങളും ചേർക്കുക - ഉടൻ ഉപയോഗിച്ചു തുടങ്ങാം","Register your business, choose the category and add your details - you can start using it at once")}</li><li>${T("അഡ്മിൻ പരിശോധിച്ചാൽ <b>Verified</b> അടയാളം കിട്ടും","After the admin checks, you get the <b>Verified</b> mark")}</li></ol>
+   <p style="margin-top:8px;font-size:13px;color:#657888">${T("റജിസ്റ്റർ ചെയ്യുമ്പോൾ \"അനുമതി ഇല്ല\" എന്ന് കാണിച്ചാൽ മാത്രം അഡ്മിനെ WhatsApp-ൽ ബന്ധപ്പെടുക.","Only if registering says \"not authorised\", contact the admin on WhatsApp.")}</p>
+   <a class="tcl-btn g" href="${wa("Hello, I have registered my business on Travel Connect. Please verify.\nName:\nMobile number:\nBusiness type:")}" target="_blank" rel="noopener">${IC.wa}${T("സംശയമുണ്ടെങ്കിൽ WhatsApp","Questions? WhatsApp")} ${PHONE_SHOW}</a>`)}
   ${fold(T("ഇത് സൗജന്യമാണോ?","Is it free?"),T("സേവനങ്ങൾ കണ്ടെത്താനും വിളിക്കാനും പൂർണ്ണമായും സൗജന്യം. ബിസിനസ് ലിസ്റ്റിംഗും സൗജന്യം. കൂടുതൽ സൗകര്യങ്ങൾക്ക് Plus, Premium, Platinum പ്ലാനുകൾ ഉണ്ട്.","Finding and calling services is completely free. A business listing is free too. Plus, Premium and Platinum plans add more tools."))}
   ${fold(T("Play Store-ൽ ഉണ്ടോ?","Is it on Play Store?"),T("<b>ഇല്ല.</b> Play Store-ൽ തിരഞ്ഞാൽ പേരിൽ സാമ്യമുള്ള വേറെ ആപ്പുകളാണ് കിട്ടുക. ആൻഡ്രോയിഡിൽ Chrome-ലും ഐഫോണിൽ Safari-യിലും <b>travelconnect.dev</b> തുറന്ന് ഇൻസ്റ്റാൾ ചെയ്യുക.","<b>No.</b> Searching Play Store shows other apps with a similar name. Open <b>travelconnect.dev</b> in Chrome (Android) or Safari (iPhone) and install from there."))}
   ${fold(T("രക്തദാതാവാകാൻ","Become a blood donor"),T("ആപ്പിൽ രക്തഗ്രൂപ്പും സ്ഥലവും നൽകി റജിസ്റ്റർ ചെയ്യാം. സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ നിങ്ങളുടെ നമ്പർ മറ്റുള്ളവർ കാണൂ.","Register in the app with your blood group and place. Your number is visible only while your donor switch is ON."))}
