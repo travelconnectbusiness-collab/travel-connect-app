@@ -41,14 +41,14 @@
   var money2="";
   if(d.ty!=="Q"){
    var qr=""; if(d.bal>0.5&&b.upi&&typeof getQRDataURL==="function"&&typeof buildUpiLink==="function"){ try{ var u=getQRDataURL(buildUpiLink(d.bal,d.no),190); if(u) qr='<div style="text-align:center"><b style="font-size:15px">SCAN &amp; PAY</b><br><img src="'+u+'" style="width:170px;height:170px"><br><small>UPI: '+E(b.upi)+'</small></div>'; }catch(e){} }
-   money2=(d.pays.length?'<h3 style="margin:10px 0 4px;font-size:15px;color:#143c5a">Payments received</h3><table style="width:100%;border-collapse:collapse">'+d.pays.map(function(r){ return tr(({C:"Cash",U:"UPI",B:"Bank",O:"Other"}[r.x.pm]||"")+" ("+dmy(r.d)+")",mny(r.x.a)); }).join("")+tr("Total received",mny(d.paid),true)+'</table>':'')+
+   money2=(d.pays.length?'<h3 style="margin:10px 0 4px;font-size:15px;color:#143c5a">Payments received</h3><table style="width:100%;border-collapse:collapse">'+d.pays.map(function(r){ return tr(({C:"Cash",U:"UPI",D:"Card",B:"Bank",O:"Other"}[r.x.pm]||"")+" ("+dmy(r.d)+")",mny(r.x.a)); }).join("")+tr("Total received",mny(d.paid),true)+'</table>':'')+
     '<div style="page-break-inside:avoid;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><div style="font-size:15px">Balance due: <b style="font-size:18px">'+(d.bal>0.5?mny(d.bal):"FULLY PAID")+'</b></div>'+qr+'</div>'+
     ((d.bal>0.5&&typeof window.tcBankHtml==="function")?window.tcBankHtml():"");
   }else{
    money2=(d.vu?'<div style="font-size:13px;color:#555;margin-top:8px">Valid until: <b>'+E(dmy(d.vu))+'</b></div>':'')+
     (d.ad?'<div style="page-break-inside:avoid;background:#fff8e8;border:2px solid #d2b478;border-radius:8px;padding:10px;margin:10px 0;font-size:15px">Advance to pay: <b style="font-size:18px">'+mny(d.ad)+'</b></div>'+((typeof window.tcBankHtml==="function")?window.tcBankHtml():""):"");
   }
-  return strip+brand+
+  return (noTc()?"":strip)+brand+
    '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap"><h2 style="color:#143c5a;margin:4px 0;font-size:20px">'+titleOf(d)+'</h2><span style="color:#555;font-size:13px">No: <b>'+E(d.no)+'</b> &nbsp; Date: <b>'+E(dmy(d.d))+'</b></span></div>'+
    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0">'+
    '<div style="flex:1;min-width:210px;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5"><div style="color:#888;font-size:11px">FROM</div><b>'+E(b.name||"")+'</b>'+(b.addr?'<br>'+E(b.addr):'')+(b.ph?'<br>'+E(b.ph):'')+(b.gstin?'<br>GSTIN: <b>'+E(b.gstin)+'</b>':'')+'</div>'+
@@ -60,6 +60,49 @@
    '<div style="margin-top:34px;text-align:right;font-size:13px;color:#444">For <b>'+E(b.name||"")+'</b><br><br><br>Authorised signatory</div>'+
    '<p style="text-align:center;color:#888;font-size:12px;margin-top:12px">Thank you'+(b.name?' - '+E(b.name):'')+'.</p>';
  };
+ /* the Travel Connect strip on top: shown by default; a PAID Platinum member may switch it off (tc-ownbrand.js decides) */
+ function noTc(){ try{ return typeof window.tcBillOwnName==="function"&&!!window.tcBillOwnName(); }catch(e){ return false; } }
+ /* ---- a real PDF FILE of a page (works for Malayalam too: the page is drawn as a picture, then put in an A4 PDF), shared through the phone's share sheet (WhatsApp...) or saved ---- */
+ window.tcHtmlToPdf=function(title,html){
+  return new Promise(function(resolve,reject){
+   if(typeof html2canvas==="undefined"||!window.jspdf){ reject(new Error("pdf library")); return; }
+   var frame=document.createElement("iframe"); frame.style.cssText="position:fixed;right:0;bottom:0;width:800px;height:1px;border:0;visibility:hidden";
+   document.body.appendChild(frame);
+   var fd=frame.contentWindow.document; fd.open();
+   fd.write('<html><head><title>'+E(title)+'</title><style>body{font-family:sans-serif;padding:20px;color:#111;font-size:15px;line-height:1.5;background:#fff}h2,h3{margin:8px 0}table{width:100%}td{padding:3px 0}</style></head><body>'+html+'</body></html>'); fd.close();
+   var imgs=Array.prototype.slice.call(fd.images||[]);
+   Promise.all(imgs.map(function(im){ return im.complete?Promise.resolve():new Promise(function(r){ im.addEventListener("load",r,{once:true}); im.addEventListener("error",r,{once:true}); setTimeout(r,3000); }); })).then(function(){
+    frame.style.height=fd.body.scrollHeight+"px";
+    return new Promise(function(r){ setTimeout(r,60); });
+   }).then(function(){ return html2canvas(fd.body,{backgroundColor:"#ffffff",useCORS:true,scale:2}); }).then(function(cv){
+    var pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4"}), pw=210, ph=297, pxPage=Math.floor(cv.width*ph/pw), y=0, first=true;
+    while(y<cv.height){
+     var h=Math.min(pxPage,cv.height-y), part=document.createElement("canvas"); part.width=cv.width; part.height=h;
+     part.getContext("2d").drawImage(cv,0,y,cv.width,h,0,0,cv.width,h);
+     if(!first) pdf.addPage(); first=false;
+     pdf.addImage(part.toDataURL("image/jpeg",0.92),"JPEG",0,0,pw,h*pw/cv.width);
+     y+=h;
+    }
+    frame.remove(); resolve(pdf.output("blob"));
+   }).catch(function(e){ try{ frame.remove(); }catch(x){} reject(e); });
+  });
+ };
+ window.tcSharePdf=function(title,html,fname){
+  try{ toast(T("PDF ഉണ്ടാക്കുന്നു...","Making the PDF...")); }catch(e){}
+  return window.tcHtmlToPdf(title,html).then(function(blob){
+   var name=String(fname||title||"bill").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"")+".pdf", file=null;
+   try{ file=new File([blob],name,{type:"application/pdf"}); }catch(e){}
+   function save(){
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} },4000);
+    try{ toast(T("PDF ഡൗൺലോഡ് ചെയ്തു","PDF downloaded")); }catch(e){}
+   }
+   if(file&&navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
+    return navigator.share({files:[file],title:title}).catch(function(e){ if(e&&e.name==="AbortError") return; save(); });   /* the phone refused to share (it wants a fresh tap) -> save the file instead */
+   }
+   save();
+  }).catch(function(){ try{ toast(T("PDF ഉണ്ടാക്കാൻ പറ്റിയില്ല - പ്രിന്റ് ഉപയോഗിക്കൂ","Could not make the PDF - use Print instead")); }catch(e){} });
+ };
+ window.tdPdf=function(id){ var d=DX.get(id); if(!d) return; window.tcSharePdf(titleOf(d)+" "+d.no,window.tdHtml(d),titleOf(d)+"-"+d.no); };
  window.tdPrint=function(id,asImage){
   var d=DX.get(id); if(!d) return;
   try{ printContent(titleOf(d)+" "+d.no,window.tdHtml(d),!!asImage); }catch(e){ try{ toast("Could not open the print page"); }catch(x){} if(window.console) console.error("tc-docsprint",e); }
