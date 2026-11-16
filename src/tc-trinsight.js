@@ -162,15 +162,18 @@
   try{ if(typeof window.tcPlanSync==="function") window.tcPlanSync(); }catch(e){}
   var h2=app.querySelector(".card>h2");
   if(!h2||!/Travel Connect Dashboard|ഡാഷ്ബോർഡ്/i.test(h2.textContent)) return;
-  var anchor=$("tcLiveCard")||h2, c=$("tcTrInsight");
-  if(!c){
-   c=document.createElement("div"); c.className="card"; c.id="tcTrInsight";
-   c.style.cssText="border:2px solid #8a6fd1;padding:10px 12px;margin:0 0 12px";
-   var L=[]; try{ L=compute(); }catch(e){}
-   if(!L.length) return;
-   c.innerHTML=cardHtml(L);
-  }
-  if(anchor.nextElementSibling!==c) anchor.parentNode.insertBefore(c,anchor.nextSibling);
+  /* Put the card in ONCE and never move it again. Other cards (live trip, accounts, bookings) keep their own places right under the top;
+     a card that also insisted on "directly after the live card" made them push each other around for ever - the whole page flickered.
+     The insight card sits lower down, just above the Share card, a place nobody else claims. */
+  if($("tcTrInsight")) return;
+  var L=[]; try{ L=compute(); }catch(e){}
+  if(!L.length) return;
+  var c=document.createElement("div"); c.className="card"; c.id="tcTrInsight";
+  c.style.cssText="padding:10px 12px;margin:0 0 12px";
+  c.innerHTML=cardHtml(L);
+  var box=h2.parentNode, at=$("tcShareCard");
+  if(!at||at.parentNode!==box){ var ds=box.querySelectorAll(":scope > details"); at=ds.length?ds[ds.length-1]:null; }
+  if(at) box.insertBefore(c,at); else box.appendChild(c);
  }
  var t0=null;
  function later(){ clearTimeout(t0); t0=setTimeout(function(){ try{ arrange(); }catch(e){} },140); }
