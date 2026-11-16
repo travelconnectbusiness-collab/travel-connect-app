@@ -117,12 +117,32 @@ function injectOwnerCard(){
  anchor.insertAdjacentHTML("afterend",'<div class="card" id="tcUpCard"><h3>&#9989; '+bl("Verification & Plan","വെരിഫിക്കേഷനും പ്ലാനും")+'</h3><p class="muted">'+bl("Loading...","ലോഡ് ചെയ്യുന്നു...")+'</p></div>');
  loadOwnerCard();
 }
+/* remember the plan for every kind of business (the shop also learns it from /api/shop answers): tc_plat:<mobile> = 1 for Platinum, tc_plan:<mobile> = the plan name.
+   tcIsPlatinumPlan() / tcInsightsOk() (tc-shopplan.js) read these, so insights, voice and own-name bills also work for a taxi / travel owner. */
+function rememberPlan(d){
+ try{
+  const u=getCurrentUser(), m=u&&u.mobile?String(u.mobile):""; if(!m||!d||!d.ok||!d.partner) return;
+  localStorage.setItem("tc_plat:"+m,d.partner.platinum?"1":"0"); localStorage.setItem("tc_plan:"+m,d.partner.plan||"free"); localStorage.setItem("tc_plan_ts:"+d.partner.id,String(Date.now()));
+  /* Platinum that is really running on THIS business (bought, or given by the admin; the owner plan too) - never the free period. Used for "my name only" bills (tc-ownbrand.js). */
+  localStorage.setItem("tc_pp:"+d.partner.id,(d.partner.platinum&&(d.partner.plan==="premium"||d.partner.plan==="owner_free"))?"1":"0");
+ }catch(e){}
+}
+window.tcPlanSync=async function(force){
+ try{
+  const c=ownerCreds(); if(!c||c.role==="customer") return;
+  if(!force&&Date.now()-(+localStorage.getItem("tc_plan_ts:"+c.partner_id)||0)<3*3600*1000) return;
+  localStorage.setItem("tc_plan_ts:"+c.partner_id,String(Date.now()));   /* one try per 3 hours for a business, even when it fails */
+  const d=await getJson("/api/upgrade?action=status&partner_id="+encodeURIComponent(c.partner_id)+"&mobile="+encodeURIComponent(c.mobile)+"&device="+encodeURIComponent(c.device_token));
+  rememberPlan(d);
+ }catch(e){}
+};
+setTimeout(function(){ try{ window.tcPlanSync(); }catch(e){} },7000);
 async function loadOwnerCard(){
  const box=document.querySelector("#tcUpCard"); if(!box) return;
  const c=ownerCreds(); if(!c){ box.remove(); return; }
  const d=await getJson("/api/upgrade?action=status&partner_id="+encodeURIComponent(c.partner_id)+"&mobile="+encodeURIComponent(c.mobile)+"&device="+encodeURIComponent(c.device_token));
  if(!d.ok){ box.remove(); return; }   /* e.g. admin previewing a page - nothing to show */
- upState=d;
+ upState=d; rememberPlan(d);
  /* keep the cached partner in step so later "save" buttons never overwrite the verified email with an old copy */
  try{
   if(window._myPartner&&String(window._myPartner.id)===String(d.partner.id)){
@@ -260,7 +280,7 @@ window.tcUpOpenUpgrade=function(){
   '<p class="muted">'+(d.period==="month"?bl("Vehicle businesses pay monthly.","വാഹന ബിസിനസുകൾക്ക് മാസം തോറും."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
   planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Blue tick badge, your own business name & UPI QR on bills, tagline in the directory, listed above Free. Shops & workshops: shop photo, 2 ad posts, social links.","നീല ടിക്ക് ബാഡ്ജ്, ബില്ലിൽ സ്വന്തം ബിസിനസ് പേരും UPI QR-ഉം, ഡയറക്ടറിയിൽ ടാഗ്‌ലൈൻ, ഫ്രീയേക്കാൾ മുകളിൽ ലിസ്റ്റിങ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ."))+
   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus + gold Premium badge, your logo, colours & fonts, top of the list, cloud backup. Shops & workshops: stock, sales & purchases, bills / quotations, job cards, reports. Other businesses: ad posts & social links.","Plus-ലെ എല്ലാം + സ്വർണ്ണ Premium ബാഡ്ജ്, സ്വന്തം ലോഗോ, നിറങ്ങൾ, ഫോണ്ടുകൾ, ലിസ്റ്റിൽ ഏറ്റവും മുകളിൽ, ക്ലൗഡ് ബാക്കപ്പ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: സ്റ്റോക്ക്, വിൽപ്പന / വാങ്ങൽ, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ. മറ്റ് ബിസിനസുകൾ: പരസ്യ പോസ്റ്റുകളും സോഷ്യൽ ലിങ്കുകളും."))+
-  ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + shop with up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ.")):"")+
+  ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + AI insights and voice (ask and add by speaking) + bills under your own name only (no Travel Connect strip) + for shops: up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + AI ഇൻസൈറ്റ്, വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിൽ നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ) + ഷോപ്പിന്: 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ.")):"")+
   (payReady?
    '<div id="tcUpPay" style="margin-top:10px"></div>'+
    (needDocs?'<hr><p><b>'+bl("Your documents (first time only)","നിങ്ങളുടെ രേഖകൾ (ആദ്യതവണ മാത്രം)")+'</b></p>'+docFieldsHtml():"")+
@@ -415,7 +435,7 @@ window.tcAdLoadPriceBox=async function(){
   '<label>Your UPI ID (where owners pay)<input id="tcAdUpi" value="'+E(s.upi_id)+'" placeholder="name@bank"></label>'+
   '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdSavePrices()">Save prices</button></div>'+
-  '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the shop with this number (shops, hotels, other non-vehicle businesses). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
+  '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the business with this number (any kind of business). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
   '<div class="grid"><label>Shop number<input id="tcAdPlM" type="tel" inputmode="numeric" maxlength="13" placeholder="10-digit number"></label><label>Days<input id="tcAdPlD" type="number" min="1" value="365"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdPlat(1)">Give Platinum</button><button onclick="tcAdPlat(0)">Remove Platinum</button></div>'+
   '<p class="muted" style="font-size:12px">Email service: '+(d.email_ready?'<span class="ok">connected</span>':'<span class="danger">not set up (RESEND_API_KEY missing) - email codes cannot be sent</span>')+'</p></div>';
@@ -425,7 +445,7 @@ window.tcAdPlat=async function(on){
  if(m.length<6){ say("Enter the shop number"); return; }
  if(!confirm((on?"Give Platinum to ":"Remove Platinum from ")+m+"?")) return;
  const d=await postJson("admin_set_platinum",{token:adminToken(),mobile:m,on:on?1:0,days:+days});
- say(d.ok?(on?"Platinum given":"Platinum removed"):(d.error==="not_found"?"No shop / non-vehicle business with this number":"Could not change"));
+ say(d.ok?(on?"Platinum given":"Platinum removed"):(d.error==="not_found"?"No business with this number":"Could not change"));
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
