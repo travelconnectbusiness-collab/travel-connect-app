@@ -86,7 +86,7 @@
  function txt(i){ return T(i.ml,i.en); }
  function row(i){ var c=i.sev===2?"#fdecec":i.sev===1?"#fff6df":"#eef6f1"; return '<div class="tsC" style="background:'+c+';margin:6px 0;padding:10px"><span style="font-size:20px">'+i.ic+'</span> '+E(txt(i))+'</div>'; }
 
- function allowed(){ return typeof window.tcIsPlatinumPlan==="function"?!!window.tcIsPlatinumPlan():true; }
+ function allowed(){ return typeof window.tcInsightsOk==="function"?!!window.tcInsightsOk():(typeof window.tcIsPlatinumPlan==="function"?!!window.tcIsPlatinumPlan():true); }
  window.tsInsightList=compute;   /* used by the test */
 
  /* the Home card: top 3 insights (or the locked teaser) */
