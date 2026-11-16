@@ -3,8 +3,11 @@
 
    What a first-time visitor sees at travelconnect.dev (from a poster,
    WhatsApp, Facebook, Instagram or Google) BEFORE the login screen:
-   a proper website explaining what Travel Connect is, with an
-   "Open the App" button that leads into the normal app/login.
+   a SHORT page (rewritten 2026-11-16): what this is in one line, a clear note
+   that this is the website and the app is not open yet, then two numbered
+   steps - 1 Install (only the instruction for THIS phone is shown), 2 Open /
+   Login. Everything else (business owners, how to register, questions) is
+   folded. One language at a time (Malayalam first, English button).
 
    It is a full-screen layer on top of the app and is NOT shown to:
      - the installed app (standalone mode),
@@ -45,176 +48,147 @@ const TC_SITE_VIDEOS=[];
  const shareLink="https://wa.me/?text="+encodeURIComponent("Travel Connect - നാട്ടിലെ സേവനങ്ങൾ ഒരൊറ്റ ആപ്പിൽ\nTaxi, auto, pickup, shops, hotels, skilled workers & blood donors near you.\n\n*Play Store-ൽ ഇല്ല.* Android: Chrome-ലും iPhone: Safari-യിലും ഈ ലിങ്ക് തുറന്ന് Install / Add to Home Screen ചെയ്യൂ:\n"+SITE);
 
  const css=`
-#tcLanding{position:fixed;inset:0;z-index:9990;overflow-y:auto;overflow-x:hidden;background:#f3f7fa;color:#10283d;font-family:Poppins,"Noto Sans Malayalam","Manjari",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5;-webkit-text-size-adjust:100%}
+#tcLanding{position:fixed;inset:0;z-index:9990;overflow-y:auto;overflow-x:hidden;background:#f2f5f8;color:#132436;font-family:Poppins,"Noto Sans Malayalam","Manjari",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5;-webkit-text-size-adjust:100%}
 #tcLanding *{box-sizing:border-box}
 #tcLanding a{color:inherit;text-decoration:none}
 #tcLanding h1,#tcLanding h2,#tcLanding h3,#tcLanding p{margin:0;padding:0;border:0;background:none}
 #tcLanding button{font:inherit;font-weight:700;cursor:pointer;border:0}
-.tcl-wrap{max-width:980px;margin:0 auto;padding:0 18px}
-.tcl-nav{position:sticky;top:0;z-index:5;background:rgba(8,43,73,.97);color:#fff;padding:calc(10px + env(safe-area-inset-top,0px)) 0 10px}
+#tcLanding svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tcl-wrap{max-width:560px;margin:0 auto;padding:0 14px}
+.tcl-nav{position:sticky;top:0;z-index:5;background:#082b49;color:#fff;padding:calc(10px + env(safe-area-inset-top,0px)) 0 10px}
 .tcl-nav .tcl-wrap{display:flex;align-items:center;gap:10px}
-.tcl-nav img{width:38px;height:38px;border-radius:10px}
-.tcl-nav b{font-size:17px;letter-spacing:.5px;flex:1}.tcl-nav b i{font-style:normal;color:#ffc928}
-.tcl-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:30px;padding:11px 22px;font-weight:700;font-size:15px;box-shadow:0 4px 12px rgba(0,0,0,.22)}
-.tcl-btn.y{background:#ffc928;color:#082b49}.tcl-btn.g{background:#1faa59;color:#fff}.tcl-btn.w{background:rgba(255,255,255,.14);color:#fff;box-shadow:none;border:1.5px solid rgba(255,255,255,.5)}
-.tcl-btn.sm{padding:8px 16px;font-size:13.5px}
-.tcl-hero{background:radial-gradient(ellipse 600px 300px at 85% 0,rgba(63,124,235,.5),transparent 70%),linear-gradient(160deg,#071a46,#0c3a8a 70%,#0b4f9c);color:#fff;padding:34px 0 46px;text-align:center}
-.tcl-chip{display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 14px;font-size:12.5px;font-weight:600;letter-spacing:.4px}
-.tcl-hero img{width:104px;height:104px;border-radius:26px;margin:16px auto 8px;display:block;box-shadow:0 0 40px rgba(255,255,255,.3)}
-.tcl-hero h1{font-size:clamp(30px,7.2vw,52px);font-weight:800;line-height:1.12;margin-top:6px}.tcl-hero h1 span{color:#ffc928}
-.tcl-brand{font-weight:300;letter-spacing:3px;font-size:15px;opacity:.9;margin-top:8px}
-.tcl-ml{color:#ffe28a;font-weight:700;font-size:clamp(17px,4.4vw,24px);margin-top:12px;line-height:1.5}
-.tcl-hero p.s{max-width:620px;margin:14px auto 0;font-size:15.5px;opacity:.95}
-.tcl-cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
-.tcl-sec{padding:38px 0 6px}
-.tcl-sec h2{font-size:clamp(22px,5vw,30px);font-weight:800;color:#082b49;text-align:center}
-.tcl-sec .sub{text-align:center;color:#4d6270;font-weight:600;margin:4px 0 20px;font-size:15px}
-.tcl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-@media(min-width:700px){.tcl-grid{grid-template-columns:repeat(4,1fr)}.tcl-g3{grid-template-columns:repeat(3,1fr)!important}}
-.tcl-card{background:#fff;border-radius:18px;padding:16px 14px;box-shadow:0 2px 10px rgba(8,43,73,.09);text-align:center}
-.tcl-card .ic{font-size:34px;line-height:1.2}
-.tcl-card h3{font-size:15.5px;font-weight:700;margin-top:6px;color:#082b49}
-.tcl-card p{font-size:13.5px;color:#4d6270;margin-top:3px;font-weight:500}
-.tcl-card.red{border-top:4px solid #d62839}
-.tcl-steps{display:grid;gap:12px}
-@media(min-width:700px){.tcl-steps.c3{grid-template-columns:repeat(3,1fr)}}
-.tcl-step{background:#fff;border-radius:18px;padding:16px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 2px 10px rgba(8,43,73,.09)}
-.tcl-step i{flex:none;width:34px;height:34px;border-radius:50%;background:#ffc928;color:#082b49;font-style:normal;font-weight:800;display:flex;align-items:center;justify-content:center}
-.tcl-step b{display:block;font-size:15.5px;color:#082b49}.tcl-step span{font-size:13.5px;color:#4d6270;font-weight:500}
-.tcl-band{background:linear-gradient(135deg,#0b3d91,#1565d8);color:#fff;border-radius:22px;padding:22px 18px;margin-top:6px}
-.tcl-band h3{font-size:19px;font-weight:800}.tcl-band ul{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:9px}
-.tcl-band li{font-size:14.5px;font-weight:600;padding-left:26px;position:relative}.tcl-band li:before{content:"\\2714";position:absolute;left:0;color:#ffc928}
-.tcl-band li small{display:block;font-weight:500;opacity:.85;font-size:12.5px}
-@media(min-width:700px){.tcl-band ul{grid-template-columns:1fr 1fr}}
-.tcl-blood{background:#fff;border-left:6px solid #d62839;border-radius:18px;padding:18px;display:flex;gap:14px;box-shadow:0 2px 10px rgba(8,43,73,.09)}
-.tcl-blood .ic{font-size:42px}.tcl-blood h3{font-size:18px;color:#a3121f;font-weight:800}.tcl-blood p{font-size:14px;color:#4d6270;font-weight:500;margin-top:4px}
-.tcl-inst{display:grid;gap:12px}@media(min-width:700px){.tcl-inst{grid-template-columns:1fr 1fr}}
-.tcl-inst .tcl-step{align-items:center}.tcl-url{display:inline-block;background:#ffc928;color:#082b49;font-weight:800;padding:2px 12px;border-radius:8px;margin:6px 0}
-.tcl-poster{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x mandatory}
-.tcl-poster img{height:420px;width:auto;border-radius:16px;box-shadow:0 3px 14px rgba(8,43,73,.2);scroll-snap-align:center;flex:none;max-width:90%}
-.tcl-vid{position:relative;padding-top:56.25%;border-radius:16px;overflow:hidden;background:#000;margin-top:12px}.tcl-vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-.tcl-ad{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(8,43,73,.09);display:flex;flex-direction:column}
-.tcl-ad img{width:100%;height:150px;object-fit:cover}.tcl-ad .b{padding:14px;flex:1;display:flex;flex-direction:column;gap:6px}
-.tcl-ad small{color:#7a8a96;font-weight:600;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase}
-.tcl-ad h3{font-size:16.5px;font-weight:800;color:#082b49}.tcl-ad p{font-size:13.5px;color:#4d6270;font-weight:500;flex:1}
-.tcl-ad .tcl-btn{align-self:flex-start;margin-top:6px}
-.tcl-ad.dash{background:transparent;border:2px dashed #9fb3c2;box-shadow:none}
-.tcl-help{background:#fff8e1;border:2px solid #ffc928;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:600;color:#5a4300;text-align:center}
-.tcl-help .tcl-btn{margin-top:10px}
-.tcl-warn{background:#fff8e1;border:3px solid #ffc928;border-radius:16px;padding:14px 16px;margin:18px auto 0;max-width:560px;font-size:14.5px;line-height:1.55;font-weight:600;color:#3d2f00;text-align:center}
-.tcl-warn .t{display:block;font-size:16.5px;font-weight:900;color:#b3261e;margin-bottom:6px}
-.tcl-warn b{font-weight:900;color:#082b49}
-.tcl-faq details{background:#fff;border-radius:14px;padding:13px 16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(8,43,73,.07)}
-.tcl-faq summary{font-weight:700;cursor:pointer;color:#082b49;font-size:15px}.tcl-faq details p{margin-top:8px;font-size:14px;color:#4d6270;font-weight:500}
-.tcl-foot{background:#071a2e;color:#cfe0ee;margin-top:40px;padding:28px 0 calc(28px + env(safe-area-inset-bottom,0px));text-align:center;font-size:13.5px}
-.tcl-foot b{color:#fff;font-size:16px}.tcl-foot a{color:#ffc928;font-weight:700}
-.tcl-foot .links{margin:12px 0;display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.tcl-nav img{width:36px;height:36px;border-radius:10px}
+.tcl-nav b{font-size:15px;letter-spacing:1.6px;flex:1}
+.tcl-lang{background:rgba(255,255,255,.12);color:#fff;border-radius:999px;padding:7px 13px;font-size:13px}
+.tcl-hero{background:#082b49;color:#fff;text-align:center;padding:14px 0 26px;border-radius:0 0 22px 22px}
+.tcl-hero h1{font-size:23px;line-height:1.3;font-weight:800}
+.tcl-hero p{font-size:14px;opacity:.85;margin-top:6px}
+.tcl-note{display:flex;gap:9px;align-items:flex-start;text-align:left;background:#fff6dc;color:#5b4300;border-radius:14px;padding:11px 12px;font-size:13.5px;line-height:1.45;margin:-14px 0 12px;box-shadow:0 4px 14px rgba(8,43,73,.12)}
+.tcl-note svg{color:#b07d00;margin-top:1px}
+.tcl-card{background:#fff;border-radius:18px;padding:14px;margin:0 0 12px;box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06)}
+.tcl-st{display:flex;gap:12px;align-items:flex-start}
+.tcl-st>i{font-style:normal;width:30px;height:30px;border-radius:50%;background:#0b6b78;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.tcl-st h2{font-size:17px;font-weight:800;line-height:1.3}
+.tcl-st p{font-size:13.5px;color:#55687a;margin-top:2px}
+.tcl-btn{display:flex;width:100%;align-items:center;justify-content:center;gap:8px;border-radius:14px;padding:14px 16px;font-weight:800;font-size:16px;margin-top:12px}
+.tcl-btn.p{background:#0b6b78;color:#fff;box-shadow:0 4px 12px rgba(11,107,120,.3)}
+.tcl-btn.n{background:#082b49;color:#fff}
+.tcl-btn.g{background:#1faa59;color:#fff}
+.tcl-btn.s{background:#e9eff4;color:#16324a;font-size:14.5px;padding:11px 14px}
+.tcl-how{background:#f3f8f9;border:1px solid #d5e6e9;border-radius:12px;padding:10px 12px;font-size:13.5px;margin-top:10px;line-height:1.5}
+.tcl-how b{color:#0b4f5a}
+.tcl-ok{background:#e8f6ee;border-color:#bfe3cd;color:#145c33}
+.tcl-h{font-size:12px;font-weight:800;color:#657888;letter-spacing:1px;text-transform:uppercase;margin:18px 4px 8px}
+.tcl-tags{display:flex;flex-wrap:wrap;gap:7px}
+.tcl-tags span{background:#e7f2f3;color:#0b4f5a;border-radius:999px;padding:6px 12px;font-size:13.5px;font-weight:600}
+.tcl-tags span.r{background:#fdecec;color:#a12d2d}
+.tcl-fold{border-top:1px solid #e9eef2}
+.tcl-fold:first-of-type{border-top:0}
+.tcl-fold summary{list-style:none;display:flex;align-items:center;gap:10px;padding:13px 2px;font-weight:700;font-size:15px;cursor:pointer}
+.tcl-fold summary::-webkit-details-marker{display:none}
+.tcl-fold summary span{flex:1}
+.tcl-fold summary svg{color:#a9b6c1;transition:transform .15s}
+.tcl-fold[open] summary svg{transform:rotate(90deg)}
+.tcl-fold .in{padding:0 2px 14px;font-size:14px;color:#3d4f60}
+.tcl-fold ul,.tcl-fold ol{margin:0;padding-left:20px}
+.tcl-fold li{margin:5px 0}
+.tcl-ad{border:1px solid #e2e9ef;border-radius:14px;padding:12px;margin-top:10px;font-size:13.5px;color:#3d4f60}
+.tcl-ad img{width:100%;border-radius:10px;margin-bottom:8px}
+.tcl-ad small{display:block;font-size:11px;color:#8a98a5;letter-spacing:.5px;text-transform:uppercase}
+.tcl-ad h3{font-size:15px;color:#132436;margin:2px 0}
+.tcl-poster img{width:100%;border-radius:14px;display:block;margin-top:10px}
+.tcl-vid{position:relative;padding-top:56.25%;margin-top:10px;border-radius:14px;overflow:hidden}
+.tcl-vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.tcl-foot{text-align:center;font-size:12.5px;color:#657888;padding:8px 0 calc(28px + env(safe-area-inset-bottom,0px))}
+.tcl-foot .links{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;margin:8px 0}
+.tcl-foot a{color:#0b6b78;font-weight:700}
 `;
+ const CH='<svg width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+ const IC={
+  info:'<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  down:'<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
+  go:'<svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  wa:'<svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 20l1.500-4.500A8 8 0 1 1 8.500 18.500z"/></svg>'
+ };
+ const ua=navigator.userAgent||"";
+ const IOS=/iPhone|iPad|iPod/i.test(ua), ANDROID=/Android/i.test(ua);
+ const INAPP=/FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Telegram|MiuiBrowser|; wv\)/i.test(ua);
+ let lang="ml"; try{ if(localStorage.getItem("tc_site_lang")==="en") lang="en"; }catch(e){}
+ const T=(ml,en)=>lang==="en"?en:ml;
+ const adCard=a=>`<div class="tcl-ad">${a.image?`<img src="${esc(a.image)}" alt="${esc(a.title)}" loading="lazy">`:""}<small>${T("പരസ്യം","Advertisement")}${a.by?" · "+esc(a.by):""}</small><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>${a.link?`<a class="tcl-btn s" href="${esc(a.link)}" target="_blank" rel="noopener">${T("കൂടുതൽ അറിയാൻ","Know more")}</a>`:a.phone?`<a class="tcl-btn s" href="tel:+91${esc(a.phone)}">${T("വിളിക്കൂ","Call")} ${esc(a.phone)}</a>`:""}</div>`;
 
- const services=[["🚕","Taxi & Auto","ടാക്സി · ഓട്ടോ"],["🛻","Pickup & Goods","പിക്കപ്പ് · ചരക്ക് വാഹനങ്ങൾ"],["🏪","Shops & Businesses","കടകൾ · ബിസിനസുകൾ"],["🏨","Hotels & Homestays","ഹോട്ടൽ · ഹോംസ്റ്റേ"],["🔧","Skilled Workers","ഇലക്ട്രീഷ്യൻ · പ്ലംബർ · മെക്കാനിക്"],["🩸","Blood Donors","രക്തദാതാക്കൾ","red"],["🧭","Find a Vehicle","വാഹനം കണ്ടെത്താം"],["💬","and More","കൂടുതൽ സേവനങ്ങൾ"]];
- const adCard=a=>`<div class="tcl-ad">${a.image?`<img src="${esc(a.image)}" alt="${esc(a.title)}" loading="lazy">`:""}<div class="b"><small>Advertisement${a.by?" · "+esc(a.by):""}</small><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>${a.link?`<a class="tcl-btn y sm" href="${esc(a.link)}" target="_blank" rel="noopener">Know more</a>`:a.phone?`<a class="tcl-btn y sm" href="tel:+91${esc(a.phone)}">📞 Call</a>`:""}</div></div>`;
-
- const html=`
-<div class="tcl-nav"><div class="tcl-wrap"><img src="/tc-icon-192.png" alt=""><b>TRAVEL <i>CONNECT</i></b><button class="tcl-btn y sm" data-open>Login · ലോഗിൻ</button></div></div>
-
+ /* the install instruction for THIS phone only */
+ function howHtml(){
+  if(INAPP) return T("ഇത് WhatsApp / Facebook / Instagram-നുള്ളിലെ ബ്രൗസർ ആണ്. <b>ഇവിടെ നിന്ന് ഇൻസ്റ്റാൾ ചെയ്യാൻ പറ്റില്ല.</b> ","You are inside the browser of WhatsApp / Facebook / Instagram. <b>The app cannot be installed from here.</b> ")+
+   (IOS?T("താഴെയുള്ള <b>⋯</b> അമർത്തി <b>Open in Safari</b> തിരഞ്ഞെടുക്കൂ.","Tap <b>⋯</b> below and choose <b>Open in Safari</b>.")
+       :T("മുകളിൽ വലതുവശത്തെ <b>⋮</b> അമർത്തി <b>Open in Chrome</b> തിരഞ്ഞെടുക്കൂ.","Tap <b>⋮</b> at the top right and choose <b>Open in Chrome</b>.")+`<a class="tcl-btn s" href="intent://travelconnect.dev/#Intent;scheme=https;package=com.android.chrome;end">${T("Chrome-ൽ തുറക്കൂ","Open in Chrome")}</a>`);
+  if(IOS) return T("iPhone-ൽ: <b>Safari</b>-യിൽ ഈ പേജ് തുറക്കൂ → താഴെയുള്ള <b>Share</b> (⬆) → <b>Add to Home Screen</b>.","On iPhone: open this page in <b>Safari</b> → tap <b>Share</b> (⬆) → <b>Add to Home Screen</b>.");
+  if(ANDROID) return T("മുകളിലെ ബട്ടൺ അമർത്തിയിട്ട് ഒന്നും വന്നില്ലെങ്കിൽ: Chrome-ൽ മുകളിൽ വലതുവശത്തെ <b>⋮</b> → <b>Install app</b> / <b>Add to Home screen</b>.","If nothing happens when you tap the button: in Chrome tap <b>⋮</b> at the top right → <b>Install app</b> / <b>Add to Home screen</b>.");
+  return T("കമ്പ്യൂട്ടറിൽ: Chrome-ന്റെ അഡ്രസ് ബാറിലെ <b>Install</b> ചിഹ്നം അമർത്തൂ. ഫോണിൽ ഉപയോഗിക്കാൻ ഫോണിലെ Chrome / Safari-യിൽ <b>travelconnect.dev</b> തുറക്കൂ.","On a computer: click the <b>Install</b> icon in Chrome's address bar. For your phone, open <b>travelconnect.dev</b> in Chrome / Safari on the phone.");
+ }
+ function pageHtml(){
+  const tags=[[T("ടാക്സി · ഓട്ടോ","Taxi · Auto")],[T("പിക്കപ്പ് · ചരക്ക് വാഹനം","Pickup · Goods")],[T("കടകൾ","Shops")],[T("ഹോട്ടൽ · ഹോംസ്റ്റേ","Hotels · Homestays")],[T("ഇലക്ട്രീഷ്യൻ · പ്ലംബർ · മെക്കാനിക്","Electrician · Plumber · Mechanic")],[T("വർക്ക്ഷോപ്പ്","Workshops")],[T("രക്തദാതാക്കൾ","Blood donors"),"r"]];
+  const fold=(q,a,open)=>`<details class="tcl-fold"${open?" open":""}><summary><span>${q}</span>${CH}</summary><div class="in">${a}</div></details>`;
+  return `
+<div class="tcl-nav"><div class="tcl-wrap"><img src="/tc-icon-192.png" alt=""><b>TRAVEL CONNECT</b><button class="tcl-lang" data-lang>${lang==="en"?"മലയാളം":"English"}</button></div></div>
 <header class="tcl-hero"><div class="tcl-wrap">
- <span class="tcl-chip">FREE LOCAL DIRECTORY · KERALA</span>
- <img src="/tc-icon-512.png" alt="Travel Connect logo">
- <h1>Be Found.<br>Stay Connected.<br><span>Grow Together.</span></h1>
- <div class="tcl-brand">CONNECTING EVERYTHING</div>
- <div class="tcl-ml">നിങ്ങളെ മറ്റുള്ളവർ കണ്ടെത്തട്ടെ. ബന്ധങ്ങൾ വളരട്ടെ.<br>നമുക്കൊന്നിച്ച് മുന്നേറാം.</div>
- <p class="s">Taxi, auto, pickup, shops, hotels, skilled workers and blood donors near you - all in one app. Call them directly, no middlemen.<br><b>നാട്ടിലെ സേവനങ്ങൾ ഒരൊറ്റ ആപ്പിൽ - നേരിട്ട് വിളിക്കാം, ഇടനിലക്കാരില്ല.</b></p>
- <div class="tcl-cta"><button class="tcl-btn y" data-open>Open the App · ആപ്പ് തുറക്കൂ</button><button class="tcl-btn w" data-install>⬇ Install App · ഇൻസ്റ്റാൾ</button></div>
- <div class="tcl-warn"><span class="t">⚠ Not on Play Store or App Store · Play Store-ൽ ഇല്ല</span>This is a <b>web app</b>. Open <b>travelconnect.dev</b> in <b>Chrome</b> (Android) or <b>Safari</b> (iPhone), then tap <b>Install app</b> / <b>Add to Home Screen</b>. <b>Do not search in Play Store</b> - you will find other apps.<br>ഇത് ഒരു <b>വെബ് ആപ്പ്</b> ആണ്. ആൻഡ്രോയിഡിൽ <b>Chrome</b>, ഐഫോണിൽ <b>Safari</b> ബ്രൗസറിൽ <b>travelconnect.dev</b> തുറന്ന് ഇൻസ്റ്റാൾ ചെയ്യൂ. <b>Play Store-ൽ തിരയരുത്</b> - വേറെ ആപ്പുകളാണ് കിട്ടുക.</div>
+ <h1>${T("നാട്ടിലെ സേവനങ്ങൾ<br>ഒരൊറ്റ ആപ്പിൽ","Local services<br>in one app")}</h1>
+ <p>${T("ടാക്സി, ഓട്ടോ, കടകൾ, തൊഴിലാളികൾ - നേരിട്ട് വിളിക്കാം. സൗജന്യം.","Taxi, auto, shops, workers - call them directly. Free.")}</p>
 </div></header>
+<div class="tcl-wrap">
+ <div class="tcl-note">${IC.info}<div>${T("<b>ഇത് വെബ്സൈറ്റ് ആണ് - ആപ്പ് ഇതുവരെ തുറന്നിട്ടില്ല.</b> താഴെയുള്ള 2 ഘട്ടം മാത്രം.","<b>This is the website - the app is not open yet.</b> Just the 2 steps below.")}</div></div>
 
-<section class="tcl-sec"><div class="tcl-wrap"><h2>What you can find</h2><div class="sub">എന്തൊക്കെ കിട്ടും</div>
- <div class="tcl-grid">${services.map(s=>`<div class="tcl-card ${s[3]||""}"><div class="ic">${s[0]}</div><h3>${s[1]}</h3><p>${s[2]}</p></div>`).join("")}</div></div></section>
-
-<section class="tcl-sec"><div class="tcl-wrap"><h2>For customers</h2><div class="sub">സേവനം വേണ്ടവർക്ക്</div>
- <div class="tcl-steps c3">
-  <div class="tcl-step"><i>1</i><div><b>Open the app</b><span>ആപ്പ് തുറക്കൂ</span></div></div>
-  <div class="tcl-step"><i>2</i><div><b>Find who is nearby</b><span>അടുത്തുള്ളവരെ കണ്ടെത്തൂ - ദൂരവും ഏകദേശ യാത്രാ ദൂരവും അറിയാം</span></div></div>
-  <div class="tcl-step"><i>3</i><div><b>Call them directly</b><span>ഒറ്റ ടച്ചിൽ നേരിട്ട് വിളിക്കൂ</span></div></div>
- </div></div></section>
-
-<section class="tcl-sec"><div class="tcl-wrap"><h2>For business owners</h2><div class="sub">ബിസിനസ് ഉടമകൾക്ക്</div>
- <div class="tcl-band"><h3>List your business free · ഫ്രീയായി ലിസ്റ്റ് ചെയ്യൂ</h3><ul>
-  <li>Be found by people nearby<small>അടുത്തുള്ളവർ നിങ്ങളെ കണ്ടെത്തും</small></li>
-  <li>Bills &amp; quotations in your name<small>സ്വന്തം പേരിൽ ബിൽ, ക്വട്ടേഷൻ</small></li>
-  <li>Own UPI QR on your bills (Plus / Premium)<small>ബില്ലിൽ സ്വന്തം UPI QR</small></li>
-  <li>Your trip alert reaches nearby vehicles<small>വാഹന ഉടമകൾക്ക് സമീപത്തെ ട്രിപ്പ് അലർട്ട്</small></li>
-  <li>SOS alert for vehicle owners (taxi / auto / pickup)<small>വാഹന ഉടമകൾക്ക് മാത്രം SOS</small></li>
-  <li>Cloud backup of your data (Premium)<small>ഡാറ്റ ക്ലൗഡ് ബാക്കപ്പ്</small></li></ul></div>
- <h3 style="margin:22px 0 10px;text-align:center;color:#082b49;font-size:18px">How to register · റജിസ്റ്റർ ചെയ്യാൻ</h3>
- <div class="tcl-steps">
-  <div class="tcl-step"><i>1</i><div><b>WhatsApp your name, mobile number &amp; business type to Admin</b><span>പേര്, മൊബൈൽ നമ്പർ, ബിസിനസ് തരം അഡ്മിന് അയക്കുക</span></div></div>
-  <div class="tcl-step"><i>2</i><div><b>After authorisation, register in the app</b><span>അനുമതി ലഭിച്ചാൽ ആപ്പിൽ റജിസ്റ്റർ ചെയ്യുക</span></div></div>
-  <div class="tcl-step"><i>3</i><div><b>Choose your category (or "Other" and add yours)</b><span>വിഭാഗം തിരഞ്ഞെടുക്കുക</span></div></div>
-  <div class="tcl-step"><i>4</i><div><b>Add business / vehicle / service details</b><span>ബിസിനസ് / വാഹന വിവരങ്ങൾ ചേർക്കുക</span></div></div>
-  <div class="tcl-step"><i>5</i><div><b>Admin verifies - then you are visible to customers</b><span>അഡ്മിൻ പരിശോധിച്ചാൽ എല്ലാവർക്കും കാണാം</span></div></div>
+ <div class="tcl-card" id="tclInstall"><div class="tcl-st"><i>1</i><div><h2>${T("ഫോണിൽ ഇൻസ്റ്റാൾ ചെയ്യൂ","Install on your phone")}</h2><p>${T("Play Store-ൽ ഇല്ല - ഇവിടെ നിന്ന് തന്നെ ഇൻസ്റ്റാൾ ചെയ്യാം.","Not on Play Store - install it right here.")}</p></div></div>
+  ${INAPP||IOS?"":`<button class="tcl-btn p" data-install>${IC.down}${T("ഇൻസ്റ്റാൾ ചെയ്യൂ","Install the app")}</button>`}
+  <div class="tcl-how" id="tclHelp">${howHtml()}</div>
  </div>
- <div class="tcl-cta"><a class="tcl-btn g" href="${wa("Hello, I want to register my business on Travel Connect.\nName:\nMobile number:\nBusiness type:")}" target="_blank" rel="noopener">WhatsApp ${PHONE_SHOW}</a></div></div></section>
 
-<section class="tcl-sec"><div class="tcl-wrap"><div class="tcl-blood"><div class="ic">🩸</div><div><h3>Become a blood donor · രക്തദാതാവാകാം</h3><p>Register with your blood group and place. Your phone number is visible only while your donor switch is ON. People in need can search by blood group and call you directly.<br>രക്തഗ്രൂപ്പും സ്ഥലവും നൽകി റജിസ്റ്റർ ചെയ്യൂ. സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ നിങ്ങളുടെ നമ്പർ കാണൂ.</p></div></div></div></section>
+ <div class="tcl-card"><div class="tcl-st"><i>2</i><div><h2>${T("ആപ്പ് തുറന്ന് ലോഗിൻ ചെയ്യൂ","Open the app and log in")}</h2><p>${T("ഇൻസ്റ്റാൾ ചെയ്യാതെയും ഇപ്പോൾ തന്നെ ഉപയോഗിക്കാം. മൊബൈൽ നമ്പർ മതി.","You can also use it right now without installing. Only your mobile number is needed.")}</p></div></div>
+  <button class="tcl-btn n" data-open>${T("ആപ്പ് തുറക്കൂ","Open the app")}${IC.go}</button>
+ </div>
 
-<section class="tcl-sec" id="tclInstall"><div class="tcl-wrap"><h2>Install the app</h2><div class="sub">ഇൻസ്റ്റാൾ ചെയ്യാം - <b>Play Store വേണ്ട</b></div>
- <div class="tcl-warn"><span class="t">⚠ Not on Play Store or App Store · Play Store-ൽ ഇല്ല</span>This is a <b>web app</b>. Open <b>travelconnect.dev</b> in <b>Chrome</b> (Android) or <b>Safari</b> (iPhone), then tap <b>Install app</b> / <b>Add to Home Screen</b>. <b>Do not search in Play Store</b> - you will find other apps.<br>ഇത് ഒരു <b>വെബ് ആപ്പ്</b> ആണ്. ആൻഡ്രോയിഡിൽ <b>Chrome</b>, ഐഫോണിൽ <b>Safari</b> ബ്രൗസറിൽ <b>travelconnect.dev</b> തുറന്ന് ഇൻസ്റ്റാൾ ചെയ്യൂ. <b>Play Store-ൽ തിരയരുത്</b> - വേറെ ആപ്പുകളാണ് കിട്ടുക.</div>
- <div class="tcl-cta" style="margin:16px 0 16px"><button class="tcl-btn y" data-install>⬇ Install App now · ഇപ്പോൾ ഇൻസ്റ്റാൾ ചെയ്യൂ</button></div>
- <div class="tcl-help" id="tclHelp" hidden></div>
- <div class="tcl-inst">
-  <div class="tcl-step"><i style="background:#3DDC84"><svg width="20" height="20" fill="#fff" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.44 5.559q-1.015 1.748-2.028 3.498-.055-.023-.111-.043a12.098 12.098 0 0 0-8.68.033C7.537 8.897 5.868 6.026 5.6 5.56a1 1 0 0 0-.141-.19 1.104 1.104 0 0 0-1.768 1.298c1.947 3.37-.096-.216 1.948 3.36.017.03-.495.263-1.393 1.017C2.9 12.176.452 14.772 0 18.99h24a11.7 11.7 0 0 0-.746-3.068 12.1 12.1 0 0 0-2.74-4.184 12 12 0 0 0-2.131-1.687c.66-1.122 1.312-2.256 1.965-3.385a1.11 1.11 0 0 0-.008-1.12 1.1 1.1 0 0 0-.852-.532c-.522-.054-.939.313-1.049.545m-.04 8.46c.395.593.324 1.331-.156 1.65-.48.32-1.188.1-1.582-.493s-.324-1.33.156-1.65c.473-.316 1.182-.11 1.582.494m-11.193-.492c.48.32.55 1.058.156 1.65-.394.593-1.103.815-1.584.495-.48-.32-.55-1.058-.156-1.65.4-.603 1.109-.811 1.584-.495"/></svg></i><div><b>Android · <u>Chrome</u> browser</b><span>Open <span class="tcl-url">travelconnect.dev</span> in <b style="display:inline">Chrome</b> (not Play Store) → ⋮ Menu → <b style="display:inline">Install app</b> / Add to Home screen<br>Play Store അല്ല, <b style="display:inline">Chrome</b>-ൽ travelconnect.dev തുറക്കൂ → ⋮ → Install app</span></div></div>
-  <div class="tcl-step"><i style="background:#111"><svg width="20" height="20" fill="#fff" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></i><div><b>iPhone · <u>Safari</u> browser</b><span>Open <span class="tcl-url">travelconnect.dev</span> in <b style="display:inline">Safari</b> (not App Store) → Share (⬆) → <b style="display:inline">Add to Home Screen</b><br>App Store അല്ല, <b style="display:inline">Safari</b>-യിൽ travelconnect.dev തുറക്കൂ → Share → Add to Home Screen</span></div></div>
- </div></div></section>
+ <div class="tcl-h">${T("ഇതിൽ കണ്ടെത്താം","What you can find")}</div>
+ <div class="tcl-card"><div class="tcl-tags">${tags.map(t=>`<span class="${t[1]||""}">${t[0]}</span>`).join("")}</div></div>
 
-<section class="tcl-sec"><div class="tcl-wrap"><h2>Posters &amp; videos</h2><div class="sub">പോസ്റ്ററുകളും വീഡിയോകളും</div>
- <div class="tcl-poster">${TC_SITE_POSTERS.map(p=>`<img src="${esc(p.src)}" alt="${esc(p.alt)}" loading="lazy">`).join("")}</div>
- ${TC_SITE_VIDEOS.map(v=>`<div class="tcl-vid"><iframe src="https://www.youtube.com/embed/${esc(v)}" title="Travel Connect video" loading="lazy" allowfullscreen></iframe></div>`).join("")}
- <div class="tcl-cta"><a class="tcl-btn g" href="${shareLink}" target="_blank" rel="noopener">Share on WhatsApp · ഷെയർ ചെയ്യൂ</a></div></div></section>
+ <div class="tcl-h">${T("കൂടുതൽ അറിയാൻ","More")}</div>
+ <div class="tcl-card" style="padding:2px 14px">
+  ${fold(T("ബിസിനസ് / വാഹന ഉടമകൾക്ക്","For business / vehicle owners"),`<ul>
+   <li>${T("അടുത്തുള്ളവർ നിങ്ങളെ കണ്ടെത്തും - സൗജന്യ ലിസ്റ്റിംഗ്","People nearby find you - free listing")}</li>
+   <li>${T("സ്വന്തം പേരിൽ ബില്ല്, ക്വട്ടേഷൻ, GST ബില്ല് - PDF, WhatsApp, പ്രിന്റ്","Bills, quotations and GST bills in your name - PDF, WhatsApp, print")}</li>
+   <li>${T("കടയുടെ കണക്ക്: വിൽപ്പന, വാങ്ങൽ, സ്റ്റോക്ക്, കടം, ലാഭം, സ്റ്റാഫ്","Shop book: sales, purchases, stock, dues, profit, staff")}</li>
+   <li>${T("ടാക്സി: ട്രിപ്പ്, വണ്ടി തിരിച്ചുള്ള വരവ്-ചെലവ്, അടുത്തുള്ള ട്രിപ്പ് അലർട്ട്, SOS","Taxi: trips, income and expense per vehicle, nearby trip alerts, SOS")}</li>
+   <li>${T("ഇൻസൈറ്റ്, വോയിസ്, CA റിപ്പോർട്ട്, ക്ലൗഡ് ബാക്കപ്പ് (പ്ലാൻ അനുസരിച്ച്)","Insights, voice, CA report, cloud backup (by plan)")}</li></ul>
+   <ol style="margin-top:10px"><li>${T("പേര്, മൊബൈൽ നമ്പർ, ബിസിനസ് തരം അഡ്മിന് WhatsApp ചെയ്യുക","WhatsApp your name, mobile number and business type to the admin")}</li><li>${T("അനുമതി കിട്ടിയാൽ ആപ്പിൽ റജിസ്റ്റർ ചെയ്ത് വിവരങ്ങൾ ചേർക്കുക","After approval, register in the app and add your details")}</li><li>${T("അഡ്മിൻ പരിശോധിച്ചാൽ എല്ലാവർക്കും കാണാം","Once the admin verifies, everyone can see you")}</li></ol>
+   <a class="tcl-btn g" href="${wa("Hello, I want to register my business on Travel Connect.\nName:\nMobile number:\nBusiness type:")}" target="_blank" rel="noopener">${IC.wa}WhatsApp ${PHONE_SHOW}</a>`)}
+  ${fold(T("ഇത് സൗജന്യമാണോ?","Is it free?"),T("സേവനങ്ങൾ കണ്ടെത്താനും വിളിക്കാനും പൂർണ്ണമായും സൗജന്യം. ബിസിനസ് ലിസ്റ്റിംഗും സൗജന്യം. കൂടുതൽ സൗകര്യങ്ങൾക്ക് Plus, Premium, Platinum പ്ലാനുകൾ ഉണ്ട്.","Finding and calling services is completely free. A business listing is free too. Plus, Premium and Platinum plans add more tools."))}
+  ${fold(T("Play Store-ൽ ഉണ്ടോ?","Is it on Play Store?"),T("<b>ഇല്ല.</b> Play Store-ൽ തിരഞ്ഞാൽ പേരിൽ സാമ്യമുള്ള വേറെ ആപ്പുകളാണ് കിട്ടുക. ആൻഡ്രോയിഡിൽ Chrome-ലും ഐഫോണിൽ Safari-യിലും <b>travelconnect.dev</b> തുറന്ന് ഇൻസ്റ്റാൾ ചെയ്യുക.","<b>No.</b> Searching Play Store shows other apps with a similar name. Open <b>travelconnect.dev</b> in Chrome (Android) or Safari (iPhone) and install from there."))}
+  ${fold(T("രക്തദാതാവാകാൻ","Become a blood donor"),T("ആപ്പിൽ രക്തഗ്രൂപ്പും സ്ഥലവും നൽകി റജിസ്റ്റർ ചെയ്യാം. സ്വിച്ച് ON ആയിരിക്കുമ്പോൾ മാത്രമേ നിങ്ങളുടെ നമ്പർ മറ്റുള്ളവർ കാണൂ.","Register in the app with your blood group and place. Your number is visible only while your donor switch is ON."))}
+  ${fold(T("ഏതൊക്കെ സ്ഥലങ്ങൾ?","Which places?"),T("വളയം, നാദാപുരം, വടകര, കുറ്റ്യാടി തുടങ്ങി കേരളം മുഴുവൻ. ","Valayam, Nadapuram, Vadakara, Kuttiady and across Kerala. ")+`<a href="/areas.html" style="color:#0b6b78;font-weight:700">${T("എല്ലാ സ്ഥലങ്ങളും","See all areas")}</a>`)}
+  ${fold(T("പോസ്റ്റർ, പരസ്യങ്ങൾ","Posters and ads"),`<div class="tcl-poster">${TC_SITE_POSTERS.map(p=>`<img src="${esc(p.src)}" alt="${esc(p.alt)}" loading="lazy">`).join("")}</div>
+   ${TC_SITE_VIDEOS.map(v=>`<div class="tcl-vid"><iframe src="https://www.youtube.com/embed/${esc(v)}" title="Travel Connect video" loading="lazy" allowfullscreen></iframe></div>`).join("")}
+   <div class="tcl-ad"><small>${T("പരസ്യം","Advertisement")} · Krishna Tours &amp; Travels</small><h3>Krishna Tours &amp; Travels, Valayam</h3><p>${T("ടാക്സി, ടൂർ, യാത്രാ സേവനങ്ങൾ.","Taxi, tours and travel.")}</p><a class="tcl-btn s" href="tel:+91${PHONE}">${T("വിളിക്കൂ","Call")} ${PHONE_SHOW}</a></div>
+   ${TC_SITE_ADS.map(adCard).join("")}
+   <div class="tcl-ad"><small>${T("നിങ്ങളുടെ പരസ്യം ഇവിടെ","Your ad here")}</small><p>${T("നിങ്ങളുടെ ബിസിനസിന്റെ പരസ്യം ഇവിടെ കൊടുക്കാം.","Advertise your business here.")}</p><a class="tcl-btn s" href="${wa("Hello, I want to advertise on Travel Connect.")}" target="_blank" rel="noopener">${T("WhatsApp-ൽ ചോദിക്കൂ","Ask on WhatsApp")}</a></div>
+   <a class="tcl-btn g" href="${shareLink}" target="_blank" rel="noopener">${IC.wa}${T("WhatsApp-ൽ ഷെയർ ചെയ്യൂ","Share on WhatsApp")}</a>`)}
+ </div>
 
-<section class="tcl-sec"><div class="tcl-wrap"><h2>Featured</h2><div class="sub">പരസ്യങ്ങൾ</div>
- <div class="tcl-grid tcl-g3" style="grid-template-columns:1fr">
-  <div class="tcl-ad"><div class="b"><small>Travel Connect</small><h3>Need a taxi, auto or pickup?</h3><p>Open the app, enter pickup and drop - nearby vehicles are alerted and tell you how far they are.<br>ടാക്സി, ഓട്ടോ, പിക്കപ്പ് വേണോ? ആപ്പ് തുറന്ന് ട്രിപ്പ് അയക്കൂ.</p><button class="tcl-btn y sm" data-open>Open the App</button></div></div>
-  <div class="tcl-ad"><div class="b"><small>Advertisement · Krishna Tours &amp; Travels</small><h3>Krishna Tours &amp; Travels, Valayam</h3><p>Taxi, tours and travel across Kerala and beyond.<br>ടാക്സി, ടൂർ, യാത്രാ സേവനങ്ങൾ.</p><a class="tcl-btn y sm" href="tel:+91${PHONE}">📞 ${PHONE_SHOW}</a></div></div>
-  ${TC_SITE_ADS.map(adCard).join("")}
-  <div class="tcl-ad dash"><div class="b"><small>Your ad here</small><h3>Advertise your business</h3><p>Premium members and local businesses can feature here.<br>നിങ്ങളുടെ ബിസിനസിന്റെ പരസ്യം ഇവിടെ.</p><a class="tcl-btn g sm" href="${wa("Hello, I want to advertise on Travel Connect.")}" target="_blank" rel="noopener">Ask on WhatsApp</a></div></div>
- </div></div></section>
-
-<section class="tcl-sec tcl-faq"><div class="tcl-wrap"><h2>Questions</h2><div class="sub">സംശയങ്ങൾ</div>
- <details><summary>Is it free? · ഇത് സൗജന്യമാണോ?</summary><p>Finding and calling local services is free. Business owners get a free listing; Plus and Premium plans add your own branding, UPI QR and more.</p></details>
- <details open><summary>Where do I get the app? Is it on Play Store? · ആപ്പ് എവിടെ നിന്ന്? Play Store-ൽ ഉണ്ടോ?</summary><p><b>No - it is NOT on Play Store or App Store.</b> Travel Connect is a web app. Open <b>travelconnect.dev</b> in <b>Chrome</b> (Android) or <b>Safari</b> (iPhone) and tap <b>Install app</b> / <b>Add to Home Screen</b>. If you search Play Store you will find other, unrelated apps with a similar name.<br><b>ഇല്ല - Play Store-ലോ App Store-ലോ ഇല്ല.</b> ആൻഡ്രോയിഡിൽ <b>Chrome</b>-ലും ഐഫോണിൽ <b>Safari</b>-യിലും <b>travelconnect.dev</b> തുറന്ന് Install app / Add to Home Screen അമർത്തുക. Play Store-ൽ തിരഞ്ഞാൽ പേരിൽ സാമ്യമുള്ള വേറെ ആപ്പുകളാണ് കിട്ടുക.</p></details>
- <details><summary>Who can use SOS? · SOS ആർക്ക്?</summary><p>SOS alerts are only for registered vehicle owners (taxi, auto, pickup). Customers do not use it.</p></details>
- <details><summary>Which places are covered? · ഏതൊക്കെ സ്ഥലങ്ങൾ?</summary><p>Valayam, Nadapuram, Vadakara, Kuttiady and across Kerala. Any business can join. <a href="/areas.html" style="color:#0b6b78;font-weight:700">See all areas</a></p></details>
-</div></section>
-
-<footer class="tcl-foot"><div class="tcl-wrap"><b>TRAVEL CONNECT</b><br>Connecting Everything<div style="margin:10px 0 0;font-size:12.5px;opacity:.9"><b>Web app · not on Play Store.</b> Open travelconnect.dev in Chrome / Safari.</div><div class="links"><a href="tel:+91${PHONE}">📞 ${PHONE_SHOW}</a><a href="${wa("Hello, I have a question about Travel Connect.")}" target="_blank" rel="noopener">WhatsApp</a><a href="/areas.html">Areas</a><a href="/privacy.html">Privacy · സ്വകാര്യത</a><a href="/terms.html">Terms · നിബന്ധനകൾ</a></div><button class="tcl-btn y" data-open>Open the App · ആപ്പ് തുറക്കൂ</button><div style="margin-top:16px;opacity:.7">© Krishna Tours &amp; Travels, Valayam, Kerala</div></div></footer>`;
+ <div class="tcl-foot"><div class="links"><a href="tel:+91${PHONE}">${PHONE_SHOW}</a><a href="${wa("Hello, I have a question about Travel Connect.")}" target="_blank" rel="noopener">WhatsApp</a><a href="/privacy.html">${T("സ്വകാര്യത","Privacy")}</a><a href="/terms.html">${T("നിബന്ധനകൾ","Terms")}</a></div>© Krishna Tours &amp; Travels, Valayam, Kerala</div>
+</div>`;
+ }
 
  const st=document.createElement("style"); st.id="tcLandingCss"; st.textContent=css; document.head.appendChild(st);
- const box=document.createElement("div"); box.id="tcLanding"; box.innerHTML=html;
+ const box=document.createElement("div"); box.id="tcLanding"; box.innerHTML=pageHtml();
  document.body.appendChild(box);
- /* Opened inside Instagram / Facebook / Telegram etc.? Their built-in browser cannot install the app,
-    so say so right at the top, before the person scrolls anywhere. */
- try{
-  const ua0=navigator.userAgent||"";
-  if(/FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Telegram|; wv\)/i.test(ua0)){
-   const ios0=/iPhone|iPad|iPod/i.test(ua0);
-   const how=ios0
-    ?"Tap the <b>⋯</b> or <b>compass</b> icon → <b>Open in Safari</b>.<br>താഴെയുള്ള <b>⋯</b> / കോമ്പസ് ചിഹ്നം അമർത്തി <b>Open in Safari</b> തിരഞ്ഞെടുക്കൂ."
-    :"Tap the <b>⋮</b> menu (top right) → <b>Open in Chrome</b> / <b>Open in external browser</b>.<br>മുകളിൽ വലതുവശത്തെ <b>⋮</b> അമർത്തി <b>Open in Chrome</b> തിരഞ്ഞെടുക്കൂ.";
-   const btn=ios0?"":"<br><a class='tcl-btn y sm' style='margin-top:8px' href='intent://travelconnect.dev/#Intent;scheme=https;package=com.android.chrome;end'>Open in Chrome · Chrome-ൽ തുറക്കൂ</a>";
-   box.insertAdjacentHTML("afterbegin","<div class='tcl-warn' style='max-width:none;border-radius:0;margin:0;border-width:0 0 4px 0'><span class='t'>⚠ You are in an app's built-in browser · ഇത് ആപ്പിനുള്ളിലെ ബ്രൗസർ ആണ്</span><b>You cannot install Travel Connect from here.</b> "+how+"<br>ഇവിടെ നിന്ന് ഇൻസ്റ്റാൾ ചെയ്യാൻ പറ്റില്ല."+btn+"</div>");
-  }
- }catch(e){}
- /* One-tap install: Chrome/Edge on Android give us a real install prompt (beforeinstallprompt).
-    iPhone has no such thing (Apple allows only Share -> Add to Home Screen), and the browser
-    inside Facebook/Instagram/WhatsApp cannot install at all, so those get a clear instruction. */
+
+ /* One-tap install: Chrome on Android gives a real install prompt (beforeinstallprompt). iPhone has none (Share -> Add to Home Screen),
+    and the browser inside Facebook / Instagram / WhatsApp cannot install at all - those see their instruction in step 1 instead of a button. */
  let installEvt=null;
  addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); installEvt=e; });
- addEventListener("appinstalled",()=>{ installEvt=null; showHelp("<b>✅ Installed! · ഇൻസ്റ്റാൾ ആയി.</b><br>Open Travel Connect from your home screen.<br>ഹോം സ്ക്രീനിൽ നിന്ന് തുറക്കൂ."); });
- function showHelp(h){
+ addEventListener("appinstalled",()=>{ installEvt=null; showHelp(T("<b>ഇൻസ്റ്റാൾ ആയി.</b> ഇനി ഫോണിന്റെ ഹോം സ്ക്രീനിലെ Travel Connect ചിഹ്നം അമർത്തി തുറക്കൂ.","<b>Installed.</b> Now open Travel Connect from its icon on your home screen."),true); });
+ function showHelp(h,ok){
   const el=document.getElementById("tclHelp"); if(!el) return;
-  el.innerHTML=h; el.hidden=false;
-  const sec=document.getElementById("tclInstall"); if(sec) sec.scrollIntoView({behavior:"smooth",block:"start"});
+  el.innerHTML=h; el.className="tcl-how"+(ok?" tcl-ok":"");
+  el.scrollIntoView({behavior:"smooth",block:"center"});
  }
  async function doInstall(){
   if(installEvt){
@@ -222,20 +196,15 @@ const TC_SITE_VIDEOS=[];
    try{ ev.prompt(); await ev.userChoice; }catch(e){}
    return;
   }
-  const ua=navigator.userAgent||"";
-  const android=/Android/i.test(ua), ios=/iPhone|iPad|iPod/i.test(ua);
-  const inApp=/FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Telegram|MiuiBrowser|; wv\)/i.test(ua);
-  if(ios) return showHelp("<b>iPhone:</b> open this page in <b>Safari</b> → tap <b>Share</b> (⬆) → <b>Add to Home Screen</b>.<br>Safari-യിൽ തുറക്കൂ → Share → Add to Home Screen");
-  if(android&&inApp) return showHelp("This in-app browser cannot install apps. Open in Chrome first.<br>ഈ ബ്രൗസറിൽ ഇൻസ്റ്റാൾ ചെയ്യാൻ കഴിയില്ല - Chrome-ൽ തുറക്കൂ.<br><a class='tcl-btn y sm' href='intent://travelconnect.dev/#Intent;scheme=https;package=com.android.chrome;end'>Open in Chrome · Chrome-ൽ തുറക്കൂ</a>");
-  showHelp("Tap the <b>⋮ menu</b> in Chrome → <b>Install app</b> (or Add to Home screen).<br>If you do not see it, the app may already be installed.<br>Chrome-ൽ ⋮ → Install app. കാണുന്നില്ലെങ്കിൽ ആപ്പ് ഇൻസ്റ്റാൾ ആയിട്ടുണ്ടാകാം.");
+  showHelp(howHtml()+"<br>"+T("ആ ഓപ്ഷൻ കാണുന്നില്ലെങ്കിൽ ആപ്പ് നേരത്തേ ഇൻസ്റ്റാൾ ആയിട്ടുണ്ടാകാം - ഹോം സ്ക്രീനിൽ നോക്കൂ.","If you do not see that option, the app may already be installed - look on your home screen."));
  }
  function openApp(){
   try{ sessionStorage.setItem("tc_site_opened","1"); }catch(e){}
   box.remove(); st.remove(); scrollTo(0,0);
  }
  box.addEventListener("click",e=>{
+  const l=e.target.closest("[data-lang]"); if(l){ e.preventDefault(); lang=lang==="en"?"ml":"en"; try{ localStorage.setItem("tc_site_lang",lang); }catch(x){} box.innerHTML=pageHtml(); box.scrollTop=0; return; }
   const ins=e.target.closest("[data-install]"); if(ins){ e.preventDefault(); doInstall(); return; }
   const o=e.target.closest("[data-open]"); if(o){ e.preventDefault(); openApp(); return; }
-  const g=e.target.closest("[data-go]"); if(g){ e.preventDefault(); const t=document.getElementById(g.getAttribute("data-go")); if(t) t.scrollIntoView({behavior:"smooth",block:"start"}); }
  });
 })();
