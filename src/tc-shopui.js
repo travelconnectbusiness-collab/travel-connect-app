@@ -205,7 +205,7 @@
   var q=i.value.trim(), o=PK[id]||{};
   var L=SH.search(q,{t:o.t,noRc:o.noRc}); if(o.skip) L=L.filter(function(p){ return !o.skip(p); }); L=L.slice(0,q?8:0);
   if(!q&&o.recent) L=o.recent();
-  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+'</small></div>'; }).join("");
+  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+(SH.isStaff()?'':' <b style="padding:4px 8px;margin-left:6px;border-radius:8px;background:#e9eff4" onclick="event.stopPropagation();tsPkEdit(\''+id+'\',\''+p.id+'\')">✏</b>')+'</small></div>'; }).join("");
   if(q&&o.allowNew!==false&&!SH.findName(q)) h+='<div class="n" onclick="tsPkNew(\''+id+'\')">➕ "'+E(q)+'" '+E(T("പുതിയ ഇനമായി ചേർക്കുക","add as new item"))+'</div>';
   if(!h&&q) h='<div><span class="tsM">'+E(T("ഒന്നുമില്ല","Nothing found"))+'</span></div>';
   l.innerHTML=h; l.classList.toggle("hidden",!h);
@@ -214,6 +214,11 @@
   var p=SH.prod(pid), o=PK[id]||{}; if(!p) return;
   var i=$("pk_"+id+"_i"), l=$("pk_"+id+"_l"); if(i) i.value=""; if(l){ l.innerHTML=""; l.classList.add("hidden"); }
   if(o.pick) o.pick(p);
+ };
+ /* the pencil on a search result: correct the name (spelling) or other details of the item, then come back to the same search */
+ window.tsPkEdit=function(id,pid){
+  var i=$("pk_"+id+"_i"), q=i?i.value:"";
+  prodSheet(pid,null,function(){ var j=$("pk_"+id+"_i"); if(j){ j.value=q; window.tsPkIn(id); } });
  };
  window.tsPkNew=function(id){
   var i=$("pk_"+id+"_i"), name=i?i.value.trim():"";
@@ -229,7 +234,7 @@
   var OPENMORE=!!(x.u||x.nt||x.ec||x.g||(x.rc&&x.rc.length)||x.pk>1||(x.lo!==undefined&&x.lo!==""&&x.lo!=null));
   PS={pid:pid,cb:cb,t:t,c:x.c||(t==="f"?"Fish":"Other"),rc:(x.rc||[]).map(function(c){ return {i:c.i,q:+c.q||1}; })};
   var cats=SH.categories();
-  sheet('<h3 style="margin:0 0 6px">'+E(pid?T("ഇനം മാറ്റുക","Edit item"):T("പുതിയ ഇനം","New item"))+'</h3>'+
+  sheet('<h3 style="margin:0 0 6px">'+E(pid?T("പേരും വിവരങ്ങളും തിരുത്തുക","Edit name and details"):T("പുതിയ ഇനം","New item"))+'</h3>'+
    '<label>'+E(T("പേര്","Name"))+'</label><input id="psN" value="'+E(x.n||"")+'">'+
    (AQ?'<label>'+E(T("തരം","Kind"))+'</label><div id="psT"><span class="tsChip'+(t==="f"?" on":"")+'" onclick="tsPsT(\'f\')">🐟 '+E(T("മീൻ","Fish"))+'</span><span class="tsChip'+(t!=="f"?" on":"")+'" onclick="tsPsT(\'i\')">📦 '+E(T("സാധനം","Item"))+'</span></div>':'')+
    '<label>'+E(T("വിഭാഗം","Category"))+'</label><select id="psC">'+cats.map(function(c){ return '<option value="'+E(c)+'"'+(c===PS.c?" selected":"")+'>'+E(SH.catName(c,lang==="ml"))+'</option>'; }).join("")+'</select><input id="psCN" placeholder="'+E(T("പുതിയ വിഭാഗത്തിന്റെ പേര് (വേണമെങ്കിൽ)","New category name (optional)"))+'" style="margin-top:6px">'+
@@ -332,20 +337,28 @@
    picker("mg",{noRc:false,skip:function(q){ return q.id===p.id; },allowNew:false,ph:T("ശരിയായ ഇനം തിരയുക...","Search the right item..."),pick:function(t){ tsPsMergeTo(t.id); }})+
    '<button class="tsBtn g" onclick="tsCloseSheet()">'+E(T("റദ്ദാക്കുക","Cancel"))+'</button>');
  };
+ /* what already went out (sold / lost) under an item's own name */
+ function mgOut(id){ var n=0; SH.calc().live.forEach(function(r){ if((r.k==="s"||r.k==="m")&&r.x&&r.x.p===id) n+=+r.x.q||0; }); return n; }
  window.tsPsMergeTo=function(tid){
   var p=SH.prod(PS.pid), t=SH.prod(tid); if(!p||!t) return;
   sheet('<h3 style="margin:0 0 10px;line-height:1.4">'+E(p.n)+' <span style="color:#0b6b78">→</span> '+E(t.n)+'</h3>'+
    '<div class="tsM" style="line-height:1.6;font-size:15px">'+E(T("'"+p.n+"' ന്റെ എല്ലാ വിൽപ്പനയും വാങ്ങലും സ്റ്റോക്കും '"+t.n+"' ൽ ചേരും. '"+p.n+"' ലിസ്റ്റിൽ നിന്ന് മാറും.","Everything of '"+p.n+"' joins '"+t.n+"'. '"+p.n+"' leaves the list."))+'</div>'+
-   '<button class="tsBtn" style="background:#1a8f4a;font-size:22px;padding:18px" onclick="tsPsMergeGo(\''+tid+'\')">✔ '+E(T("ശരി, ഒന്നാക്കുക","Yes, merge"))+'</button>'+
+   ((!p.nt&&!p.comp&&!t.nt&&!t.comp&&p.stock>0&&t.stock>0)?
+    '<div class="tsM" style="line-height:1.6;font-size:15px;margin-top:8px"><b>'+E(T("സ്റ്റോക്ക്: ","Stock: ")+p.n+" "+qty(p.stock)+", "+t.n+" "+qty(t.stock))+'</b><br>'+E(T("ഒരേ സ്റ്റോക്ക് രണ്ട് പേരിലും ചേർത്തതാണോ, അതോ രണ്ടും വേറെ വേറെ സ്റ്റോക്ക് ആണോ?","Was the same stock entered under both names, or are they two separate lots?"))+'</div>'+
+    '<button class="tsBtn" style="background:#1a8f4a" onclick="tsPsMergeGo(\''+tid+'\',1)">✔ '+E(T("ഒരേ സ്റ്റോക്ക് ആണ് - "+qty(t.stock-mgOut(p.id))+" മാത്രം വയ്ക്കുക","Same stock - keep only "+qty(t.stock-mgOut(p.id))))+'</button>'+
+    '<button class="tsBtn g" onclick="tsPsMergeGo(\''+tid+'\')">'+E(T("രണ്ടും വേറെ സ്റ്റോക്ക് - കൂട്ടി "+qty(p.stock+t.stock)+" ആക്കുക","Two separate lots - add up to "+qty(p.stock+t.stock)))+'</button>'
+    :'<button class="tsBtn" style="background:#1a8f4a;font-size:22px;padding:18px" onclick="tsPsMergeGo(\''+tid+'\')">✔ '+E(T("ശരി, ഒന്നാക്കുക","Yes, merge"))+'</button>')+
    '<button class="tsBtn g" onclick="tsPsMerge()">← '+E(T("പിന്നോട്ട്","Back"))+'</button>');
  };
- window.tsPsMergeGo=function(tid){
+ window.tsPsMergeGo=function(tid,one){
   var p=SH.prod(PS.pid), t=SH.prod(tid); if(!p||!t) return;
-  SH.saveProduct({i:p.id,mg:t.id}); closeSheet(); say(T("ഒന്നാക്കി","Merged")); var cb=PS&&PS.cb; if(cb) cb(t); else render();
+  var extra=(one===1&&!p.nt&&!p.comp&&p.stock>0)?p.stock+mgOut(p.id):0;   /* everything that had come in under the second name */
+  SH.saveProduct({i:p.id,mg:t.id});
+  if(extra>0) SH.add("a",{p:t.id,q:-extra,r:"merge"});   /* the same stock had been entered under both names: take the second copy out again */ closeSheet(); say(T("ഒന്നാക്കി","Merged")); var cb=PS&&PS.cb; if(cb) cb(t); else render();
  };
  window.tsPsDel=function(){
   var p=SH.prod(PS.pid); if(!p) return;
-  if(SH.usage(p.id)>0){ say(T("ഇതിൽ കണക്കുകൾ ഉണ്ട്. ഡിലീറ്റ് ചെയ്യാതെ 'ഒന്നാക്കുക' ഉപയോഗിക്കൂ","It has entries. Use merge, or hide it")); return; }
+  if(SH.usage(p.id)>0){ say(T("ഇതിൽ വിൽപ്പന / വാങ്ങൽ കണക്കുകൾ ഉണ്ട്, അതുകൊണ്ട് ഡിലീറ്റ് ചെയ്യാൻ പറ്റില്ല. 'ഒന്നാക്കുക' അമർത്തൂ - അവിടെ 'ഒരേ സ്റ്റോക്ക് ആണ്' തിരഞ്ഞെടുത്താൽ സ്റ്റോക്ക് ഇരട്ടിയാകില്ല.","It has sales / purchase entries, so it cannot be deleted. Tap Merge - choosing 'Same stock' there keeps the stock from doubling.")); return; }
   if(!confirm(T("'"+p.n+"' ഡിലീറ്റ് ചെയ്യട്ടേ?","Delete '"+p.n+"'?"))) return;
   SH.saveProduct({i:p.id,dl:1}); closeSheet(); say(T("ഡിലീറ്റ് ചെയ്തു","Deleted")); render();
  };
@@ -554,11 +567,19 @@
    (p.comp?'':'<div class="tsM" style="margin-top:8px">'+E(T("വിൽക്കുന്നത്:","Sold by:"))+'</div><div id="saUn">'+unitChips(p.u,"tsSaUnit")+'</div>')+
    '<div class="tsG"><div><label>'+E(T("വില ","Price ")+"("+perTxt(p.u)+")")+'</label><input id="saPr" type="number" inputmode="decimal" value="'+E(p.pr||"")+'" oninput="tsSaCalc(\'p\')"></div>'+
    '<div><label>'+E(T("എണ്ണം","Quantity")+(p.u?" ("+p.u+")":""))+'</label><input id="saQ" type="number" inputmode="decimal" value="1" oninput="tsSaCalc(\'q\')"></div></div>'+
+   (SMALL[p.u]?'<div class="tsM" style="margin-top:6px">'+E(T(SMALL[p.u][1]+" കണക്കിൽ:",("In "+SMALL[p.u][0]+":")))+' '+[100,250,500,750].map(function(v){ return '<span class="tsChip" style="padding:4px 9px" onclick="tsSaSmall('+v+')">'+v+' '+SMALL[p.u][0]+'</span>'; }).join("")+' <input id="saSm" type="number" inputmode="numeric" placeholder="'+E(SMALL[p.u][0])+'" style="width:84px;display:inline-block;padding:6px" oninput="tsSaSmall(this.value,1)"></div>':'')+
    '<label>'+E(T("ആകെ തുക","Total"))+'</label><input id="saT" type="number" inputmode="decimal" oninput="tsSaCalc(\'t\')">'+
    '<div class="tsM" id="saHint" style="margin-top:4px"></div>'+
    '<button class="tsBtn" onclick="tsSaAdd()">➕ '+E(T("ചേർക്കുക","Add"))+'</button>';
   tsSaCalc("q"); var q=$("saQ"); if(q){ q.focus(); q.select(); }
  }
+ /* a kg item is often sold in grams, a litre item in ml: tap 250 g (or type the grams) and the quantity becomes 0.25 kg */
+ var SMALL={kg:["g","ഗ്രാം"],L:["ml","മില്ലി"]};
+ window.tsSaSmall=function(v,typed){
+  var n=parseFloat(v); if(!(n>0)){ return; }
+  setv("saQ",Math.round(n)/1000); if(!typed){ var e=$("saSm"); if(e) e.value=n; }
+  window.tsSaCalc("q");
+ };
  /* the unit can be set right here (count / kg / g / L / ml / m); typed numbers stay */
  window.tsSaUnit=function(u){
   var s=U.sale, p=s&&s.sel?SH.prod(s.sel):null; if(!p) return;
