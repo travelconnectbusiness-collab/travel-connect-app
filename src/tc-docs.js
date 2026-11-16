@@ -571,8 +571,10 @@
    (typeof window.tcDocsNote==="function"?window.tcDocsNote(d):'')+
    (d.nt?'<div class="tdC tdM" style="white-space:pre-wrap">'+E(d.nt)+'</div>':'')+
    '<div class="tdC"><button class="tdBtn" style="margin-top:0" onclick="tdPrint(\''+d.id+'\')">🖨 '+E(T("പ്രിന്റ് / PDF സേവ്","Print / Save PDF"))+'</button>'+
+   (typeof window.tdPdf==="function"?'<button class="tdBtn g" onclick="tdPdf(\''+d.id+'\')">📄 '+E(T("PDF ഫയൽ (ഷെയർ / സേവ്)","PDF file (share / save)"))+'</button>':'')+
    '<button class="tdBtn g" onclick="tdPrint(\''+d.id+'\',1)">🖼 '+E(T("ചിത്രമായി ഷെയർ ചെയ്യുക","Share as picture"))+'</button>'+
-   (d.cm?'<button class="tdBtn g" onclick="tdWa(\''+d.id+'\')">💬 WhatsApp</button>':'')+
+   '<button class="tdBtn g" onclick="tdWa(\''+d.id+'\')">💬 WhatsApp'+(d.cm?'':' ('+E(T("നമ്പർ തിരഞ്ഞെടുക്കാം","pick a contact"))+')')+'</button>'+
+   (typeof window.tcBrandToggleHtml==="function"?window.tcBrandToggleHtml():'')+
    (d.ty==="Q"&&!d.conv?'<button class="tdBtn" style="background:#c9740c" onclick="tdConv(\''+d.id+'\')">🧾 '+E(T("ഇൻവോയ്സ് ആക്കുക","Make invoice"))+'</button>':'')+
    '<button class="tdBtn g" onclick="tdEdit(\''+d.id+'\')">✏ '+E(T("മാറ്റുക","Edit"))+'</button>'+
    '<button class="tdBtn r" onclick="tdDelAsk(\''+d.id+'\')">🗑 '+E(T("ഒഴിവാക്കുക","Delete"))+'</button></div>';
