@@ -26,7 +26,10 @@
    var my=pays.filter(function(x){ return x.c===c.id; }), paid=0, cnt=0, prize=null;
    my.forEach(function(x){ if(x.t==="prize"){ if(!prize||(x.d||"")>(prize.d||"")) prize=x; } else{ paid+=x.a; cnt++; } });
    var done=cnt>=c.n;
-   return {c:c,rows:my,paid:P.r2(paid),cnt:cnt,prize:prize,done:done,next:done?"":addMonths(c.d,cnt)};
+   /* instalments that have fallen due up to this month but are not paid (arrears): 1 = only this month's, 2+ = months were missed */
+   var t=P.today(), sofar=0;
+   if(P.okDate(c.d)&&c.d.slice(0,7)<=t.slice(0,7)) sofar=Math.min(c.n,(+t.slice(0,4)-+c.d.slice(0,4))*12+(+t.slice(5,7)-+c.d.slice(5,7))+1);
+   return {c:c,rows:my,paid:P.r2(paid),cnt:cnt,prize:prize,done:done,next:done?"":addMonths(c.d,cnt),arr:done?0:Math.max(0,sofar-cnt)};
   });
  }
  function find(id){ return chits().filter(function(x){ return x.c.id===id; })[0]; }
@@ -36,7 +39,7 @@
  P.homeCards=(P.homeCards||[]);
  P.homeCards.push(function(){
   var L=chits().filter(function(x){ return !x.done; }), mon=P.today().slice(0,7), due=0, n=0;
-  L.forEach(function(x){ if(x.next.slice(0,7)<=mon){ due+=x.c.a; n++; } });
+  L.forEach(function(x){ if(x.arr>0){ due+=x.c.a*x.arr; n++; } });   /* missed months are added too, not only this month's instalment */
   return '<div class="tpC" onclick="tpGo(\'chits\')" style="cursor:pointer"><b>💵 '+E(B("Chitty / Kuri","ചിട്ടി / കുറി"))+'</b>'+
    '<div class="tpG2"><div><div class="tpM">'+E(B("Running","നടക്കുന്നവ"))+'</div><div class="tpBig">'+L.length+'</div></div><div><div class="tpM">'+E(B("To pay this month","ഈ മാസം അടയ്ക്കാനുള്ളത്"))+'</div><div class="tpBig tpOut">'+mny(due)+'</div></div></div></div>';
  });
@@ -46,14 +49,14 @@
  function chitRows(){
   var L=chits(), t=P.today(), q=P.cap(CQ,40).toLowerCase(), qd=/^[\d\s+\-]+$/.test(CQ)?P.digits(CQ):"";
   L=L.filter(function(x){ return !q||String(x.c.nm).toLowerCase().indexOf(q)>=0||(qd.length>=3&&P.digits(x.c.ph).indexOf(qd)>=0); });
-  L.sort(function(a,b){ return (a.done-b.done)||((a.next||"9")<(b.next||"9")?-1:1); });
+  L.sort(function(a,b){ return (a.done-b.done)||((a.next||"9")<(b.next||"9")?-1:(a.next||"9")>(b.next||"9")?1:0); });
   return L.length?L.map(function(x){
      var late=!x.done&&x.next<t;
      return '<div class="tpC" '+oc("tpChit",x.c.id)+' style="cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">'+E(x.c.nm)+'</b><b>'+mny(x.c.a)+'</b></div>'+
       '<div class="tpM">'+E(B("Chit value ","ചിട്ടി തുക "))+mny(x.c.v)+' · '+x.c.n+' '+E(B("months","മാസം"))+(x.c.ph?' · '+E(x.c.ph):"")+'</div>'+
       '<div style="margin-top:6px">'+x.cnt+'/'+x.c.n+' '+E(B("paid","അടച്ചു"))+' · '+mny(x.paid)+'</div>'+
       '<div style="margin-top:4px;font-weight:700;color:'+(x.prize?"#157a3a":"#5b7787")+'">'+(x.prize?'🎉 '+E(B("Got the kuri ","കുറി കിട്ടി "))+mny(x.prize.a):E(B("Kuri not got yet","കുറി കിട്ടിയിട്ടില്ല")))+'</div>'+
-      (x.done?'<div class="tpM">✓ '+E(B("Finished","കഴിഞ്ഞു"))+'</div>':'<div style="margin-top:4px;color:'+(late?"#b03a2e":"#12303f")+';font-weight:700">'+E(B("Next: ","അടുത്ത തവണ: "))+E(dmy(x.next))+(late?' ⚠ '+E(B("overdue","കഴിഞ്ഞു")):"")+'</div>')+'</div>';
+      (x.done?'<div class="tpM">✓ '+E(B("Finished","കഴിഞ്ഞു"))+'</div>':'<div style="margin-top:4px;color:'+(late?"#b03a2e":"#12303f")+';font-weight:700">'+E(B("Next: ","അടുത്ത തവണ: "))+E(dmy(x.next))+(late?' ⚠ '+E(x.arr>1?B(x.arr+" instalments pending",x.arr+" തവണ അടയ്ക്കാനുണ്ട്"):B("overdue","തീയതി കഴിഞ്ഞു")):"")+'</div>')+'</div>';
     }).join(""):'<div class="tpC tpM" style="text-align:center">'+E(q||qd?B("No such chitty","ഈ പേരിൽ ചിട്ടിയില്ല"):B("No chitty added yet","ചിട്ടി ഒന്നും ചേർത്തിട്ടില്ല"))+'</div>';
  }
  window.tpcSearch=function(v){ CQ=v||""; var r=$("tpcRows"); if(r) r.innerHTML=chitRows(); };
@@ -81,7 +84,8 @@
     (x.prize?'<div style="margin-top:8px">'+E(B("Received - paid: ","കിട്ടിയത് - അടച്ചത്: "))+'<b>'+mny(x.prize.a-x.paid)+'</b></div>':"")+
     (x.done?'<div style="margin-top:8px"><b>✓ '+E(B("All instalments paid","എല്ലാ തവണയും അടച്ചു"))+'</b></div>':
      '<div style="margin-top:8px">'+E(B("Instalments left: ","ബാക്കി തവണകൾ: "))+'<b>'+left+'</b> (≈ '+mny(left*x.c.a)+' <span class="tpM">'+E(B("full instalment, dividend may reduce it","പൂർണ്ണ തവണ കണക്കിൽ; ഡിവിഡന്റ് കുറയാം"))+'</span>)</div>'+
-     '<div style="margin-top:4px;font-weight:700;color:'+(late?"#b03a2e":"#12303f")+'">'+E(B("Next due: ","അടുത്ത തവണ: "))+E(dmy(x.next))+(late?' ⚠':"")+'</div>')+'</div>'+
+     '<div style="margin-top:4px;font-weight:700;color:'+(late?"#b03a2e":"#12303f")+'">'+E(B("Next due: ","അടുത്ത തവണ: "))+E(dmy(x.next))+(late?' ⚠':"")+'</div>'+
+     (x.arr>1?'<div style="margin-top:4px;font-weight:700;color:#b03a2e">'+E(B("Pending up to this month: ","ഈ മാസം വരെ അടയ്ക്കാനുള്ളത്: "))+x.arr+' '+E(B("instalments","തവണ"))+' (≈ '+mny(x.arr*x.c.a)+')</div>':""))+'</div>'+
    '<div class="tpG2"><button class="tpBtn out" onclick="tpCPay(\''+x.c.id+'\')">➕ '+E(B("Instalment paid","തവണ അടച്ചു"))+'</button><button class="tpBtn in" onclick="tpCPrize(\''+x.c.id+'\')">🎉 '+E(B("Got the kuri","കുറി കിട്ടി"))+'</button></div>'+
    '<div class="tpC" style="padding:4px 14px">'+(rows.length?rows.map(function(r){
      return '<div class="tpRow" '+oc("tpCpEdit",r.id)+'><div style="min-width:0"><b>'+E(r.t==="prize"?B("Kuri received","കുറി കിട്ടി"):B("Instalment paid","തവണ അടച്ചു"))+'</b><div class="tpM">'+E(dmy(r.d))+(r.n?" · "+E(r.n):"")+'</div></div><b class="'+(r.t==="prize"?"tpIn":"tpOut")+'">'+mny(r.a)+'</b></div>';
