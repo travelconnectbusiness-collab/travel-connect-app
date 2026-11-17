@@ -163,7 +163,9 @@
   if(withEnd){
    var et=String(endText||"").trim();
    if(!et||sameText(et,t.startPlace)) list.push({label:t.startPlace||B("Start","പുറപ്പാട്"),lat:t.startLat,lon:t.startLon,text:t.startPlace});
-   else list.push({label:et,lat:null,lon:null,text:et});
+   else{ var ep=window.__tcLtEndPos;   /* closing point taken with "Take my location" in the End Trip form (tc-ltcheck.js) */
+    if(ep&&sameText(et,ep.name)) list.push({label:et,lat:ep.lat,lon:ep.lon,text:et});
+    else list.push({label:et,lat:null,lon:null,text:et}); }
   }
   return resolvePts(list);
  }
@@ -237,6 +239,7 @@
    roadBusy=false; if(my!==roadSeq||!$("tcLtxRoadMsg")) return;
    roadKey=rkey;
    var y=Math.round((mx+r.km)*10)/10;
+   window.__tcLtxRoadLast={tid:tid,place:dest.toLowerCase(),km:r.km,from:mx};   /* tc-ltcheck.js compares the typed KM with this */
    msg.style.color="#1c6b2c";
    msg.innerHTML='<b>'+r.km+' km</b> '+E(B("by road (map): ","റോഡ് വഴി (മാപ്പ്): "))+E(lp.label)+' &rarr; '+E(dest)+(r.pts.some(function(p){ return p.guess; })?' <span class="muted">('+E(B("found by name","പേര് നോക്കി കണ്ടെത്തിയത്"))+')</span>':'')+
     '<br>'+E(B("Meter would show about ","മീറ്റർ ഏകദേശം "))+'<b>'+y+'</b> <button type="button" onclick="tcLtxFillKm('+y+')" style="padding:2px 10px;min-height:0;font-size:12.5px">'+E(B("Fill KM","KM നിറയ്ക്കുക"))+'</button>';
