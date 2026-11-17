@@ -281,6 +281,7 @@ const MARKERS = [
   ["src/tc-persgift.js", "LASTC", "Covers: ceremony, name and date are kept for the next cover"],
   ["src/tc-perschit.js", "arr:", "Chitty: missed instalments are counted"],
   ["src/tc-persbill.js", "started again", "Bills: a finished bill can be started again"],
+  ["src/tc-perslock.js", "keeps its own password", "Password lock: a copy locked on another phone with another password can be opened, and never swaps this phone's password"],
   ["src/tc-salebill.js", "__tcSaleBill", "Bill for a sale: from the Sale screen and any old sale - print, PDF file, picture, WhatsApp (tc-salebill.js)"],
   ["src/tc-salebill.js", "tsDySaleGo", "Bill / print again on the sale's edit sheet"],
   ["src/tc-shopui.js", "tsSaSave(1)", "Sale screen: Save and give bill"],
