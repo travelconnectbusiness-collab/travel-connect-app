@@ -21,36 +21,56 @@
  function css(){
   if($("tsCss")) return;
   var s=document.createElement("style"); s.id="tsCss";
-  s.textContent="#tcShop{position:fixed;inset:0;z-index:70;background:#eaf4f8;overflow:auto;-webkit-overflow-scrolling:touch;color:#12303f}"+
-  "#tcShop .tsH{position:sticky;top:0;z-index:5;background:#0b5d7a;color:#fff;padding:10px 12px;display:flex;align-items:center;gap:10px}"+
+  s.textContent="#tcShop{position:fixed;inset:0;z-index:70;background:#f2f5f8;overflow:auto;-webkit-overflow-scrolling:touch;color:#12303f}"+
+  "#tcShop .tsH{position:sticky;top:0;z-index:5;background:#082b49;color:#fff;padding:10px 12px;box-shadow:0 4px 14px rgba(8,43,73,.18);display:flex;align-items:center;gap:10px}"+
   "#tcShop .tsH b{flex:1;font-size:18px}#tcShop .tsH button{background:#ffffff26;color:#fff;border:0;border-radius:10px;padding:9px 13px;font-size:16px}"+
   "#tcShop .tsB{padding:12px 12px 90px;max-width:640px;margin:0 auto}"+
-  "#tcShop .tsC{background:#fff;border-radius:16px;padding:14px;margin:10px 0;box-shadow:0 2px 8px #0002}"+
+  "#tcShop .tsC{background:#fff;border-radius:16px;padding:14px;margin:10px 0;box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06)}"+
   "#tcShop .tsG{display:grid;grid-template-columns:1fr 1fr;gap:12px}"+
-  "#tcShop .tsBig{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:112px;border-radius:18px;font-size:22px;font-weight:800;color:#fff;border:0;padding:8px;text-align:center;line-height:1.25}"+
-  "#tcShop .tsBig small{font-size:13px;font-weight:600;opacity:.9}"+
-  "#tcShop input,#tcShop select{width:100%;font:inherit;font-size:18px;padding:12px;border:2px solid #b7cbd6;border-radius:12px;background:#fff;color:#12303f}"+
+  "#tcShop .tsBig{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:112px;border-radius:18px;font-size:19px;font-weight:800;color:#132436;background:#fff;border:0;padding:12px 8px;text-align:center;line-height:1.25;font-family:inherit;box-shadow:0 1px 2px rgba(8,43,73,.05),0 6px 18px rgba(8,43,73,.06)}"+
+  "#tcShop .tsBig small{font-size:13px;font-weight:600;color:#657888}"+
+  "#tcShop .tsBig i{width:50px;height:50px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-style:normal}"+
+  "#tcShop .tsBig.p{background:#0b6b78;color:#fff;box-shadow:0 6px 16px rgba(11,107,120,.32)}#tcShop .tsBig.p i{background:rgba(255,255,255,.16)!important;color:#fff!important}#tcShop .tsBig.p small{color:rgba(255,255,255,.85)}"+
+  "#tcShop #tsPurBtn{background:#fff!important;color:#132436}"+
+  "#tcShop input,#tcShop select{width:100%;font:inherit;font-size:18px;padding:12px;border:1.5px solid #cdd8e0;border-radius:12px;background:#fff;color:#12303f}"+
+  "#tcShop input:focus,#tcShop select:focus{outline:none;border-color:#0b6b78;box-shadow:0 0 0 3px rgba(11,107,120,.14)}"+
   "#tcShop label{display:block;font-size:14px;font-weight:700;margin:10px 0 4px;color:#35566a}"+
   "#tcShop .tsBtn{display:block;width:100%;border:0;border-radius:14px;padding:15px;font-size:19px;font-weight:800;background:#0b6b78;color:#fff;margin-top:10px}"+
-  "#tcShop .tsBtn.g{background:#dce9ef;color:#12303f}#tcShop .tsBtn.r{background:#fde8e6;color:#a12d2d}#tcShop .tsBtn.s{padding:9px 12px;font-size:15px;display:inline-block;width:auto;margin:4px 4px 0 0}"+
-  "#tcShop .tsChip{display:inline-block;border:2px solid #b7cbd6;border-radius:999px;padding:9px 14px;margin:4px 6px 0 0;font-size:16px;font-weight:700;background:#fff;color:#12303f}"+
+  "#tcShop .tsBtn.g{background:#e9eff4;color:#16324a}#tcShop .tsBtn.r{background:#fde8e6;color:#a12d2d}#tcShop .tsBtn.s{padding:9px 12px;font-size:15px;display:inline-block;width:auto;margin:4px 4px 0 0}"+
+  "#tcShop .tsChip{display:inline-block;border:1.5px solid #cdd8e0;border-radius:999px;padding:9px 14px;margin:4px 6px 0 0;font-size:16px;font-weight:700;background:#fff;color:#12303f}"+
   "#tcShop .tsChip.on{background:#0b6b78;border-color:#0b6b78;color:#fff}"+
-  "#tcShop .tsPkL{background:#fff;border:2px solid #b7cbd6;border-radius:12px;margin-top:4px;max-height:46vh;overflow:auto}"+
+  "#tcShop .tsPkL{background:#fff;border:1.5px solid #cdd8e0;border-radius:12px;margin-top:4px;max-height:46vh;overflow:auto}"+
   "#tcShop .tsPkL div{padding:12px;border-bottom:1px solid #e3eef3;font-size:17px;display:flex;justify-content:space-between;gap:8px}"+
   "#tcShop .tsPkL div small{color:#5b7787;white-space:nowrap}#tcShop .tsPkL div.n{color:#0b6b78;font-weight:800}"+
   "#tcShop .tsRow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e3eef3;font-size:16px}"+
   "#tcShop .tsM{color:#5b7787;font-size:13px}#tcShop .tsLow{background:#fde8e6;color:#a12d2d;border-radius:8px;padding:2px 7px;font-size:12px;font-weight:800}"+
-  "#tcShop .tsTot{font-size:30px;font-weight:900;color:#0b6b78}"+
+  "#tcShop .tsTot{font-size:32px;font-weight:900;color:#082b49;letter-spacing:-.5px}"+
   "#tsSheet{position:fixed;inset:0;z-index:75;background:#0008;display:flex;align-items:flex-end;justify-content:center}"+
   "#tsSheet>div{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px 28px}"+
   "#tcShop .tsX{border:0;background:#fde8e6;color:#a12d2d;border-radius:8px;padding:5px 10px;font-weight:800;font-size:15px}"+
   "body.tsStaff #tcShop .tsX,body.tsStaff #tsSheet .tsX{display:none!important}"+   /* staff phone: no cancel buttons (the server refuses them anyway) */
   "@media(min-width:700px){#tcShop .tsB{padding-top:20px}}";
   /* the pop-up sheets sit outside #tcShop: give them the same look */
-  s.textContent+=s.textContent.split("}").filter(function(r){ return /^#tcShop (input|label|\.ts(Btn|Chip|PkL|Row|M|X|Tot|Low))/.test(r); }).map(function(r){ return r.replace(/#tcShop /g,"#tsSheet ")+"}"; }).join("");
+  s.textContent+=s.textContent.split("}").filter(function(r){ return /^#tcShop (input|select:focus|label|\.ts(Btn|Chip|PkL|Row|M|X|Tot|Low))/.test(r); }).map(function(r){ return r.replace(/#tcShop /g,"#tsSheet ")+"}"; }).join("");
   document.head.appendChild(s);
  }
 
+ /* ---------- the big Home tiles: white card, a line icon in a soft colour badge, the word; "Sale" is the one filled tile ---------- */
+ var TI={
+  "🛒":'<path d="M4 5h2l2 10h9l2-7H7"></path><circle cx="10" cy="19" r="1.4"></circle><circle cx="17" cy="19" r="1.4"></circle>',
+  "📥":'<path d="M12 4v9M8 9.500l4 4 4-4"></path><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path>',
+  "📦":'<path d="M4 8l8-4 8 4v8l-8 4-8-4z"></path><path d="M4 8l8 4 8-4M12 12v8"></path>',
+  "💀":'<circle cx="12" cy="12" r="8.500"></circle><path d="M8.500 12h7"></path>',
+  "🧾":'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path><path d="M9 8h6M9 12h6"></path>',
+  "📊":'<path d="M5 20V11M12 20V4M19 20v-6"></path>',
+  "📒":'<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"></path><path d="M9 9h6M9 13h6"></path>',
+  "🔧":'<path d="M14 6a4 4 0 0 0 5 5l-9 9-3-3 9-9"></path><path d="M14 6l2-2 3 3-2 2"></path>',
+  "🚗":'<path d="M4 16v-4l2-5h12l2 5v4z"></path><path d="M4 12h16"></path><circle cx="7.500" cy="17.500" r="1.500"></circle><circle cx="16.500" cy="17.500" r="1.500"></circle>'
+ };
+ function tile(col,ic,ml,en,fn,sub,main){
+  var svg=TI[ic]?'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+TI[ic]+'</svg>':ic;
+  return '<button class="tsBig'+(main?' p':'')+'" onclick="'+fn+'"><i style="background:'+col+'1f;color:'+col+'">'+svg+'</i>'+E(T(ml,en))+(sub?'<small>'+sub+'</small>':'')+'</button>';
+ }
  /* ---------- layer, screens, Back ---------- */
  function build(){
   css();
@@ -380,7 +400,7 @@
  TITLE.home=function(){ return shopName(); };
  function staffHome(){
   var t=H.today(), R=SH.report(t,t), me=SH.staffInfo()||{}, r=SH.role(), low=SH.products().filter(function(p){ return p.low; });
-  function big(bg,ic,ml,en,fn){ return '<button class="tsBig" style="background:'+bg+'" onclick="'+fn+'">'+ic+' '+E(T(ml,en))+'</button>'; }
+  function big(bg,ic,ml,en,fn){ return tile(bg,ic,ml,en,fn,"",ic==="🛒"); }
   $("tsBody").innerHTML=
    (stick()?stkBox():"")+
    '<div class="tsC" style="text-align:center"><div class="tsM">🧑 '+E(me.name||"")+' · '+E(r==="stock"?T("വിൽപ്പന + വാങ്ങൽ","Sales + purchases"):T("വിൽപ്പന","Sales"))+'</div>'+
@@ -400,7 +420,7 @@
   try{ if(SH.kind()===""&&window.__tcBizOnScreen&&window.__tcBizOnScreen()==="workshop") SH.setCfg("kind","workshop"); }catch(e){}
   var t=H.today(), R=SH.report(t,t), low=SH.products().filter(function(p){ return p.low; });
   var simple=LS.get("tc_shop_simple")==="1";
-  function big(bg,ic,ml,en,fn,sub){ return '<button class="tsBig" style="background:'+bg+'" onclick="'+fn+'">'+ic+' '+E(T(ml,en))+(sub?'<small>'+sub+'</small>':'')+'</button>'; }
+  function big(bg,ic,ml,en,fn,sub){ return tile(bg,ic,ml,en,fn,sub,ic==="🛒"); }
   $("tsBody").innerHTML=
    (stick()?stkBox():"")+
    (SH.kind()===""?'<div class="tsC" style="background:#fff6df"><b>'+E(T("ഇത് ഏത് തരം ഷോപ്പ് ആണ്?","What kind of shop is this?"))+'</b>'+
@@ -917,7 +937,7 @@
   }
  }catch(e){}
 
- window.__tcShopUi={screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
+ window.__tcShopUi={tile:tile,screen:function(name,fn,title){ SC[name]=fn; if(title) TITLE[name]=title; },go:go,pur:function(){ return U.pur; },render:render,sheet:sheet,closeSheet:closeSheet,picker:picker,prodSheet:prodSheet,
   T:T,E:E,say:say,num:num,setv:setv,sellerChips:sellerChips,sellerName:sellerName,sellerTxt:sellerTxt,sellerList:sellerList,mchips:mchips,mchipSet:mchipSet,mchipOk:mchipOk,dateRow:dateRow,stkBox:stkBox,rt:rt,pmTxt:pmTxt,custOpts:custOpts,cleanMob:cleanMob,cleanName:cleanName,payInit:payInit,payHtml:payHtml,payTot:payTot,payRes:payRes,enc:enc,perTxt:perTxt,unitChips:unitChips,dateVal:dateVal,dmy:dmy,stockTxt:stockTxt,lang:function(){ return lang; },simple:function(){ return SH.isStaff()||LS.get("tc_shop_simple")==="1"; },
   open:openShop,close:closeShop,body:function(){ return $("tsBody"); },isOpen:function(){ return U.open; },screenName:function(){ return U.screen; }};
 })();
