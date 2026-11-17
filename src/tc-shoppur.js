@@ -324,7 +324,10 @@
   if($("tsPurBtn")) return;
   var g=bd.querySelector(".tsG"); if(!g) return;
   var b=document.createElement("button"); b.id="tsPurBtn"; b.className="tsBig"; b.style.background="#8a4b00"; b.setAttribute("onclick","tsOpen('purchases')");
-  b.textContent="🧾 "+T("വാങ്ങിയ ബില്ലുകൾ","Purchase bills"); g.appendChild(b);
+  b.textContent="🧾 "+T("വാങ്ങിയ ബില്ലുകൾ","Purchase bills");
+  /* the new Home look (tc-shopui.js tile): white tile with a line icon, like the other tiles */
+  try{ if(UI.tile){ var t=document.createElement("div"); t.innerHTML=UI.tile("#8a4b00","🧾","വാങ്ങിയ ബില്ലുകൾ","Purchase bills","tsOpen('purchases')"); b=t.firstChild; b.id="tsPurBtn"; } }catch(e){}
+  g.appendChild(b);
  }
  var tm=null;
  function later(){ clearTimeout(tm); tm=setTimeout(function(){
