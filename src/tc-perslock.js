@@ -67,7 +67,7 @@
  function applied(){ try{ return JSON.parse(ls("tc_plv:"+me())||"[]")||[]; }catch(e){ return []; } }
  function markApplied(id){ var a=applied(); if(a.indexOf(id)<0){ a.push(id); if(a.length>40) a=a.slice(-40); ls("tc_plv:"+me(),JSON.stringify(a)); } }
  function unapplied(){ var a=applied(); return vaults().filter(function(r){ return a.indexOf(r.id)<0; }); }
- function newVault(){ return unapplied()[0]||null; }
+ function newVault(){ var u=unapplied(); if(on()) u=u.filter(function(r){ return FAILED[r.id]; }); return u[0]||null; }   /* lock ON: only a copy this phone's key could not open needs a password */
  function snapshot(){
   var m=me(), o={};
   Object.keys(K).forEach(function(c){ o[K[c]]=L(K[c]).filter(function(r){ return r&&String(r.u||"")===m; }); });
@@ -221,6 +221,7 @@
    });
   });
   try{ save(); }catch(e){}
+  try{ if(add&&typeof P.remSchedule==="function") P.remSchedule(2500); }catch(e){}   /* bills that came back: their notification reminders are sent to the server again */
   return add;
  }
 
@@ -296,22 +297,31 @@
   var r=await openVault(v,pw);
   if(!r){ sheetErr(B("Wrong password","പാസ്‌വേഡ് തെറ്റാണ്")); return; }
   var add=mergeSnap(r.o), m=me();
+  if(on()){
+   /* this phone already has its OWN password (the copy was locked on another phone with a different one): only the entries are added,
+      this phone's password stays as it is - it must never be swapped silently for the other one */
+   markApplied(v.id); delete FAILED[v.id]; ls("tc_pls:"+m,null); schedule(500);
+   P.closeSheet(); P.refresh();
+   say(B(add+" entries added - this phone keeps its own password","ചേർത്തത്: "+add+" എൻട്രികൾ - ഈ ഫോണിന്റെ പാസ്‌വേഡ് മാറിയിട്ടില്ല"));
+   return;
+  }
   ls("tc_plm:"+m,JSON.stringify({salt:v.salt,iter:v.iter||ITER})); ls("tc_plk:"+m,b64(r.raw)); ls("tc_pla:"+m,String(v.ts||0)); ls("tc_pls:"+m,null); markApplied(v.id);
   hide(); schedule(500); setTimeout(function(){ try{ autoOpen(); }catch(e){} },300); P.lock.fire("key",{});
   P.closeSheet(); P.refresh();
   say(B(add+" entries added - lock is ON for this phone","ചേർത്തത്: "+add+" എൻട്രികൾ - ഈ ഫോണിലും ലോക്ക് ഓൺ"));
  };
  /* the same copy, but when this phone already holds the key: open silently */
- var opening=false;
+ var opening=false, FAILED={};   /* FAILED: copies this phone's own key could not open (locked with another password) */
  async function autoOpen(){
   if(!on()||!sup()||opening) return;
   var list=unapplied(); if(!list.length) return;
   opening=true; var add=0;
   try{
    for(var i=0;i<list.length;i++){
-    try{ var o=await decObj(keyRaw(),list[i]); add+=mergeSnap(o); markApplied(list[i].id); }catch(e){}   /* another password: stays, the "Locked accounts found" card asks for it */
+    try{ var o=await decObj(keyRaw(),list[i]); add+=mergeSnap(o); markApplied(list[i].id); }catch(e){ FAILED[list[i].id]=1; }   /* another password: stays, the "Locked accounts found" card asks for it */
    }
   }finally{ opening=false; }
+  try{ if(Object.keys(FAILED).length&&P.S&&P.S.open&&(P.S.screen==="home"||P.S.screen==="backup")&&!$("tplFound")) P.refresh(); }catch(e){}   /* show the card now */
   if(add){
    say(B(add+" entries added from the locked backup","ലോക്ക് ചെയ്ത ബാക്കപ്പിൽ നിന്ന് "+add+" എൻട്രികൾ ചേർത്തു"));
    try{ schedule(800); }catch(e){}
@@ -375,8 +385,8 @@
   return h+(P.lock.extra?P.lock.extra():"")+'</div>';
  }
  function foundHtml(){
-  if(on()||!newVault()) return "";
-  return '<div class="tpC" style="border:2px solid #0b6b78"><b>🔒 '+E(B("Locked accounts found in your backup","നിങ്ങളുടെ ബാക്കപ്പിൽ ലോക്ക് ചെയ്ത കണക്കുകൾ കണ്ടു"))+'</b><div class="tpM">'+E(B("Enter your password to bring them back on this phone.","ഈ ഫോണിലേക്ക് തിരികെ കൊണ്ടുവരാൻ പാസ്‌വേഡ് നൽകുക."))+'</div><button class="tpBtn" onclick="tpLockOpenAsk()">🔓 '+E(B("Enter password","പാസ്‌വേഡ് നൽകുക"))+'</button></div>';
+  if(!newVault()) return "";   /* (with the lock ON the card used to be hidden, so a copy locked with another password could never be opened) */
+  return '<div class="tpC" id="tplFound" style="border:2px solid #0b6b78"><b>🔒 '+E(B("Locked accounts found in your backup","നിങ്ങളുടെ ബാക്കപ്പിൽ ലോക്ക് ചെയ്ത കണക്കുകൾ കണ്ടു"))+'</b><div class="tpM">'+E(B("Enter your password to bring them back on this phone.","ഈ ഫോണിലേക്ക് തിരികെ കൊണ്ടുവരാൻ പാസ്‌വേഡ് നൽകുക."))+'</div><button class="tpBtn" onclick="tpLockOpenAsk()">🔓 '+E(B("Enter password","പാസ്‌വേഡ് നൽകുക"))+'</button></div>';
  }
  var oh=SC.home;
  if(typeof oh==="function") SC.home=function(){
