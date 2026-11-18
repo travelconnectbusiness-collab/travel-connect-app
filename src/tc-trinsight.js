@@ -36,7 +36,7 @@
    var paid=0; (t.payments||[]).forEach(function(p){ paid+=+p.amount||0; });
    var nm=String(t.customer||(q&&q.customer)||"").trim(), mb=String(t.mobile||(q&&q.mobile)||"").replace(/\D/g,"").slice(-10);
    var from=String((q&&q.pickup)||"").trim(), to=String((q&&q.destination)||"").trim();
-   out.push({d:d,nm:nm,mb:mb,key:mb||nm.toLowerCase(),veh:String(t.vehicleNo||(q&&q.vehicleNo)||"").trim(),from:from,to:to,fin:fin,paid:paid,bal:Math.max(0,fin-paid)});
+   out.push({d:d,nm:nm,mb:mb,key:mb||nm.toLowerCase(),veh:String(t.vehicleNo||(q&&q.vehicleNo)||"").trim(),vn:String(t.vehicle||(q&&q.vehicle)||"").trim(),from:from,to:to,fin:fin,paid:paid,bal:Math.max(0,fin-paid)});
   });
   return out;
  }
