@@ -17,7 +17,7 @@
  if(window.__tcMenuClean) return;
  window.__tcMenuClean=1;
  var GROUPS=[
-  ["People & businesses","ആളുകളും ബിസിനസുകളും",["tcOpenPendingApprovals(","tcOpenAllUsersAdmin(","tcOpenAllPartnersAdmin(","tcOpenAllVehiclesAdmin(","tcOpenPartnerPlans(","tcAuthorizedUsersPage("]],
+  ["People & businesses","ആളുകളും ബിസിനസുകളും",["tcOpenPendingApprovals(","tcOpenAllUsersAdmin(","tcOpenAllPartnersAdmin(","tcOpenAllVehiclesAdmin(","tcOpenPartnerPlans(","tcPcAdmin(","tcAuthorizedUsersPage("]],
   ["Content & feedback","ഉള്ളടക്കവും അഭിപ്രായങ്ങളും",["tcOpenEmergencyAdmin(","tcOpenPlacesAdmin(","tcOpenFeedbackAdmin("]],
   ["Platform","പ്ലാറ്റ്ഫോം",["view('admin')","tcDevSecOpen"]],
   ["Preview pages","പ്രിവ്യൂ പേജുകൾ",["tcPreviewPartnerPage(","tcPreviewCustomerPage(","tcPreviewBizTypes("]]
@@ -125,6 +125,14 @@
      var tw=document.createElement("div");
      tw.innerHTML=tcMenuItem('<path d="M9 3h6"></path><path d="M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"></path>',B("Test pages for each business type","ഓരോ ബിസിനസ് തരത്തിന്റെയും ടെസ്റ്റ് പേജ്")+" &#129514;","closeModal();tcPreviewBizTypes()");
      var tr=tw.firstElementChild; if(tr) kept.push({oc:"closeModal();tcPreviewBizTypes()",html:tr.outerHTML});
+    }catch(x){}
+   }
+   /* 2026-11-18: My Accounts cloud backup requests (tc-perscloud.js) - in the Admin page, group People & businesses */
+   if(owner&&typeof tcMenuItem==="function"&&typeof window.tcPcAdmin==="function"&&kept.every(function(e){ return e.oc.indexOf("tcPcAdmin(")<0; })){
+    try{
+     var pw=document.createElement("div");
+     pw.innerHTML=tcMenuItem('<path d="M7 18.500a4.500 4.500 0 0 1-.500-9A6 6 0 0 1 18 9.500a4.500 4.500 0 0 1-.500 9z"></path>',B("My Accounts cloud: requests & plans","എന്റെ കണക്കുകൾ ക്ലൗഡ്: അപേക്ഷകൾ, പ്ലാനുകൾ"),"closeModal();requireAdmin(tcPcAdmin)");
+     var pr=pw.firstElementChild; if(pr) kept.push({oc:"closeModal();requireAdmin(tcPcAdmin)",html:pr.outerHTML});
     }catch(x){}
    }
    if(owner&&typeof tcMenuItem==="function"){
