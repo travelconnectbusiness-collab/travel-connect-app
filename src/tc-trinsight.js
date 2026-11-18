@@ -96,10 +96,17 @@
    if(ch<=-15) add(2,"📉","ഈ മാസം ഇതുവരെ ബില്ല് "+money0(cv)+" - കഴിഞ്ഞ മാസത്തെ ഇതേ ദിവസങ്ങളെക്കാൾ "+(-ch)+"% കുറവ് ("+money0(pv)+").","Billing this month so far is "+money0(cv)+" - "+(-ch)+"% below the same days last month ("+money0(pv)+").");
    else if(ch>=15) add(0,"📈","ഈ മാസം ഇതുവരെ ബില്ല് "+money0(cv)+" - കഴിഞ്ഞ മാസത്തെക്കാൾ "+ch+"% കൂടുതൽ.","Billing this month so far is "+money0(cv)+" - "+ch+"% more than last month.");
   }
-  /* 5b. the month in one line: trips, billed, spent */
-  var ex=(DB()&&DB().expenses)||[], exM=0;
-  ex.forEach(function(e){ if(String(e.created||"").slice(0,7)===mon) exM+=+e.amount||0; });
-  if(cur.length||exM>0) add(0,"🧮","ഈ മാസം ഇതുവരെ: "+cur.length+" ട്രിപ്പ്, ബില്ല് "+money0(cv)+", ചെലവ് "+money0(exM)+(cv>0?(cv>=exM?", ബാക്കി "+money0(cv-exM):", ചെലവ് ബില്ലിനെക്കാൾ "+money0(exM-cv)+" കൂടുതൽ"):"")+".","This month so far: "+cur.length+" trip(s), billed "+money0(cv)+", spent "+money0(exM)+(cv>0?(cv>=exM?", left "+money0(cv-exM):", spending is "+money0(exM-cv)+" more than billed"):"")+".");
+  /* 5b. the month in one line: trips, billed, spent - from the Trip & Accounts book when it is used (same figures as the Day Book) */
+  var ex=(DB()&&DB().expenses)||[], exM=0, bk=book(mon+"-01",mon+"-31");
+  if(bk){
+   var p3=prevMonth(prevMonth(prevMonth(mon))), bk3=book(p3+"-01",mon+"-31");
+   ex=(bk3?bk3.outs:[]).map(function(o){ return {created:o.d,category:o.cat,amount:o.amt}; });   /* the expense-jump check below reads the book too (this + last 3 months) */
+   var pf=bk.inc-bk.out;
+   if(cur.length||bk.n) add(pf<0?1:0,"🧮","ഈ മാസം: "+cur.length+" ട്രിപ്പ്, ബില്ല് "+money0(cv)+". കണക്ക് ബുക്കിൽ വരവ് "+money0(bk.inc)+", ചെലവ് "+money0(bk.out)+", "+(pf>=0?"ലാഭം "+money0(pf):"ചെലവ് വരവിനെക്കാൾ "+money0(-pf)+" കൂടുതൽ")+".",
+    "This month: "+cur.length+" trip(s), billed "+money0(cv)+". Accounts book: income "+money0(bk.inc)+", expenses "+money0(bk.out)+", "+(pf>=0?"profit "+money0(pf):"spending is "+money0(-pf)+" more than income")+".");
+  }
+  else ex.forEach(function(e){ if(String(e.created||"").slice(0,7)===mon) exM+=+e.amount||0; });
+  if(!bk&&(cur.length||exM>0)) add(0,"🧮","ഈ മാസം ഇതുവരെ: "+cur.length+" ട്രിപ്പ്, ബില്ല് "+money0(cv)+", ചെലവ് "+money0(exM)+(cv>0?(cv>=exM?", ബാക്കി "+money0(cv-exM):", ചെലവ് ബില്ലിനെക്കാൾ "+money0(exM-cv)+" കൂടുതൽ"):"")+".","This month so far: "+cur.length+" trip(s), billed "+money0(cv)+", spent "+money0(exM)+(cv>0?(cv>=exM?", left "+money0(cv-exM):", spending is "+money0(exM-cv)+" more than billed"):"")+".");
 
   /* 6. an expense that jumped (against the last 3 months' average) */
   var avg={}, cm={}, k, mm=mon;
@@ -131,7 +138,25 @@
  }
  function txt(i){ return B(i.en,i.ml); }
  function row(i){ var c=i.sev===2?"#fdecec":i.sev===1?"#fff6df":"#eef6f1"; return '<div style="background:'+c+';border-radius:10px;margin:6px 0;padding:9px 10px;font-size:13.5px;line-height:1.4"><span style="font-size:18px">'+i.ic+'</span> '+E(txt(i))+'</div>'; }
- window.tcTrDB=DB; window.tcTrBills=bills;   /* used by the voice questions (tc-voice.js) */
+ /* The Trip & Accounts book (tc-accbook.js: db.accEntries / db.accVehicles) - the money really received and spent, the same figures the
+    Day Book shows. Driver tips (cat "Tip (driver)") are not the vehicle's money and are left out, as the Day Book does.
+    tcTrBook(from,to) -> null when the book has no entries, else {inc,out,n,veh:{vehId:{inc,out,n}},none:{inc,out,n},outs:[{d,cat,amt}]} */
+ function book(a,b){
+  var d=DB(), L=(d&&d.accEntries)||[];
+  var live=L.filter(function(e){ return e&&!e.deleted; });
+  if(!live.length) return null;
+  var vs={}; ((d.accVehicles)||[]).forEach(function(v){ if(v&&!v.deleted) vs[v.id]=1; });
+  var r={inc:0,out:0,n:0,veh:{},none:{inc:0,out:0,n:0},outs:[]};
+  live.forEach(function(e){
+   var dt=String(e.date||"").slice(0,10); if(dt<a||dt>b) return;
+   if(e.type==="in"&&e.cat==="Tip (driver)") return;
+   var m=+e.amount||0, g=(e.vehId&&vs[e.vehId])?(r.veh[e.vehId]||(r.veh[e.vehId]={inc:0,out:0,n:0})):r.none;
+   if(e.type==="in"){ r.inc+=m; g.inc+=m; } else { r.out+=m; g.out+=m; r.outs.push({d:dt,cat:String(e.cat||"Other"),amt:m}); }
+   r.n++; g.n++;
+  });
+  return r;
+ }
+ window.tcTrDB=DB; window.tcTrBills=bills; window.tcTrBook=book;   /* used by the voice questions (tc-voice.js) */
  window.tcTrInsightList=compute;   /* used by the test */
 
  function isOwner(){ try{ var u=getCurrentUser(); return !!u&&u.role!=="customer"; }catch(e){ return false; } }
