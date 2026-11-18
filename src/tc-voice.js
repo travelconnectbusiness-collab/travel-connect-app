@@ -31,6 +31,7 @@
  function norm(s){
   s=String(s||"").toLowerCase().replace(/[‌‍]/g,"");
   s=s.replace(/[൦-൯]/g,function(c){ return String(c.charCodeAt(0)-0x0d66); });   /* Malayalam digits */
+  s=s.replace(/ൻ്?റ/g,"ന്റ");   /* "വാഹനത്തിൻറെ" / "വാഹനത്തിൻ്റെ" typed the old way = "വാഹനത്തിന്റെ" */
   return s.replace(/\s+/g," ").trim();
  }
  function has(s,L){ for(var i=0;i<L.length;i++) if(s.indexOf(L[i])>=0) return true; return false; }
@@ -67,7 +68,8 @@
   sold:["വിറ്റു","വിറ്റ","വില്പന","വിൽപ്പന നടത്തി","sold","sale of"],
   qWord:["?","എത്ര","how much","how many","what","which","who","ആർക്കൊക്കെ","ആരൊക്കെ","ആരാണ്","ഏതൊക്കെ","ഏതാണ്","ഉണ്ടോ","പറയൂ","പറയു","കാണിക്ക","tell me","show me","list"],
   expense:["ചെലവ","ചിലവ","expense","spent","spend","ഡീസൽ","ഡീസല്","പെട്രോൾ","ഇന്ധന","diesel","petrol","fuel","ടോൾ","toll","പാർക്കിംഗ്","പാർക്കിങ്","parking","വാടക","rent","വൈദ്യുതി","കറന്റ്","electric","കൂലി","ശമ്പള","salary","wage","റിപ്പയർ","repair","സർവീസ്","service","പാക്കിംഗ്","packing","emi","ഭക്ഷണം","food"],
-  profit:["ലാഭ","profit"], sales:["വിൽപ്പന","വില്പന","വരുമാനം","sales","income","revenue","ബില്ലിംഗ്","ബില്ല്","billing","collection"],
+  profit:["ലാഭ","profit"], sales:["വിൽപ്പന","വില്പന","വരുമാന","വരവ്","വരവു","കളക്ഷൻ","കലക്ഷൻ","ടേൺഓവർ","ഓട്ടം കിട്ടിയ","കിട്ടിയ","sales","income","revenue","earning","earned","turnover","ബില്ലിംഗ്","ബില്ല്","billing","collection"],
+  sum:["മൊത്തം","ആകെ","ടോട്ടൽ","കണക്ക്","total","summary","overall","എങ്ങനെയുണ്ട്","how is","how are"],
   exp:["ചെലവ","ചിലവ","expense","spent","spending"], dues:["തരാനുണ്ട്","കിട്ടാനുണ്ട്","തരാനുള്ള","കിട്ടാനുള്ള","ബാക്കി തരാൻ","dues","owe","pending","outstanding","credit","കടം"], sup:["സപ്ലൈയർ","supplier","കൊടുക്കാനുണ്ട്","കൊടുക്കാനുള്ള"],
   stock:["സ്റ്റോക്ക്","സ്റ്റോക്","stock","തീർന്ന","തീർന്നു","തീരാറായ","out of stock","running out"], trips:["ട്രിപ്പ്","trip","ഓട്ടം"], insight:["ഇൻസൈറ്റ്","insight","ശ്രദ്ധിക്കേണ്ട","attention"]
  };
@@ -125,9 +127,68 @@
   if(has(s,KW.sales)){ var R3=SH.report(P.a,P.b); return A(P.ml+" വിൽപ്പന "+money0(R3.sales)+(R3.gstOut>0?" (GST ഉൾപ്പെടെ; GST "+money0(R3.gstOut)+")":"")+".",P.en+": sales "+money0(R3.sales)+(R3.gstOut>0?" (with GST; GST "+money0(R3.gstOut)+")":"")+"."); }
   return null;
  }
+ /* ---------- which vehicle is meant: "മറാസോയുടെ" = "Marazzo", "ഇന്നോവ" = "Innova", or the last 4 digits of the number ----------
+    Both the spoken Malayalam and the saved (English) name are turned into a sound skeleton (consonant groups, vowels dropped):
+    Marazzo -> MRS, മറാസോ -> MRS; Innova -> NV, ഇന്നോവ -> NV; Ertiga -> RTK, എർട്ടിഗ -> RTK. */
+ var MLS={"ക":"K","ഖ":"K","ഗ":"K","ഘ":"K","ങ":"N","ച":"S","ഛ":"S","ജ":"S","ഝ":"S","ഞ":"N","ട":"T","ഠ":"T","ഡ":"T","ഢ":"T","ണ":"N","ത":"T","ഥ":"T","ദ":"T","ധ":"T","ന":"N",
+  "പ":"P","ഫ":"P","ബ":"P","ഭ":"P","മ":"M","ര":"R","റ":"R","ല":"L","ള":"L","ഴ":"L","വ":"V","ശ":"S","ഷ":"S","സ":"S","ഹ":"H","ൻ":"N","ൺ":"N","ർ":"R","ൽ":"L","ൾ":"L","ൿ":"K"};
+ var LAS={b:"P",p:"P",f:"P",c:"K",k:"K",g:"K",q:"K",d:"T",t:"T",j:"S",s:"S",z:"S",v:"V",w:"V",m:"M",n:"N",r:"R",l:"L",h:"H"};
+ function skel(w){
+  w=String(w||"").toLowerCase().replace(/റ്റ/g,"ട").replace(/ന്റ/g,"ണ്ട").replace(/ph/g,"p").replace(/th/g,"t").replace(/sh/g,"s").replace(/ch/g,"s").replace(/x/g,"ks");
+  var o="", last="";
+  for(var i=0;i<w.length;i++){ var c=w[i], k=MLS[c]!=null?MLS[c]:(LAS[c]||""); if(k&&k!==last) o+=k; if(k) last=k; else if(/[aeiouy]/.test(c)) last=""; }
+  return o;
+ }
+ var SUF=/(യുടെ|ുടെ|യുടേ|ുടേ|ിന്റെ|ന്റെ|ിന്റേ|ന്റേ|ടെ|ിൽ|ിനു|ിന്|ക്ക്|ിലെ|ിലേ).*$/;
+ function alnum(x){ return String(x||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
+ function vehList(B){
+  var out=[], seen={};
+  function put(name,no,id){ var k=alnum(no)||("N:"+String(name||"").toLowerCase().trim()); if(!String(name||"").trim()&&!alnum(no)) return; if(seen[k]){ if(!seen[k].name&&name) seen[k].name=name; if(seen[k].id==null&&id!=null) seen[k].id=id; return; } seen[k]={name:String(name||"").trim(),no:String(no||"").trim(),id:id}; out.push(seen[k]); }
+  ((DB()&&DB().vehicles)||[]).forEach(function(v){ put(v.name,v.no,v.id); });
+  (B||[]).forEach(function(b){ put(b.vn,b.veh,null); });
+  return out;
+ }
+ window.tcVoSkel=skel;   /* for the test */
+ function vehOf(s,B){
+  var words=s.split(/[\s,.?!]+/).filter(Boolean), sk=[];
+  words.forEach(function(w){ var a=skel(w), b=skel(w.replace(SUF,"")); if(a) sk.push(a); if(b&&b!==a) sk.push(b); });
+  var digits=s.replace(/\D+/g," "), best=null, bs=0;
+  vehList(B).forEach(function(v){
+   var sc=0, tail=alnum(v.no).replace(/\D/g,"").slice(-4);
+   if(tail.length===4&&(" "+digits+" ").indexOf(" "+tail+" ")>=0) sc=10;
+   String(v.name||"").split(/[\s\-\/]+/).forEach(function(nw){
+    var k=skel(nw); if(k.length<2) return;
+    sk.forEach(function(x){ if(x===k) sc=Math.max(sc,k.length+3); else if(k.length>=3&&x.indexOf(k)===0) sc=Math.max(sc,k.length+1); });
+   });
+   if(sc>bs){ bs=sc; best=v; }
+  });
+  return bs>=4?best:null;
+ }
+ function billOfVeh(b,v){
+  if(alnum(v.no)&&alnum(b.veh)) return alnum(v.no)===alnum(b.veh);
+  if(!v.name||!b.vn) return false;
+  return skel(b.vn)===skel(v.name)||String(b.vn).toLowerCase().indexOf(String(v.name).toLowerCase())>=0;
+ }
+ function vehSpent(v,inP){   /* expenses booked on this vehicle in the Trip & Accounts book */
+  var t=0, d=DB(); if(!d||v.id==null) return null;
+  var any=false;
+  (d.accEntries||[]).forEach(function(e){ if(e&&e.vehId===v.id&&e.type!=="in"&&inP(String(e.date||"").slice(0,10))){ t+=+e.amount||0; any=true; } });
+  return any?t:((d.accEntries||[]).length?0:null);
+ }
  function travelQuestion(s){
   var P=period(s), B=typeof window.tcTrBills==="function"?window.tcTrBills():[], ex=(DB()&&DB().expenses)||[];
   function inP(d){ return d>=P.a&&d<=P.b; }
+  var V=vehOf(s,B);
+  if(V&&!has(s,KW.dues)){
+   var vb=B.filter(function(b){ return inP(b.d)&&billOfVeh(b,V); }), vt=0; vb.forEach(function(b){ vt+=b.fin; });
+   var vs=vehSpent(V,inP), vnm=(V.name||V.no)+(V.name&&V.no?" ("+V.no+")":"");
+   var mlx=vs!=null?", ചെലവ് "+money0(vs)+", ബാക്കി "+money0(vt-vs):"", enx=vs!=null?", spent "+money0(vs)+", left "+money0(vt-vs):"";
+   if(has(s,KW.exp)&&!has(s,KW.sales)&&!has(s,KW.profit)){
+    if(vs==null) return A(vnm+": ഈ വാഹനത്തിന്റെ പേരിൽ ചെലവുകൾ ചേർത്തിട്ടില്ല (Trip & Accounts-ൽ ചെലവ് ചേർക്കുമ്പോൾ വാഹനം തിരഞ്ഞെടുക്കൂ).",vnm+": no expenses are booked on this vehicle (choose the vehicle when you add an expense in Trip & Accounts).");
+    return A(vnm+" - "+P.ml+" ചെലവ് "+money0(vs)+".",vnm+" - "+P.en+": expenses "+money0(vs)+".");
+   }
+   return A(vnm+" - "+P.ml+": "+vb.length+" ട്രിപ്പ്, വരവ് (ബില്ല്) "+money0(vt)+mlx+".",vnm+" - "+P.en+": "+vb.length+" trip(s), billed "+money0(vt)+enx+".");
+  }
   var bl=B.filter(function(b){ return inP(b.d); }), billed=0; bl.forEach(function(b){ billed+=b.fin; });
   var spent=0; ex.forEach(function(e){ var d=String(e.created||"").slice(0,10); if(inP(d)) spent+=+e.amount||0; });
   if(has(s,KW.dues)){
@@ -140,7 +201,8 @@
   if(has(s,KW.trips)) return A(P.ml+" "+bl.length+" ട്രിപ്പ് (ബില്ല് "+money0(billed)+").",P.en+": "+bl.length+" trip(s), billed "+money0(billed)+".");
   if(has(s,KW.profit)) return A(P.ml+" ബില്ല് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+" (ഏകദേശ ലാഭം).",P.en+": billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+" (about the profit).");
   if(has(s,KW.exp)) return A(P.ml+" ചെലവ് "+money0(spent)+".",P.en+": expenses "+money0(spent)+".");
-  if(has(s,KW.sales)) return A(P.ml+" ബില്ല് "+money0(billed)+" ("+bl.length+" ട്രിപ്പ്).",P.en+": billed "+money0(billed)+" ("+bl.length+" trip(s)).");
+  if(has(s,KW.sales)) return A(P.ml+" വരവ് (ബില്ല്) "+money0(billed)+" ("+bl.length+" ട്രിപ്പ്).",P.en+": billed "+money0(billed)+" ("+bl.length+" trip(s)).");
+  if(has(s,KW.sum)||has(s,KW.qWord)) return A(P.ml+": "+bl.length+" ട്രിപ്പ്, വരവ് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+".",P.en+": "+bl.length+" trip(s), billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+".");
   return null;
  }
 
@@ -193,8 +255,11 @@
   if(ans) return ans;
   if(hp) return hp;
   if(!shop&&!trv) return {kind:"none",ml:"ഇവിടെ വോയിസ് കമാൻഡ് ഇല്ല. ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് അമർത്തിയാൽ പറഞ്ഞത് ടൈപ്പ് ആകും.",en:"No voice commands here. Tap a text box, then the mic, and what you say is typed."};
-  return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ പറയൂ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\"" +(shop?", \"2 Alpha വിറ്റു\", \"Alpha സ്റ്റോക്ക് എത്ര\"":"")+", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\".",
-   en:"I did not understand. Try: \"500 rupees diesel expense today\""+(shop?", \"2 Alpha sold\", \"how much Alpha stock\"":"")+", \"profit this month\", \"who owes me money\"."};
+  if(shop) return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ ചോദിക്കാം: \"ഈ മാസം ലാഭം എത്ര\", \"Alpha സ്റ്റോക്ക് എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\", \"2 Alpha വിറ്റു\".",
+   en:"I did not understand. You can ask: \"profit this month\", \"how much Alpha stock\", \"who owes me money\", \"2 Alpha sold\"."};
+  var vx=vehList(typeof window.tcTrBills==="function"?window.tcTrBills():[])[0], vn=vx&&(vx.name||vx.no)?String(vx.name||vx.no).split(/\s+/).pop():"";
+  return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ ചോദിക്കാം: \"ഈ മാസത്തെ വരവ് എത്ര\""+(vn?", \""+vn+" ഈ മാസം എത്ര ഓടി\"":"")+", \"ആരൊക്കെ പണം തരാനുണ്ട്\", \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\".",
+   en:"I did not understand. You can ask: \"income this month\""+(vn?", \""+vn+" income this month\"":"")+", \"who owes me money\", \"500 rupees diesel expense today\"."};
  }
  window.tcVoiceRun=function(t){ var r=run(t); return {kind:r.kind,ml:r.ml,en:r.en}; };   /* used by the test */
  window.tcVoiceParse={amount:function(t){ return amount(norm(t)); },run:run};
