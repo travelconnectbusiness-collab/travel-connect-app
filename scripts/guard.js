@@ -291,6 +291,8 @@ const MARKERS = [
   ["src/tc-docsprint.js", "tcHtmlToPdf", "Real PDF file of a bill (share / save)"],
   ["src/tc-voice.js", "function vehOf", "Voice questions understand a vehicle by its name in Malayalam (മറാസോ = Marazzo) or number digits"],
   ["src/tc-voice.js", "\"വരവ്\"", "Voice questions: വരവ് / കളക്ഷൻ = income"],
+  ["src/tc-trinsight.js", "window.tcTrBook=book", "Insights and voice read the Trip & Accounts book (same figures as the Day Book)"],
+  ["src/tc-voice.js", "tcTrBook", "Voice money questions answer from the accounts book: income, expenses, profit; per vehicle by its book vehicle"],
   ["src/tc-trinsight.js", "vn:String(t.vehicle", "Bills carry the vehicle name for the voice questions"],
   ["src/tc-vohelp.js", "window.tcVoHelp", "App help: every how / where question about the app gets the steps + Open button (tc-vohelp.js)"],
   ["src/tc-vohelp.js", "ca report", "App help: CA pack / CA report question answered"],
