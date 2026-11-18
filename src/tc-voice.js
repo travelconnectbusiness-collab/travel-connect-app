@@ -62,7 +62,7 @@
   if(has(s,["ഇന്ന്","ഇന്നത്തെ","today"])) return {a:t,b:t,ml:"ഇന്ന്",en:"today"};
   if(has(s,["കഴിഞ്ഞ മാസ","last month","previous month"])){ var y0=+mon.slice(0,4), m0=+mon.slice(5,7)-1; if(m0<1){ m0=12; y0--; } var last=new Date(y0,m0,0).getDate(), pm=y0+"-"+p2(m0); return {a:pm+"-01",b:pm+"-"+p2(last),ml:"കഴിഞ്ഞ മാസം",en:"last month"}; }
   if(has(s,["ഈ ആഴ്ച","this week","last 7 days"])) return {a:addDays(t,-6),b:t,ml:"കഴിഞ്ഞ 7 ദിവസം",en:"the last 7 days"};
-  return {a:mon+"-01",b:t,ml:"ഈ മാസം ഇതുവരെ",en:"this month so far"};
+  return {a:mon+"-01",b:mon+"-31",ml:"ഈ മാസം",en:"this month"};   /* the whole month, like the Day Book's month strip */
  }
  var KW={
   sold:["വിറ്റു","വിറ്റ","വില്പന","വിൽപ്പന നടത്തി","sold","sale of"],
@@ -144,8 +144,11 @@
  function vehList(B){
   var out=[], seen={};
   function put(name,no,id){ var k=alnum(no)||("N:"+String(name||"").toLowerCase().trim()); if(!String(name||"").trim()&&!alnum(no)) return; if(seen[k]){ if(!seen[k].name&&name) seen[k].name=name; if(seen[k].id==null&&id!=null) seen[k].id=id; return; } seen[k]={name:String(name||"").trim(),no:String(no||"").trim(),id:id}; out.push(seen[k]); }
+  ((DB()&&DB().accVehicles)||[]).forEach(function(v){ if(v&&!v.deleted){ put(v.name,v.no,null); var k=alnum(v.no)||("N:"+String(v.name||"").toLowerCase().trim()); if(seen[k]) seen[k].aid=v.id; } });   /* Trip & Accounts book vehicles */
   ((DB()&&DB().vehicles)||[]).forEach(function(v){ put(v.name,v.no,v.id); });
   (B||[]).forEach(function(b){ put(b.vn,b.veh,null); });
+  /* a vehicle known by name only: find its book vehicle by the same name */
+  out.forEach(function(x){ if(x.aid) return; ((DB()&&DB().accVehicles)||[]).forEach(function(v){ if(!x.aid&&v&&!v.deleted&&((alnum(v.no)&&alnum(v.no)===alnum(x.no))||(v.name&&x.name&&skel(v.name)===skel(x.name)))) x.aid=v.id; }); });
   return out;
  }
  window.tcVoSkel=skel;   /* for the test */
@@ -169,27 +172,36 @@
   if(!v.name||!b.vn) return false;
   return skel(b.vn)===skel(v.name)||String(b.vn).toLowerCase().indexOf(String(v.name).toLowerCase())>=0;
  }
- function vehSpent(v,inP){   /* expenses booked on this vehicle in the Trip & Accounts book */
-  var t=0, d=DB(); if(!d||v.id==null) return null;
-  var any=false;
-  (d.accEntries||[]).forEach(function(e){ if(e&&e.vehId===v.id&&e.type!=="in"&&inP(String(e.date||"").slice(0,10))){ t+=+e.amount||0; any=true; } });
-  return any?t:((d.accEntries||[]).length?0:null);
- }
  function travelQuestion(s){
   var P=period(s), B=typeof window.tcTrBills==="function"?window.tcTrBills():[], ex=(DB()&&DB().expenses)||[];
   function inP(d){ return d>=P.a&&d<=P.b; }
   var V=vehOf(s,B);
+  /* the Trip & Accounts book = money really received / spent (same as the Day Book); bills = what was billed for trips */
+  var BK=null; try{ BK=typeof window.tcTrBook==="function"?window.tcTrBook(P.a,P.b):null; }catch(e){ BK=null; }
+  function pfMl(p){ return p>=0?"ലാഭം "+money0(p):"നഷ്ടം "+money0(-p)+" (ചെലവ് വരവിനെക്കാൾ കൂടുതൽ)"; }
+  function pfEn(p){ return p>=0?"profit "+money0(p):"loss "+money0(-p)+" (spent more than received)"; }
+  var noneMl=BK&&BK.none.n?" വാഹനം തിരഞ്ഞെടുക്കാത്ത "+BK.none.n+" എൻട്രി (വരവ് "+money0(BK.none.inc)+", ചെലവ് "+money0(BK.none.out)+") ഇതിൽ കൂട്ടിയിട്ടില്ല.":"";
+  var noneEn=BK&&BK.none.n?" "+BK.none.n+" entr"+(BK.none.n>1?"ies":"y")+" with no vehicle chosen (income "+money0(BK.none.inc)+", expenses "+money0(BK.none.out)+") are not in this.":"";
   if(V&&!has(s,KW.dues)){
    var vb=B.filter(function(b){ return inP(b.d)&&billOfVeh(b,V); }), vt=0; vb.forEach(function(b){ vt+=b.fin; });
-   var vs=vehSpent(V,inP), vnm=(V.name||V.no)+(V.name&&V.no?" ("+V.no+")":"");
-   var mlx=vs!=null?", ചെലവ് "+money0(vs)+", ബാക്കി "+money0(vt-vs):"", enx=vs!=null?", spent "+money0(vs)+", left "+money0(vt-vs):"";
-   if(has(s,KW.exp)&&!has(s,KW.sales)&&!has(s,KW.profit)){
-    if(vs==null) return A(vnm+": ഈ വാഹനത്തിന്റെ പേരിൽ ചെലവുകൾ ചേർത്തിട്ടില്ല (Trip & Accounts-ൽ ചെലവ് ചേർക്കുമ്പോൾ വാഹനം തിരഞ്ഞെടുക്കൂ).",vnm+": no expenses are booked on this vehicle (choose the vehicle when you add an expense in Trip & Accounts).");
-    return A(vnm+" - "+P.ml+" ചെലവ് "+money0(vs)+".",vnm+" - "+P.en+": expenses "+money0(vs)+".");
+   var vnm=(V.name||V.no)+(V.name&&V.no?" ("+V.no+")":"");
+   var billMl=" ബില്ലുകൾ: "+vb.length+" ട്രിപ്പ്, "+money0(vt)+".", billEn=" Bills: "+vb.length+" trip(s), "+money0(vt)+".";
+   var g=BK&&V.aid?(BK.veh[V.aid]||{inc:0,out:0,n:0}):null;
+   if(g){
+    if(has(s,KW.exp)&&!has(s,KW.sales)&&!has(s,KW.profit)) return A(vnm+" - "+P.ml+" ചെലവ് "+money0(g.out)+"."+noneMl,vnm+" - "+P.en+": expenses "+money0(g.out)+"."+noneEn);
+    return A(vnm+" - "+P.ml+" (കണക്ക് ബുക്ക്): വരവ് "+money0(g.inc)+", ചെലവ് "+money0(g.out)+", "+pfMl(g.inc-g.out)+"."+billMl+noneMl,
+     vnm+" - "+P.en+" (accounts book): income "+money0(g.inc)+", expenses "+money0(g.out)+", "+pfEn(g.inc-g.out)+"."+billEn+noneEn);
    }
-   return A(vnm+" - "+P.ml+": "+vb.length+" ട്രിപ്പ്, വരവ് (ബില്ല്) "+money0(vt)+mlx+".",vnm+" - "+P.en+": "+vb.length+" trip(s), billed "+money0(vt)+enx+".");
+   return A(vnm+" - "+P.ml+":"+billMl+(BK?" ഈ വാഹനം കണക്ക് ബുക്കിൽ ഇല്ല (Trip & Accounts › Vehicle Book-ൽ ചേർത്താൽ വരവും ചെലവും കിട്ടും).":""),
+    vnm+" - "+P.en+":"+billEn+(BK?" This vehicle is not in the accounts book (add it in Trip & Accounts › Vehicle Book to get income and expenses).":""));
   }
   var bl=B.filter(function(b){ return inP(b.d); }), billed=0; bl.forEach(function(b){ billed+=b.fin; });
+  if(BK&&!has(s,KW.dues)&&!has(s,KW.trips)){
+   var bML=" ബില്ല് ചെയ്തത്: "+bl.length+" ട്രിപ്പ്, "+money0(billed)+".", bEN=" Billed: "+bl.length+" trip(s), "+money0(billed)+".";
+   if(has(s,KW.exp)&&!has(s,KW.sales)&&!has(s,KW.profit)) return A(P.ml+" ചെലവ് "+money0(BK.out)+" (കണക്ക് ബുക്ക്).",P.en+": expenses "+money0(BK.out)+" (accounts book).");
+   if(has(s,KW.profit)||has(s,KW.sales)||has(s,KW.sum)||has(s,KW.qWord))
+    return A(P.ml+" (കണക്ക് ബുക്ക്): വരവ് "+money0(BK.inc)+", ചെലവ് "+money0(BK.out)+", "+pfMl(BK.inc-BK.out)+"."+bML,P.en+" (accounts book): income "+money0(BK.inc)+", expenses "+money0(BK.out)+", "+pfEn(BK.inc-BK.out)+"."+bEN);
+  }
   var spent=0; ex.forEach(function(e){ var d=String(e.created||"").slice(0,10); if(inP(d)) spent+=+e.amount||0; });
   if(has(s,KW.dues)){
    var owing=B.filter(function(b){ return b.bal>=1; }), by={}, tot=0;
@@ -238,6 +250,10 @@
     }};
   }
   /* an expense (shop or travel): needs an amount, and is not a question */
+  var aQ=null;   /* "ഇന്നോവയുടെ ചെലവ്" with no amount is a question, not an expense to save */
+  if((shop||trv)&&has(s,KW.expense)&&!isQ&&!(amount(s)>0)&&
+     (has(s,["മാസ","ആഴ്ച","ഇന്ന","ഇന്നലെ","month","week","today","yesterday"])||has(s,KW.sum)||has(s,KW.profit)||has(s,KW.sales)||(trv&&vehOf(s,typeof window.tcTrBills==="function"?window.tcTrBills():[])))){
+   aQ=shop?shopQuestion(s):travelQuestion(s); if(aQ) return aQ; }
   if((shop||trv)&&has(s,KW.expense)&&!isQ){
    var a=amount(s);
    if(!(a>0)) return {kind:"none",ml:"തുക കേട്ടില്ല. ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\".",en:"I did not catch the amount. Example: \"500 rupees diesel expense today\"."};
