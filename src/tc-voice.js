@@ -147,6 +147,10 @@
  /* ---------- what to do with the words: {kind:'confirm'|'answer'|'open'|'none'} ---------- */
  function run(raw){
   var s=norm(raw); if(!s) return {kind:"none",ml:"ഒന്നും കേട്ടില്ല.",en:"Nothing heard."};
+  /* "how / where do I ..." about the app itself: answered first, on every plan and every business (tc-vohelp.js) */
+  var hp=null; try{ hp=typeof window.tcVoHelp==="function"?window.tcVoHelp(raw):null; }catch(e){ hp=null; }
+  if(hp&&hp.intent) return hp;
+  if(!aiOk()&&hp&&!amount(s)) return hp;   /* "500 rupees diesel expense" is a command (Platinum), not a help question */
   if(!aiOk()) return {kind:"none",ml:"വോയിസ് കമാൻഡും ചോദ്യവും Platinum പ്ലാനിൽ ലഭ്യമാണ്. (പറഞ്ഞ് ടൈപ്പ് ചെയ്യൽ - ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് - എല്ലാവർക്കും ഉണ്ട്.)",en:"Voice commands and questions are a Platinum feature. (Speaking into a text box - tap the box, then the mic - is for everyone.)"};
   var shop=shopOpen()&&shopUi(), trv=travelOn(), isQ=has(s,KW.qWord);
   if(has(s,KW.insight)&&!isQ||/^(insights?|ഇൻസൈറ്റ്)/.test(s)){
@@ -187,6 +191,7 @@
   /* a question */
   var ans=shop?shopQuestion(s):trv?travelQuestion(s):null;
   if(ans) return ans;
+  if(hp) return hp;
   if(!shop&&!trv) return {kind:"none",ml:"ഇവിടെ വോയിസ് കമാൻഡ് ഇല്ല. ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് അമർത്തിയാൽ പറഞ്ഞത് ടൈപ്പ് ആകും.",en:"No voice commands here. Tap a text box, then the mic, and what you say is typed."};
   return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ പറയൂ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\"" +(shop?", \"2 Alpha വിറ്റു\", \"Alpha സ്റ്റോക്ക് എത്ര\"":"")+", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\".",
    en:"I did not understand. Try: \"500 rupees diesel expense today\""+(shop?", \"2 Alpha sold\", \"how much Alpha stock\"":"")+", \"profit this month\", \"who owes me money\"."};
@@ -279,7 +284,7 @@
    '<textarea id="tcVoTx" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #bbb;border-radius:10px;padding:8px;font-size:15px" placeholder="'+E(tr("what you said appears here - you can also type","പറഞ്ഞത് ഇവിടെ വരും - ടൈപ്പ് ചെയ്യുകയും ആവാം"))+'"></textarea>'+
    '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoGo" style="flex:1;padding:10px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Do it","ചെയ്യൂ"))+'</button><button type="button" id="tcVoX" style="padding:10px 14px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("Close","അടയ്ക്കുക"))+'</button></div>'+
    '<div id="tcVoOut" style="margin-top:8px"></div>'+
-   '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
+   '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Ask how to do anything in the app: \"where is the CA pack\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ആപ്പിൽ എന്തും എങ്ങനെ ചെയ്യാം എന്ന് ചോദിക്കാം: \"CA പാക്ക് എവിടെ\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
  }
  function openSheet(){
   closeSheet();
@@ -305,6 +310,9 @@
     '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoYes" style="flex:1;padding:11px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Yes, save","ശരി, സേവ് ചെയ്യൂ"))+'</button><button type="button" id="tcVoNo" style="padding:11px 16px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("No","വേണ്ട"))+'</button></div>';
   }else if(r.kind==="answer"){
    h='<div style="background:#eef6f1;border-radius:10px;padding:10px;font-size:15px;line-height:1.45">'+E(msg)+'</div>'+(window.speechSynthesis?'<button type="button" id="tcVoSay" style="margin-top:6px;padding:8px 12px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:13px">'+E(tr("Read aloud","വായിച്ച് കേൾപ്പിക്കൂ"))+'</button>':'');
+  }else if(r.kind==="help"){   /* app help: the steps, and "Open" when the place can be opened from here */
+   h='<div style="background:#eef3f8;border-radius:10px;padding:10px;font-size:15px;line-height:1.5;white-space:pre-line">'+E(msg)+'</div>'+
+    (r.go?'<button type="button" id="tcVoHelpGo" style="margin-top:6px;padding:10px 16px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Open it","അവിടേക്ക് പോകുക"))+'</button>':'');
   }else if(r.kind==="open"){
    closeSheet(); try{ r.fn(); }catch(e){} return;
   }else h='<div style="background:#fdecec;border-radius:10px;padding:10px;font-size:14px;line-height:1.4">'+E(msg)+'</div>';
@@ -318,6 +326,7 @@
   };
   if(n) n.onclick=function(){ pending=null; out.innerHTML=""; };
   if(sy) sy.onclick=function(){ speak(msg); };
+  var gb=$("tcVoHelpGo"); if(gb) gb.onclick=function(){ var f=r.go; closeSheet(); try{ f(); }catch(e){} };
  }
 
  /* ---------- start ---------- */
