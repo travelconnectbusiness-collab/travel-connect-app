@@ -62,6 +62,16 @@
   if(has(s,["ഇന്ന്","ഇന്നത്തെ","today"])) return {a:t,b:t,ml:"ഇന്ന്",en:"today"};
   if(has(s,["കഴിഞ്ഞ മാസ","last month","previous month"])){ var y0=+mon.slice(0,4), m0=+mon.slice(5,7)-1; if(m0<1){ m0=12; y0--; } var last=new Date(y0,m0,0).getDate(), pm=y0+"-"+p2(m0); return {a:pm+"-01",b:pm+"-"+p2(last),ml:"കഴിഞ്ഞ മാസം",en:"last month"}; }
   if(has(s,["ഈ ആഴ്ച","this week","last 7 days"])) return {a:addDays(t,-6),b:t,ml:"കഴിഞ്ഞ 7 ദിവസം",en:"the last 7 days"};
+  /* a month by name: "നവംബറിലെ", "october", "oct" (this year; a later month = last year) */
+  var MN=[["ജനുവരി","january","jan"],["ഫെബ്രുവരി","february","feb"],["മാർച്ച","march"],["ഏപ്രി","april","apr"],["മേയ്","മെയ്"],["ജൂൺ","ജൂണ","june","jun"],["ജൂലൈ","july","jul"],["ഓഗസ്റ്റ","ആഗസ്റ്റ","august","aug"],["സെപ്റ്റംബ","september","sept"],["ഒക്ടോബ","october","oct"],["നവംബ","november","nov"],["ഡിസംബ","december","dec"]];   /* Malayalam stems: "ഒക്ടോബർ" / "ഒക്ടോബറിലെ" */
+  var MLN=["ജനുവരി","ഫെബ്രുവരി","മാർച്ച്","ഏപ്രിൽ","മേയ്","ജൂൺ","ജൂലൈ","ഓഗസ്റ്റ്","സെപ്റ്റംബർ","ഒക്ടോബർ","നവംബർ","ഡിസംബർ"], ENN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  for(var mi=0;mi<12;mi++){
+   if(MN[mi].some(function(w){ return /^[a-z]/.test(w)?(" "+s+" ").indexOf(" "+w+" ")>=0:s.indexOf(w)>=0; })){
+    var yy=+mon.slice(0,4); if(mi+1>+mon.slice(5,7)) yy--;
+    var mm=yy+"-"+p2(mi+1), dl=new Date(yy,mi+1,0).getDate();
+    return {a:mm+"-01",b:mm+"-"+p2(dl),ml:MLN[mi]+" "+yy,en:ENN[mi]+" "+yy};
+   }
+  }
   return {a:mon+"-01",b:mon+"-31",ml:"ഈ മാസം",en:"this month"};   /* the whole month, like the Day Book's month strip */
  }
  var KW={
@@ -277,7 +287,7 @@
   return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ ചോദിക്കാം: \"ഈ മാസത്തെ വരവ് എത്ര\""+(vn?", \""+vn+" ഈ മാസം എത്ര ഓടി\"":"")+", \"ആരൊക്കെ പണം തരാനുണ്ട്\", \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\".",
    en:"I did not understand. You can ask: \"income this month\""+(vn?", \""+vn+" income this month\"":"")+", \"who owes me money\", \"500 rupees diesel expense today\"."};
  }
- window.tcVoiceRun=function(t){ var r=run(t); return {kind:r.kind,ml:r.ml,en:r.en}; };   /* used by the test */
+ window.tcVoiceRun=function(t){ var r=run(t); return {kind:r.kind,ml:r.ml,en:r.en,lang:(typeof window.tcVoLangOf==="function"?window.tcVoLangOf(t):""),demo:r.demo?r.demo.length:0}; };   /* used by the test */
  window.tcVoiceParse={amount:function(t){ return amount(norm(t)); },run:run};
 
  /* ---------- listening ---------- */
@@ -384,7 +394,9 @@
  function go(){
   var tx=$("tcVoTx"), out=$("tcVoOut"); if(!tx||!out) return;
   var r=run(tx.value); last=r; pending=null;
-  var msg=tr(r.en,r.ml), h="";
+  /* answer in the language of the question (Malayalam letters / Manglish -> Malayalam, English -> English) - tc-vohelp.js */
+  var QL=""; try{ QL=typeof window.tcVoLangOf==="function"?window.tcVoLangOf(tx.value):""; }catch(e){ QL=""; }
+  var msg=QL==="ml"?r.ml:(QL==="en"?r.en:tr(r.en,r.ml)), h="";
   if(r.kind==="confirm"){
    pending=r;
    h='<div style="background:#fff6df;border-radius:10px;padding:10px;font-size:15px">'+E(msg)+'</div>'+
@@ -393,6 +405,7 @@
    h='<div style="background:#eef6f1;border-radius:10px;padding:10px;font-size:15px;line-height:1.45">'+E(msg)+'</div>'+(window.speechSynthesis?'<button type="button" id="tcVoSay" style="margin-top:6px;padding:8px 12px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:13px">'+E(tr("Read aloud","വായിച്ച് കേൾപ്പിക്കൂ"))+'</button>':'');
   }else if(r.kind==="help"){   /* app help: the steps, and "Open" when the place can be opened from here */
    h='<div style="background:#eef3f8;border-radius:10px;padding:10px;font-size:15px;line-height:1.5;white-space:pre-line">'+E(msg)+'</div>'+
+    (r.demo&&r.demo.length?'<button type="button" id="tcVoDemoGo" style="margin-top:6px;margin-right:6px;padding:10px 16px;border:0;border-radius:10px;background:#f5a623;color:#082b49;font-weight:800;font-size:15px">'+E(QL==="ml"?"കാണിച്ചു തരൂ (ഡെമോ)":(QL==="en"?"Show me (demo)":tr("Show me (demo)","കാണിച്ചു തരൂ (ഡെമോ)")))+'</button>':'')+
     (r.go?'<button type="button" id="tcVoHelpGo" style="margin-top:6px;padding:10px 16px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Open it","അവിടേക്ക് പോകുക"))+'</button>':'');
   }else if(r.kind==="open"){
    closeSheet(); try{ r.fn(); }catch(e){} return;
@@ -408,6 +421,7 @@
   if(n) n.onclick=function(){ pending=null; out.innerHTML=""; };
   if(sy) sy.onclick=function(){ speak(msg); };
   var gb=$("tcVoHelpGo"); if(gb) gb.onclick=function(){ var f=r.go; closeSheet(); try{ f(); }catch(e){} };
+  var db2=$("tcVoDemoGo"); if(db2) db2.onclick=function(){ var st=r.demo; closeSheet(); try{ window.tcVoDemo(st,QL); }catch(e){} };
  }
 
  /* ---------- start ---------- */
