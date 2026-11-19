@@ -325,6 +325,7 @@ const MARKERS = [
   ["src/tc-voice.js", "tcVoAiOut", "Voice sheet: AI answer / Ask AI button"],
   ["src/tc-voice.js", "function hasQ", "Voice: English question words as whole words (WhatsApp is not \"what\")"],
   ["src/tc-vohelp.js", "window.tcVoHelpTop=", "App help gives the AI the closest help notes"],
+  ["src/tc-vohelp.js", "k.length<4&&x.ml!==wm", "App help: a 3-sound word matches only in the same script (no wrong topics)"],
   ["src/tc-regdocs.js", "/src/tc-ai.js?v=", "loader loads tc-ai.js (before tc-voice.js)"],
   ["worker.js", "/api/perscloud", "worker.js routes /api/perscloud (My Accounts cloud backup)"],
   ["worker.js", "/api/roadkm", "worker.js routes /api/roadkm (Google road km)"],
