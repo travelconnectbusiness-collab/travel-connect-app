@@ -22,6 +22,9 @@ import { onRequestPost as shopPost } from "./functions/api/shop.js";
 import { onRequestPost as deletionPost } from "./functions/api/deletion.js";
 import { onRequestPost as adminBackupPost } from "./functions/api/admin_backup.js";
 import { onRequestPost as billRemindersPost, maybeRunBillReminders } from "./functions/api/bill_reminders.js";
+import { onRequestPost as persCloudPost } from "./functions/api/perscloud.js";   /* My Accounts cloud backup (2026-11-18) */
+import { onRequestPost as roadKmPost } from "./functions/api/roadkm.js";        /* Google road km, Premium (2026-11-19) */
+import { onRequestPost as aiPost } from "./functions/api/ai.js";                /* in-app AI, Workers AI binding "AI" (2026-11-19) */
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -135,6 +138,21 @@ async function handleApi(request, env, url, ctx) {
 
   if (url.pathname === "/api/backup") {
     if (request.method === "POST") return backupPost({ request, env });
+  }
+
+  if (url.pathname === "/api/perscloud") {
+    if (request.method === "POST") return persCloudPost({ request, env });
+  }
+
+  if (url.pathname === "/api/roadkm") {
+    if (request.method === "POST") return roadKmPost({ request, env });
+  }
+
+  if (url.pathname === "/api/ai") {
+    if (request.method === "POST") {
+      if (Number(request.headers.get("content-length") || 0) > 20000) return Response.json({ ok: false, error: "too_large" }, { status: 413 });
+      return aiPost({ request, env });
+    }
   }
 
   return null;
