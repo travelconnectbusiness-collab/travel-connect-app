@@ -313,6 +313,8 @@ const MARKERS = [
   ["src/tc-ltextra.js", "function freeMap", "Live trip: free map (OSRM) still works when Google cannot answer"],
   ["src/tc-regdocs.js", "/src/tc-roadkm.js?v=", "loader loads tc-roadkm.js (before tc-ltextra.js)"],
   ["src/tc-vohelp.js", "Road KM (Google)", "App help knows the Google road km, route map and navigation"],
+  ["src/tc-upgrade.js", "upFail[c.partner_id]", "Verification & Plan card: a failed status is not retried at once (no endless jumping / server calls)"],
+  ["src/tc-media.js", "mdFail[c.partner_id]", "Shop window card: a failed load is not retried at once (no endless jumping / server calls)"],
   ["src/tc-menu.js", "tcPcAdmin(", "Admin page lists the My Accounts cloud requests"],
   ["src/tc-vohelp.js", "Bring back from cloud", "App help knows the My Accounts cloud backup"],
   ["src/tc-trinsight.js", "window.tcTrBook=book", "Insights and voice read the Trip & Accounts book (same figures as the Day Book)"],
