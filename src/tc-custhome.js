@@ -5,11 +5,11 @@
    core.js / cs.js / directory.js are NOT edited. This file
    1) wraps customerHome(): after cs.js has drawn the page it only MOVES / RESTYLES what is there (every id and onclick stays, so the fare calculator,
       directory, messages, My Accounts card ... keep working):
-      - Messages / Blood donors / Find Nearby Vehicle / My Accounts cards become slim rows;
+      - Messages / Blood donors / Find Nearby Vehicle cards become slim rows (My Accounts stays a big card, 2026-11-19);
       - "Local directory" and "Available vehicles now" sit side by side in ONE row;
       - the whole Fare Estimate form is closed inside one button "Fare / trip budget estimate" and opens only when tapped;
       - Useful places / Emergency / Calls boxes are slimmer; Feedback + About + Log out go into one closed "More" box.
-   (also: a slim "My Accounts" row under the Messages card on the owner Dashboard.)
+   (also: a slim "My Accounts" row under the Messages card on the owner Dashboard - tc-pers.js hides it and shows its big card right after it.)
    2) Preview (Admin menu > Preview: Customer Page, address #previewcustomer): the owner's own cards (Verification & Plan, Shop window, Test Notification)
       are hidden and a small bar says "Customer page preview".
    3) CSS only: the big green "Active now" row of partners / vehicles (directory.js tcActiveToggleHtml) is shown as a SMALL switch on one line.
@@ -46,10 +46,8 @@
   '#tcCH #tcTripReq>div:first-child{width:34px!important;height:34px!important;font-size:18px!important}'+
   '#tcCH #tcTripReq>div:nth-child(2)>div:first-child{font-size:15px!important}'+
   '#tcCH #tcTripReq>div:nth-child(2)>div:nth-child(2){font-size:11.5px!important}'+
-  '#tcCH #tcPersCard{padding:8px 12px!important;margin:0 0 8px!important;border-radius:12px!important;gap:10px!important;box-shadow:none!important}'+
-  '#tcCH #tcPersCard>div:first-child{font-size:20px!important}'+
-  '#tcCH #tcPersCard>div:nth-child(2)>div:first-child{font-size:14px!important}'+
-  '#tcCH #tcPersCard>div:nth-child(2)>div:nth-child(2){display:none!important}'+
+  /* 2026-11-19 owner: My Accounts must be easy to see on every page - the customer home keeps the big card (no slimming) */
+  '#tcCH #tcPersCard{margin:0 0 10px!important}'+
   '#tcCH #tcShareCard{padding:8px 12px!important;margin:0 0 8px!important;border-radius:12px!important;box-shadow:none!important}'+
   '#tcCH #tcShareCard>div:first-child{gap:8px!important}'+
   '#tcCH #tcShareCard>div:first-child>div:first-child{width:30px!important;height:30px!important;font-size:16px!important}'+
