@@ -423,11 +423,13 @@
    '<div id="tcVoOut" style="margin-top:8px"></div>'+
    '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Ask how to do anything in the app: \"where is the CA pack\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ആപ്പിൽ എന്തും എങ്ങനെ ചെയ്യാം എന്ന് ചോദിക്കാം: \"CA പാക്ക് എവിടെ\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
  }
+ var aiFollow=false;   /* after "Ask the next question" the next help / not-understood answer goes to the AI by itself, with the conversation so far */
  function openSheet(){
   closeSheet();
   var o=document.createElement("div"); o.id="tcVoSheet";
   o.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99995;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -4px 18px rgba(0,0,0,.35);padding:12px 12px calc(14px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow:auto;font-family:inherit;color:#222";
   o.innerHTML=sheetHtml(); document.body.appendChild(o);
+  aiFollow=false; try{ if(typeof window.tcAskAiReset==="function") window.tcAskAiReset(); }catch(e){}   /* a new sheet = a new conversation for the AI */
   $("tcVoMic").onclick=function(){ listen(function(txt,fin){ $("tcVoTx").value=txt; },function(txt){ if(txt) go(); }); };
   $("tcVoLg").onclick=function(){ LSs("tc_voice_lang",lang()==="ml-IN"?"en-IN":"ml-IN"); $("tcVoLg").textContent=lang()==="ml-IN"?"മലയാളം":"English"; };
   $("tcVoGo").onclick=go; $("tcVoX").onclick=closeSheet;
@@ -469,11 +471,13 @@
      var o2=$("tcVoAiOut"); if(!o2) return;
      if(r.miss){ var hb=out.firstElementChild; if(hb&&hb!==o2&&hb.id!=="tcVoAiOut") hb.style.display="none"; }   /* the AI answered: the "not found in the help" box is not needed */
      o2.innerHTML='<div style="background:#f4f0ff;border:1px solid #d9cdfb;border-radius:10px;padding:10px;font-size:15px;line-height:1.5;white-space:pre-line"><div style="font-size:12px;font-weight:800;color:#4b2fa8;margin-bottom:3px">&#10024; AI</div>'+E(t)+'</div>'+
-      '<div style="font-size:11px;color:#777;margin-top:3px">'+E(aiL==="ml"?"AI-യുടെ ഉത്തരത്തിൽ തെറ്റ് വരാം. ആപ്പിലെ ബട്ടണുകൾ നോക്കി ഉറപ്പാക്കുക.":"AI answers can be wrong - check with the buttons in the app.")+'</div>';
+      '<div style="font-size:11px;color:#777;margin-top:3px">'+E(aiL==="ml"?"AI-യുടെ ഉത്തരത്തിൽ തെറ്റ് വരാം. ആപ്പിലെ ബട്ടണുകൾ നോക്കി ഉറപ്പാക്കുക.":"AI answers can be wrong - check with the buttons in the app.")+'</div>'+
+      '<button type="button" id="tcVoAiNext" style="margin-top:6px;padding:8px 14px;border:1px solid #7b5cd6;border-radius:999px;background:#fff;color:#4b2fa8;font-size:13.5px;font-weight:700">&#10024; '+E(aiL==="ml"?"അടുത്ത ചോദ്യം ചോദിക്കൂ":"Ask the next question")+'</button>';
+     var nx=$("tcVoAiNext"); if(nx) nx.onclick=function(){ aiFollow=true; var t=$("tcVoTx"); if(t){ t.value=""; t.placeholder=aiL==="ml"?"അടുത്ത ചോദ്യം ഇവിടെ ടൈപ്പ് ചെയ്യുക / പറയുക":"Type or say the next question"; try{ t.focus(); }catch(e){} } };
     },function(e){ var o2=$("tcVoAiOut"); if(o2) o2.innerHTML='<div style="background:#f6f6f6;border-radius:10px;padding:9px;font-size:13.5px;color:#555">'+E((e&&e.msg)||"")+'</div>'; });
    };
    var ab=$("tcVoAiGo"); if(ab) ab.onclick=askAi;
-   if(r.miss) askAi();
+   if(r.miss||aiFollow) askAi();
   }
   var y=$("tcVoYes"), n=$("tcVoNo"), sy=$("tcVoSay");
   if(y) y.onclick=function(){
