@@ -30,7 +30,10 @@ const APP = "Travel Connect (travelconnect.dev) is one phone app for any local b
   "Every user has \"My Accounts\" (personal money, loans, chitty / kuri, gifts, backup). Taxi owners: quotations, quick bills, live trips with KM, " +
   "Trip & Accounts, Day Book, drivers, rate master, packages. Voice: the mic button at the bottom right. Menu = the ☰ button. " +
   "To get customers: the \"Share Travel Connect\" card on the dashboard shares the business link on WhatsApp, the \"Shop window\" card shows photos / a video, and customers find businesses in the Local directory. " +
-  "Plans: Free, Plus, Premium, Platinum (Menu › Verification & Plan). Data stays on the phone; backup in My Accounts › Backup.";
+  "Plans: Free, Plus, Premium, Platinum (Menu › Verification & Plan). Data stays on the phone; backup in My Accounts › Backup. " +
+  "WHAT EACH KIND OF BUSINESS USES: vehicles (taxi_travel, auto_rickshaw, pickup_goods): Live Trip Log, Quick Bill, Quotations (taxi), Enquiries, Billing, Trip & Accounts, Day Book, drivers. " +
+  "Every other business (shops of any kind, restaurant / tea shop, hotel, skilled workers such as electrician or plumber, services ...): the shop book - Sale (bill), Purchase, Stock, Expense, Dues, Staff wages, Reports, CA pack, Insights - plus Quotation / Invoice / Bill documents for jobs. " +
+  "Everybody: My Accounts, voice, Share Travel Connect card, Shop window.";
 
 let ready = false;
 async function ensureTables(env) {
@@ -68,7 +71,8 @@ function prompt(lang, biz, notes) {
     : "(no matching help note)";
   return "You are the help assistant inside the Travel Connect app. You help shop owners, taxi owners, drivers and customers use the app.\n" +
     "ABOUT THE APP: " + APP + "\n" +
-    "The user is on a page for this kind of business: " + (biz || "unknown") + ".\n" +
+    "The user's business type: " + (biz || "unknown") + ". Answer for THIS kind of business, in its own words (a restaurant has dishes and orders, a skilled worker has jobs and service charges, a taxi has trips); never give taxi steps to a shop or shop steps to a taxi.\n" +
+    "If the answer depends on the situation (e.g. a trip leaving now vs a booking for later, a drop trip vs a round trip), give the simplest common case first and mention the other in one line.\n" +
     "APP HELP NOTES (the only reliable source for buttons and steps):\n" + n + "\n\n" +
     "FIRST decide what kind of question it is:\n" +
     "A) How to use Travel Connect (its screens, buttons, bills, accounts, plans): answer from the help notes. Name only buttons and screens that appear in the notes or the app description - never invent a button, menu or feature. If the notes do not cover it, say clearly that you could not find this in Travel Connect and give the closest thing the notes do mention.\n" +
@@ -83,13 +87,16 @@ function prompt(lang, biz, notes) {
     "- You do not see the user's accounts or figures. For figures, tell them to ask the voice button, e.g. \"profit this month\".";
 }
 
-async function runAi(env, sys, q) {
+async function runAi(env, sys, q, history) {
+  const msgs = [{ role: "system", content: sys }];
+  (history || []).forEach((h) => { msgs.push({ role: "user", content: h.q }); msgs.push({ role: "assistant", content: h.a }); });
+  msgs.push({ role: "user", content: q });
   const list = (env.AI_MODEL ? [String(env.AI_MODEL)] : []).concat(MODELS.filter((m) => m !== env.AI_MODEL));
   let lastErr = "";
   for (const model of list) {
     try {
       const out = await Promise.race([
-        env.AI.run(model, { messages: [{ role: "system", content: sys }, { role: "user", content: q }], max_tokens: 700, temperature: 0.2 }),
+        env.AI.run(model, { messages: msgs, max_tokens: 700, temperature: 0.2 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000)),
       ]);
       let t = out && (out.response != null ? out.response : (out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content));
@@ -127,10 +134,12 @@ export async function onRequestPost({ request, env }) {
     return (en + (ml ? "\n(Malayalam: " + ml + ")" : "")).trim();
   }).filter(Boolean);
   if (!env.AI) return j({ ok: false, error: "no_ai" }, 503);
+  /* the last 2 questions + answers of this conversation (a follow-up question); not stored, and such answers are not cached */
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-2).map((h) => ({ q: clean(h && h.q, 400), a: clean(h && h.a, 1200) })).filter((h) => h.q && h.a);
 
-  const k = await sha("ai4|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai5|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
-    const hit = await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
+    const hit = history.length ? null : await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
   } catch (e) {}
 
@@ -139,10 +148,10 @@ export async function onRequestPost({ request, env }) {
   if (!(await take(env, mobile, userLimit))) return j({ ok: false, error: "user_limit", limit: userLimit }, 429);
   if (!(await take(env, "*", envInt(env.AI_DAY_LIMIT, 200)))) { await giveBack(env, mobile); return j({ ok: false, error: "day_limit" }, 429); }
 
-  const r = await runAi(env, prompt(lang, biz, notes), q);
+  const r = await runAi(env, prompt(lang, biz, notes), q, history);
   if (r.error) { await giveBack(env, mobile); await giveBack(env, "*"); return j({ ok: false, error: r.error }, 502); }
   try {
-    await env.DB.prepare("INSERT INTO ai_cache (k, text, at) VALUES (?,?,?) ON CONFLICT(k) DO UPDATE SET text=excluded.text, at=excluded.at").bind(k, r.text, new Date().toISOString()).run();
+    if (!history.length) await env.DB.prepare("INSERT INTO ai_cache (k, text, at) VALUES (?,?,?) ON CONFLICT(k) DO UPDATE SET text=excluded.text, at=excluded.at").bind(k, r.text, new Date().toISOString()).run();
     if (Math.random() < 0.02) {
       await env.DB.prepare("DELETE FROM ai_cache WHERE at < ?").bind(new Date(Date.now() - CACHE_DAYS * 86400000).toISOString()).run();
       await env.DB.prepare("DELETE FROM ai_usage WHERE day < ?").bind(new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10)).run();
