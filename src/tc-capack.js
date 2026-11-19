@@ -64,7 +64,8 @@
   rows.push([c(bizName()||"Business",{b:true,sz:14,border:0}),c("",{border:0})]);
   rows.push([c("Month / മാസം",{border:0}),c(mname(mon),{b:true,border:0})]);
   if(gstin()) rows.push([c("GSTIN",{border:0}),c(gstin(),{b:true,border:0})]);
-  rows.push([c("Prepared on / തയ്യാറാക്കിയത്",{border:0}),c(dmy(today()),{border:0})]);
+  var nowT=new Date(), hm=("0"+nowT.getHours()).slice(-2)+":"+("0"+nowT.getMinutes()).slice(-2);
+  rows.push([c("Prepared on / തയ്യാറാക്കിയത്",{border:0}),c(dmy(today())+" "+hm,{border:0})]);
   rows.push([c("",{border:0}),c("",{border:0})]);
   var outGst=0, inGst=0;
   if(haveShop&&R){
@@ -193,7 +194,8 @@
 
   var bytes;
   try{ bytes=wb(out); }catch(e){ if(window.console) console.error(e); say(T("Excel ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല","Could not make the Excel")); return; }
-  var name="CA_pack_"+mon+".xlsx", type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  /* the time in the name: a pack made again later never has the same name as an older download (owner 2026-11-19 opened an old file and saw old figures) */
+  var name="CA_pack_"+mon+"_made_"+dmy(today()).replace(/[^0-9]/g,"-")+"_"+hm.replace(":","")+".xlsx", type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   window.__tcCaLast={name:name,bytes:bytes,sheets:out.map(function(s){ return s.name; })};
   try{
    var file=new File([bytes],name,{type:type});
