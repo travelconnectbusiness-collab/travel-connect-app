@@ -454,7 +454,24 @@
   }else if(r.kind==="open"){
    closeSheet(); try{ r.fn(); }catch(e){} return;
   }else h='<div style="background:#fdecec;border-radius:10px;padding:10px;font-size:14px;line-height:1.4">'+E(msg)+'</div>';
+  /* IN-APP AI (tc-ai.js, 2026-11-19): help with no answer -> the AI is asked by itself; other help / "did not understand" -> an "Ask AI" button */
+  var aiQ=String(tx.value||"").trim(), aiOn=typeof window.tcAskAi==="function"&&aiQ.length>=3&&(r.kind==="help"||r.kind==="none");
+  if(aiOn) h+='<div id="tcVoAiOut" style="margin-top:8px"></div>'+(r.miss?'':'<button type="button" id="tcVoAiGo" style="margin-top:6px;padding:8px 14px;border:1px solid #7b5cd6;border-radius:999px;background:#f4f0ff;color:#4b2fa8;font-size:13.5px;font-weight:700">&#10024; '+E(QL==="ml"?"AI-യോട് ചോദിക്കൂ":(QL==="en"?"Ask AI":tr("Ask AI","AI-യോട് ചോദിക്കൂ")))+'</button>');
   out.innerHTML=h;
+  if(aiOn){
+   var aiL=QL||(tr("en","ml")==="ml"?"ml":"en");
+   var askAi=function(){
+    var o=$("tcVoAiOut"), b=$("tcVoAiGo"); if(!o) return; if(b) b.remove();
+    o.innerHTML='<div style="background:#f4f0ff;border-radius:10px;padding:10px;font-size:14px;color:#4b2fa8">&#10024; '+E(aiL==="ml"?"AI ആലോചിക്കുന്നു...":"The AI is thinking...")+'</div>';
+    window.tcAskAi(aiQ,aiL).then(function(t){
+     var o2=$("tcVoAiOut"); if(!o2) return;
+     o2.innerHTML='<div style="background:#f4f0ff;border:1px solid #d9cdfb;border-radius:10px;padding:10px;font-size:15px;line-height:1.5;white-space:pre-line"><div style="font-size:12px;font-weight:800;color:#4b2fa8;margin-bottom:3px">&#10024; AI</div>'+E(t)+'</div>'+
+      '<div style="font-size:11px;color:#777;margin-top:3px">'+E(aiL==="ml"?"AI-യുടെ ഉത്തരത്തിൽ തെറ്റ് വരാം. ആപ്പിലെ ബട്ടണുകൾ നോക്കി ഉറപ്പാക്കുക.":"AI answers can be wrong - check with the buttons in the app.")+'</div>';
+    },function(e){ var o2=$("tcVoAiOut"); if(o2) o2.innerHTML='<div style="background:#f6f6f6;border-radius:10px;padding:9px;font-size:13.5px;color:#555">'+E((e&&e.msg)||"")+'</div>'; });
+   };
+   var ab=$("tcVoAiGo"); if(ab) ab.onclick=askAi;
+   if(r.miss) askAi();
+  }
   var y=$("tcVoYes"), n=$("tcVoNo"), sy=$("tcVoSay");
   if(y) y.onclick=function(){
    var ok=false; try{ ok=pending&&pending.save(); }catch(e){ ok=false; }
