@@ -40,6 +40,8 @@
   return s.replace(/\s+/g," ").trim();
  }
  function has(s,L){ for(var i=0;i<L.length;i++) if(s.indexOf(L[i])>=0) return true; return false; }
+ /* question words: English ones as WHOLE words (owner 2026-11-19: "WhatsApp" contains "what" and got this month's figures) */
+ function hasQ(s){ var t=" "+String(s).replace(/[^a-z0-9\u0d00-\u0d7f?]+/gi," ")+" "; for(var i=0;i<KW.qWord.length;i++){ var w=KW.qWord[i]; if(/^[a-z ]+$/i.test(w)?t.indexOf(" "+w+" ")>=0:s.indexOf(w)>=0) return true; } return false; }
  var WORDS=[["പതിനായിരം",10000],["തൊള്ളായിരം",900],["അയ്യായിരം",5000],["നാലായിരം",4000],["മൂവായിരം",3000],["രണ്ടായിരം",2000],["ആയിരം",1000],["എണ്ണൂറ്",800],["എഴുനൂറ്",700],["അറുനൂറ്",600],["അഞ്ഞൂറ്",500],["നാനൂറ്",400],["മുന്നൂറ്",300],["ഇരുനൂറ്",200],["നൂറ്",100]];
  var CUR="(?:രൂപ|rs\\.?|rupees?|inr|₹)";
  /* the amount in the words: a number next to "രൂപ / Rs / ₹" first, otherwise the first number; "5 thousand / 5 ആയിരം / 2 lakh" are understood; a few Malayalam number words too */
@@ -248,7 +250,7 @@
   if(BK&&!has(s,KW.dues)&&!has(s,KW.trips)){
    var bML=" ബില്ല് ചെയ്തത്: "+bl.length+" ട്രിപ്പ്, "+money0(billed)+".", bEN=" Billed: "+bl.length+" trip(s), "+money0(billed)+".";
    if(has(s,KW.exp)&&!has(s,KW.sales)&&!has(s,KW.profit)) return A(P.ml+" ചെലവ് "+money0(BK.out)+" (കണക്ക് ബുക്ക്).",P.en+": expenses "+money0(BK.out)+" (accounts book).");
-   if(has(s,KW.profit)||has(s,KW.sales)||has(s,KW.sum)||has(s,KW.qWord))
+   if(has(s,KW.profit)||has(s,KW.sales)||has(s,KW.sum)||hasQ(s))
     return A(P.ml+" (കണക്ക് ബുക്ക്): വരവ് "+money0(BK.inc)+", ചെലവ് "+money0(BK.out)+", "+pfMl(BK.inc-BK.out)+"."+bML,P.en+" (accounts book): income "+money0(BK.inc)+", expenses "+money0(BK.out)+", "+pfEn(BK.inc-BK.out)+"."+bEN);
   }
   var spent=0; ex.forEach(function(e){ var d=String(e.created||"").slice(0,10); if(inP(d)) spent+=+e.amount||0; });
@@ -263,7 +265,7 @@
   if(has(s,KW.profit)) return A(P.ml+" ബില്ല് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+" (ഏകദേശ ലാഭം).",P.en+": billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+" (about the profit).");
   if(has(s,KW.exp)) return A(P.ml+" ചെലവ് "+money0(spent)+".",P.en+": expenses "+money0(spent)+".");
   if(has(s,KW.sales)) return A(P.ml+" വരവ് (ബില്ല്) "+money0(billed)+" ("+bl.length+" ട്രിപ്പ്).",P.en+": billed "+money0(billed)+" ("+bl.length+" trip(s)).");
-  if(has(s,KW.sum)||has(s,KW.qWord)) return A(P.ml+": "+bl.length+" ട്രിപ്പ്, വരവ് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+".",P.en+": "+bl.length+" trip(s), billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+".");
+  if(has(s,KW.sum)||hasQ(s)) return A(P.ml+": "+bl.length+" ട്രിപ്പ്, വരവ് "+money0(billed)+", ചെലവ് "+money0(spent)+", ബാക്കി "+money0(billed-spent)+".",P.en+": "+bl.length+" trip(s), billed "+money0(billed)+", spent "+money0(spent)+", left "+money0(billed-spent)+".");
   return null;
  }
 
@@ -275,7 +277,7 @@
   if(hp&&hp.intent) return hp;
   if(!aiOk()&&hp&&!amount(s)) return hp;   /* "500 rupees diesel expense" is a command (Platinum), not a help question */
   if(!aiOk()) return {kind:"none",ml:"വോയിസ് കമാൻഡും ചോദ്യവും Platinum പ്ലാനിൽ ലഭ്യമാണ്. (പറഞ്ഞ് ടൈപ്പ് ചെയ്യൽ - ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് - എല്ലാവർക്കും ഉണ്ട്.)",en:"Voice commands and questions are a Platinum feature. (Speaking into a text box - tap the box, then the mic - is for everyone.)"};
-  var shop=shopPage()?(shopUi()||SHOPT):false, trv=travelOn(), isQ=has(s,KW.qWord), sw="";
+  var shop=shopPage()?(shopUi()||SHOPT):false, trv=travelOn(), isQ=hasQ(s), sw="";
   /* the words choose the business: a shop question on the taxi page is answered from the shop book (and the other way round) */
   var sc=has(" "+s,SHOPCUE)||shopNameHit(s), tc=has(s,TRVCUE)||(!!DB()&&!!vehOf(s,typeof window.tcTrBills==="function"?window.tcTrBills():[]));
   if(sc&&!tc&&!shop&&shopBook()){ shop=shopUi()||SHOPT; trv=false; sw="shop"; }
