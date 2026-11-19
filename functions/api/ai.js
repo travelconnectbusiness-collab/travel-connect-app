@@ -72,10 +72,11 @@ function prompt(lang, biz, notes) {
     "APP HELP NOTES (the only reliable source for buttons and steps):\n" + n + "\n\n" +
     "FIRST decide what kind of question it is:\n" +
     "A) How to use Travel Connect (its screens, buttons, bills, accounts, plans): answer from the help notes. Name only buttons and screens that appear in the notes or the app description - never invent a button, menu or feature. If the notes do not cover it, say clearly that you could not find this in Travel Connect and give the closest thing the notes do mention.\n" +
-    "B) Anything else (the phone itself, WhatsApp, Google, photos, wallpaper, business tips, GST basics, saving fuel, general knowledge): give a real, helpful answer from general knowledge in short steps (for phones assume Android unless the user says iPhone), and add one short line that this is not part of Travel Connect when that helps.\n" +
+    "B) Anything else (the phone itself, WhatsApp, Google, photos, wallpaper, business tips, GST basics, saving fuel, general knowledge): give a real, helpful answer from general knowledge in short steps (for phones assume Android unless the user says iPhone), and, only when NONE of the steps is in Travel Connect, add one short line that this is not part of Travel Connect.\n" +
     "RULES:\n" +
     "- Reply in " + L + ".\n" +
     "- Never answer only \"open the menu\" - always say what to tap or look for.\n" +
+    "- Write app button and card names exactly as in the notes, in English letters inside quotes (e.g. \"Share Travel Connect\"), even in a Malayalam answer.\n" +
     "- For advertising / getting more customers: give practical steps (e.g. WhatsApp Business: catalogue, status, broadcast list, business profile) and mention the app's own Share card / Shop window when it fits.\n" +
     "- Keep it short: at most 6 short lines, numbered steps when there are steps. Plain text, no markdown, no tables.\n" +
     "- Never ask for or repeat OTPs, passwords, codes or card numbers. Never claim to have done anything in the app; you only explain.\n" +
@@ -88,7 +89,7 @@ async function runAi(env, sys, q) {
   for (const model of list) {
     try {
       const out = await Promise.race([
-        env.AI.run(model, { messages: [{ role: "system", content: sys }, { role: "user", content: q }], max_tokens: 450, temperature: 0.2 }),
+        env.AI.run(model, { messages: [{ role: "system", content: sys }, { role: "user", content: q }], max_tokens: 700, temperature: 0.2 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000)),
       ]);
       let t = out && (out.response != null ? out.response : (out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content));
@@ -127,7 +128,7 @@ export async function onRequestPost({ request, env }) {
   }).filter(Boolean);
   if (!env.AI) return j({ ok: false, error: "no_ai" }, 503);
 
-  const k = await sha("ai3|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai4|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
     const hit = await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
