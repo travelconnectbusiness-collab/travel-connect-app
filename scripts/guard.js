@@ -543,6 +543,7 @@ const MARKERS = [
   ["src/tc-custhome.js", "__tcCustHome", "Compact customer home page + small Active switch (tc-custhome.js)"],
   ["src/tc-custhome.js", "tcFareBox", "Customer home: fare estimate opens only when tapped"],
   ["src/tc-custhome.js", "tcPrevBar", "Admin preview of the customer page hides the owner's own cards"],
+  ["src/tc-custhome.js", "keeps the big card (no slimming)", "Customer home: My Accounts stays a big card (not slimmed)"],
   ["src/tc-regdocs.js", "tc-custhome.js", "tc-regdocs.js loads tc-custhome.js"],
   ["privacy.html", "Remind me by notification", "Privacy page tells that bill name and date are sent for notification reminders"],
   ["privacy.html", "only after you contact them first", "Privacy page: providers see a customer's details only after the customer contacts them first"],
