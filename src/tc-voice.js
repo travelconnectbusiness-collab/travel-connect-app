@@ -20,7 +20,12 @@
  function shopUi(){ return window.__tcShopUi&&window.__tcShop?window.__tcShopUi:null; }
  function shopOpen(){ var u=shopUi(); return !!(u&&u.isOpen()); }
  function DB(){ try{ return typeof db!=="undefined"&&db?db:(window.db||null); }catch(e){ return window.db||null; } }   /* the app's "db" is a global that is not on window */
- function travelOn(){ var d=DB(); return !shopOpen()&&!!d&&(Array.isArray(d.trips)||Array.isArray(d.expenses)); }
+ /* the business opened in the app (owner 2026-11-19: with the SHOP business chosen, its dashboard open but not the shop book, questions got the taxi
+    figures - one phone keeps both books). Vehicle types use the taxi book; every other type uses the shop book. */
+ var VEHT={taxi_travel:1,auto_rickshaw:1,pickup_goods:1};
+ function bizType(){ try{ return window.__tcBizOnScreen?String(window.__tcBizOnScreen()||""):""; }catch(e){ return ""; } }
+ function shopPage(){ if(shopOpen()) return true; var b=bizType(); return !!b&&!VEHT[b]&&shopBook(); }
+ function travelOn(){ var d=DB(); if(shopPage()) return false; return !!d&&(Array.isArray(d.trips)||Array.isArray(d.expenses)); }
  function tr(en,ml){ var u=shopOpen()?shopUi():null; if(u) return u.T(ml,en); try{ if(typeof tcBl==="function") return tcBl(en,ml); }catch(e){} return ml; }
  function say(m){ var u=shopUi(); try{ if(u&&shopOpen()) u.say(m); else toast(m); }catch(e){ try{ toast(m); }catch(e2){} } }
  function money0(n){ n=Math.round(+n||0); try{ return typeof money==="function"?money(n):"Rs."+n; }catch(e){ return "Rs."+n; } }
@@ -74,6 +79,20 @@
   }
   return {a:mon+"-01",b:mon+"-31",ml:"ഈ മാസം",en:"this month"};   /* the whole month, like the Day Book's month strip */
  }
+ /* which business the question is about (owner 2026-11-19: on the taxi page "മൃതസഞ്ജീവനി ഷോപ്പിന്റെ ചത്ത മീനുകളുടെ നഷ്ടം" got the taxi figures).
+    The words decide first, the page on screen only when the words do not say. */
+ var SHOPCUE=["ഷോപ്പ","ഷോപ്","കടയ","കടയിൽ","കടയുടെ","കടയിലെ"," shop","store","അക്വേറിയം","aquarium","പെറ്റ് ഷോപ്പ","ചത്ത","ചത്തു","മീൻ","മീനു","fish","dead","died","സ്റ്റോക്ക്","stock","സാധന","item","സപ്ലൈയർ","supplier","വിറ്റ","sold","വാങ്ങിയ സാധന","purchase"];
+ var TRVCUE=["ട്രിപ്പ","trip","ടാക്സി","taxi","ട്രാവൽ","travel","വണ്ടി","vehicle","ഓട്ടം","ഓടി","km","കിലോമീറ്റർ","ഡ്രൈവർ","driver","ബുക്കിംഗ്","booking","ക്വട്ടേഷൻ","quotation","ബാറ്റ","bata","ടോൾ","toll","ഡീസൽ","diesel"];
+ function shopNameHit(s){   /* the shop's own name said in the question ("മൃതസഞ്ജീവനി" = "Mrithasanjeevani") */
+  try{
+   var nm=String(window.__tcShop.cfg("name","")||""); if(!nm) return false;
+   var ks=nm.split(/[\s&,.-]+/).map(skel).filter(function(k){ return k.length>=4; }); if(!ks.length) return false;
+   var qs=s.split(/[\s,.?!]+/).map(skel);
+   return ks.some(function(k){ return qs.some(function(q){ return q.indexOf(k.slice(0,5))===0; }); });
+  }catch(e){ return false; }
+ }
+ var SHOPT={T:function(ml,en){ return tr(en,ml); }};   /* stands in for the shop screen when the shop book is used without its screen open */
+ function shopBook(){ try{ var S=window.__tcShop; return !!(S&&S.products&&S.products().length); }catch(e){ return false; } }
  var KW={
   sold:["വിറ്റു","വിറ്റ","വില്പന","വിൽപ്പന നടത്തി","sold","sale of"],
   qWord:["?","എത്ര","how much","how many","what","which","who","ആർക്കൊക്കെ","ആരൊക്കെ","ആരാണ്","ഏതൊക്കെ","ഏതാണ്","ഉണ്ടോ","പറയൂ","പറയു","കാണിക്ക","tell me","show me","list"],
@@ -83,6 +102,12 @@
   exp:["ചെലവ","ചിലവ","expense","spent","spending"], dues:["തരാനുണ്ട്","കിട്ടാനുണ്ട്","തരാനുള്ള","കിട്ടാനുള്ള","ബാക്കി തരാൻ","dues","owe","pending","outstanding","credit","കടം"], sup:["സപ്ലൈയർ","supplier","കൊടുക്കാനുണ്ട്","കൊടുക്കാനുള്ള"],
   stock:["സ്റ്റോക്ക്","സ്റ്റോക്","stock","തീർന്ന","തീർന്നു","തീരാറായ","out of stock","running out"], trips:["ട്രിപ്പ്","trip","ഓട്ടം"], insight:["ഇൻസൈറ്റ്","insight","ശ്രദ്ധിക്കേണ്ട","attention"]
  };
+ /* Malayalam typed in English letters (Manglish) */
+ [["qWord",["ethra","etra","aaroke","arokke","enthanu","entha","undo"]],["profit",["labham","laabham","lābham"]],["sales",["vilpana","vilppana","varav","varavu","varumanam","collection"]],
+  ["exp",["chelav","chilav","chelavu","chilavu"]],["expense",["chelav","chilav","chelavu","chilavu","diesel"]],["dues",["tharanund","tharaanund","kittanund","kittaanund"]],
+  ["sum",["mottham","aake","kanakk","kanakku"]],["sold",["vittu","vitt"]],["stock",["stokk","sttok","theernnu","theerarayi"]]].forEach(function(p){ if(KW[p[0]]) KW[p[0]]=KW[p[0]].concat(p[1]); });
+ SHOPCUE.push(" kada"," kadayile"," kadayude"," meen"," chathu"," chatha");
+ TRVCUE.push("vandi","ottam","odi");
  function expCat(s){
   if(travelOn()){
    if(has(s,["ഡീസൽ","ഡീസല്","പെട്രോൾ","ഇന്ധന","diesel","petrol","fuel"])) return "Fuel";
@@ -112,6 +137,12 @@
 
  /* ---------- the answers (each {ml,en}) ---------- */
  function A(ml,en){ return {kind:"answer",ml:ml,en:en}; }
+ /* when the words chose the other business than the page on screen, say which book the answer is from */
+ function tagSw(r,sw){
+  if(!r||!sw||r.kind!=="answer") return r;
+  if(sw==="shop"){ var nm=""; try{ nm=String(window.__tcShop.cfg("name","")||""); }catch(e){} return {kind:r.kind,ml:"കട"+(nm?" ("+nm+")":"")+": "+r.ml,en:"Shop"+(nm?" ("+nm+")":"")+": "+r.en}; }
+  return {kind:r.kind,ml:"ടാക്സി / ട്രാവൽസ്: "+r.ml,en:"Taxi / travels: "+r.en};
+ }
  function shopQuestion(s){
   var SH=window.__tcShop, P=period(s), p;
   if(has(s,KW.stock)){
@@ -127,6 +158,14 @@
    var L=SH.ledger(), list=L.cust.filter(function(e){ return e.owed>0.004; }).sort(function(a,b){ return b.owed-a.owed; });
    if(!list.length) return A("ആരും പണം തരാനില്ല.","Nobody owes you anything.");
    return A("ആകെ "+money0(L.custTotal)+" കിട്ടാനുണ്ട്: "+list.slice(0,4).map(function(e){ return e.n+" "+money0(e.owed); }).join(", ")+(list.length>4?" +"+(list.length-4)+" പേർ":"")+".","You have "+money0(L.custTotal)+" to collect: "+list.slice(0,4).map(function(e){ return e.n+" "+money0(e.owed); }).join(", ")+(list.length>4?" +"+(list.length-4)+" more":"")+".");
+  }
+  /* dead fish / damaged goods: "ചത്ത മീനുകളുടെ നഷ്ടം എത്ര", "dead loss this month" */
+  if(has(s,["ചത്ത","ചത്തു","dead","died","കേടായ","damage","കേട് വന്ന"])||(has(s,["നഷ്ടം","loss"])&&!has(s,["ലാഭ","profit"]))){
+   var RD=SH.report(P.a,P.b), top={};
+   (RD.deadList||[]).forEach(function(z){ var n=z.p?z.p.n:"?"; top[n]=(top[n]||0)+(+z.r.x.q||0); });
+   var tl=Object.keys(top).sort(function(a,b){ return top[b]-top[a]; }).slice(0,4).map(function(n){ return n+" "+top[n]; }).join(", ");
+   if(!RD.deadQty) return A(P.ml+" ചത്തതോ കേടായതോ ആയ സാധനം ചേർത്തിട്ടില്ല.",P.en+": no dead or damaged goods entered.");
+   return A(P.ml+" ചത്തത് / നഷ്ടം: "+RD.deadQty+" എണ്ണം, വാങ്ങിയ വിലയിൽ "+money0(RD.dead)+(tl?" ("+tl+")":"")+".",P.en+": dead / loss "+RD.deadQty+" pcs, "+money0(RD.dead)+" at cost"+(tl?" ("+tl+")":"")+".");
   }
   if(has(s,KW.profit)){
    if(LSg("tc_shop_simple")==="1") return A("ലാഭം മറച്ചിരിക്കുകയാണ് (ലാഭം മറയ്ക്കുക ഓൺ ആണ്).","Profit is hidden (Hide profit is on).");
@@ -236,7 +275,11 @@
   if(hp&&hp.intent) return hp;
   if(!aiOk()&&hp&&!amount(s)) return hp;   /* "500 rupees diesel expense" is a command (Platinum), not a help question */
   if(!aiOk()) return {kind:"none",ml:"വോയിസ് കമാൻഡും ചോദ്യവും Platinum പ്ലാനിൽ ലഭ്യമാണ്. (പറഞ്ഞ് ടൈപ്പ് ചെയ്യൽ - ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് - എല്ലാവർക്കും ഉണ്ട്.)",en:"Voice commands and questions are a Platinum feature. (Speaking into a text box - tap the box, then the mic - is for everyone.)"};
-  var shop=shopOpen()&&shopUi(), trv=travelOn(), isQ=has(s,KW.qWord);
+  var shop=shopPage()?(shopUi()||SHOPT):false, trv=travelOn(), isQ=has(s,KW.qWord), sw="";
+  /* the words choose the business: a shop question on the taxi page is answered from the shop book (and the other way round) */
+  var sc=has(" "+s,SHOPCUE)||shopNameHit(s), tc=has(s,TRVCUE)||(!!DB()&&!!vehOf(s,typeof window.tcTrBills==="function"?window.tcTrBills():[]));
+  if(sc&&!tc&&!shop&&shopBook()){ shop=shopUi()||SHOPT; trv=false; sw="shop"; }
+  else if(tc&&!sc&&shop&&DB()&&(Array.isArray(DB().trips)||Array.isArray(DB().accEntries))){ shop=false; trv=true; sw="trv"; }
   if(has(s,KW.insight)&&!isQ||/^(insights?|ഇൻസൈറ്റ്)/.test(s)){
    if(shop&&window.tsOpen) return {kind:"open",fn:function(){ window.tsOpen("insight"); },ml:"ഇൻസൈറ്റ് തുറക്കുന്നു.",en:"Opening insights."};
    if(trv&&window.tcTrInsightAll) return {kind:"open",fn:function(){ window.tcTrInsightAll(); },ml:"ഇൻസൈറ്റ് തുറക്കുന്നു.",en:"Opening insights."};
@@ -263,7 +306,7 @@
   var aQ=null;   /* "ഇന്നോവയുടെ ചെലവ്" with no amount is a question, not an expense to save */
   if((shop||trv)&&has(s,KW.expense)&&!isQ&&!(amount(s)>0)&&
      (has(s,["മാസ","ആഴ്ച","ഇന്ന","ഇന്നലെ","month","week","today","yesterday"])||has(s,KW.sum)||has(s,KW.profit)||has(s,KW.sales)||(trv&&vehOf(s,typeof window.tcTrBills==="function"?window.tcTrBills():[])))){
-   aQ=shop?shopQuestion(s):travelQuestion(s); if(aQ) return aQ; }
+   aQ=shop?shopQuestion(s):travelQuestion(s); if(aQ) return tagSw(aQ,sw); }
   if((shop||trv)&&has(s,KW.expense)&&!isQ){
    var a=amount(s);
    if(!(a>0)) return {kind:"none",ml:"തുക കേട്ടില്ല. ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\".",en:"I did not catch the amount. Example: \"500 rupees diesel expense today\"."};
@@ -278,6 +321,7 @@
   }
   /* a question */
   var ans=shop?shopQuestion(s):trv?travelQuestion(s):null;
+  if(ans) ans=tagSw(ans,sw);
   if(ans) return ans;
   if(hp) return hp;
   if(!shop&&!trv) return {kind:"none",ml:"ഇവിടെ വോയിസ് കമാൻഡ് ഇല്ല. ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് അമർത്തിയാൽ പറഞ്ഞത് ടൈപ്പ് ആകും.",en:"No voice commands here. Tap a text box, then the mic, and what you say is typed."};
