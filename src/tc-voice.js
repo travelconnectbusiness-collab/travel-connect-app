@@ -346,13 +346,13 @@
   r.lang=lang(); r.interimResults=true; r.continuous=false; r.maxAlternatives=1;
   r.onresult=function(ev){
    var s=""; for(var i=0;i<ev.results.length;i++) s+=ev.results[i][0].transcript+" ";
-   got=s.trim(); onText(got,!!(ev.results[ev.results.length-1]&&ev.results[ev.results.length-1].isFinal));
+   got=s.trim(); try{ onText(got,!!(ev.results[ev.results.length-1]&&ev.results[ev.results.length-1].isFinal)); }catch(e){}
   };
   r.onerror=function(ev){ var e=ev&&ev.error;
    if(e==="not-allowed"||e==="service-not-allowed") say(tr("Allow the microphone for this site in Chrome","Chrome-ൽ ഈ സൈറ്റിന് മൈക്ക് അനുവദിക്കുക"));
    else if(e==="no-speech") say(tr("Nothing heard - try again","ഒന്നും കേട്ടില്ല - ഒന്നുകൂടി പറയൂ"));
    else if(e==="network") say(tr("Speech needs the internet","ശബ്ദം തിരിച്ചറിയാൻ ഇന്റർനെറ്റ് വേണം")); };
-  r.onend=function(){ listening=false; rec=null; setFab(); if(onDone) onDone(got); };
+  r.onend=function(){ listening=false; rec=null; setFab(); try{ if(onDone) onDone(got); }catch(e){} };
   try{ rec=r; listening=true; setFab(); r.start(); }catch(e){ listening=false; rec=null; setFab(); }
  }
 
@@ -430,7 +430,7 @@
   o.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99995;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -4px 18px rgba(0,0,0,.35);padding:12px 12px calc(14px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow:auto;font-family:inherit;color:#222";
   o.innerHTML=sheetHtml(); document.body.appendChild(o);
   aiFollow=false; try{ if(typeof window.tcAskAiReset==="function") window.tcAskAiReset(); }catch(e){}   /* a new sheet = a new conversation for the AI */
-  $("tcVoMic").onclick=function(){ listen(function(txt,fin){ $("tcVoTx").value=txt; },function(txt){ if(txt) go(); }); };
+  $("tcVoMic").onclick=function(){ listen(function(txt,fin){ var t=$("tcVoTx"); if(t) t.value=txt; },function(txt){ if(txt&&$("tcVoTx")) go(); }); };   /* the sheet may be closed before the words come back (owner 2026-11-20: "Cannot set properties of null") */
   $("tcVoLg").onclick=function(){ LSs("tc_voice_lang",lang()==="ml-IN"?"en-IN":"ml-IN"); $("tcVoLg").textContent=lang()==="ml-IN"?"മലയാളം":"English"; };
   $("tcVoGo").onclick=go; $("tcVoX").onclick=closeSheet;
   $("tcVoTx").addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); go(); } });
