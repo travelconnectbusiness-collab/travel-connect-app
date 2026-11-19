@@ -108,10 +108,16 @@ if(typeof window.tcListBadgesHtml==="function"){
    2) OWNER SIDE - "Verification & Plan" card on the owner dashboard
    ====================================================================== */
 let upState=null;
+/* 2026-11-19 (owner's screen recording, Restaurant / Tea Shop test page): when the status cannot be loaded the card removes itself, and the page watcher
+   put it straight back ("Loading...") = the page jumped up and down for ever and asked the server again and again. Now a business whose status failed
+   is not tried again for 10 minutes (or until the phone is back online). */
+const upFail={};
+window.addEventListener("online",function(){ for(const k in upFail) delete upFail[k]; });
 
 function injectOwnerCard(){
  if(document.querySelector("#tcUpCard")) return;
  const c=ownerCreds(); if(!c||c.role==="customer") return;
+ if(upFail[c.partner_id]&&Date.now()-upFail[c.partner_id]<10*60*1000) return;
  const anchor=document.querySelector("#tcBloodCard")||document.querySelector("#tcMsgCard");
  if(!anchor) return;
  anchor.insertAdjacentHTML("afterend",'<div class="card" id="tcUpCard"><h3>&#9989; '+bl("Verification & Plan","വെരിഫിക്കേഷനും പ്ലാനും")+'</h3><p class="muted">'+bl("Loading...","ലോഡ് ചെയ്യുന്നു...")+'</p></div>');
@@ -141,7 +147,8 @@ async function loadOwnerCard(){
  const box=document.querySelector("#tcUpCard"); if(!box) return;
  const c=ownerCreds(); if(!c){ box.remove(); return; }
  const d=await getJson("/api/upgrade?action=status&partner_id="+encodeURIComponent(c.partner_id)+"&mobile="+encodeURIComponent(c.mobile)+"&device="+encodeURIComponent(c.device_token));
- if(!d.ok){ box.remove(); return; }   /* e.g. admin previewing a page - nothing to show */
+ if(!d.ok){ upFail[c.partner_id]=Date.now(); box.remove(); return; }   /* e.g. admin previewing a page - nothing to show (not tried again for 10 minutes) */
+ delete upFail[c.partner_id];
  upState=d; rememberPlan(d);
  /* keep the cached partner in step so later "save" buttons never overwrite the verified email with an old copy */
  try{
