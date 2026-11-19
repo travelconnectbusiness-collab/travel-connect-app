@@ -320,7 +320,7 @@ const MARKERS = [
   ["functions/api/ai.js", "AI_DAY_LIMIT", "In-app AI: daily limit for the whole app (stays in the free allowance)"],
   ["functions/api/ai.js", "AI_USER_DAY", "In-app AI: daily limit per phone"],
   ["functions/api/ai.js", "ai_cache", "In-app AI: the same question again comes from the cache"],
-  ["functions/api/ai.js", "Never invent", "In-app AI: answers only from the app help, no invented buttons"],
+  ["functions/api/ai.js", "never invent a button", "In-app AI: app questions only from the app help, no invented buttons"],
   ["src/tc-ai.js", "window.tcAskAi=", "In-app AI on the phone (question + app-help notes only, never the accounts)"],
   ["src/tc-voice.js", "tcVoAiOut", "Voice sheet: AI answer / Ask AI button"],
   ["src/tc-vohelp.js", "window.tcVoHelpTop=", "App help gives the AI the closest help notes"],
