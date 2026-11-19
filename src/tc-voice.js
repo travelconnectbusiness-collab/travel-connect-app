@@ -465,6 +465,7 @@
     o.innerHTML='<div style="background:#f4f0ff;border-radius:10px;padding:10px;font-size:14px;color:#4b2fa8">&#10024; '+E(aiL==="ml"?"AI ആലോചിക്കുന്നു...":"The AI is thinking...")+'</div>';
     window.tcAskAi(aiQ,aiL).then(function(t){
      var o2=$("tcVoAiOut"); if(!o2) return;
+     if(r.miss){ var hb=out.firstElementChild; if(hb&&hb!==o2&&hb.id!=="tcVoAiOut") hb.style.display="none"; }   /* the AI answered: the "not found in the help" box is not needed */
      o2.innerHTML='<div style="background:#f4f0ff;border:1px solid #d9cdfb;border-radius:10px;padding:10px;font-size:15px;line-height:1.5;white-space:pre-line"><div style="font-size:12px;font-weight:800;color:#4b2fa8;margin-bottom:3px">&#10024; AI</div>'+E(t)+'</div>'+
       '<div style="font-size:11px;color:#777;margin-top:3px">'+E(aiL==="ml"?"AI-യുടെ ഉത്തരത്തിൽ തെറ്റ് വരാം. ആപ്പിലെ ബട്ടണുകൾ നോക്കി ഉറപ്പാക്കുക.":"AI answers can be wrong - check with the buttons in the app.")+'</div>';
     },function(e){ var o2=$("tcVoAiOut"); if(o2) o2.innerHTML='<div style="background:#f6f6f6;border-radius:10px;padding:9px;font-size:13.5px;color:#555">'+E((e&&e.msg)||"")+'</div>'; });
