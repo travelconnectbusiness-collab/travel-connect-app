@@ -319,7 +319,7 @@
  function qSkels(s){   /* skeletons of the question words, with the Malayalam case endings taken off too */
   if(SKC.s===s) return SKC.v;
   var out=[];
-  s.split(/[\s,.?!]+/).forEach(function(w){ if(!w) return; var a=skel(w), b=skel(w.replace(/(യുടെ|ുടെ|ിന്റെ|ന്റെ|ിൽ|ിലെ|ിനു|ിന്|ക്ക്|ാൻ|ുക|ും|ാമോ|ാം)$/,"")); if(a.length>=2) out.push(a); if(b.length>=2&&b!==a) out.push(b); });
+  s.split(/[\s,.?!]+/).forEach(function(w){ if(!w) return; var a=skel(w), b=skel(w.replace(/(യുടെ|ുടെ|ിന്റെ|ന്റെ|ിൽ|ിലെ|ിനു|ിന്|ക്ക്|ാൻ|ുക|ും|ാമോ|ാം)$/,"")), ml=/[\u0d00-\u0d7f]/.test(w)?1:0; if(a.length>=2) out.push({k:a,ml:ml}); if(b.length>=2&&b!==a) out.push({k:b,ml:ml}); });
   SKC={s:s,v:out}; return out;
  }
  function fuzzy(kk,s){   /* every word of the keyword sounds like a word of the question */
@@ -327,7 +327,9 @@
   if(!ws.length) return false;
   return ws.every(function(w){
    var k=skel(w); if(k.length<3) return false;
-   return Q.some(function(x){ return x===k||(x.length>k.length&&x.indexOf(k)===0); });
+   /* a 3-sound word only matches a word in the same script (owner 2026-11-19: "പരസ്യം" (advertisement) sounded like "prize" and opened Chitty) */
+   var wm=/[\u0d00-\u0d7f]/.test(w)?1:0;
+   return Q.some(function(x){ if(k.length<4&&x.ml!==wm) return false; return x.k===k||(x.k.length>k.length&&x.k.indexOf(k)===0); });
   });
  }
  function scoreOf(tp,s){
