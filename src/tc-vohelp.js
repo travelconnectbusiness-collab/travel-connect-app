@@ -16,7 +16,7 @@
  function biz(){ try{ return window.__tcBizOnScreen?String(window.__tcBizOnScreen()||""):""; }catch(e){ return ""; } }
  function shopOn(){   /* the shop book is open on screen (its layer stays in the page when closed, so ask the shop UI) */
   try{ var u=window.__tcShopUi; if(u&&typeof u.isOpen==="function"&&u.isOpen()) return true; }catch(e){}
-  return biz()==="shop"||biz()==="workshop";
+  var b=biz(); return !!b&&!/taxi|travel|auto|pickup|cab|vehicle/.test(b);   /* every non-vehicle business uses the shop book */
  }
  function travelOn(){ return /taxi|travel|auto|cab|tempo|bus|vehicle/.test(biz()); }
  function norm(t){ return " "+String(t||"").toLowerCase().replace(/[.,!?;:"'()\[\]]/g," ").replace(/\s+/g," ").trim()+" "; }
