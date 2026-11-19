@@ -10,7 +10,8 @@
  window.__tcAi=1;
  function me(){ try{ return String((getCurrentUser()||{}).mobile||""); }catch(e){ return ""; } }
  function dev(){ try{ return typeof getDeviceToken==="function"?getDeviceToken():(localStorage.getItem("tc_device_token")||""); }catch(e){ return ""; } }
- var memo={}, stop="";
+ var memo={}, stop="", hist=[];   /* hist: the last 2 questions + answers of this sheet, so a follow-up ("and if it is a drop?") is understood */
+ window.tcAskAiReset=function(){ hist=[]; };
  function why(er,ml){
   var M={
    user_limit:["ഇന്നത്തെ AI ചോദ്യങ്ങളുടെ എണ്ണം കഴിഞ്ഞു - നാളെ വീണ്ടും ചോദിക്കാം.","You have used today's AI questions - ask again tomorrow."],
@@ -31,14 +32,14 @@
   if(stop) return Promise.reject({error:stop,msg:why(stop,ml)});
   var notes=[]; try{ notes=typeof window.tcVoHelpTop==="function"?window.tcVoHelpTop(q,4):[]; }catch(e){ notes=[]; }
   var biz=""; try{ biz=typeof window.tcVoHelpBiz==="function"?window.tcVoHelpBiz():""; }catch(e){ biz=""; }
-  var k=(ml?"ml|":"en|")+biz+"|"+q.toLowerCase(); if(memo[k]) return Promise.resolve(memo[k]);
+  var k=(ml?"ml|":"en|")+biz+"|"+q.toLowerCase(); if(memo[k]) return Promise.resolve(memo[k]);   /* the same question again in this session: no new call */
   var ctl=(typeof AbortController==="function")?new AbortController():null, tm=ctl?setTimeout(function(){ try{ ctl.abort(); }catch(e){} },35000):0;
   return fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},signal:ctl?ctl.signal:undefined,
-    body:JSON.stringify({mobile:me(),device_token:dev(),q:q,lang:ml?"ml":"en",biz:biz,notes:notes})})
+    body:JSON.stringify({mobile:me(),device_token:dev(),q:q,lang:ml?"ml":"en",biz:biz,notes:notes,history:hist.slice(-2)})})
    .then(function(r){ clearTimeout(tm); return r.json().catch(function(){ return {ok:false,error:"bad_answer"}; }); },function(){ clearTimeout(tm); return {ok:false,error:"offline"}; })
    .then(function(j){
     if(!j||!j.ok||!j.text){ var er=(j&&j.error)||"error"; if(er==="user_limit"||er==="day_limit"||er==="no_ai") stop=er; throw {error:er,msg:why(er,ml)}; }
-    var t=String(j.text).replace(/\*\*/g,"").trim(); memo[k]=t; return t;
+    var t=String(j.text).replace(/\*\*/g,"").trim(); memo[k]=t; hist.push({q:q,a:t}); hist=hist.slice(-2); return t;
    });
  };
 })();
