@@ -207,6 +207,10 @@
    en:"AI insights: the \"Insights\" card on the shop home and the taxi Dashboard. Saying \"insights\" here opens them too. Ask: \"profit this month\", \"who owes me money\".",
    go:null},
   /* ---- added 2026-11-18: more of the app, with "Show me" demos where the screen is in this app's own files ---- */
+  {k:["ട്രിപ്പ് വന്നാൽ","trip vannal","പുതിയ ട്രിപ്പ്","new trip","ഓട്ടം വന്നാൽ","ottam vannal","ബുക്കിംഗ് വന്നാൽ","ട്രിപ്പ്+കൈകാര്യ","trip+handle","trip+manage","ട്രിപ്പ്+തുടക്കം മുതൽ","full trip"],b:"travel",
+   ml:"ഒരു ട്രിപ്പ് വന്നാൽ (തുടക്കം മുതൽ അവസാനം വരെ):\n1. വിളി വന്നാൽ താഴെ \"Enquiries\" ടാബിൽ എൻക്വയറി ചേർക്കുക.\n2. തുക പറയാൻ \"Quotations\" ടാബ് › സ്ഥലങ്ങൾ എഴുതി \"Road KM (Google)\" (Premium) › \"Calculate\" › WhatsApp-ൽ അയക്കുക.\n3. പുറപ്പെടുമ്പോൾ ഡാഷ്ബോർഡ് › \"Live Trip Log\" › \"Start New Trip\" (തുടക്ക KM); ഓരോ സ്റ്റോപ്പും KM-ഉം ചേർക്കുക.\n4. തിരിച്ചെത്തിയാൽ \"End Trip\" › \"Create Bill\" - ബിൽ തനിയെ നിറയും; Print / WhatsApp.\n5. പണം പിന്നീട് കിട്ടിയാൽ Billing ടാബിൽ ബില്ല് തുറന്ന് \"Received\".\n6. ഡീസൽ, ടോൾ തുടങ്ങിയ ചെലവ് Trip & Accounts-ൽ \"- Expense\".",
+   en:"When a trip comes (start to end):\n1. When the call comes, add it in the \"Enquiries\" tab at the bottom.\n2. To give a price: \"Quotations\" tab › write the places, \"Road KM (Google)\" (Premium) › \"Calculate\" › send on WhatsApp.\n3. When you start: Dashboard › \"Live Trip Log\" › \"Start New Trip\" (start KM); add each stop and KM.\n4. Back home: \"End Trip\" › \"Create Bill\" - the bill fills itself; Print / WhatsApp.\n5. Money received later: Billing tab › open the bill › \"Received\".\n6. Diesel, toll and other costs: Trip & Accounts › \"- Expense\".",
+   go:function(){ return fn("tcLtStartForm")?function(){ window.tcLtStartForm(); }:null; }},
   {k:["quick bill","ക്വിക്ക് ബിൽ","ബില്ല് ഉണ്ടാക്ക","ബിൽ അടിക്ക","bill adikk","ടാക്സി ബിൽ","taxi bill","create bill","make bill"],b:"travel",
    ml:"ക്വിക്ക് ബിൽ (ട്രിപ്പ് കഴിഞ്ഞു, ക്വട്ടേഷൻ ഇല്ലാതെ):\n1. ഡാഷ്ബോർഡിലെ \"Quick Bill\" (അല്ലെങ്കിൽ Billing ടാബ് › \"Create Quick Bill\").\n2. കസ്റ്റമർ, ട്രിപ്പ് ടൈപ്പ്, വാഹന വിഭാഗം, റേറ്റ്, KM, സമയം, ടോൾ / പാർക്കിംഗ് ചേർക്കുക.\n3. \"Create Bill\". പിന്നെ Print / PDF / WhatsApp.\nലൈവ് ട്രിപ്പ് ഉപയോഗിച്ചാൽ ട്രിപ്പ് അവസാനിപ്പിച്ച് \"Create Bill\" തൊട്ടാൽ ഇതെല്ലാം തനിയെ നിറയും.",
    en:"Quick Bill (trip done, no quotation):\n1. \"Quick Bill\" on the Dashboard (or Billing tab › \"Create Quick Bill\").\n2. Fill customer, trip type, vehicle category, rate, KM, time, toll / parking.\n3. \"Create Bill\", then Print / PDF / WhatsApp.\nWith a Live Trip, \"End Trip\" then \"Create Bill\" fills all this by itself.",
@@ -315,11 +319,33 @@
    ml:"ആപ്പിലെ AI: താഴെ വലത് വശത്തെ മൈക്ക് ബട്ടൺ തൊട്ട് മലയാളത്തിലോ ഇംഗ്ലീഷിലോ ചോദിക്കുക. ആപ്പിന്റെ സഹായത്തിൽ ഉത്തരമില്ലെങ്കിൽ AI തനിയെ ഉത്തരം നൽകും; മറ്റ് ഉത്തരങ്ങൾക്ക് താഴെ \"AI-യോട് ചോദിക്കൂ\" ബട്ടൺ ഉണ്ട്. നിങ്ങളുടെ കണക്കുകൾ AI-ക്ക് അയക്കില്ല. ദിവസം കുറച്ച് ചോദ്യങ്ങൾ സൗജന്യം (Premium / Platinum-ന് ഇരട്ടി).",
    en:"The app's AI: tap the mic button at the bottom right and ask in Malayalam or English. When the app help has no answer the AI answers by itself; under other answers there is an \"Ask AI\" button. Your accounts are never sent to the AI. A few questions a day are free (double for Premium / Platinum).",go:null}
  ];
+ /* the first vowel of a word (a/i/u/e/o), Malayalam or Latin - short keywords must agree on it too
+    (owner 2026-11-19: "ട്രിപ്പ്" sounded like "ഡ്രോപ്പ്" (drop bill), "പരസ്യം" like "prize") */
+ var MLV={"\u0d3e":"a","\u0d3f":"i","\u0d40":"i","\u0d41":"u","\u0d42":"u","\u0d46":"e","\u0d47":"e","\u0d48":"e","\u0d4a":"o","\u0d4b":"o","\u0d4c":"o","\u0d43":"r",
+  "\u0d05":"a","\u0d06":"a","\u0d07":"i","\u0d08":"i","\u0d09":"u","\u0d0a":"u","\u0d0e":"e","\u0d0f":"e","\u0d10":"e","\u0d12":"o","\u0d13":"o","\u0d14":"o"};
+ function vow1(w){
+  w=String(w||"").toLowerCase();
+  if(/[\u0d00-\u0d7f]/.test(w)){
+   for(var i=0;i<w.length;i++){
+    var c=w[i];
+    if(MLV[c]&&c>="\u0d05"&&c<="\u0d14") return MLV[c];
+    if(c>="\u0d15"&&c<="\u0d39"){
+     var n=w[i+1];
+     if(n==="\u0d4d"){ i++; continue; }   /* a cluster: the vowel comes after the next letter */
+     return MLV[n]||"a";
+    }
+   }
+   return "";
+  }
+  var m=/[aeiouy]/.exec(w); if(!m) return "";
+  var v=m[0]; return v==="y"?"i":v;
+ }
+ window.tcVoHelpVow=vow1;
  var SKC={};
  function qSkels(s){   /* skeletons of the question words, with the Malayalam case endings taken off too */
   if(SKC.s===s) return SKC.v;
   var out=[];
-  s.split(/[\s,.?!]+/).forEach(function(w){ if(!w) return; var a=skel(w), b=skel(w.replace(/(യുടെ|ുടെ|ിന്റെ|ന്റെ|ിൽ|ിലെ|ിനു|ിന്|ക്ക്|ാൻ|ുക|ും|ാമോ|ാം)$/,"")), ml=/[\u0d00-\u0d7f]/.test(w)?1:0; if(a.length>=2) out.push({k:a,ml:ml}); if(b.length>=2&&b!==a) out.push({k:b,ml:ml}); });
+  s.split(/[\s,.?!]+/).forEach(function(w){ if(!w) return; var a=skel(w), b=skel(w.replace(/(യുടെ|ുടെ|ിന്റെ|ന്റെ|ിൽ|ിലെ|ിനു|ിന്|ക്ക്|ാൻ|ുക|ും|ാമോ|ാം)$/,"")), ml=/[\u0d00-\u0d7f]/.test(w)?1:0, v=vow1(w); if(a.length>=2) out.push({k:a,ml:ml,v:v}); if(b.length>=2&&b!==a) out.push({k:b,ml:ml,v:v}); });
   SKC={s:s,v:out}; return out;
  }
  function fuzzy(kk,s){   /* every word of the keyword sounds like a word of the question */
@@ -328,8 +354,8 @@
   return ws.every(function(w){
    var k=skel(w); if(k.length<3) return false;
    /* a 3-sound word only matches a word in the same script (owner 2026-11-19: "പരസ്യം" (advertisement) sounded like "prize" and opened Chitty) */
-   var wm=/[\u0d00-\u0d7f]/.test(w)?1:0;
-   return Q.some(function(x){ if(k.length<4&&x.ml!==wm) return false; return x.k===k||(x.k.length>k.length&&x.k.indexOf(k)===0); });
+   var wm=/[\u0d00-\u0d7f]/.test(w)?1:0, wv=vow1(w);
+   return Q.some(function(x){ if(k.length<4&&(x.ml!==wm||(wv&&x.v&&wv!==x.v))) return false; return x.k===k||(x.k.length>k.length&&x.k.indexOf(k)===0); });
   });
  }
  function scoreOf(tp,s){
