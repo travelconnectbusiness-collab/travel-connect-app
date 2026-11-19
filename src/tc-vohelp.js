@@ -310,7 +310,10 @@
   {k:["km check","km മുന്നറിയിപ്പ്","km warning","വേഗം കൂടുതൽ","ഒരു അക്കം കൂടി","closing point","ക്ലോസിംഗ് പോയിന്റ്","എന്റെ ലൊക്കേഷൻ"],b:"travel",
    ml:"ലൈവ് ട്രിപ്പ് KM പരിശോധന: സ്റ്റോപ്പോ ട്രിപ്പ് അവസാനമോ സേവ് ചെയ്യുമ്പോൾ KM തെറ്റാണെന്ന് തോന്നിയാൽ (ഒരു അക്കം കൂടി, വേഗം മണിക്കൂറിൽ 110 km-ൽ കൂടുതൽ, മാപ്പ് km-മായി വലിയ വ്യത്യാസം) ആപ്പ് ചോദിക്കും - OK = എന്നാലും സേവ്, Cancel = തിരുത്തുക. ട്രിപ്പ് അവസാനിപ്പിക്കുന്ന ഫോമിൽ \"എന്റെ ലൊക്കേഷൻ എടുക്കുക\" (Premium).",
    en:"Live Trip KM check: when a stop or the end is saved and the KM looks wrong (one digit too many, faster than 110 km/h, far from the map km) the app asks - OK = save anyway, Cancel = correct it. The End Trip form has \"Take my location\" (Premium).",go:null}
-
+,
+  {k:["ai","എ ഐ","എഐ","എ.ഐ","artificial","ചാറ്റ്","chat","ask ai"],b:"all",
+   ml:"ആപ്പിലെ AI: താഴെ വലത് വശത്തെ മൈക്ക് ബട്ടൺ തൊട്ട് മലയാളത്തിലോ ഇംഗ്ലീഷിലോ ചോദിക്കുക. ആപ്പിന്റെ സഹായത്തിൽ ഉത്തരമില്ലെങ്കിൽ AI തനിയെ ഉത്തരം നൽകും; മറ്റ് ഉത്തരങ്ങൾക്ക് താഴെ \"AI-യോട് ചോദിക്കൂ\" ബട്ടൺ ഉണ്ട്. നിങ്ങളുടെ കണക്കുകൾ AI-ക്ക് അയക്കില്ല. ദിവസം കുറച്ച് ചോദ്യങ്ങൾ സൗജന്യം (Premium / Platinum-ന് ഇരട്ടി).",
+   en:"The app's AI: tap the mic button at the bottom right and ask in Malayalam or English. When the app help has no answer the AI answers by itself; under other answers there is an \"Ask AI\" button. Your accounts are never sent to the AI. A few questions a day are free (double for Premium / Platinum).",go:null}
  ];
  var SKC={};
  function qSkels(s){   /* skeletons of the question words, with the Malayalam case endings taken off too */
@@ -366,12 +369,21 @@
   }
   if(intent){
    var ex=examples(shop,trv);
-   return {kind:"help",intent:true,go:null,lang:L,
+   return {kind:"help",intent:true,go:null,lang:L,miss:true,   /* miss: tc-voice.js asks the in-app AI (tc-ai.js) straight away */
     ml:"ഈ ചോദ്യത്തിന് കൃത്യമായ ഉത്തരം കണ്ടെത്തിയില്ല. ഇങ്ങനെ ചോദിക്കൂ: "+ex.ml+". ഇല്ലെങ്കിൽ മെനു (☰) തുറന്ന് നോക്കൂ.",
     en:"I could not find that in the app help. Try: "+ex.en+". Or open the Menu (☰)."};
   }
   return null;
  };
+ /* For the in-app AI (tc-ai.js): the app-help notes closest to the question (this phone's business only), so the AI answers from the
+    app's own help and never invents buttons. -> [{en, ml}] best first; with "loose" also weak matches. */
+ window.tcVoHelpTop=function(raw,n){
+  var s=norm(raw), shop=shopOn(), trv=travelOn(), out=[];
+  T.forEach(function(tp){ var f=okFor(tp,shop,trv); if(!f) return; var sc=scoreOf(tp,s); if(sc) out.push({sc:sc*10+f,tp:tp}); });
+  out.sort(function(a,b){ return b.sc-a.sc; });
+  return out.slice(0,n||4).map(function(x){ return {en:x.tp.en,ml:x.tp.ml}; });
+ };
+ window.tcVoHelpBiz=function(){ return shopOn()?"shop":(travelOn()?"travel":(biz()||"other")); };
  /* ---------- "Show me": a step-by-step demo on the real screen ----------
     steps = [{open?:function, sel:"css selector", ml, en}]. Each step opens its screen (if given), finds the element, scrolls to it,
     puts a glowing ring around it and a short sentence at the bottom with Next / Close. Nothing is tapped or saved by the demo. */
