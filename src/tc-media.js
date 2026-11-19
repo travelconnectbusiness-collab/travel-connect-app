@@ -57,9 +57,13 @@ function errText(d){
    1) OWNER SIDE - the "Shop window" card
    ====================================================================== */
 let st=null, stPid=null;
+/* 2026-11-19: a business whose shop window could not be loaded is not tried again for 10 minutes (the card removed itself and was put back at once = endless jumping + server calls) */
+const mdFail={};
+window.addEventListener("online",function(){ for(const k in mdFail) delete mdFail[k]; });
 
 function injectCard(){
  const c=ownerCreds(); if(!c||c.role==="customer") return;
+ if(mdFail[c.partner_id]&&Date.now()-mdFail[c.partner_id]<10*60*1000) return;
  const cur=document.querySelector("#tcMediaCard");
  if(cur){ if(String(cur.getAttribute("data-pid"))!==String(c.partner_id)) loadCard(); return; }
  const anchor=document.querySelector("#tcUpCard"); if(!anchor) return;
@@ -71,7 +75,8 @@ async function loadCard(){
  const c=ownerCreds(); if(!c){ box.remove(); return; }
  box.setAttribute("data-pid",c.partner_id);
  const d=await getJson(API+"?action=media_mine&partner_id="+encodeURIComponent(c.partner_id)+"&mobile="+encodeURIComponent(c.mobile));
- if(!d.ok){ box.remove(); return; }   /* e.g. admin previewing a page */
+ if(!d.ok){ mdFail[c.partner_id]=Date.now(); box.remove(); return; }   /* e.g. admin previewing a page (not tried again for 10 minutes) */
+ delete mdFail[c.partner_id];
  st=d; stPid=c.partner_id;
  render();
 }
