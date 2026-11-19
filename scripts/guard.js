@@ -323,6 +323,7 @@ const MARKERS = [
   ["functions/api/ai.js", "never invent a button", "In-app AI: app questions only from the app help, no invented buttons"],
   ["src/tc-ai.js", "window.tcAskAi=", "In-app AI on the phone (question + app-help notes only, never the accounts)"],
   ["src/tc-voice.js", "tcVoAiOut", "Voice sheet: AI answer / Ask AI button"],
+  ["src/tc-voice.js", "function hasQ", "Voice: English question words as whole words (WhatsApp is not \"what\")"],
   ["src/tc-vohelp.js", "window.tcVoHelpTop=", "App help gives the AI the closest help notes"],
   ["src/tc-regdocs.js", "/src/tc-ai.js?v=", "loader loads tc-ai.js (before tc-voice.js)"],
   ["worker.js", "/api/perscloud", "worker.js routes /api/perscloud (My Accounts cloud backup)"],
