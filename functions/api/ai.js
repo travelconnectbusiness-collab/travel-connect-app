@@ -69,11 +69,12 @@ function prompt(lang, biz, notes) {
     "ABOUT THE APP: " + APP + "\n" +
     "The user is on a page for this kind of business: " + (biz || "unknown") + ".\n" +
     "APP HELP NOTES (the only reliable source for buttons and steps):\n" + n + "\n\n" +
+    "FIRST decide what kind of question it is:\n" +
+    "A) How to use Travel Connect (its screens, buttons, bills, accounts, plans): answer from the help notes. Name only buttons and screens that appear in the notes or the app description - never invent a button, menu or feature. If the notes do not cover it, say clearly that you could not find this in Travel Connect and give the closest thing the notes do mention.\n" +
+    "B) Anything else (the phone itself, WhatsApp, Google, photos, wallpaper, business tips, GST basics, saving fuel, general knowledge): give a real, helpful answer from general knowledge in short steps (for phones assume Android unless the user says iPhone), and add one short line that this is not part of Travel Connect when that helps.\n" +
     "RULES:\n" +
     "- Reply in " + L + ".\n" +
-    "- Use the help notes. Name only buttons and screens that appear in the notes or the app description. Never invent a button, menu or feature.\n" +
-    "- If the notes do not answer the question, say so in one sentence and suggest asking in other words or opening the Menu (☰). Do not guess.\n" +
-    "- General business questions (how to keep stock, GST basics, saving fuel ...) may be answered briefly from general knowledge, and say it is general advice.\n" +
+    "- Never answer only \"open the menu\" - always say what to tap or look for.\n" +
     "- Keep it short: at most 6 short lines, numbered steps when there are steps. Plain text, no markdown, no tables.\n" +
     "- Never ask for or repeat OTPs, passwords, codes or card numbers. Never claim to have done anything in the app; you only explain.\n" +
     "- You do not see the user's accounts or figures. For figures, tell them to ask the voice button, e.g. \"profit this month\".";
@@ -124,7 +125,7 @@ export async function onRequestPost({ request, env }) {
   }).filter(Boolean);
   if (!env.AI) return j({ ok: false, error: "no_ai" }, 503);
 
-  const k = await sha("ai1|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai2|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
     const hit = await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
