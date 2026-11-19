@@ -451,7 +451,16 @@
   function place(){
    var c=$("tcPersCard"), u=null; try{ u=getCurrentUser(); }catch(e){}
    var app=$("app"), btn=app&&app.querySelector('button[onclick*="activeboard"]'), anchor=btn&&btn.closest?btn.closest(".actions"):null;
-   if(!u||(u.role!=="customer"&&location.hash!=="#previewcustomer")||!anchor){ if(c&&!anchor&&c.parentNode) c.remove(); return; }
+   /* 2026-11-19 owner: on the OWNER dashboard the slim "My Accounts" row (#tcPersChip) is easy to miss - show this big card in its place.
+      The chip stays in the page (hidden), so whatever placed it keeps working; the card sits right after it and is never moved again (no flicker). */
+   var chip=$("tcPersChip");
+   if(u&&u.role!=="customer"&&location.hash!=="#previewcustomer"){
+    if(!chip||!chip.parentNode){ if(c&&c.parentNode&&c.getAttribute("data-own")) c.remove(); return; }
+    if(chip.style.display!=="none") chip.style.display="none";
+    if(!c){ c=card(); c.setAttribute("data-own","1"); c.style.margin="0 0 10px"; }
+    anchor=chip;
+   }
+   else if(!u||!anchor){ if(c&&!anchor&&c.parentNode) c.remove(); return; }
    if(!c) c=card();
    var a=c.children[1].children[0], b=c.children[1].children[1], t1=B("My Accounts","എന്റെ കണക്കുകൾ"), t2=B("Income, expense, loans, bills, ceremony covers","വരവ് ചെലവ്, കടം, ബില്ലുകൾ, ചടങ്ങ് കവർ"), dt=""; try{ dt=P.dueText?P.dueText():""; }catch(e){} if(dt) t2="🔔 "+dt;
    if(a.textContent!==t1) a.textContent=t1; if(b.textContent!==t2) b.textContent=t2;
