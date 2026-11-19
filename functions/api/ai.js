@@ -29,6 +29,7 @@ const APP = "Travel Connect (travelconnect.dev) is one phone app for any local b
   "skilled workers (electrician, plumber ...). Customers find nearby vehicles and shops, get fare estimates, blood donors and emergency numbers. " +
   "Every user has \"My Accounts\" (personal money, loans, chitty / kuri, gifts, backup). Taxi owners: quotations, quick bills, live trips with KM, " +
   "Trip & Accounts, Day Book, drivers, rate master, packages. Voice: the mic button at the bottom right. Menu = the ☰ button. " +
+  "To get customers: the \"Share Travel Connect\" card on the dashboard shares the business link on WhatsApp, the \"Shop window\" card shows photos / a video, and customers find businesses in the Local directory. " +
   "Plans: Free, Plus, Premium, Platinum (Menu › Verification & Plan). Data stays on the phone; backup in My Accounts › Backup.";
 
 let ready = false;
@@ -75,6 +76,7 @@ function prompt(lang, biz, notes) {
     "RULES:\n" +
     "- Reply in " + L + ".\n" +
     "- Never answer only \"open the menu\" - always say what to tap or look for.\n" +
+    "- For advertising / getting more customers: give practical steps (e.g. WhatsApp Business: catalogue, status, broadcast list, business profile) and mention the app's own Share card / Shop window when it fits.\n" +
     "- Keep it short: at most 6 short lines, numbered steps when there are steps. Plain text, no markdown, no tables.\n" +
     "- Never ask for or repeat OTPs, passwords, codes or card numbers. Never claim to have done anything in the app; you only explain.\n" +
     "- You do not see the user's accounts or figures. For figures, tell them to ask the voice button, e.g. \"profit this month\".";
@@ -125,7 +127,7 @@ export async function onRequestPost({ request, env }) {
   }).filter(Boolean);
   if (!env.AI) return j({ ok: false, error: "no_ai" }, 503);
 
-  const k = await sha("ai2|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai3|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
     const hit = await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
