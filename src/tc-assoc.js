@@ -22,7 +22,8 @@
  /* ---------- data ---------- */
  function DB(){ try{ return (typeof db!=="undefined")?db:null; }catch(e){ return null; } }
  function biz(){ try{ return window.__tcBizOnScreen?String(window.__tcBizOnScreen()||""):""; }catch(e){ return ""; } }
- function pid(){ var d=DB(); return String((d&&d.settings&&d.settings.myPartnerId)||"x"); }
+ var PIDO="";   /* an organisation opened from "My organisations" (I am an office bearer there, it is not my own business) */
+ function pid(){ if(PIDO) return PIDO; var d=DB(); return String((d&&d.settings&&d.settings.myPartnerId)||"x"); }
  function A(){
   var d=DB(); if(!d) return null;
   if(!d.assoc||typeof d.assoc!=="object") d.assoc={};
@@ -32,6 +33,8 @@
   return a;
  }
  function sv(){ try{ if(typeof save==="function") save(); }catch(e){} }
+ /* every change is also queued for the cloud book (tc-assoc3.js sends it when the book is in the cloud) */
+ function op(kind,rec,del){ var a=A(); if(!a||!a.cloud) return; if(!Array.isArray(a.q)) a.q=[]; var id=kind==="cfg"?"cfg":rec.id; a.q=a.q.filter(function(x){ return !(x.kind===kind&&x.id===id); }); a.q.push({kind:kind,id:id,data:JSON.parse(JSON.stringify(rec)),del:del?1:0}); try{ if(typeof window.__tcAsSyncSoon==="function") window.__tcAsSyncSoon(); }catch(e){} }
  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
  function today(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
  function dmy(s){ s=String(s||""); return s.length>=10?s.slice(8,10)+"-"+s.slice(5,7)+"-"+s.slice(0,4):s; }
@@ -88,6 +91,7 @@
   '#tcAs .asBtn.l{background:#e9f3f4;color:#0b4f5a}#tcAs .asBtn.r{background:#fdecec;color:#a12d2d}#tcAs .asBtn.g{background:#1c8c3a}'+
   '#tcAs .asCh{display:inline-block;padding:7px 12px;border-radius:999px;border:1px solid #cfdde0;background:#fff;margin:4px 6px 0 0;font-size:13.5px;cursor:pointer}'+
   '#tcAs .asCh.on{background:#0b6f7d;color:#fff;border-color:#0b6f7d}'+
+  '#tcAs.ro .asBtn.g,#tcAs.ro .asBtn.r,#tcAs.ro [data-w]{display:none!important}'+
   '#tcAsCard{cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;margin:2px 0 14px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#0b7a8a,#0b5f6b);box-shadow:0 2px 8px rgba(11,95,107,.3)}';
  try{ var st=document.createElement("style"); st.id="tcAssocCss"; st.textContent=css; document.head.appendChild(st); }catch(e){}
 
@@ -99,17 +103,19 @@
   if(!S.open){ S.open=true; S.stack=[]; try{ history.pushState({tcAs:1},""); }catch(e){} }
   go(name||"home",arg);
  }
- function close(fromPop){ var o=$("tcAs"); if(o) o.remove(); var was=S.open; S.open=false; S.stack=[]; if(was&&!fromPop){ try{ if(history.state&&history.state.tcAs) history.back(); }catch(e){} } }
+ function canWrite(){ var a=A(); return !a||!a.cloud||a.acc==="admin"||a.acc==="edit"; }
+ function close(fromPop){ var o=$("tcAs"); if(o) o.remove(); var was=S.open; S.open=false; S.stack=[]; PIDO=""; if(was&&!fromPop){ try{ if(history.state&&history.state.tcAs) history.back(); }catch(e){} } }
  function go(name,arg,replace){ if(replace) S.stack.pop(); S.stack.push({n:name,a:arg}); render(); }
  function back(){ if(S.stack.length>1){ S.stack.pop(); render(); } else close(); }
  function render(){
   var top=S.stack[S.stack.length-1], b=$("tcAsBody"), t=$("tcAsTitle"); if(!top||!b) return;
   var f=SC[top.n]; if(!f){ b.innerHTML=""; return; }
   var r=f(top.a)||{}; t.textContent=r.title||orgName(); b.innerHTML=r.html||""; b.scrollTop=0;
+  var o=$("tcAs"); if(o) o.classList.toggle("ro",!canWrite());
   if(typeof r.after==="function") try{ r.after(b); }catch(e){ if(window.console) console.error("tc-assoc",e); }
  }
  window.addEventListener("popstate",function(){ if(!S.open) return; if(S.stack.length>1){ S.stack.pop(); render(); try{ history.pushState({tcAs:1},""); }catch(e){} } else close(true); });
- function tile(ic,label,fn,sub,primary){ return '<div class="asT'+(primary?' p':'')+'" onclick="'+fn+'"><i>'+ic+'</i><div style="min-width:0">'+E(label)+(sub?'<div style="font-weight:500;font-size:12px;opacity:.85">'+E(sub)+'</div>':'')+'</div></div>'; }
+ function tile(ic,label,fn,sub,primary,w){ return '<div class="asT'+(primary?' p':'')+'"'+(w?' data-w="1"':'')+' onclick="'+fn+'"><i>'+ic+'</i><div style="min-width:0">'+E(label)+(sub?'<div style="font-weight:500;font-size:12px;opacity:.85">'+E(sub)+'</div>':'')+'</div></div>'; }
  function v(id){ var e=$(id); return e?String(e.value||"").trim():""; }
  function chips(name,opts,cur){ return opts.map(function(o){ return '<span class="asCh'+(o[0]===cur?' on':'')+'" data-g="'+name+'" data-v="'+E(o[0])+'" onclick="tcAsChip(this)">'+E(o[1])+'</span>'; }).join(""); }
  window.tcAsChip=function(el){ var g=el.getAttribute("data-g"); document.querySelectorAll('#tcAs .asCh[data-g="'+g+'"]').forEach(function(x){ x.classList.toggle("on",x===el); }); if(typeof window["tcAsChip_"+g]==="function") window["tcAsChip_"+g](el.getAttribute("data-v")); };
@@ -122,22 +128,23 @@
   var paidNow=act.filter(function(m){ return paidSet(m.id)[cp]; }).length, dueN=act.filter(function(m){ return dues(m).length; }).length;
   var bal=typeof window.__tcAsBal==="function"?window.__tcAsBal():null;
   var h='';
-  if(!(+c.amt>0)) h+='<div class="asC" style="background:#fff6df;color:#7a4f00;font-weight:600">'+E(T("ആദ്യം വരിസംഖ്യ തുകയും കാലയളവും സെറ്റ് ചെയ്യുക.","First set the subscription amount and period."))+' <span class="asBtn" onclick="tcAsGo(\'settings\')">'+E(T("സെറ്റിംഗ്സ്","Settings"))+'</span></div>';
+  if(typeof window.__tcAsHomeExtra==="function") h+=window.__tcAsHomeExtra();
+  if(!(+c.amt>0)&&canWrite()) h+='<div class="asC" style="background:#fff6df;color:#7a4f00;font-weight:600">'+E(T("ആദ്യം വരിസംഖ്യ തുകയും കാലയളവും സെറ്റ് ചെയ്യുക.","First set the subscription amount and period."))+' <span class="asBtn" onclick="tcAsGo(\'settings\')">'+E(T("സെറ്റിംഗ്സ്","Settings"))+'</span></div>';
   h+='<div class="asC"><div style="font-weight:800;font-size:16px">'+E(orgName())+'</div><div class="asM">'+E(+c.amt>0?(T("വരിസംഖ്യ","Subscription")+": "+money(c.amt)+" / "+(c.per==="y"?T("വർഷം","year"):T("മാസം","month"))):"")+'</div>'+
    '<div style="display:flex;gap:8px;margin-top:10px;text-align:center">'+
    '<div style="flex:1;background:#f4f7f8;border-radius:10px;padding:8px"><div style="font-weight:800;font-size:18px">'+act.length+'</div><div class="asM">'+E(T("മെമ്പർമാർ","Members"))+'</div></div>'+
    '<div style="flex:1;background:#eef8f0;border-radius:10px;padding:8px"><div style="font-weight:800;font-size:18px;color:#1c6b2c">'+paidNow+'</div><div class="asM">'+E(perLabel(cp)+" "+T("അടച്ചു","paid"))+'</div></div>'+
    '<div style="flex:1;background:#fdecec;border-radius:10px;padding:8px"><div style="font-weight:800;font-size:18px;color:#a12d2d">'+dueN+'</div><div class="asM">'+E(T("ബാക്കിയുള്ളവർ","With dues"))+'</div></div></div>'+
    (bal?'<div class="asM" style="margin-top:8px">'+E(T("ബാക്കി","Balance"))+': <b style="color:#0b4f5a">'+money(bal.cash+bal.bank)+'</b> ('+E(T("കയ്യിൽ","cash"))+' '+money(bal.cash)+' · '+E(T("ബാങ്ക്","bank"))+' '+money(bal.bank)+')</div>':'')+'</div>';
-  h+='<div class="asG">'+tile("&#128176;",T("വരിസംഖ്യ വാങ്ങുക","Collect subscription"),"tcAsGo('collect')","",true)+tile("&#9888;&#65039;",T("അടയ്ക്കാത്തവർ","Dues list"),"tcAsGo('dues')",dueN+" "+T("പേർ","members"))+
+  h+='<div class="asG">'+tile("&#128176;",T("വരിസംഖ്യ വാങ്ങുക","Collect subscription"),"tcAsGo('collect')","",true,1)+tile("&#9888;&#65039;",T("അടയ്ക്കാത്തവർ","Dues list"),"tcAsGo('dues')",dueN+" "+T("പേർ","members"))+
    tile("&#128101;",T("മെമ്പർമാർ","Members"),"tcAsGo('members')",act.length+"")+tile("&#128210;",T("വരവ്-ചെലവ്","Ledger"),"tcAsGo('ledger')")+
    tile("&#128221;",T("മിനിറ്റ്സ് / നടപടി","Minutes & actions"),"tcAsGo('minutes')")+tile("&#128202;",T("റിപ്പോർട്ട്","Reports"),"tcAsGo('reports')")+
-   tile("&#9881;&#65039;",T("സെറ്റിംഗ്സ്","Settings"),"tcAsGo('settings')")+'</div>';
-  if(!premOk()) h+='<div class="asM" style="text-align:center">'+E(T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം. കൂടുതൽ മെമ്പർമാർക്ക് Premium / Platinum (Menu › Verification & Plan).",
+   tile("&#9881;&#65039;",T("സെറ്റിംഗ്സ്","Settings"),"tcAsGo('settings')","",false,1)+(typeof window.__tcAsHomeTiles==="function"?window.__tcAsHomeTiles():"")+'</div>';
+  if(!premOk()&&!a.cloud) h+='<div class="asM" style="text-align:center">'+E(T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം. കൂടുതൽ മെമ്പർമാർക്ക് Premium / Platinum (Menu › Verification & Plan).",
    "Free up to "+freeLimit()+" members. More members: Premium / Platinum (Menu › Verification & Plan)."))+'</div>';
   return {title:T("സംഘടനാ പുസ്തകം","Association book"),html:h};
  };
- window.tcAsGo=function(n,a){ go(n,a); };
+ window.tcAsGo=function(n,a){ if(!S.open||!$("tcAs")){ open(n,a); return; } go(n,a); };
 
  /* ---------- members ---------- */
  var mFilter={q:"",area:""};
@@ -146,7 +153,7 @@
   ms.forEach(function(m){ if(m.area&&areas.indexOf(m.area)<0) areas.push(m.area); });
   var h='<div class="asC"><input id="tcAsMq" placeholder="'+E(T("പേര്, ഫോൺ, നമ്പർ തിരയുക","Search name, phone, number"))+'" value="'+E(mFilter.q)+'">'+
    (areas.length?'<div>'+chips("mar",[["",T("എല്ലാം","All")]].concat(areas.map(function(x){ return [x,x]; })),mFilter.area)+'</div>':'')+
-   '<span class="asBtn" onclick="tcAsGo(\'mform\')">+ '+E(T("മെമ്പറെ ചേർക്കുക","Add member"))+'</span></div><div class="asC" id="tcAsMl"></div>';
+   '<span class="asBtn" data-w="1" onclick="tcAsGo(\'mform\')">+ '+E(T("മെമ്പറെ ചേർക്കുക","Add member"))+'</span></div><div class="asC" id="tcAsMl"></div>';
   return {title:T("മെമ്പർമാർ","Members"),html:h,after:function(){
    var draw=function(){
     var q=mFilter.q.toLowerCase(), list=members().filter(function(m){ return (!mFilter.area||m.area===mFilter.area)&&(!q||(m.name+" "+(m.ph||"")+" "+(m.no||"")+" "+(m.veh||"")).toLowerCase().indexOf(q)>=0); });
@@ -173,25 +180,26 @@
  window.tcAsSaveMember=function(id){
   var a=A(), name=v("tcAsFn"); if(!name){ say(T("പേര് നൽകുക","Enter the name")); return; }
   var m=id?memberById(id):null;
-  if(!m&&members().length>=freeLimit()&&!premOk()){ say(T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം - കൂടുതൽ ചേർക്കാൻ Premium / Platinum എടുക്കുക (Menu › Verification & Plan).","Free up to "+freeLimit()+" members - take Premium / Platinum to add more (Menu › Verification & Plan).")); return; }
+  var lim=a.cloud&&a.limits?a.limits.members:(premOk()?1e9:freeLimit());
+  if(!m&&members().length>=lim){ say(a.cloud?T("ഈ പ്ലാനിൽ "+lim+" മെമ്പർ വരെ - കൂടുതലിന് പ്ലാൻ മാറ്റുക.","This plan allows "+lim+" members - change the plan for more."):T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം - കൂടുതൽ ചേർക്കാൻ Premium / Platinum എടുക്കുക (Menu › Verification & Plan).","Free up to "+freeLimit()+" members - take Premium / Platinum to add more (Menu › Verification & Plan).")); return; }
   var no=v("tcAsFno"); if(no&&members().some(function(x){ return x.no===no&&(!m||x.id!==m.id); })){ say(T("ഈ മെമ്പർ നമ്പർ വേറെ ഒരാൾക്കുണ്ട്","This member number is already used")); return; }
   if(!m){ m={id:uid(),created:today()}; a.members.push(m); }
   m.name=name.slice(0,80); m.ph=v("tcAsFp").slice(0,20); m.no=no.slice(0,12); m.area=v("tcAsFa").slice(0,40); m.joined=v("tcAsFj")||today(); m.veh=v("tcAsFv").slice(0,20); m.note=v("tcAsFnt").slice(0,200); m.status=chipVal("mst")||m.status||"a";
   if(m.area&&(a.cfg.areas||[]).indexOf(m.area)<0){ a.cfg.areas=(a.cfg.areas||[]).concat([m.area]); }
   var nn=parseInt(m.no,10); if(nn>=(+a.cfg.nextNo||1)) a.cfg.nextNo=nn+1;
-  sv(); say(T("സേവ് ചെയ്തു","Saved")); go("member",m.id,true);
+  op("member",m); sv(); say(T("സേവ് ചെയ്തു","Saved")); go("member",m.id,true);
  };
- window.tcAsDelMember=function(id){ var m=memberById(id); if(!m) return; if(!confirm(T(m.name+" - നീക്കം ചെയ്യട്ടെ? (അടവുകൾ കണക്കിൽ തുടരും)",m.name+" - remove? (payments stay in the accounts)"))) return; m.del=today(); sv(); S.stack.pop(); go("members",null,true); };
+ window.tcAsDelMember=function(id){ var m=memberById(id); if(!m) return; if(!confirm(T(m.name+" - നീക്കം ചെയ്യട്ടെ? (അടവുകൾ കണക്കിൽ തുടരും)",m.name+" - remove? (payments stay in the accounts)"))) return; m.del=today(); op("member",m,true); sv(); S.stack.pop(); go("members",null,true); };
  SC.member=function(id){
   var m=memberById(id); if(!m) return {html:""};
   var d=dues(m), c=A().cfg, pays=live(A().pays).filter(function(p){ return p.mid===id; }).sort(function(a,b){ return a.date<b.date?1:-1; }), acts=live(A().acts).filter(function(x){ return x.mid===id; });
   var h='<div class="asC"><div style="font-weight:800;font-size:17px">'+E(m.name)+' '+stBadge(m)+'</div><div class="asM">'+E(T("നമ്പർ","No.")+" "+(m.no||"-")+(m.area?" · "+m.area:"")+" · "+T("ചേർന്നത്","joined")+" "+dmy(m.joined)+(m.veh?" · "+m.veh:""))+'</div>'+(m.note?'<div class="asM">'+E(m.note)+'</div>':'')+
-   (m.ph?'<a class="asBtn l" href="tel:'+E(phone10(m.ph)||m.ph)+'">&#128222; '+E(m.ph)+'</a>':'')+'<span class="asBtn l" onclick="tcAsGo(\'mform\',\''+id+'\')">'+E(T("മാറ്റുക","Edit"))+'</span></div>';
+   (m.ph?'<a class="asBtn l" href="tel:'+E(phone10(m.ph)||m.ph)+'">&#128222; '+E(m.ph)+'</a>':'')+'<span class="asBtn l" data-w="1" onclick="tcAsGo(\'mform\',\''+id+'\')">'+E(T("മാറ്റുക","Edit"))+'</span></div>';
   h+='<div class="asC"><div style="font-weight:700">'+E(T("ബാക്കി വരിസംഖ്യ","Subscription due"))+': <span style="color:'+(d.length?"#a12d2d":"#1c6b2c")+'">'+(d.length?d.length+" × "+money(c.amt)+" = "+money(d.length*c.amt):T("ഇല്ല ✓","none ✓"))+'</span></div>'+
    (d.length?'<div class="asM">'+E(d.slice(0,12).map(perLabel).join(", ")+(d.length>12?" …":""))+'</div>':'')+
    '<span class="asBtn g" onclick="tcAsGo(\'collect\',\''+id+'\')">&#128176; '+E(T("വരിസംഖ്യ വാങ്ങുക","Collect"))+'</span>'+
    (d.length&&m.ph?'<a class="asBtn l" target="_blank" rel="noopener" href="'+E(wa(m.ph,remindText(m,d)))+'">'+E(T("WhatsApp ഓർമ്മപ്പെടുത്തൽ","WhatsApp reminder"))+'</a>':'')+
-   '<span class="asBtn l" onclick="tcAsGo(\'aform\',\''+id+'\')">'+E(T("നടപടി ചേർക്കുക","Add action"))+'</span></div>';
+   '<span class="asBtn l" data-w="1" onclick="tcAsGo(\'aform\',\''+id+'\')">'+E(T("നടപടി ചേർക്കുക","Add action"))+'</span></div>';
   h+='<div class="asC"><div style="font-weight:700;margin-bottom:4px">'+E(T("അടവുകൾ","Payments"))+'</div>'+(pays.length?pays.map(function(p){
    return '<div class="asR" onclick="tcAsGo(\'receipt\',\''+p.id+'\')"><div style="flex:1"><div>'+E((p.periods||[]).map(perLabel).join(", "))+'</div><div class="asM">'+E(dmy(p.date)+" · "+(p.rc||"")+" · "+modeTxt(p.mode))+'</div></div><b>'+money(p.amt)+'</b></div>'; }).join(""):'<div class="asM">'+E(T("ഇല്ല","None"))+'</div>')+'</div>';
   if(acts.length) h+='<div class="asC"><div style="font-weight:700;margin-bottom:4px">'+E(T("നടപടികൾ","Actions"))+'</div>'+acts.map(function(x){ return '<div class="asR"><div style="flex:1"><div>'+E(actTxt(x.type)+(x.amt>0?" · "+money(x.amt):""))+'</div><div class="asM">'+E(dmy(x.date)+(x.note?" · "+x.note:""))+'</div></div></div>'; }).join("")+'</div>';
@@ -229,15 +237,15 @@
   var a=A(), per=[].map.call(document.querySelectorAll("#tcAsPer .asCh.on"),function(e){ return e.getAttribute("data-p"); }).sort(), amt=+v("tcAsCa");
   if(!per.length){ say(T("മാസം / വർഷം തിരഞ്ഞെടുക്കുക","Choose the months / years")); return; }
   if(!(amt>0)){ say(T("തുക നൽകുക","Enter the amount")); return; }
-  var p={id:uid(),mid:mid,periods:per,amt:Math.round(amt*100)/100,mode:chipVal("cmd")||"c",date:v("tcAsCd")||today(),rc:(a.cfg.prefix||"R")+"-"+(a.cfg.nextRc||1)};
-  a.cfg.nextRc=(+a.cfg.nextRc||1)+1; a.pays.push(p); sv(); say(T("വരിസംഖ്യ സേവ് ചെയ്തു","Subscription saved")); go("receipt",p.id,true);
+  var p={id:uid(),mid:mid,periods:per,amt:Math.round(amt*100)/100,mode:chipVal("cmd")||"c",date:v("tcAsCd")||today(),rc:a.cloud?"":(a.cfg.prefix||"R")+"-"+(a.cfg.nextRc||1)};   /* in the cloud the server gives the number */
+  if(!a.cloud) a.cfg.nextRc=(+a.cfg.nextRc||1)+1; a.pays.push(p); op("pay",p); sv(); say(T("വരിസംഖ്യ സേവ് ചെയ്തു","Subscription saved")); go("receipt",p.id,true);
  };
 
  /* ---------- receipt ---------- */
  function payById(id){ return A().pays.filter(function(p){ return p.id===id; })[0]||null; }
  function receiptText(p){
   var m=memberById(p.mid)||{name:"?"};
-  return orgName()+"\n"+T("രസീത്","RECEIPT")+" "+p.rc+"   "+dmy(p.date)+"\n"+T("ലഭിച്ചത്","Received from")+": "+m.name+(m.no?" ("+T("നമ്പർ","No.")+" "+m.no+")":"")+"\n"+
+  return orgName()+"\n"+T("രസീത്","RECEIPT")+" "+(p.rc||T("(നമ്പർ സിങ്ക് ആയ ശേഷം)","(number after sync)"))+"   "+dmy(p.date)+"\n"+T("ലഭിച്ചത്","Received from")+": "+m.name+(m.no?" ("+T("നമ്പർ","No.")+" "+m.no+")":"")+"\n"+
    T("വരിസംഖ്യ","Subscription")+": "+(p.periods||[]).map(perLabel).join(", ")+"\n"+T("തുക","Amount")+": "+money(p.amt)+" ("+modeTxt(p.mode)+")\n"+T("നന്ദി","Thank you")+" - "+T("ട്രഷറർ","Treasurer");
  }
  SC.receipt=function(id){
@@ -245,10 +253,10 @@
   var h='<div class="asC" style="white-space:pre-line;font-family:inherit;line-height:1.55;border:1px dashed #9cc">'+E(receiptText(p))+'</div>'+
    '<div class="asC">'+(m.ph?'<a class="asBtn g" target="_blank" rel="noopener" href="'+E(wa(m.ph,receiptText(p)))+'">WhatsApp</a>':'')+
    '<span class="asBtn l" onclick="tcAsPrint(\''+p.id+'\')">'+E(T("പ്രിന്റ്","Print"))+'</span><span class="asBtn l" onclick="tcAsGo(\'member\',\''+p.mid+'\')">'+E(T("മെമ്പർ","Member"))+'</span>'+
-   (p.del?'':'<span class="asBtn r" onclick="tcAsDelPay(\''+p.id+'\')">'+E(T("റദ്ദാക്കുക","Cancel receipt"))+'</span>')+'</div>';
-  return {title:T("രസീത്","Receipt")+" "+p.rc,html:h};
+   (p.del?'<div class="asM" style="color:#a12d2d">'+E(T("റദ്ദാക്കിയ രസീത്","Cancelled receipt"))+'</div>':'<span class="asBtn r" onclick="tcAsDelPay(\''+p.id+'\')">'+E(T("റദ്ദാക്കുക","Cancel receipt"))+'</span>')+'</div>';
+  return {title:T("രസീത്","Receipt")+" "+(p.rc||""),html:h};
  };
- window.tcAsDelPay=function(id){ var p=payById(id); if(!p||!confirm(T("ഈ രസീത് റദ്ദാക്കട്ടെ? തുക കണക്കിൽ നിന്ന് മാറും.","Cancel this receipt? The amount leaves the accounts."))) return; p.del=today(); sv(); say(T("റദ്ദാക്കി","Cancelled")); back(); };
+ window.tcAsDelPay=function(id){ var p=payById(id); if(!p||!confirm(T("ഈ രസീത് റദ്ദാക്കട്ടെ? തുക കണക്കിൽ നിന്ന് മാറും.","Cancel this receipt? The amount leaves the accounts."))) return; p.del=today(); op("pay",p,true); sv(); say(T("റദ്ദാക്കി","Cancelled")); back(); };
  window.tcAsPrint=function(id){ var p=payById(id); if(p) printHtml('<pre style="font:15px/1.6 sans-serif;white-space:pre-wrap">'+E(receiptText(p))+'</pre>'); };
  function printHtml(body){
   var f=document.createElement("iframe"); f.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0"; document.body.appendChild(f);
@@ -296,5 +304,5 @@
  /* for part 2 (tc-assoc2.js) and the tests */
  window.__tcAs={A:A,sv:sv,uid:uid,today:today,dmy:dmy,money:money,perOf:perOf,curPer:curPer,perLabel:perLabel,perNext:perNext,perList:perList,live:live,members:members,memberById:memberById,
   paidSet:paidSet,dues:dues,orgName:orgName,premOk:premOk,freeLimit:freeLimit,screen:function(n,f){ SC[n]=f; },go:go,back:back,render:render,close:close,v:v,chips:chips,chipVal:chipVal,
-  tile:tile,E:E,T:T,say:say,modeTxt:modeTxt,actTxt:actTxt,printHtml:printHtml,wa:wa,biz:biz,TYPE:TYPE,isOpen:function(){ return S.open; }};
+  tile:tile,E:E,T:T,say:say,op:op,canWrite:canWrite,setPid:function(p){ PIDO=p?String(p):""; },pid:pid,open:open,modeTxt:modeTxt,actTxt:actTxt,printHtml:printHtml,wa:wa,biz:biz,TYPE:TYPE,isOpen:function(){ return S.open; }};
 })();
