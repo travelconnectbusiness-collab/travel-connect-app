@@ -5,7 +5,7 @@ import { verifyAdminToken } from "./_auth_helper.js";
 /* ============================================================================
    /api/assoc  -  ASSOCIATION BOOK IN THE CLOUD (phase 2, owner 2026-11-20).
    Unions, Kudumbashree, self-help groups, clubs: the book belongs to the ORGANISATION, not to one phone.
-   - Premium (planLevel >= 2) of the association business keeps its book here; the phone keeps a copy and syncs.
+   - Plus / Premium / Platinum (planLevel >= 1; Plus Rs 100 = 100 members, owner 2026-11-20) of the association business keeps its book here; the phone keeps a copy and syncs.
    - Office bearers are records of kind "role" ({title, mid, ph, access admin|edit|view, from, to}); the server finds
      a person by the mobile number they log in with. Access ends the moment a term is ended (to = date) or the role
      is cancelled - checked on EVERY request. The registered owner number of the association business is always admin;
@@ -52,18 +52,18 @@ async function ensureTables(env) {
   ready = true;
 }
 async function settings(env) {
-  const s = { assoc_limit_premium: 10000, assoc_limit_platinum: 100000 };
+  const s = { assoc_limit_plus: 100, assoc_limit_premium: 10000, assoc_limit_platinum: 100000 };
   try {
-    const r = (await env.DB.prepare("SELECT key, value FROM upgrade_settings WHERE key IN ('assoc_limit_premium','assoc_limit_platinum')").all()).results || [];
+    const r = (await env.DB.prepare("SELECT key, value FROM upgrade_settings WHERE key IN ('assoc_limit_plus','assoc_limit_premium','assoc_limit_platinum')").all()).results || [];
     r.forEach((x) => { s[x.key] = envInt(x.value, s[x.key]); });
   } catch (e) {}
   return s;
 }
 async function limits(env, lvl, org) {
   const s = await settings(env);
-  let members = lvl >= 3 ? s.assoc_limit_platinum : (lvl >= 2 ? s.assoc_limit_premium : 0);
+  let members = lvl >= 3 ? s.assoc_limit_platinum : (lvl >= 2 ? s.assoc_limit_premium : (lvl >= 1 ? s.assoc_limit_plus : 0));   /* owner 2026-11-20: Plus Rs 100 = 100 members with the cloud */
   if (org && org.max_members > members) members = org.max_members;
-  return { members, roles: lvl >= 2 ? 100000 : 0 };   /* owner 2026-11-20: office bearers + executives - as many as the organisation has */
+  return { members, roles: lvl >= 1 ? 100000 : 0 };   /* owner 2026-11-20: office bearers + executives - as many as the organisation has */
 }
 const active = (r) => r && !r.to || (r && r.to >= today());
 /* the committee tree: id -> parent id ("" = the top) */
@@ -275,12 +275,12 @@ export async function onRequestPost({ request, env }) {
   let org = await env.DB.prepare("SELECT * FROM assoc_org WHERE pid=?").bind(pid).first();
   const lim = await limits(env, A.lvl, org);
   const base = { ok: true, access: A.acc, title: A.title, com: A.com, scope: A.scope, scopeKey: A.scope ? A.scope.slice().sort().join(",") : "*", level: A.lvl, cloud: !!org, limits: lim, name: A.p.business_name };
-  const canWrite = (A.acc === "admin" || A.acc === "edit") && A.lvl >= 2;
+  const canWrite = (A.acc === "admin" || A.acc === "edit") && A.lvl >= 1;   /* the cloud book from Plus (Rs 100) */
 
   if (action === "status") return j(Object.assign(base, { rev: org ? org.rev : 0 }));
 
   if (action === "init") {   /* the phone book moves to the cloud (first time) */
-    if (A.acc !== "admin" || A.lvl < 2) return j({ ok: false, error: A.lvl < 2 ? "plan" : "no_access" }, 403);
+    if (A.acc !== "admin" || A.lvl < 1) return j({ ok: false, error: A.lvl < 1 ? "plan" : "no_access" }, 403);
     if (org && org.rev > 0) return j({ ok: false, error: "already_in_cloud" }, 409);
     const bk = b.book || {}, cfg = bk.cfg || {};
     const cfgTxt = cleanCfg(cfg, {});
@@ -323,7 +323,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   if (action === "push") {
-    if (!canWrite) return j({ ok: false, error: A.lvl < 2 ? "plan" : "read_only" }, 403);
+    if (!canWrite) return j({ ok: false, error: A.lvl < 1 ? "plan" : "read_only" }, 403);
     org.limit = lim.members;
     const ops = Array.isArray(b.ops) ? b.ops.slice(0, 200) : [], results = [];
     for (const op of ops) {
