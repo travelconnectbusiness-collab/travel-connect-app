@@ -442,7 +442,12 @@ window.tcAdLoadPriceBox=async function(){
   '<label>Platinum: shops, others (Rs / year)<input id="tcAdP5" type="number" min="0" value="'+E(s.price_platinum_year||"2999")+'"></label>'+
   '<label>Your UPI ID (where owners pay)<input id="tcAdUpi" value="'+E(s.upi_id)+'" placeholder="name@bank"></label>'+
   '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label>'+
-  '<label>Association book: free up to (members)<input id="tcAdAsF" type="number" min="0" value="'+E(s.assoc_free_members||"25")+'"></label></div>'+
+  '<label>Association book: free up to (members)<input id="tcAdAsF" type="number" min="0" value="'+E(s.assoc_free_members||"25")+'"></label>'+
+  '<label>Association: Premium (Rs / year)<input id="tcAdAsP" type="number" min="0" value="'+E(s.price_assoc_premium_year||"1000")+'"></label>'+
+  '<label>Association: Platinum (Rs / year)<input id="tcAdAsPl" type="number" min="0" value="'+E(s.price_assoc_platinum_year||"3000")+'"></label>'+
+  '<label>Association members on Premium<input id="tcAdAsLp" type="number" min="0" value="'+E(s.assoc_limit_premium||"1000")+'"></label>'+
+  '<label>Association members on Platinum<input id="tcAdAsLpl" type="number" min="0" value="'+E(s.assoc_limit_platinum||"10000")+'"></label>'+
+  '<label>Association office bearers on Premium<input id="tcAdAsR" type="number" min="0" value="'+E(s.assoc_roles_premium||"5")+'"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdSavePrices()">Save prices</button></div>'+
   '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the business with this number (any kind of business). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
   '<div class="grid"><label>Shop number<input id="tcAdPlM" type="tel" inputmode="numeric" maxlength="13" placeholder="10-digit number"></label><label>Days<input id="tcAdPlD" type="number" min="1" value="365"></label></div>'+
@@ -458,7 +463,7 @@ window.tcAdPlat=async function(on){
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
- const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF")}});
+ const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF"),price_assoc_premium_year:g("#tcAdAsP"),price_assoc_platinum_year:g("#tcAdAsPl"),assoc_limit_premium:g("#tcAdAsLp"),assoc_limit_platinum:g("#tcAdAsLpl"),assoc_roles_premium:g("#tcAdAsR")}});
  say(d.ok?"Saved":(d.error==="bad_upi"?"UPI ID looks wrong (name@bank)":"Could not save - prices must be whole numbers"));
 };
 if(typeof window.tcRenderPartnerPlans==="function"){
