@@ -9,7 +9,7 @@
  var $=function(id){ return document.getElementById(id); }, E=X.E, T=X.T, money=X.money, dmy=X.dmy, v=X.v, chips=X.chips, chipVal=X.chipVal;
  var INC=[["don",["സംഭാവന","Donation"]],["fine",["പിഴ","Fine"]],["fund",["ക്ഷേമനിധി","Welfare fund"]],["oth",["മറ്റ് വരവ്","Other income"]]];
  var EXP=[["meet",["യോഗം","Meeting"]],["help",["സഹായം","Help / welfare"]],["office",["ഓഫീസ്","Office"]],["travel",["യാത്ര","Travel"]],["oth",["മറ്റ് ചെലവ്","Other expense"]]];
- function catName(t,k){ if(k==="sub") return T("വരിസംഖ്യ","Subscription"); var L=t==="in"?INC:EXP; for(var i=0;i<L.length;i++) if(L[i][0]===k) return T(L[i][1][0],L[i][1][1]); return k||""; }
+ function catName(t,k){ if(k==="sub") return X.subName(); var L=t==="in"?INC:EXP; for(var i=0;i<L.length;i++) if(L[i][0]===k) return T(L[i][1][0],L[i][1][1]); return k||""; }
  /* every money line: the ledger + the subscription receipts (cash / UPI count as 'cash in hand' unless Bank) */
  function lines(){
   var a=X.A(), out=[];
@@ -72,14 +72,14 @@
   var x=id?X.A().mins.filter(function(y){ return y.id===id; })[0]:null;
   var h='<div class="asC"><div style="display:flex;gap:8px"><div style="flex:1"><label>'+E(T("തീയതി","Date"))+'</label><input id="tcAsNd" type="date" value="'+E(x?x.date:X.today())+'"></div><div style="flex:1"><label>'+E(T("സ്ഥലം","Place"))+'</label><input id="tcAsNp" value="'+E(x?x.place:"")+'"></div></div>'+
    '<label>'+E(T("പങ്കെടുത്തവർ (പേരുകൾ / എണ്ണം)","Present (names / number)"))+'</label><input id="tcAsNa" value="'+E(x?x.present:"")+'">'+
-   '<label>'+E(T("തീരുമാനങ്ങൾ","Decisions"))+'</label><textarea id="tcAsNdec" rows="6">'+E(x?x.dec:"")+'</textarea>'+
+   '<label>'+E(T("തീരുമാനങ്ങൾ / ചർച്ച (25 പേജ് വരെ എഴുതാം)","Decisions / discussion (up to about 25 pages)"))+'</label><textarea id="tcAsNdec" rows="10" maxlength="50000">'+E(x?x.dec:"")+'</textarea>'+
    '<span class="asBtn g" onclick="tcAsSaveMin(\''+(x?x.id:"")+'\')">'+E(T("സേവ് ചെയ്യുക","Save"))+'</span>'+(x?'<span class="asBtn l" onclick="tcAsPrintMin(\''+x.id+'\')">'+E(T("പ്രിന്റ്","Print"))+'</span><span class="asBtn r" onclick="tcAsDelMin(\''+x.id+'\')">'+E(T("ഒഴിവാക്കുക","Delete"))+'</span>':'')+'</div>';
   return {title:T("യോഗം / മിനിറ്റ്സ്","Meeting / minutes"),html:h};
  });
  window.tcAsSaveMin=function(id){
   var a=X.A(), dec=v("tcAsNdec"); if(!dec){ X.say(T("തീരുമാനങ്ങൾ എഴുതുക","Write the decisions")); return; }
   var x=id?a.mins.filter(function(y){ return y.id===id; })[0]:null; if(!x){ x={id:X.uid()}; a.mins.push(x); }
-  x.date=v("tcAsNd")||X.today(); x.place=v("tcAsNp").slice(0,80); x.present=v("tcAsNa").slice(0,400); x.dec=dec.slice(0,3500); X.op("min",x); X.sv(); X.say(T("സേവ് ചെയ്തു","Saved")); X.back();
+  x.date=v("tcAsNd")||X.today(); x.place=v("tcAsNp").slice(0,80); x.present=v("tcAsNa").slice(0,400); x.dec=dec.slice(0,50000); X.op("min",x); X.sv(); X.say(T("സേവ് ചെയ്തു","Saved")); X.back();
  };
  window.tcAsDelMin=function(id){ var x=X.A().mins.filter(function(y){ return y.id===id; })[0]; if(!x||!confirm(T("ഈ മിനിറ്റ്സ് ഒഴിവാക്കട്ടെ?","Delete these minutes?"))) return; x.del=X.today(); X.op("min",x,true); X.sv(); X.back(); };
  window.tcAsPrintMin=function(id){ var x=X.A().mins.filter(function(y){ return y.id===id; })[0]; if(!x) return;
@@ -121,7 +121,7 @@
    '<div class="asC">'+row(T("തുടക്ക ബാക്കി","Opening balance"),s.open.cash+s.open.bank)+'<div style="font-weight:700;margin-top:6px;color:#1c6b2c">'+E(T("വരവ്","Income"))+'</div>'+Object.keys(s.inc).map(function(k){ return row("  "+k,s.inc[k]); }).join("")+row(T("ആകെ വരവ്","Total income"),s.ti,"#1c6b2c")+
    '<div style="font-weight:700;margin-top:6px;color:#a12d2d">'+E(T("ചെലവ്","Expense"))+'</div>'+Object.keys(s.exp).map(function(k){ return row("  "+k,s.exp[k]); }).join("")+row(T("ആകെ ചെലവ്","Total expense"),s.te,"#a12d2d")+
    '<div style="border-top:1px solid #ddd;margin-top:6px;padding-top:4px">'+row(T("അവസാന ബാക്കി","Closing balance"),s.close.cash+s.close.bank,"#0b4f5a")+'<div class="asM">'+E(T("കയ്യിൽ","Cash")+" "+money(s.close.cash)+" · "+T("ബാങ്ക്","Bank")+" "+money(s.close.bank))+'</div></div></div>'+
-   '<div class="asC"><div class="asM">'+E(T("വരിസംഖ്യ അടച്ചവർ (ഈ കാലയളവിൽ)","Members who paid (this period)"))+': <b>'+Object.keys(payers).length+'</b> / '+act.length+' · '+E(T("ഇപ്പോൾ ബാക്കിയുള്ളവർ","With dues now"))+': <b>'+withDue.length+'</b></div>'+
+   '<div class="asC"><div class="asM">'+E(T(X.TY().sub[0]+" അടച്ചവർ (ഈ കാലയളവിൽ)","Paid "+X.TY().sub[1].toLowerCase()+" (this period)"))+': <b>'+Object.keys(payers).length+'</b> / '+act.length+' · '+E(T("ഇപ്പോൾ ബാക്കിയുള്ളവർ","With dues now"))+': <b>'+withDue.length+'</b></div>'+
    '<span class="asBtn" onclick="tcAsXlsx()">Excel</span><span class="asBtn l" onclick="tcAsPrintRep()">'+E(T("പ്രിന്റ് / PDF","Print / PDF"))+'</span></div>';
   return {title:T("റിപ്പോർട്ട്","Reports"),html:h,after:function(){ window.tcAsChip_rmd=function(x){ rMode=x; rPer=x==="y"?X.today().slice(0,4):X.today().slice(0,7); X.render(); }; }};
  });
@@ -142,10 +142,12 @@
   sum.push([c(T("അവസാന ബാക്കി","Closing balance"),{b:true,border:1}),c(s.close.cash+s.close.bank,{b:true,border:1,fmt:"#,##0"})],[c(T("കയ്യിൽ","Cash")),c(s.close.cash,M)],[c(T("ബാങ്ക്","Bank")),c(s.close.bank,M)]);
   var led=[[c(T("തീയതി","Date"),H),c(T("വരവ് / ചെലവ്","In / out"),H),c(T("ഇനം","Category"),H),c(T("തുക","Amount"),H),c(T("കാഷ് / ബാങ്ക്","Cash / bank"),H),c(T("കുറിപ്പ്","Note"),H)]];
   lines().filter(function(l){ return l.date>=r[0]&&l.date<=r[1]; }).reverse().forEach(function(l){ led.push([c(dmy(l.date)),c(l.t==="in"?T("വരവ്","In"):T("ചെലവ്","Out")),c(catName(l.t,l.cat)),c(l.amt,M),c(l.mode==="b"?T("ബാങ്ക്","Bank"):T("കാഷ്","Cash")),c(l.note)]); });
-  var mem=[[c(T("നമ്പർ","No."),H),c(T("പേര്","Name"),H),c(T("ഫോൺ","Phone"),H),c(T("ഏരിയ","Area"),H),c(T("നില","Status"),H),c(T("ഈ കാലയളവിൽ അടച്ചത്","Paid this period"),H),c(T("ബാക്കി (എണ്ണം)","Due (count)"),H),c(T("ബാക്കി തുക","Due amount"),H)]], amt=+X.A().cfg.amt||0;
+  var mem=[[c(T("നമ്പർ","No."),H),c(T("പേര്","Name"),H),c(T("ഫോൺ","Phone"),H),c(T("ഏരിയ","Area"),H),c(T("നില","Status"),H),c(T("ഈ കാലയളവിൽ അടച്ചത്","Paid this period"),H),c(T("ബാക്കി (എണ്ണം)","Due (count)"),H),c(T("ബാക്കി തുക","Due amount"),H)].concat(X.TY().save?[c(T("ആകെ നിക്ഷേപം","Total saved"),H)]:[]).concat(X.TY().veh?[c(T("വണ്ടികൾ","Vehicles"),H)]:[]).concat(X.TY().house?[c(T("വീട്","House"),H)]:[])];
   X.members().forEach(function(m){ var pd=X.live(X.A().pays).filter(function(p){ return p.mid===m.id&&p.date>=r[0]&&p.date<=r[1]; }).reduce(function(t,p){ return t+(+p.amt||0); },0), d=X.dues(m).length;
-   mem.push([c(m.no||""),c(m.name),c(m.ph||""),c(m.area||""),c(m.status==="s"?T("സസ്പെൻഡ്","Suspended"):(m.status==="l"?T("ഒഴിവായി","Left"):T("സജീവം","Active"))),c(pd,M),c(d),c(d*amt,M)]); });
-  var bytes; try{ bytes=wb([{name:"Summary",rows:sum,widths:[34,16]},{name:"Ledger",rows:led,widths:[12,10,18,12,10,50],freeze:"A2"},{name:"Members",rows:mem,widths:[7,24,13,14,11,16,11,13],freeze:"C2"}]); }catch(e){ X.say(T("Excel ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല","Could not make the Excel")); return; }
+   var row=[c(m.no||""),c(m.name),c(m.ph||""),c(m.area||""),c(m.status==="s"?T("സസ്പെൻഡ്","Suspended"):(m.status==="l"?T("ഒഴിവായി","Left"):T("സജീവം","Active"))),c(pd,M),c(d),c(d*X.memAmt(m),M)];
+   if(X.TY().save) row.push(c(X.saved(m.id),M)); if(X.TY().veh) row.push(c(X.vehs(m).join(", "))); if(X.TY().house) row.push(c(m.hno||""));
+   mem.push(row); });
+  var bytes; try{ bytes=wb([{name:"Summary",rows:sum,widths:[34,16]},{name:"Ledger",rows:led,widths:[12,10,18,12,10,50],freeze:"A2"},{name:"Members",rows:mem,widths:[7,24,13,14,11,16,11,13,16,30],freeze:"C2"}]); }catch(e){ X.say(T("Excel ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല","Could not make the Excel")); return; }
   var name="Association_"+rPer+"_made_"+X.today()+".xlsx", type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   window.__tcAsLastX={name:name,bytes:bytes};
   try{ var file=new File([bytes],name,{type:type}); if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:name}); return; } }catch(e){ if(e&&e.name==="AbortError") return; }
@@ -154,20 +156,34 @@
 
  /* ---------- settings ---------- */
  X.screen("settings",function(){
-  var c=X.A().cfg;
-  var h='<div class="asC"><label>'+E(T("സംഘടനയുടെ പേര് (രസീതിൽ)","Name of the organisation (on receipts)"))+'</label><input id="tcAsSo" value="'+E(c.org||"")+'" placeholder="'+E(X.orgName())+'">'+
-   '<div style="display:flex;gap:8px"><div style="flex:1"><label>'+E(T("വരിസംഖ്യ തുക ₹","Subscription ₹"))+'</label><input id="tcAsSa" type="number" inputmode="numeric" value="'+E(c.amt||"")+'"></div><div style="flex:1"><label>'+E(T("ഓരോ","Every"))+'</label><div>'+chips("sper",[["m",T("മാസം","Month")],["y",T("വർഷം","Year")]],c.per||"m")+'</div></div></div>'+
+  var c=X.A().cfg, ty=c.type||"other", TT=X.TYPES;
+  var perOpts=function(k){ return (TT[k]||TT.other).pers.map(function(p){ return [p,p==="w"?T("ആഴ്ച","Week"):(p==="y"?T("വർഷം","Year"):T("മാസം","Month"))]; }); };
+  var curPer=(TT[ty]||TT.other).pers.indexOf(c.per)>=0?c.per:(TT[ty]||TT.other).pers[0];
+  var h='<div class="asC"><label>'+E(T("സംഘടനയുടെ തരം","Kind of organisation"))+'</label><div>'+chips("stype",Object.keys(TT).map(function(k){ return [k,T(TT[k].ml,TT[k].en)]; }),ty)+'</div>'+
+   '<label>'+E(T("സംഘടനയുടെ പേര് (രസീതിൽ)","Name of the organisation (on receipts)"))+'</label><input id="tcAsSo" value="'+E(c.org||"")+'" placeholder="'+E(X.orgName())+'">'+
+   '<div style="display:flex;gap:8px"><div style="flex:1"><label id="tcAsSaL">'+E(X.subName()+" ₹")+'</label><input id="tcAsSa" type="number" inputmode="numeric" value="'+E(c.amt||"")+'"></div><div style="flex:1"><label>'+E(T("ഓരോ","Every"))+'</label><div id="tcAsSperBox">'+chips("sper",perOpts(ty),curPer)+'</div></div></div>'+
+   '<div id="tcAsVehBox"'+((TT[ty]||{}).veh?'':' hidden')+'><div style="display:flex;gap:8px"><div style="flex:1"><label>'+E(T("ഈ തുകയിൽ എത്ര വണ്ടി വരെ","Vehicles included in it"))+'</label><input id="tcAsSiv" type="number" inputmode="numeric" value="'+E(c.inclVeh||"")+'" placeholder="2"></div><div style="flex:1"><label>'+E(T("അധികമുള്ള ഓരോ വണ്ടിക്കും ₹","Each extra vehicle ₹"))+'</label><input id="tcAsSev" type="number" inputmode="numeric" value="'+E(c.extraVeh||"")+'" placeholder="50"></div></div></div>'+
    '<label>'+E(T("കണക്ക് തുടങ്ങുന്ന മാസം (ഇതിന് മുമ്പുള്ളത് ബാക്കിയായി കാണിക്കില്ല)","Book starts in (nothing before it shows as due)"))+'</label><input id="tcAsSs" type="month" value="'+E(c.start&&c.start.length===7?c.start:(c.start?c.start+"-01":X.today().slice(0,7)))+'">'+
-   '<label>'+E(T("ഏരിയകൾ / യൂണിറ്റുകൾ (കോമ ഇട്ട്)","Areas / units (comma separated)"))+'</label><input id="tcAsSar" value="'+E((c.areas||[]).join(", "))+'">'+
+   '<label id="tcAsSarL">'+E(X.areaName()+" "+T("(കോമ ഇട്ട്)","(comma separated)"))+'</label><input id="tcAsSar" value="'+E((c.areas||[]).join(", "))+'">'+
    '<div style="display:flex;gap:8px"'+(X.A().cloud?' hidden':'')+'><div style="flex:1"><label>'+E(T("രസീത് തുടക്കം","Receipt prefix"))+'</label><input id="tcAsSp" value="'+E(c.prefix||"R")+'"></div><div style="flex:1"><label>'+E(T("അടുത്ത രസീത് നമ്പർ","Next receipt no."))+'</label><input id="tcAsSn" type="number" value="'+E(c.nextRc||1)+'"></div></div>'+
    '<div style="display:flex;gap:8px"><div style="flex:1"><label>'+E(T("തുടക്കത്തിൽ കയ്യിലുള്ളത് ₹","Opening cash ₹"))+'</label><input id="tcAsSc" type="number" value="'+E(c.openCash||"")+'"></div><div style="flex:1"><label>'+E(T("തുടക്കത്തിൽ ബാങ്കിൽ ₹","Opening bank ₹"))+'</label><input id="tcAsSb" type="number" value="'+E(c.openBank||"")+'"></div></div>'+
    '<span class="asBtn g" onclick="tcAsSaveCfg()">'+E(T("സേവ് ചെയ്യുക","Save"))+'</span></div>'+
-   '<div class="asC asM">'+E(X.premOk()?T("പ്ലാൻ: മെമ്പർ പരിധി ഇല്ല.","Plan: no member limit."):T(X.freeLimit()+" മെമ്പർ വരെ സൗജന്യം. കൂടുതലിന് Premium / Platinum (Menu › Verification & Plan).","Free up to "+X.freeLimit()+" members. More: Premium / Platinum (Menu › Verification & Plan)."))+'<br>'+E(T("ഈ പുസ്തകം ഈ ഫോണിലാണ് - My Accounts › Backup / ആപ്പിന്റെ ബാക്കപ്പിൽ ഇതും ഉണ്ടാകും.","This book is kept on this phone - the app's backup includes it."))+'</div>';
-  return {title:T("സെറ്റിംഗ്സ്","Settings"),html:h};
+   '<div class="asC asM">'+E(X.premOk()?T("പ്ലാൻ: മെമ്പർ പരിധി പ്ലാൻ അനുസരിച്ച്.","Plan: member limit as per the plan."):T(X.freeLimit()+" മെമ്പർ വരെ സൗജന്യം. കൂടുതലിന് Premium / Platinum (Menu › Verification & Plan).","Free up to "+X.freeLimit()+" members. More: Premium / Platinum (Menu › Verification & Plan)."))+'<br>'+E(T("ഒരു മെമ്പർക്ക് വേറെ നിരക്ക് (ഇളവ്) വേണമെങ്കിൽ ആ മെമ്പറുടെ \"മാറ്റുക › കൂടുതൽ\"-ൽ.","A special rate (concession) for one member: that member's \"Edit › More\"."))+'</div>';
+  return {title:T("സെറ്റിംഗ്സ്","Settings"),html:h,after:function(){
+   window.tcAsChip_stype=function(k){
+    var t=TT[k]||TT.other, cur=chipVal("sper"), keep=t.pers.indexOf(cur)>=0?cur:t.pers[0];
+    $("tcAsSperBox").innerHTML=chips("sper",perOpts(k),keep);
+    $("tcAsVehBox").hidden=!t.veh;
+    $("tcAsSaL").textContent=T(t.sub[0],t.sub[1])+" ₹"; $("tcAsSarL").textContent=T(t.area[0],t.area[1])+" "+T("(കോമ ഇട്ട്)","(comma separated)");
+   };
+  }};
  });
  window.tcAsSaveCfg=function(){
-  var c=X.A().cfg, amt=+v("tcAsSa"); if(!(amt>0)){ X.say(T("വരിസംഖ്യ തുക നൽകുക","Enter the subscription amount")); return; }
-  c.org=v("tcAsSo").slice(0,80); c.amt=amt; c.per=chipVal("sper")||"m"; var st=v("tcAsSs")||X.today().slice(0,7); c.start=c.per==="y"?st.slice(0,4):st;
+  var c=X.A().cfg, amt=+v("tcAsSa"); if(!(amt>0)){ X.say(T(X.subName()+" തുക നൽകുക","Enter the "+X.subName().toLowerCase()+" amount")); return; }
+  var oldPer=c.per;
+  c.type=chipVal("stype")||c.type||"other"; c.org=v("tcAsSo").slice(0,80); c.amt=amt; c.per=chipVal("sper")||"m";
+  c.inclVeh=Math.max(0,parseInt(v("tcAsSiv"),10)||0); c.extraVeh=Math.max(0,+v("tcAsSev")||0);
+  if(oldPer&&oldPer!==c.per&&X.live(X.A().pays).length) X.say(T("കാലയളവ് മാറ്റി - പഴയ രസീതുകൾ പഴയ കാലയളവിൽ തന്നെ കാണും.","Period changed - old receipts stay in the old periods.")); var st=v("tcAsSs")||X.today().slice(0,7); c.start=c.per==="y"?st.slice(0,4):st;   /* weekly books keep the month; the first week of it counts */
   c.areas=v("tcAsSar").split(",").map(function(x){ return x.trim().slice(0,40); }).filter(Boolean).filter(function(x,i,arr){ return arr.indexOf(x)===i; }).slice(0,60);
   c.prefix=(v("tcAsSp")||"R").slice(0,8); c.nextRc=Math.max(1,parseInt(v("tcAsSn"),10)||1); c.openCash=+v("tcAsSc")||0; c.openBank=+v("tcAsSb")||0;
   X.op("cfg",c); X.sv(); X.say(T("സേവ് ചെയ്തു","Saved")); X.back();
@@ -182,19 +198,19 @@
   var A=function(ml,en){ return {kind:"answer",ml:ml,en:en}; };
   if(has(s,["അടയ്ക്കാത്ത","അടക്കാത്ത","അടച്ചിട്ടില്ല","ബാക്കിയുള്ള","കുടിശ്ശിക"," due","dues","not paid","pending","adakkatha"])||(has(s,["ബാക്കി","baakki","balance"])&&has(s,["ആര്","ആർ","who","വരിസംഖ്യ","subscription","മെമ്പർ","member"]))){
    var list=ms.map(function(m){ return {m:m,d:X.dues(m)}; }).filter(function(x){ return x.d.length; }).sort(function(x,y){ return y.d.length-x.d.length; });
-   if(!list.length) return A("ആർക്കും വരിസംഖ്യ ബാക്കിയില്ല ✓","Nobody has subscription dues ✓");
-   var tot=list.reduce(function(t,x){ return t+x.d.length*(+c.amt||0); },0), names=list.slice(0,10).map(function(x){ return x.m.name+" ("+x.d.length+")"; }).join(", ");
-   return {kind:"open",fn:function(){ window.tcAssocOpen("dues"); },ml:list.length+" പേർക്ക് വരിസംഖ്യ ബാക്കി, ആകെ "+money(tot)+": "+names+(list.length>10?" …":"")+". ലിസ്റ്റ് തുറക്കുന്നു.",en:list.length+" members have dues, total "+money(tot)+": "+names+(list.length>10?" …":"")+". Opening the list."};
+   var SB=X.TY().sub; if(!list.length) return A("ആർക്കും "+SB[0]+" ബാക്കിയില്ല ✓","Nobody has "+SB[1].toLowerCase()+" dues ✓");
+   var tot=list.reduce(function(t,x){ return t+x.d.length*X.memAmt(x.m); },0), names=list.slice(0,10).map(function(x){ return x.m.name+" ("+x.d.length+")"; }).join(", ");
+   return {kind:"open",fn:function(){ window.tcAssocOpen("dues"); },ml:list.length+" പേർക്ക് "+SB[0]+" ബാക്കി, ആകെ "+money(tot)+": "+names+(list.length>10?" …":"")+". ലിസ്റ്റ് തുറക്കുന്നു.",en:list.length+" members have dues, total "+money(tot)+": "+names+(list.length>10?" …":"")+". Opening the list."};
   }
   var mon=X.today().slice(0,7), yr=X.today().slice(0,4), yearQ=has(s,["ഈ വർഷം","this year","varsham"]);
-  if(has(s,["പിരിഞ്ഞ","പിരിച്ച","കിട്ടിയ","വരിസംഖ്യ","collected","collection","subscription","piriv","pirich"])){
+  if(has(s,["നിക്ഷേപ","thrift","ഫീസ്"," fee","savings","പിരിഞ്ഞ","പിരിച്ച","കിട്ടിയ","വരിസംഖ്യ","collected","collection","subscription","piriv","pirich"])){
    var pays=X.live(a.pays).filter(function(p){ return yearQ?p.date.slice(0,4)===yr:p.date.slice(0,7)===mon; }), sum=pays.reduce(function(t,p){ return t+(+p.amt||0); },0), who={}; pays.forEach(function(p){ who[p.mid]=1; });
-   return A((yearQ?"ഈ വർഷം":"ഈ മാസം")+" വരിസംഖ്യ പിരിഞ്ഞത് "+money(sum)+" ("+Object.keys(who).length+" പേർ, "+pays.length+" രസീത്).",(yearQ?"This year":"This month")+" subscription collected: "+money(sum)+" ("+Object.keys(who).length+" members, "+pays.length+" receipts).");
+   return A((yearQ?"ഈ വർഷം":"ഈ മാസം")+" "+X.TY().sub[0]+" കിട്ടിയത് "+money(sum)+" ("+Object.keys(who).length+" പേർ, "+pays.length+" രസീത്).",(yearQ?"This year":"This month")+" "+X.TY().sub[1].toLowerCase()+" collected: "+money(sum)+" ("+Object.keys(who).length+" members, "+pays.length+" receipts).");
   }
   if(has(s,["ബാക്കി","ബാലൻസ്","കയ്യിൽ","ബാങ്കിൽ","balance","cash in hand","fund"])){
    var b=balTo(""); return A("ഇപ്പോൾ ബാക്കി "+money(b.cash+b.bank)+" - കയ്യിൽ "+money(b.cash)+", ബാങ്കിൽ "+money(b.bank)+".","Balance now "+money(b.cash+b.bank)+" - cash "+money(b.cash)+", bank "+money(b.bank)+".");
   }
-  if(has(s,["എത്ര മെമ്പർ","മെമ്പർമാർ","അംഗങ്ങൾ","how many members","members","membermar"])){
+  if(has(s,["എത്ര മെമ്പർ","മെമ്പർമാർ","അംഗങ്ങൾ","എത്ര വീട്","വീടുകൾ","houses","how many members","members","membermar"])){
    var areas={}; ms.forEach(function(m){ if(m.area) areas[m.area]=(areas[m.area]||0)+1; });
    var ar=Object.keys(areas).map(function(k){ return k+" "+areas[k]; }).join(", ");
    return A(ms.length+" മെമ്പർമാർ"+(ar?" ("+ar+")":"")+".",ms.length+" members"+(ar?" ("+ar+")":"")+".");
