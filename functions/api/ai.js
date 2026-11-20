@@ -33,6 +33,7 @@ const APP = "Travel Connect (travelconnect.dev) is one phone app for any local b
   "Plans: Free, Plus, Premium, Platinum (Menu › Verification & Plan). Data stays on the phone; backup in My Accounts › Backup. " +
   "WHAT EACH KIND OF BUSINESS USES: vehicles (taxi_travel, auto_rickshaw, pickup_goods): Live Trip Log, Quick Bill, Quotations (taxi), Enquiries, Billing, Trip & Accounts, Day Book, drivers. " +
   "Every other business (shops of any kind, restaurant / tea shop, hotel, skilled workers such as electrician or plumber, services ...): the shop book - Sale (bill), Purchase, Stock, Expense, Dues, Staff wages, Reports, CA pack, Insights - plus Quotation / Invoice / Bill documents for jobs. " +
+  "Associations / unions / Kudumbashree / self-help groups / clubs (business type association): the \"Association book\" card on the dashboard - Members (add, area, status), Collect subscription (receipt on WhatsApp / print), Dues list (WhatsApp reminders), Ledger (income / expense, cash and bank), Minutes & actions (warning, fine, suspension), Reports (Excel, Print / PDF), Settings (amount, month / year, areas, receipt number); free up to a number of members, more with Premium / Platinum. " +
   "Everybody: My Accounts, voice, Share Travel Connect card, Shop window.";
 
 let ready = false;
@@ -137,7 +138,7 @@ export async function onRequestPost({ request, env }) {
   /* the last 2 questions + answers of this conversation (a follow-up question); not stored, and such answers are not cached */
   const history = (Array.isArray(body.history) ? body.history : []).slice(-2).map((h) => ({ q: clean(h && h.q, 400), a: clean(h && h.a, 1200) })).filter((h) => h.q && h.a);
 
-  const k = await sha("ai6|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai7|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
     const hit = history.length ? null : await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
