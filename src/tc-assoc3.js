@@ -25,13 +25,14 @@
  var WHY={member_limit:["ഈ പ്ലാനിലെ മെമ്പർ പരിധി കഴിഞ്ഞു","The member limit of this plan is reached"],role_limit:["ഈ പ്ലാനിലെ ഭാരവാഹി പരിധി കഴിഞ്ഞു","The office-bearer limit of this plan is reached"],
   not_admin_role:["അഡ്മിൻ അനുമതിയുള്ള ഭാരവാഹിക്ക് മാത്രമേ കൈമാറാൻ പറ്റൂ","Hand over only to an office bearer with admin access"],read_only:["നിങ്ങൾക്ക് കാണാൻ മാത്രമേ അനുമതിയുള്ളൂ","You can only view this book"],
   plan:["പ്ലാൻ കഴിഞ്ഞു - കാണാം, മാറ്റാൻ പ്ലാൻ പുതുക്കണം","The plan has ended - you can view; renew to make changes"],no_access:["ഈ സംഘടനയുടെ പുസ്തകം കാണാൻ ഇനി അനുമതിയില്ല","You no longer have access to this book"],
-  bad_phone:["ശരിയായ 10 അക്ക മൊബൈൽ നമ്പർ നൽകുക","Enter a correct 10-digit mobile number"]};
+  bad_phone:["ശരിയായ 10 അക്ക മൊബൈൽ നമ്പർ നൽകുക","Enter a correct 10-digit mobile number"],out_of_scope:["ഇത് നിങ്ങളുടെ കമ്മിറ്റിക്ക് പുറത്താണ്","This is outside your committee"],
+  bad_parent:["മേൽകമ്മിറ്റി ശരിയല്ല","The upper committee is not right"],com_limit:["കമ്മിറ്റികളുടെ പരിധി കഴിഞ്ഞു","Too many committees"]};
  function why(e){ var w=WHY[e]; return w?T(w[0],w[1]):T("സെർവറിൽ നിന്ന് മറുപടി കിട്ടിയില്ല","No answer from the server"); }
 
  /* ---------- sync ---------- */
  var busy=false, again=false, timer=0, every=0;
  function merge(a,recs){
-  var KEY={member:"members",pay:"pays",led:"led",min:"mins",act:"acts",role:"roles"};
+  var KEY={member:"members",pay:"pays",led:"led",min:"mins",act:"acts",role:"roles",com:"coms"};
   if(!Array.isArray(a.roles)) a.roles=[];
   recs.forEach(function(r){
    var arr=a[KEY[r.kind]]; if(!arr) return;
@@ -48,24 +49,30 @@
   if(busy){ again=true; return Promise.resolve(); }
   busy=true;
   var q=(a.q||[]).slice(0,200);
-  var push=q.length?api("push",{pid:pid,ops:q}):Promise.resolve(null);
+  var push=q.length?api("push",{pid:pid,ops:q}):Promise.resolve(null), since=+a.rev||0;
+  var sentOk=false;
   return push.then(function(r){
-   if(r&&r.ok){
+   if(r&&r.ok){ sentOk=q.length>0&&(r.results||[]).length>0;
     var errs=[];
     (r.results||[]).forEach(function(res){
      a.q=(a.q||[]).filter(function(o){ return !(o.kind===res.kind&&(o.id===res.id||res.kind==="cfg")); });
      if(res.kind==="pay"&&res.rc){ a.pays.forEach(function(p){ if(p.id===res.id) p.rc=res.rc; }); }
      if(!res.ok){ errs.push(res.error);
-      if(res.kind==="member"){ a.members=a.members.filter(function(m){ return m.id!==res.id||m._by; }); }   /* refused new member: not kept */
+      if(res.kind==="member"||res.kind==="com"){ var K2=res.kind==="member"?"members":"coms"; a[K2]=(a[K2]||[]).filter(function(m){ return m.id!==res.id||m._by; }); }   /* refused new record: not kept */
      }
     });
     if(errs.length) X.say(why(errs[0]));
    }else if(r&&!r.ok&&r.error!=="offline"){ X.say(why(r.error)); if(r.error==="read_only"||r.error==="plan"||r.error==="no_access") a.q=[]; }
-   return api("pull",{pid:pid,since:+a.rev||0});
+   since=+a.rev||0; return api("pull",{pid:pid,since:since});
   }).then(function(r){
    if(!r) return;
+   if(r.ok&&r.cloud!==false&&r.scopeKey&&a.scopeKey!==r.scopeKey){
+    /* my post moved to another committee (or to the whole organisation): start this phone's copy again from the cloud */
+    var was=a.scopeKey; a.scopeKey=r.scopeKey; a.scope=r.scope||null;
+    if(since>0&&(was!==undefined||r.scopeKey!=="*")){ ["members","pays","led","mins","acts","roles","coms"].forEach(function(k){ a[k]=(a[k]||[]).filter(function(x){ return !x._by; }); }); a.rev=0; X.sv(); setTimeout(sync,50); return; }
+   }
    if(r.ok&&r.cloud!==false){
-    merge(a,r.recs||[]); a.rev=r.rev; a.acc=r.access; a.title=r.title||""; a.limits=r.limits; a.level=r.level; a.synced=new Date().toISOString();
+    merge(a,r.recs||[]); a.rev=r.rev; a.acc=r.access; a.title=r.title||""; a.scope=r.scope||null; a.scopeKey=r.scopeKey||"*"; a.limits=r.limits; a.level=r.level; a.synced=new Date().toISOString();
     var nc=r.cfg||{}; ["org","type","amt","per","start","areas","prefix","openCash","openBank","nextNo","nextRc","inclVeh","extraVeh"].forEach(function(k){ if(nc[k]!=null) a.cfg[k]=nc[k]; });
     X.sv(); if(X.isOpen()) X.render();
     if(r.more) setTimeout(sync,100);
@@ -74,7 +81,7 @@
     var d=(typeof db!=="undefined")?db:null; if(d&&d.assoc) delete d.assoc[X.pid()]; X.sv();
     if(X.isOpen()){ X.close(); } X.say(why("no_access"));
    }
-  }).then(function(){ busy=false; if(again){ again=false; setTimeout(sync,300); } },function(){ busy=false; });
+  }).then(function(){ busy=false; if(again){ again=false; setTimeout(sync,300); } else if(sentOk&&(a.q||[]).length) setTimeout(sync,400); },function(){ busy=false; });   /* a big change (e.g. areas → units) goes 200 at a time */
  }
  window.__tcAsSync=sync;
  window.__tcAsSyncSoon=function(){ clearTimeout(timer); timer=setTimeout(sync,1200); };
@@ -92,7 +99,7 @@
  window.__tcAsHomeExtra=function(){
   var a=X.A(), pid=pidNum(); if(!a) return "";
   if(a.cloud){
-   var who=a.title&&a.title!=="owner"?a.title:"", acc={admin:T("അഡ്മിൻ","admin"),edit:T("മാറ്റാം","can edit"),view:T("കാണാൻ മാത്രം","view only")}[a.acc]||"";
+   var who=(a.title&&a.title!=="owner"?a.title:"")+(X.myRoot()?" · "+X.comName(X.myRoot()):""), acc={admin:T("അഡ്മിൻ","admin"),edit:T("മാറ്റാം","can edit"),view:T("കാണാൻ മാത്രം","view only")}[a.acc]||"";
    return '<div class="asM" style="margin:0 0 8px">&#9729;&#65039; '+E(T("ക്ലൗഡ് പുസ്തകം","Cloud book"))+(who||acc?' · '+E([who,acc].filter(Boolean).join(", ")):'')+(a.synced?' · '+E(T("സിങ്ക്","synced"))+' '+E(a.synced.slice(11,16)):'')+((a.q||[]).length?' · <b style="color:#a15c00">'+(a.q||[]).length+' '+E(T("അയക്കാനുണ്ട്","to send"))+'</b>':'')+'</div>';
   }
   var s=stat[pid];
@@ -107,7 +114,7 @@
   var a=X.A(), pid=pidNum(); if(!a||!pid) return;
   if(!confirm(T("ഈ ഫോണിലെ സംഘടനാ പുസ്തകം ക്ലൗഡിലേക്ക് മാറ്റട്ടെ?","Move this phone's association book to the cloud?"))) return;
   X.say(T("ക്ലൗഡിലേക്ക് മാറ്റുന്നു...","Moving to the cloud..."));
-  api("init",{pid:pid,book:{cfg:a.cfg,members:a.members,pays:a.pays,led:a.led,mins:a.mins,acts:a.acts}}).then(function(r){
+  api("init",{pid:pid,book:{cfg:a.cfg,coms:a.coms||[],members:a.members,pays:a.pays,led:a.led,mins:a.mins,acts:a.acts}}).then(function(r){
    if(r&&r.ok){ a.cloud=true; a.rev=0; a.q=[]; X.sv(); X.say(T("ക്ലൗഡിലേക്ക് മാറ്റി ✓","Moved to the cloud ✓")); sync(); }
    else X.say(why(r&&r.error));
   });
@@ -117,13 +124,13 @@
  window.tcAssocOpen=function(n,a2){ X.setPid(""); oldOpen(n,a2); checkStatus(); };
 
  /* ---------- office bearers ---------- */
- var POSTS=[["president","പ്രസിഡന്റ്","President","admin"],["vp","വൈസ് പ്രസിഡന്റ്","Vice President","view"],["secretary","സെക്രട്ടറി","Secretary","admin"],["jsec","ജോയിന്റ് സെക്രട്ടറി","Joint Secretary","edit"],["treasurer","ട്രഷറർ","Treasurer","edit"],["exec","എക്സിക്യൂട്ടീവ് മെമ്പർ","Executive member","view"],["other","മറ്റ് സ്ഥാനം","Other post","view"]];
+ var POSTS=[["president","പ്രസിഡന്റ്","President","admin"],["vp","വൈസ് പ്രസിഡന്റ്","Vice President","view"],["secretary","സെക്രട്ടറി","Secretary","admin"],["jsec","ജോയിന്റ് സെക്രട്ടറി","Joint Secretary","edit"],["treasurer","ട്രഷറർ","Treasurer","edit"],["jtr","സഹ ട്രഷറർ","Joint Treasurer","view"],["exec","എക്സിക്യൂട്ടീവ് മെമ്പർ","Executive member","view"],["other","മറ്റ് സ്ഥാനം","Other post","view"]];
  function accTxt(x){ return {admin:T("അഡ്മിൻ (എല്ലാം)","Admin (all)"),edit:T("കണക്ക് ചേർക്കാം","Can add / edit"),view:T("കാണാൻ മാത്രം","View only")}[x]||x; }
  X.screen("roles",function(){
   var a=X.A(), rs=(a.roles||[]).filter(function(r){ return !r.del; }), act=rs.filter(function(r){ return !(r.to&&r.to<X.today()); }), past=rs.filter(function(r){ return r.to&&r.to<X.today(); });
-  var row=function(r,isPast){ var m=X.memberById(r.mid)||{}; return '<div class="asR"'+(a.acc==="admin"&&!isPast?' onclick="tcAsGo(\'rform\',\''+r.id+'\')"':'')+'><div style="flex:1;min-width:0"><div style="font-weight:700">'+E(r.title||"")+' · '+E(m.name||r.name||"")+'</div><div class="asM">'+E((r.ph||"")+" · "+accTxt(r.access)+" · "+dmy(r.from||"")+(r.to?" – "+dmy(r.to):""))+'</div></div></div>'; };
+  var row=function(r,isPast){ var m=X.memberById(r.mid)||{}; return '<div class="asR"'+(a.acc==="admin"&&!isPast?' onclick="tcAsGo(\'rform\',\''+r.id+'\')"':'')+'><div style="flex:1;min-width:0"><div style="font-weight:700">'+E(r.title||"")+' · '+E(m.name||r.name||"")+'</div><div class="asM">'+E((X.coms().length?X.comName(X.comOf(r))+" · ":"")+(r.ph||"")+" · "+accTxt(r.access)+" · "+dmy(r.from||"")+(r.to?" – "+dmy(r.to):""))+'</div></div></div>'; };
   var h='<div class="asC">'+(a.acc==="admin"?'<span class="asBtn" onclick="tcAsGo(\'rform\')">+ '+E(T("ഭാരവാഹിയെ ചേർക്കുക","Add office bearer"))+'</span>':'')+
-   '<div class="asM" style="margin-top:6px">'+E(T("ഭാരവാഹിയുടെ മൊബൈൽ നമ്പറിൽ ലോഗിൻ ചെയ്താൽ ആപ്പ് അവരെ തിരിച്ചറിയും. കാലാവധി കഴിഞ്ഞാൽ \"കാലാവധി അവസാനിപ്പിക്കുക\" - അപ്പോൾ തന്നെ അനുമതി പോകും.","The app knows an office bearer by the mobile number they log in with. When the term ends, tap \"End term\" - the access goes at once."))+'</div>'+(a.acc==="admin"?'<div class="asM" style="margin-top:4px;color:#a15c00">'+E(T("കമ്മിറ്റി മാറുമ്പോൾ: പുതിയ ഭാരവാഹികളെ ചേർക്കുക, പഴയവരുടെ കാലാവധി അവസാനിപ്പിക്കുക, പിന്നെ \"സംഘടന കൈമാറുക\" വഴി പുതിയ സെക്രട്ടറിക്ക് (അഡ്മിൻ) കൈമാറുക - പ്ലാൻ പുതുക്കലും അവർക്ക് പോകും.","When the committee changes: add the new office bearers, end the old terms, then \"Hand over\" the organisation to the new secretary (admin) - plan renewals go to them too."))+'</div><span class="asBtn l" onclick="tcAsHandover()">'+E(T("സംഘടന കൈമാറുക","Hand over the organisation"))+'</span>':'')+'</div>'+
+   '<div class="asM" style="margin-top:6px">'+E(T("ഭാരവാഹിയുടെ മൊബൈൽ നമ്പറിൽ ലോഗിൻ ചെയ്താൽ ആപ്പ് അവരെ തിരിച്ചറിയും. കാലാവധി കഴിഞ്ഞാൽ \"കാലാവധി അവസാനിപ്പിക്കുക\" - അപ്പോൾ തന്നെ അനുമതി പോകും.","The app knows an office bearer by the mobile number they log in with. When the term ends, tap \"End term\" - the access goes at once."))+'</div>'+(a.acc==="admin"?'<div class="asM" style="margin-top:4px;color:#a15c00">'+E(T("കമ്മിറ്റി മാറുമ്പോൾ: പുതിയ ഭാരവാഹികളെ ചേർക്കുക, പഴയവരുടെ കാലാവധി അവസാനിപ്പിക്കുക, പിന്നെ \"സംഘടന കൈമാറുക\" വഴി പുതിയ സെക്രട്ടറിക്ക് (അഡ്മിൻ) കൈമാറുക - പ്ലാൻ പുതുക്കലും അവർക്ക് പോകും.","When the committee changes: add the new office bearers, end the old terms, then \"Hand over\" the organisation to the new secretary (admin) - plan renewals go to them too."))+'</div>'+(X.myRoot()?'':'<span class="asBtn l" onclick="tcAsHandover()">'+E(T("സംഘടന കൈമാറുക","Hand over the organisation"))+'</span>'):'')+'</div>'+
    '<div class="asC"><div style="font-weight:700;margin-bottom:4px">'+E(T("ഇപ്പോഴത്തെ ഭാരവാഹികൾ","Current office bearers"))+'</div>'+(act.length?act.map(function(r){ return row(r,false); }).join(""):'<div class="asM">'+E(T("ഇതുവരെ ചേർത്തിട്ടില്ല","None yet"))+'</div>')+'</div>'+
    (past.length?'<div class="asC"><div style="font-weight:700;margin-bottom:4px">'+E(T("മുൻ ഭാരവാഹികൾ","Past office bearers"))+'</div>'+past.map(function(r){ return row(r,true); }).join("")+'</div>':'');
   return {title:T("ഭാരവാഹികൾ","Office bearers"),html:h};
@@ -133,6 +140,7 @@
   var key=r?(POSTS.filter(function(p){ return p[2]===r.title||p[1]===r.title; })[0]||["other"])[0]:"secretary";
   var h='<div class="asC"><label>'+E(T("സ്ഥാനം","Post"))+'</label><div>'+chips("rpost",POSTS.map(function(p){ return [p[0],T(p[1],p[2])]; }),key)+'</div>'+
    '<div id="tcAsRoth"'+(key==="other"?'':' hidden')+'><label>'+E(T("സ്ഥാനത്തിന്റെ പേര്","Name of the post"))+'</label><input id="tcAsRt" value="'+E(r&&key==="other"?r.title:"")+'"></div>'+
+   (X.coms().length?'<label>'+E(T("ഏത് കമ്മിറ്റിയിലെ സ്ഥാനം (അവർക്ക് ആ കമ്മിറ്റിയും അതിന് താഴെയുള്ളവയും മാത്രം കാണാം)","Post in which committee (they see only that committee and those below it)"))+'</label>'+X.comSelect("tcAsRc",r?(X.comOf(r)||"_"):(X.myRoot()||"_")):'')+
    '<label>'+E(T("മെമ്പർ","Member"))+'</label><select id="tcAsRm"><option value="">-</option>'+ms.map(function(m){ return '<option value="'+m.id+'" data-ph="'+E(m.ph||"")+'"'+(r&&r.mid===m.id?' selected':'')+'>'+E((m.no?m.no+". ":"")+m.name)+'</option>'; }).join("")+'</select>'+
    '<label>'+E(T("മൊബൈൽ നമ്പർ (ഇതിൽ ലോഗിൻ ചെയ്യണം)","Mobile number (they log in with it)"))+'</label><input id="tcAsRp" type="tel" value="'+E(r?r.ph:"")+'">'+
    '<label>'+E(T("അനുമതി","Access"))+'</label><div>'+chips("racc",[["admin",accTxt("admin")],["edit",accTxt("edit")],["view",accTxt("view")]],r?r.access:"admin")+'</div>'+
@@ -156,6 +164,7 @@
   var ph=v("tcAsRp").replace(/\D/g,"").slice(-10); if(ph.length!==10){ X.say(why("bad_phone")); return; }
   var old=id?(a.roles||[]).filter(function(x){ return x.id===id; })[0]:null;
   var r=Object.assign({},old||{id:X.uid()},{title:title,mid:v("tcAsRm"),ph:ph,access:chipVal("racc")||"view",from:v("tcAsRf")||X.today()});
+  if(X.coms().length) r.com=X.comVal("tcAsRc");
   delete r._by; delete r._at;
   sendRole(r,false).then(function(){ X.back(); });
  };
