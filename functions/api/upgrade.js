@@ -42,6 +42,11 @@ const DEFAULT_SETTINGS = {
   upi_id: "",
   upi_name: "Travel Connect",
   assoc_free_members: "25",   /* Association book (tc-assoc.js): free up to this many members, above that Premium / Platinum (2026-11-20) */
+  price_assoc_premium_year: "1000",     /* associations / unions / Kudumbashree (owner 2026-11-20): Premium = cloud book, office bearers */
+  price_assoc_platinum_year: "3000",    /* Platinum = + every member sees his own membership */
+  assoc_limit_premium: "1000",          /* members in the cloud book on Premium (assoc.js) */
+  assoc_limit_platinum: "10000",        /* members on Platinum; bigger organisations: admin sets their own limit */
+  assoc_roles_premium: "5",             /* office bearers with access on Premium (Platinum: no limit) */
 };
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -90,6 +95,8 @@ function periodFor(businessType, plan) {
   return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";
 }
 function priceFor(settings, businessType, plan) {
+  if (businessType === "association" && plan === "premium") return parseInt(settings.price_assoc_premium_year, 10) || 0;
+  if (businessType === "association" && plan === "platinum") return parseInt(settings.price_assoc_platinum_year, 10) || 0;
   if (plan === "platinum") return parseInt(settings.price_platinum_year, 10) || 0;
   const period = periodFor(businessType);
   const key = "price_" + (plan === "premium" ? "premium" : "plus") + "_" + period;
@@ -486,7 +493,7 @@ export async function onRequestPost({ request, env }) {
       let v = (incoming[k] ?? "").toString().trim();
       if (k.startsWith("price_")) {
         if (!/^\d{1,6}$/.test(v)) return j({ ok: false, error: "bad_price", key: k }, 400);
-      } else if (k === "assoc_free_members") {
+      } else if (k === "assoc_free_members" || k === "assoc_limit_premium" || k === "assoc_limit_platinum" || k === "assoc_roles_premium") {
         if (!/^\d{1,5}$/.test(v)) return j({ ok: false, error: "bad_number", key: k }, 400);
       } else if (k === "upi_id") {
         if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) return j({ ok: false, error: "bad_upi" }, 400);
