@@ -16,7 +16,7 @@
  function biz(){ try{ return window.__tcBizOnScreen?String(window.__tcBizOnScreen()||""):""; }catch(e){ return ""; } }
  function shopOn(){   /* the shop book is open on screen (its layer stays in the page when closed, so ask the shop UI) */
   try{ var u=window.__tcShopUi; if(u&&typeof u.isOpen==="function"&&u.isOpen()) return true; }catch(e){}
-  var b=biz(); return !!b&&!/taxi|travel|auto|pickup|cab|vehicle/.test(b);   /* every non-vehicle business uses the shop book */
+  var b=biz(); return !!b&&b!=="association"&&!/taxi|travel|auto|pickup|cab|vehicle/.test(b);   /* every non-vehicle business uses the shop book (an association has its own book) */
  }
  function travelOn(){ return /taxi|travel|auto|cab|tempo|bus|vehicle/.test(biz()); }
  function norm(t){ return " "+String(t||"").toLowerCase().replace(/[.,!?;:"'()\[\]]/g," ").replace(/\s+/g," ").trim()+" "; }
@@ -209,6 +209,24 @@
    en:"AI insights: the \"Insights\" card on the shop home and the taxi Dashboard. Saying \"insights\" here opens them too. Ask: \"profit this month\", \"who owes me money\".",
    go:null},
   /* ---- added 2026-11-18: more of the app, with "Show me" demos where the screen is in this app's own files ---- */
+  {k:["മെമ്പർ+ചേർക്ക","മെമ്പറെ","അംഗത്വം","member+add","add member","new member","member cherkk"],b:"assoc",
+   ml:"മെമ്പറെ ചേർക്കാൻ: ഡാഷ്ബോർഡിലെ \"സംഘടനാ പുസ്തകം\" › \"മെമ്പർമാർ\" › \"+ മെമ്പറെ ചേർക്കുക\". പേര്, ഫോൺ, മെമ്പർ നമ്പർ, ഏരിയ, ചേർന്ന തീയതി; \"കൂടുതൽ\"-ൽ വണ്ടി നമ്പർ, നില (സജീവം / സസ്പെൻഡ് / ഒഴിവായി).",
+   en:"To add a member: Dashboard › \"Association book\" › \"Members\" › \"+ Add member\". Name, phone, member no., area, joined date; under \"More\": vehicle no., status (active / suspended / left).",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("members"); }:null; }},
+  {k:["വരിസംഖ്യ","subscription","രസീത്","receipt","varisamkhya","പിരിവ്","piriv"],b:"assoc",
+   ml:"വരിസംഖ്യ വാങ്ങാൻ: \"സംഘടനാ പുസ്തകം\" › \"വരിസംഖ്യ വാങ്ങുക\" › മെമ്പറെ തിരഞ്ഞെടുക്കുക › മാസങ്ങൾ (ബാക്കിയുള്ളവ ചുവപ്പിൽ; മുൻകൂറും ആകാം) › കാഷ് / UPI / ബാങ്ക് › \"സേവ് ചെയ്ത് രസീത്\". രസീത് WhatsApp-ൽ അയക്കാം, പ്രിന്റ് ചെയ്യാം. തുക \"സെറ്റിംഗ്സ്\"-ൽ.",
+   en:"To collect a subscription: \"Association book\" › \"Collect subscription\" › pick the member › the months (dues in red; advance too) › Cash / UPI / Bank › \"Save & receipt\". Send the receipt on WhatsApp or print it. The amount is in \"Settings\".",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("collect"); }:null; }},
+  {k:["അടയ്ക്കാത്ത","കുടിശ്ശിക","ഓർമ്മപ്പെടുത്ത","dues list","reminder","pending"],b:"assoc",
+   ml:"അടയ്ക്കാത്തവർ: \"സംഘടനാ പുസ്തകം\" › \"അടയ്ക്കാത്തവർ\" - ഏരിയ തിരിച്ച്, ഓരോരുത്തർക്കും \"WhatsApp\" ഓർമ്മപ്പെടുത്തൽ; \"ലിസ്റ്റ് ഷെയർ ചെയ്യുക\" ഗ്രൂപ്പിലേക്ക്.",
+   en:"Dues: \"Association book\" › \"Dues list\" - by area, a \"WhatsApp\" reminder for each member; \"Share the list\" for a group.",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("dues"); }:null; }},
+  {k:["വരവ്-ചെലവ്","ലെഡ്ജർ","ledger","സംഭാവന","donation","ചെലവ്+ചേർക്ക"],b:"assoc",
+   ml:"വരവ്-ചെലവ്: \"സംഘടനാ പുസ്തകം\" › \"വരവ്-ചെലവ്\" › \"+ വരവ്\" (സംഭാവന, പിഴ, ക്ഷേമനിധി) / \"- ചെലവ്\" (യോഗം, സഹായം, ഓഫീസ്). വരിസംഖ്യ രസീതുകൾ തനിയെ വരവിൽ വരും. കയ്യിലും ബാങ്കിലും ബാക്കി വേറെ കാണിക്കും.",
+   en:"Ledger: \"Association book\" › \"Ledger\" › \"+ Income\" (donation, fine, welfare fund) / \"- Expense\" (meeting, help, office). Subscription receipts come in by themselves. Cash and bank balances are shown separately.",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("ledger"); }:null; }},
+  {k:["മിനിറ്റ്സ്","minutes","യോഗം","meeting","നടപടി","താക്കീത്","സസ്പെൻ","action"],b:"assoc",
+   ml:"മിനിറ്റ്സ്: \"സംഘടനാ പുസ്തകം\" › \"മിനിറ്റ്സ് / നടപടി\" › \"+ യോഗം / മിനിറ്റ്സ്\" (തീയതി, സ്ഥലം, പങ്കെടുത്തവർ, തീരുമാനങ്ങൾ; പ്രിന്റ്). മെമ്പർക്കെതിരെ നടപടി: \"+ നടപടി\" (താക്കീത്, പിഴ, സസ്പെൻഷൻ) - മെമ്പറുടെ പേജിലും കാണും.",
+   en:"Minutes: \"Association book\" › \"Minutes & actions\" › \"+ Meeting / minutes\" (date, place, present, decisions; print). Action on a member: \"+ Action\" (warning, fine, suspension) - also shown on the member's page.",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("minutes"); }:null; }},
+  {k:["റിപ്പോർട്ട്","report","statement","ഓഡിറ്റ്","audit","ജനറൽ ബോഡി","excel"],b:"assoc",
+   ml:"റിപ്പോർട്ട്: \"സംഘടനാ പുസ്തകം\" › \"റിപ്പോർട്ട്\" › മാസം / വർഷം - തുടക്ക ബാക്കി, വരവ്, ചെലവ്, അവസാന ബാക്കി. \"Excel\" (മെമ്പർ ലിസ്റ്റ് + ബാക്കി സഹിതം), \"പ്രിന്റ് / PDF\".",
+   en:"Reports: \"Association book\" › \"Reports\" › Month / Year - opening balance, income, expense, closing balance. \"Excel\" (with members and dues), \"Print / PDF\".",go:function(){ return fn("tcAssocOpen")?function(){ window.tcAssocOpen("reports"); }:null; }},
   {k:["ആപ്പ്+എന്തൊക്കെ","ആപ്പ്+ഉപയോഗ","ആപ്പ്+എന്തിന്","എന്തൊക്കെ ചെയ്യാം","എന്തിനൊക്കെ","ഫീച്ചറുകൾ","features","app+use","what can this app","what is this app","about the app","about travel connect","app+enthokke","enthokke cheyyam"],b:"all",
    ml:"Travel Connect - ഒരൊറ്റ ആപ്പിൽ:\n• ബിസിനസിന്: ടാക്സി / ഓട്ടോ / ഗുഡ്സ് - Live Trip, Quick Bill, Quotation, Trip & Accounts, Day Book. ഷോപ്പ്, റെസ്റ്റോറന്റ്, സ്കിൽഡ് വർക്കർ തുടങ്ങി മറ്റെല്ലാ ബിസിനസിനും - വിൽപ്പന ബിൽ, പർച്ചേസ്, സ്റ്റോക്ക്, ചെലവ്, കടം, സ്റ്റാഫ് ശമ്പളം, GST / CA റിപ്പോർട്ട്, Insights.\n• കസ്റ്റമേഴ്സിനെ കിട്ടാൻ: \"Share Travel Connect\" കാർഡ്, \"Shop window\", ലോക്കൽ ഡയറക്ടറി.\n• എല്ലാവർക്കും: \"My Accounts\" (സ്വന്തം വരവ്-ചെലവ്, ലോൺ, ചിട്ടി, ബില്ലുകൾ, ബാക്കപ്പ്), അടുത്തുള്ള വണ്ടികൾ, യാത്രച്ചാർജ് എസ്റ്റിമേറ്റ്, രക്തദാതാക്കൾ, SOS.\n• മൈക്ക് ബട്ടണിൽ മലയാളത്തിലോ ഇംഗ്ലീഷിലോ ചോദിക്കാം - കണക്കും, എങ്ങനെ ചെയ്യണം എന്നതും, AI-യോടും.",
    en:"Travel Connect - one app for:\n• Business: taxi / auto / goods - Live Trip, Quick Bill, Quotation, Trip & Accounts, Day Book. Shops, restaurants, skilled workers and every other business - sales bills, purchase, stock, expenses, dues, staff wages, GST / CA reports, Insights.\n• Getting customers: the \"Share Travel Connect\" card, \"Shop window\", the local directory.\n• Everybody: \"My Accounts\" (own income-expense, loans, chitty, bills, backup), nearby vehicles, fare estimate, blood donors, SOS.\n• Ask the mic button in Malayalam or English - figures, how to do things, and the AI.",go:null},
@@ -377,7 +395,8 @@
   if(tp.b==="all") return 2;
   if(tp.b==="shop") return shop?3:0;
   if(tp.b==="travel") return trv?3:0;
-  if(tp.b==="docs") return (shop||!trv)?3:0;
+  if(tp.b==="docs") return (shop||!trv)&&biz()!=="association"?3:0;
+  if(tp.b==="assoc") return biz()==="association"?4:0;
   return 0;
  }
  function examples(shop,trv){
