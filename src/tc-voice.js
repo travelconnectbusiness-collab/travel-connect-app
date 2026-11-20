@@ -275,6 +275,9 @@
   /* "how / where do I ..." about the app itself: answered first, on every plan and every business (tc-vohelp.js) */
   var hp=null; try{ hp=typeof window.tcVoHelp==="function"?window.tcVoHelp(raw):null; }catch(e){ hp=null; }
   if(hp&&hp.intent) return hp;
+  /* an association / union / Kudumbashree book (tc-assoc2.js): members, dues, collection, balance - on every plan */
+  if(bizType()==="association"&&typeof window.tcAssocAnswer==="function"){ var asr=null; try{ asr=window.tcAssocAnswer(s); }catch(e){ asr=null; } if(asr) return asr; if(hp) return hp;
+   return {kind:"none",ml:"മനസ്സിലായില്ല. ഇങ്ങനെ ചോദിക്കൂ: \"വരിസംഖ്യ അടയ്ക്കാത്തവർ ആരൊക്കെ\", \"ഈ മാസം എത്ര പിരിഞ്ഞു\", \"ബാക്കി എത്ര\", \"എത്ര മെമ്പർമാർ\".",en:"Not understood. You can ask: \"who has not paid\", \"subscription collected this month\", \"balance\", \"how many members\"."}; }
   if(!aiOk()&&hp&&!amount(s)) return hp;   /* "500 rupees diesel expense" is a command (Platinum), not a help question */
   if(!aiOk()) return {kind:"none",ml:"വോയിസ് കമാൻഡും ചോദ്യവും Platinum പ്ലാനിൽ ലഭ്യമാണ്. (പറഞ്ഞ് ടൈപ്പ് ചെയ്യൽ - ടെക്സ്റ്റ് ബോക്സിൽ ടച്ച് ചെയ്ത ശേഷം മൈക്ക് - എല്ലാവർക്കും ഉണ്ട്.)",en:"Voice commands and questions are a Platinum feature. (Speaking into a text box - tap the box, then the mic - is for everyone.)"};
   var shop=shopPage()?(shopUi()||SHOPT):false, trv=travelOn(), isQ=hasQ(s), sw="";
