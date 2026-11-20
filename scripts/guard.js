@@ -324,6 +324,7 @@ const MARKERS = [
   ["src/tc-ai.js", "window.tcAskAi=", "In-app AI on the phone (question + app-help notes only, never the accounts)"],
   ["src/tc-voice.js", "tcVoAiOut", "Voice sheet: AI answer / Ask AI button"],
   ["src/tc-voice.js", "tcVoAiNext", "Voice sheet: Ask the next question (AI keeps the conversation)"],
+  ["src/tc-voice.js", "var t=$(\"tcVoTx\"); if(t) t.value=txt;", "Voice: words coming back after the sheet is closed do not crash"],
   ["functions/api/ai.js", "history.length ? null", "In-app AI: follow-up questions use the last 2 Q/A, not cached"],
   ["functions/api/ai.js", "never give taxi steps to a shop", "In-app AI: answers for the user's own kind of business"],
   ["src/tc-voice.js", "function hasQ", "Voice: English question words as whole words (WhatsApp is not \"what\")"],
