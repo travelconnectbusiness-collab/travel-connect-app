@@ -106,12 +106,18 @@
  function dues(m,upto){ return duesC(A().cfg,m,m?paidSet(m.id):{},upto); }
  function orgName(){ var c=A().cfg, p=window._myPartner; return c.org||(p&&p.business_name)||T("സംഘടന","Association"); }
  function freeLimit(){ var n=25; try{ var v=parseInt(localStorage.getItem("tc_assoc_free"),10); if(v>=0) n=v; }catch(e){} return n; }
- function premOk(){
-  try{ if(typeof tcIsPlatinumPlan==="function"&&tcIsPlatinumPlan()) return true; }catch(e){}
+ /* plan level for the book: 3 Platinum, 2 Premium, 1 Plus (Rs 100 - 100 members with the cloud, owner 2026-11-20), 0 Free */
+ function planLvl(){
+  try{ if(typeof tcIsPlatinumPlan==="function"&&tcIsPlatinumPlan()) return 3; }catch(e){}
   var s=(DB()||{}).settings||{};
-  if(s.myPlan==="owner_free"||s.myPlan==="owner_plus") return true;
-  if(s.myPlan!=="premium") return false;
-  return !s.myPlanExpiresAt||new Date(s.myPlanExpiresAt).getTime()>Date.now();
+  if(s.myPlan==="owner_free"||s.myPlan==="owner_plus") return 3;
+  var run=!s.myPlanExpiresAt||new Date(s.myPlanExpiresAt).getTime()>Date.now();
+  return !run?0:(s.myPlan==="premium"?2:(s.myPlan==="paid"?1:0));
+ }
+ function planLimit(){ var l=planLvl(), o={}; try{ o=JSON.parse(localStorage.getItem("tc_assoc_lims")||"{}")||{}; }catch(e){}
+  return l>=3?(+o.platinum||100000):(l>=2?(+o.premium||10000):(l>=1?(+o.paid||100):freeLimit())); }
+ function premOk(){   /* may keep the book in the cloud (Plus and above) */
+  return planLvl()>=1;
  }
  function phone10(p){ var d=String(p||"").replace(/\D/g,""); if(d.length===12&&d.slice(0,2)==="91") d=d.slice(2); return d.length===10?d:""; }
  function wa(ph,text){ var p=phone10(ph); return "https://wa.me/"+(p?"91"+p:"")+"?text="+encodeURIComponent(text); }
@@ -188,8 +194,8 @@
    tile(TY().house?"&#127968;":"&#128101;",TY().house?T("വീടുകൾ","Houses"):T("മെമ്പർമാർ","Members"),"tcAsGo('members')",act.length+"")+tile("&#128210;",T("വരവ്-ചെലവ്","Ledger"),"tcAsGo('ledger')")+
    tile("&#128221;",T("മിനിറ്റ്സ് / നടപടി","Minutes & actions"),"tcAsGo('minutes')")+tile("&#128202;",T("റിപ്പോർട്ട്","Reports"),"tcAsGo('reports')")+
    tile("&#9881;&#65039;",T("സെറ്റിംഗ്സ്","Settings"),"tcAsGo('settings')","",false,1)+(typeof window.__tcAsHomeTiles==="function"?window.__tcAsHomeTiles():"")+'</div>';
-  if(!premOk()&&!a.cloud) h+='<div class="asM" style="text-align:center">'+E(T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം. കൂടുതൽ മെമ്പർമാർക്ക് Premium / Platinum (Menu › Verification & Plan).",
-   "Free up to "+freeLimit()+" members. More members: Premium / Platinum (Menu › Verification & Plan)."))+'</div>';
+  if(!premOk()&&!a.cloud) h+='<div class="asM" style="text-align:center">'+E(T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം (ഈ ഫോണിൽ മാത്രം). 100 മെമ്പർ വരെ ക്ലൗഡോടെ Plus ₹100 / വർഷം; കൂടുതലിന് Premium / Platinum (Menu › Verification & Plan).",
+   "Free up to "+freeLimit()+" members (this phone only). Up to 100 members with the cloud: Plus Rs 100 / year; more: Premium / Platinum (Menu › Verification & Plan)."))+'</div>';
   return {title:T("സംഘടനാ പുസ്തകം","Association book"),html:h};
  };
  window.tcAsGo=function(n,a){ if(!S.open||!$("tcAs")){ open(n,a); return; } go(n,a); };
@@ -236,8 +242,8 @@
   var a=A(), name=v("tcAsFn"); if(!name){ say(T("പേര് നൽകുക","Enter the name")); return; }
   if(TY().house&&!v("tcAsFh")){ say(T("വീട്ടുനമ്പർ / വീട്ടുപേര് നൽകുക","Enter the house no. / name")); return; }
   var m=id?memberById(id):null;
-  var lim=a.cloud&&a.limits?a.limits.members:(premOk()?1e9:freeLimit());
-  if(!m&&members().length>=lim){ say(a.cloud?T("ഈ പ്ലാനിൽ "+lim+" മെമ്പർ വരെ - കൂടുതലിന് പ്ലാൻ മാറ്റുക.","This plan allows "+lim+" members - change the plan for more."):T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം - കൂടുതൽ ചേർക്കാൻ Premium / Platinum എടുക്കുക (Menu › Verification & Plan).","Free up to "+freeLimit()+" members - take Premium / Platinum to add more (Menu › Verification & Plan).")); return; }
+  var lim=a.cloud&&a.limits?a.limits.members:planLimit();
+  if(!m&&members().length>=lim){ say(a.cloud||premOk()?T("ഈ പ്ലാനിൽ "+lim+" മെമ്പർ വരെ - കൂടുതലിന് പ്ലാൻ മാറ്റുക (Menu › Verification & Plan).","This plan allows "+lim+" members - change the plan for more (Menu › Verification & Plan)."):T(freeLimit()+" മെമ്പർ വരെ സൗജന്യം - കൂടുതൽ ചേർക്കാൻ Plus (₹100: 100 മെമ്പർ) / Premium / Platinum എടുക്കുക (Menu › Verification & Plan).","Free up to "+freeLimit()+" members - take Plus (Rs 100: 100 members) / Premium / Platinum to add more (Menu › Verification & Plan).")); return; }
   var no=v("tcAsFno"); if(no&&members().some(function(x){ return x.no===no&&(!m||x.id!==m.id); })){ say(T("ഈ മെമ്പർ നമ്പർ വേറെ ഒരാൾക്കുണ്ട്","This member number is already used")); return; }
   if(!m){ m={id:uid(),created:today()}; a.members.push(m); }
   var t=TY();
@@ -376,5 +382,5 @@
  /* for part 2 (tc-assoc2.js) and the tests */
  window.__tcAs={TYPES:TYPES,TY:TY,TYc:TYc,subName:subName,areaName:areaName,perWord:perWord,vehs:vehs,memAmt:memAmt,memAmtC:memAmtC,duesC:duesC,startPer:startPer,saved:saved,extraLine:extraLine,isoWeek:isoWeek,A:A,sv:sv,uid:uid,today:today,dmy:dmy,money:money,perOf:perOf,curPer:curPer,perLabel:perLabel,perNext:perNext,perList:perList,live:live,members:members,memberById:memberById,
   paidSet:paidSet,dues:dues,orgName:orgName,coms:coms,comMap:comMap,comOf:comOf,kidsOf:kidsOf,subOf:subOf,myRoots:myRoots,myRoot:myRoot,scopeSet:scopeSet,comName:comName,comPath:comPath,comChoices:comChoices,comSelect:comSelect,comVal:comVal,areaOf:areaOf,areaPick:areaPick,mFilter:mFilter,setDArea:function(x){ dArea=x||""; },premOk:premOk,freeLimit:freeLimit,screen:function(n,f){ SC[n]=f; },go:go,back:back,render:render,close:close,v:v,chips:chips,chipVal:chipVal,
-  tile:tile,E:E,T:T,say:say,op:op,canWrite:canWrite,setPid:function(p){ PIDO=p?String(p):""; },pid:pid,open:open,modeTxt:modeTxt,actTxt:actTxt,printHtml:printHtml,wa:wa,biz:biz,TYPE:TYPE,isOpen:function(){ return S.open; }};
+  tile:tile,E:E,T:T,say:say,op:op,canWrite:canWrite,setPid:function(p){ PIDO=p?String(p):""; },pid:pid,open:open,modeTxt:modeTxt,actTxt:actTxt,printHtml:printHtml,wa:wa,biz:biz,TYPE:TYPE,planLvl:planLvl,planLimit:planLimit,isOpen:function(){ return S.open; }};
 })();
