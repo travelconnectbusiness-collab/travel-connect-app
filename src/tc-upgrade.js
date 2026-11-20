@@ -131,7 +131,8 @@ function rememberPlan(d){
   localStorage.setItem("tc_plat:"+m,d.partner.platinum?"1":"0"); localStorage.setItem("tc_plan:"+m,d.partner.plan||"free"); localStorage.setItem("tc_plan_ts:"+d.partner.id,String(Date.now()));
   /* Platinum that is really running on THIS business (bought, or given by the admin; the owner plan too) - never the free period. Used for "my name only" bills (tc-ownbrand.js). */
   localStorage.setItem("tc_pp:"+d.partner.id,(d.partner.platinum&&(d.partner.plan==="premium"||d.partner.plan==="owner_free"))?"1":"0");
-  if(d.assoc_free!=null) localStorage.setItem("tc_assoc_free",String(d.assoc_free));   /* Association book: free member limit set by the admin (tc-assoc.js) */
+  if(d.assoc_free!=null) localStorage.setItem("tc_assoc_free",String(d.assoc_free));
+  if(d.assoc_limits) localStorage.setItem("tc_assoc_lims",JSON.stringify(d.assoc_limits));   /* members per plan (Plus 100 / Premium 10,000 / Platinum 1,00,000) */   /* Association book: free member limit set by the admin (tc-assoc.js) */
  }catch(e){}
 }
 window.tcPlanSync=async function(force){
@@ -283,12 +284,17 @@ window.tcUpOpenUpgrade=function(){
  const payReady=d.upi&&d.upi.id&&d.prices.paid>0&&d.prices.premium>0;
  const vr=d.verify; const needDocs=!d.partner.verified&&!(vr&&vr.status==="pending");
  upPlan="paid";
+ const isAs=d.partner.business_type==="association", asL=Object.assign({paid:100,premium:10000,platinum:100000},d.assoc_limits||{});   /* association book plans (owner 2026-11-20) */
  const planCard=(key,title,price,points)=>'<label id="tcUpPlan_'+key+'" style="display:block;border:2px solid #ccc;border-radius:10px;padding:8px 10px;margin:6px 0;cursor:pointer"><input type="radio" name="tcUpPlan" value="'+key+'" onchange="tcUpPickPlan(\''+key+'\')" style="width:auto;margin-right:6px"><b>'+title+'</b> - Rs '+price+' / '+per+'<div class="muted" style="font-size:12px;margin-top:3px">'+points+'</div></label>';
  modal('<h2>&#11088; '+bl("Get Plus / Premium","Plus / Premium എടുക്കുക")+'</h2>'+
-  '<p class="muted">'+(d.period==="month"?bl("Vehicle businesses pay monthly.","വാഹന ബിസിനസുകൾക്ക് മാസം തോറും."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
-  planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Blue tick badge, your own business name & UPI QR on bills, tagline in the directory, listed above Free. Shops & workshops: shop photo, 2 ad posts, social links.","നീല ടിക്ക് ബാഡ്ജ്, ബില്ലിൽ സ്വന്തം ബിസിനസ് പേരും UPI QR-ഉം, ഡയറക്ടറിയിൽ ടാഗ്‌ലൈൻ, ഫ്രീയേക്കാൾ മുകളിൽ ലിസ്റ്റിങ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ."))+
+  '<p class="muted">'+(isAs?bl("Associations pay yearly. Free: up to "+(d.assoc_free!=null?d.assoc_free:25)+" members on one phone, without the cloud.","സംഘടനകൾക്ക് വർഷം തോറും. ഫ്രീ: "+(d.assoc_free!=null?d.assoc_free:25)+" മെമ്പർ വരെ, ഒരു ഫോണിൽ മാത്രം, ക്ലൗഡ് ഇല്ല."):d.period==="month"?bl("Vehicle businesses pay monthly.","വാഹന ബിസിനസുകൾക്ക് മാസം തോറും."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
+  (isAs?
+   planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Small groups: up to "+asL.paid+" members. The book is kept safely in the cloud (nothing is lost if a phone is lost), office bearers on their own phones, committees.","ചെറിയ കൂട്ടായ്മകൾക്ക്: "+asL.paid+" മെമ്പർ വരെ. പുസ്തകം ക്ലൗഡിൽ സുരക്ഷിതം (ഫോൺ നഷ്ടപ്പെട്ടാലും കണക്ക് പോകില്ല), ഭാരവാഹികൾക്ക് സ്വന്തം ഫോണിൽ, കമ്മിറ്റികൾ."))+
+   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus, up to "+asL.premium.toLocaleString("en-IN")+" members. As many office bearers and committees as you have.","Plus-ലെ എല്ലാം, "+asL.premium.toLocaleString("en-IN")+" മെമ്പർ വരെ. എത്ര ഭാരവാഹികളെയും കമ്മിറ്റികളെയും ചേർക്കാം."))+
+   ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium, up to "+asL.platinum.toLocaleString("en-IN")+" members + every member sees his own payments and dues on his own phone. Bigger organisations: talk to us.","Premium-ലെ എല്ലാം, "+asL.platinum.toLocaleString("en-IN")+" മെമ്പർ വരെ + ഓരോ മെമ്പർക്കും സ്വന്തം ഫോണിൽ അടച്ചതും ബാക്കിയും കാണാം. ഇതിലും വലിയ സംഘടനകൾ ബന്ധപ്പെടുക.")):"")
+  :  planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Blue tick badge, your own business name & UPI QR on bills, tagline in the directory, listed above Free. Shops & workshops: shop photo, 2 ad posts, social links.","നീല ടിക്ക് ബാഡ്ജ്, ബില്ലിൽ സ്വന്തം ബിസിനസ് പേരും UPI QR-ഉം, ഡയറക്ടറിയിൽ ടാഗ്‌ലൈൻ, ഫ്രീയേക്കാൾ മുകളിൽ ലിസ്റ്റിങ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ."))+
   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus + gold Premium badge, your logo, colours & fonts, top of the list, cloud backup. Shops & workshops: stock, sales & purchases, bills / quotations, job cards, reports. Other businesses: ad posts & social links.","Plus-ലെ എല്ലാം + സ്വർണ്ണ Premium ബാഡ്ജ്, സ്വന്തം ലോഗോ, നിറങ്ങൾ, ഫോണ്ടുകൾ, ലിസ്റ്റിൽ ഏറ്റവും മുകളിൽ, ക്ലൗഡ് ബാക്കപ്പ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: സ്റ്റോക്ക്, വിൽപ്പന / വാങ്ങൽ, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ. മറ്റ് ബിസിനസുകൾ: പരസ്യ പോസ്റ്റുകളും സോഷ്യൽ ലിങ്കുകളും."))+
-  ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + AI insights and voice (ask and add by speaking) + bills under your own name only (no Travel Connect strip) + for shops: up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + AI ഇൻസൈറ്റ്, വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിൽ നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ) + ഷോപ്പിന്: 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ.")):"")+
+  ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + AI insights and voice (ask and add by speaking) + bills under your own name only (no Travel Connect strip) + for shops: up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + AI ഇൻസൈറ്റ്, വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിൽ നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ) + ഷോപ്പിന്: 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ.")):""))+
   (payReady?
    '<div id="tcUpPay" style="margin-top:10px"></div>'+
    (needDocs?'<hr><p><b>'+bl("Your documents (first time only)","നിങ്ങളുടെ രേഖകൾ (ആദ്യതവണ മാത്രം)")+'</b></p>'+docFieldsHtml():"")+
@@ -443,6 +449,8 @@ window.tcAdLoadPriceBox=async function(){
   '<label>Your UPI ID (where owners pay)<input id="tcAdUpi" value="'+E(s.upi_id)+'" placeholder="name@bank"></label>'+
   '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label>'+
   '<label>Association book: free up to (members)<input id="tcAdAsF" type="number" min="0" value="'+E(s.assoc_free_members||"25")+'"></label>'+
+  '<label>Association: Plus (Rs / year)<input id="tcAdAsPp" type="number" min="0" value="'+E(s.price_assoc_plus_year||"100")+'"></label>'+
+  '<label>Association members on Plus<input id="tcAdAsLps" type="number" min="0" value="'+E(s.assoc_limit_plus||"100")+'"></label>'+
   '<label>Association: Premium (Rs / year)<input id="tcAdAsP" type="number" min="0" value="'+E(s.price_assoc_premium_year||"1000")+'"></label>'+
   '<label>Association: Platinum (Rs / year)<input id="tcAdAsPl" type="number" min="0" value="'+E(s.price_assoc_platinum_year||"3000")+'"></label>'+
   '<label>Association members on Premium<input id="tcAdAsLp" type="number" min="0" value="'+E(s.assoc_limit_premium||"10000")+'"></label>'+
@@ -462,7 +470,7 @@ window.tcAdPlat=async function(on){
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
- const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF"),price_assoc_premium_year:g("#tcAdAsP"),price_assoc_platinum_year:g("#tcAdAsPl"),assoc_limit_premium:g("#tcAdAsLp"),assoc_limit_platinum:g("#tcAdAsLpl")}});
+ const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF"),price_assoc_plus_year:g("#tcAdAsPp"),assoc_limit_plus:g("#tcAdAsLps"),price_assoc_premium_year:g("#tcAdAsP"),price_assoc_platinum_year:g("#tcAdAsPl"),assoc_limit_premium:g("#tcAdAsLp"),assoc_limit_platinum:g("#tcAdAsLpl")}});
  say(d.ok?"Saved":(d.error==="bad_upi"?"UPI ID looks wrong (name@bank)":"Could not save - prices must be whole numbers"));
 };
 if(typeof window.tcRenderPartnerPlans==="function"){
