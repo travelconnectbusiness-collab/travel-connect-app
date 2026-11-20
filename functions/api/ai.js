@@ -82,7 +82,7 @@ function prompt(lang, biz, notes) {
     "- Never answer only \"open the menu\" - always say what to tap or look for.\n" +
     "- Write app button and card names exactly as in the notes, in English letters inside quotes (e.g. \"Share Travel Connect\"), even in a Malayalam answer.\n" +
     "- For advertising / getting more customers: give practical steps (e.g. WhatsApp Business: catalogue, status, broadcast list, business profile) and mention the app's own Share card / Shop window when it fits.\n" +
-    "- Keep it short: at most 6 short lines, numbered steps when there are steps. Plain text, no markdown, no tables.\n" +
+    "- Keep it short: at most 6 short lines, numbered steps when there are steps. Plain text, no markdown, no tables. Always finish the last sentence.\n" +
     "- Never ask for or repeat OTPs, passwords, codes or card numbers. Never claim to have done anything in the app; you only explain.\n" +
     "- You do not see the user's accounts or figures. For figures, tell them to ask the voice button, e.g. \"profit this month\".";
 }
@@ -96,7 +96,7 @@ async function runAi(env, sys, q, history) {
   for (const model of list) {
     try {
       const out = await Promise.race([
-        env.AI.run(model, { messages: msgs, max_tokens: 700, temperature: 0.2 }),
+        env.AI.run(model, { messages: msgs, max_tokens: 1500, temperature: 0.2 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000)),
       ]);
       let t = out && (out.response != null ? out.response : (out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content));
@@ -137,7 +137,7 @@ export async function onRequestPost({ request, env }) {
   /* the last 2 questions + answers of this conversation (a follow-up question); not stored, and such answers are not cached */
   const history = (Array.isArray(body.history) ? body.history : []).slice(-2).map((h) => ({ q: clean(h && h.q, 400), a: clean(h && h.a, 1200) })).filter((h) => h.q && h.a);
 
-  const k = await sha("ai5|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
+  const k = await sha("ai6|" + lang + "|" + biz + "|" + q.toLowerCase().replace(/\s+/g, " ") + "|" + (await sha(notes.join("\n"))));
   try {
     const hit = history.length ? null : await env.DB.prepare("SELECT text, at FROM ai_cache WHERE k=?").bind(k).first();
     if (hit && Date.now() - Date.parse(hit.at) < CACHE_DAYS * 86400000) return j({ ok: true, text: hit.text, cached: 1 });
