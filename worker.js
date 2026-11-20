@@ -25,6 +25,7 @@ import { onRequestPost as billRemindersPost, maybeRunBillReminders } from "./fun
 import { onRequestPost as persCloudPost } from "./functions/api/perscloud.js";   /* My Accounts cloud backup (2026-11-18) */
 import { onRequestPost as roadKmPost } from "./functions/api/roadkm.js";        /* Google road km, Premium (2026-11-19) */
 import { onRequestPost as aiPost } from "./functions/api/ai.js";                /* in-app AI, Workers AI binding "AI" (2026-11-19) */
+import { onRequestPost as assocPost } from "./functions/api/assoc.js";          /* association book in the cloud (2026-11-20) */
 
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
@@ -146,6 +147,13 @@ async function handleApi(request, env, url, ctx) {
 
   if (url.pathname === "/api/roadkm") {
     if (request.method === "POST") return roadKmPost({ request, env });
+  }
+
+  if (url.pathname === "/api/assoc") {
+    if (request.method === "POST") {
+      if (Number(request.headers.get("content-length") || 0) > 8000000) return Response.json({ ok: false, error: "too_large" }, { status: 413 });
+      return assocPost({ request, env });
+    }
   }
 
   if (url.pathname === "/api/ai") {
