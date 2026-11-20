@@ -131,6 +131,7 @@ function rememberPlan(d){
   localStorage.setItem("tc_plat:"+m,d.partner.platinum?"1":"0"); localStorage.setItem("tc_plan:"+m,d.partner.plan||"free"); localStorage.setItem("tc_plan_ts:"+d.partner.id,String(Date.now()));
   /* Platinum that is really running on THIS business (bought, or given by the admin; the owner plan too) - never the free period. Used for "my name only" bills (tc-ownbrand.js). */
   localStorage.setItem("tc_pp:"+d.partner.id,(d.partner.platinum&&(d.partner.plan==="premium"||d.partner.plan==="owner_free"))?"1":"0");
+  if(d.assoc_free!=null) localStorage.setItem("tc_assoc_free",String(d.assoc_free));   /* Association book: free member limit set by the admin (tc-assoc.js) */
  }catch(e){}
 }
 window.tcPlanSync=async function(force){
@@ -440,7 +441,8 @@ window.tcAdLoadPriceBox=async function(){
   '<label>Shops, hotels, others: Premium (Rs / year)<input id="tcAdP4" type="number" min="0" value="'+E(s.price_premium_year)+'"></label>'+
   '<label>Platinum: shops, others (Rs / year)<input id="tcAdP5" type="number" min="0" value="'+E(s.price_platinum_year||"2999")+'"></label>'+
   '<label>Your UPI ID (where owners pay)<input id="tcAdUpi" value="'+E(s.upi_id)+'" placeholder="name@bank"></label>'+
-  '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label></div>'+
+  '<label>Name shown in the UPI app<input id="tcAdUpiName" value="'+E(s.upi_name)+'"></label>'+
+  '<label>Association book: free up to (members)<input id="tcAdAsF" type="number" min="0" value="'+E(s.assoc_free_members||"25")+'"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdSavePrices()">Save prices</button></div>'+
   '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the business with this number (any kind of business). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
   '<div class="grid"><label>Shop number<input id="tcAdPlM" type="tel" inputmode="numeric" maxlength="13" placeholder="10-digit number"></label><label>Days<input id="tcAdPlD" type="number" min="1" value="365"></label></div>'+
@@ -456,7 +458,7 @@ window.tcAdPlat=async function(on){
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
- const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName")}});
+ const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF")}});
  say(d.ok?"Saved":(d.error==="bad_upi"?"UPI ID looks wrong (name@bank)":"Could not save - prices must be whole numbers"));
 };
 if(typeof window.tcRenderPartnerPlans==="function"){
