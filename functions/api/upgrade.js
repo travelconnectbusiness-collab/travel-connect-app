@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS = {
   upi_id: "",
   upi_name: "Travel Connect",
   assoc_free_members: "25",   /* Association book (tc-assoc.js): free up to this many members, above that Premium / Platinum (2026-11-20) */
+  price_assoc_plus_year: "100",         /* owner 2026-11-20: small groups - up to 100 members with the cloud book for Rs 100 a year */
+  assoc_limit_plus: "100",
   price_assoc_premium_year: "1000",     /* associations / unions / Kudumbashree (owner 2026-11-20): Premium = cloud book, office bearers, committees */
   price_assoc_platinum_year: "3000",    /* Platinum = bigger organisations + every member sees his own membership */
   assoc_limit_premium: "10000",         /* members in the cloud book on Premium (assoc.js) - owner 2026-11-20: up to 10,000 for Rs 1000 */
@@ -95,6 +97,7 @@ function periodFor(businessType, plan) {
   return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";
 }
 function priceFor(settings, businessType, plan) {
+  if (businessType === "association" && plan === "paid") return parseInt(settings.price_assoc_plus_year, 10) || 0;
   if (businessType === "association" && plan === "premium") return parseInt(settings.price_assoc_premium_year, 10) || 0;
   if (businessType === "association" && plan === "platinum") return parseInt(settings.price_assoc_platinum_year, 10) || 0;
   if (plan === "platinum") return parseInt(settings.price_platinum_year, 10) || 0;
@@ -210,6 +213,7 @@ export async function onRequestGet({ request, env }) {
       platinum_ok: true,
       prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
+      assoc_limits: { paid: parseInt(settings.assoc_limit_plus, 10) || 100, premium: parseInt(settings.assoc_limit_premium, 10) || 10000, platinum: parseInt(settings.assoc_limit_platinum, 10) || 100000 },
       assoc_free: Number.isFinite(parseInt(settings.assoc_free_members, 10)) ? parseInt(settings.assoc_free_members, 10) : 25,
       email_ready: !!env.RESEND_API_KEY,
       verify: vr ? { id: vr.id, status: vr.status, admin_note: vr.admin_note, created_at: vr.created_at } : null,
@@ -493,8 +497,8 @@ export async function onRequestPost({ request, env }) {
       let v = (incoming[k] ?? "").toString().trim();
       if (k.startsWith("price_")) {
         if (!/^\d{1,6}$/.test(v)) return j({ ok: false, error: "bad_price", key: k }, 400);
-      } else if (k === "assoc_free_members" || k === "assoc_limit_premium" || k === "assoc_limit_platinum" || k === "assoc_roles_premium") {
-        if (!/^\d{1,5}$/.test(v)) return j({ ok: false, error: "bad_number", key: k }, 400);
+      } else if (k === "assoc_free_members" || k === "assoc_limit_plus" || k === "assoc_limit_premium" || k === "assoc_limit_platinum" || k === "assoc_roles_premium") {
+        if (!/^\d{1,7}$/.test(v)) return j({ ok: false, error: "bad_number", key: k }, 400);
       } else if (k === "upi_id") {
         if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) return j({ ok: false, error: "bad_upi" }, 400);
         v = v.slice(0, 100);
