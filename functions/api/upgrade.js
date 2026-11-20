@@ -42,11 +42,11 @@ const DEFAULT_SETTINGS = {
   upi_id: "",
   upi_name: "Travel Connect",
   assoc_free_members: "25",   /* Association book (tc-assoc.js): free up to this many members, above that Premium / Platinum (2026-11-20) */
-  price_assoc_premium_year: "1000",     /* associations / unions / Kudumbashree (owner 2026-11-20): Premium = cloud book, office bearers */
-  price_assoc_platinum_year: "3000",    /* Platinum = + every member sees his own membership */
-  assoc_limit_premium: "1000",          /* members in the cloud book on Premium (assoc.js) */
-  assoc_limit_platinum: "10000",        /* members on Platinum; bigger organisations: admin sets their own limit */
-  assoc_roles_premium: "5",             /* office bearers with access on Premium (Platinum: no limit) */
+  price_assoc_premium_year: "1000",     /* associations / unions / Kudumbashree (owner 2026-11-20): Premium = cloud book, office bearers, committees */
+  price_assoc_platinum_year: "3000",    /* Platinum = bigger organisations + every member sees his own membership */
+  assoc_limit_premium: "10000",         /* members in the cloud book on Premium (assoc.js) - owner 2026-11-20: up to 10,000 for Rs 1000 */
+  assoc_limit_platinum: "100000",       /* members on Platinum (10,000 - 1,00,000 for Rs 3000); above that: talk, then admin sets their own limit */
+  assoc_roles_premium: "0",             /* not used any more: every organisation adds as many office bearers / executives as it has */
 };
 
 const OTP_TTL_MS = 10 * 60 * 1000;
