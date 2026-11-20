@@ -86,13 +86,20 @@ async function log(env, pid, by, kind, rid, action, summary) {
   try { await env.DB.prepare("INSERT INTO assoc_log (pid, at, by_mobile, kind, rid, action, summary) VALUES (?,?,?,?,?,?,?)").bind(pid, nowIso(), by, kind, rid, action, String(summary || "").slice(0, 200)).run(); } catch (e) {}
 }
 function summaryOf(kind, d) {
-  if (kind === "member") return (d.no ? d.no + ". " : "") + (d.name || "");
+  if (kind === "member") return (d.no ? d.no + ". " : "") + (d.hno ? d.hno + " " : "") + (d.name || "") + (Array.isArray(d.vehs) && d.vehs.length ? " (" + d.vehs.length + " veh)" : "") + (+d.amt > 0 ? " rate " + d.amt : "");
   if (kind === "pay") return (d.rc || "") + " ₹" + (d.amt || 0) + " " + (d.periods || []).join(",");
   if (kind === "led") return (d.t === "out" ? "- " : "+ ") + "₹" + (d.amt || 0) + " " + (d.cat || "");
   if (kind === "min") return (d.date || "") + " " + String(d.dec || "").slice(0, 60);
   if (kind === "act") return (d.type || "") + " " + (d.note || "");
   if (kind === "role") return (d.title || "") + " " + (d.ph || "") + " " + (d.access || "") + (d.to ? " until " + d.to : "");
   return "";
+}
+const TYPES = ["taxi", "shg", "club", "res", "other"];
+function cleanCfg(c, old) {   /* the settings of a book (phase 3: kind of organisation, weekly thrift, vehicle rule) */
+  c = c || {}; old = old || {};
+  return JSON.stringify({ org: clean(c.org, 80), type: TYPES.includes(c.type) ? c.type : "other", amt: +c.amt || 0, per: c.per === "y" ? "y" : (c.per === "w" ? "w" : "m"), start: clean(c.start, 7),
+    areas: (Array.isArray(c.areas) ? c.areas : []).slice(0, 60).map((x) => clean(x, 40)), prefix: clean(c.prefix || old.prefix || "R", 8), openCash: +c.openCash || 0, openBank: +c.openBank || 0,
+    nextNo: +c.nextNo || old.nextNo || 1, inclVeh: Math.max(0, parseInt(c.inclVeh, 10) || 0), extraVeh: Math.max(0, +c.extraVeh || 0) });
 }
 async function liveMembers(env, pid) {
   const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM assoc_rec WHERE pid=? AND kind='member' AND del=0").bind(pid).first();
@@ -102,7 +109,7 @@ async function liveMembers(env, pid) {
 async function writeRec(env, pid, by, kind, id, data, del, org) {
   if (!KINDS.includes(kind) || !ID_RE.test(String(id || ""))) return { ok: false, error: "bad_record" };
   const txt = JSON.stringify(data || {});
-  if (txt.length > 4000) return { ok: false, error: "too_large" };
+  if (txt.length > (kind === "min" ? 60000 : 4000)) return { ok: false, error: "too_large" };   /* minutes of a big meeting: about 25 pages */
   const old = await env.DB.prepare("SELECT data, del FROM assoc_rec WHERE pid=? AND kind=? AND id=?").bind(pid, kind, id).first();
   if (old && old.del) return { ok: true, ignored: "cancelled" };                 /* cancelled stays cancelled */
   let d = data || {}, action = old ? (del ? "cancel" : "edit") : "add";
@@ -166,7 +173,7 @@ export async function onRequestPost({ request, env }) {
       const o = await env.DB.prepare("SELECT cfg FROM assoc_org WHERE pid=?").bind(m.pid).first();
       const pays = ((await env.DB.prepare("SELECT data FROM assoc_rec WHERE pid=? AND kind='pay' AND del=0 AND json_extract(data,'$.mid')=? ORDER BY rev DESC LIMIT 60").bind(m.pid, m.id).all()).results || []).map((x) => JSON.parse(x.data));
       let cfg = {}; try { cfg = JSON.parse((o && o.cfg) || "{}"); } catch (e) {}
-      mem.push({ pid: m.pid, org: cfg.org || p.business_name, cfg: { amt: cfg.amt, per: cfg.per, start: cfg.start }, member: JSON.parse(m.data), pays });
+      mem.push({ pid: m.pid, org: cfg.org || p.business_name, cfg: { type: cfg.type, amt: cfg.amt, per: cfg.per, start: cfg.start, inclVeh: cfg.inclVeh, extraVeh: cfg.extraVeh }, member: JSON.parse(m.data), pays });
     }
     return j({ ok: true, orgs, member: mem });
   }
@@ -186,7 +193,7 @@ export async function onRequestPost({ request, env }) {
     if (A.acc !== "admin" || A.lvl < 2) return j({ ok: false, error: A.lvl < 2 ? "plan" : "no_access" }, 403);
     if (org && org.rev > 0) return j({ ok: false, error: "already_in_cloud" }, 409);
     const bk = b.book || {}, cfg = bk.cfg || {};
-    const cfgTxt = JSON.stringify({ org: clean(cfg.org, 80), amt: +cfg.amt || 0, per: cfg.per === "y" ? "y" : "m", start: clean(cfg.start, 7), areas: (Array.isArray(cfg.areas) ? cfg.areas : []).slice(0, 60).map((x) => clean(x, 40)), prefix: clean(cfg.prefix || "R", 8), openCash: +cfg.openCash || 0, openBank: +cfg.openBank || 0, nextNo: +cfg.nextNo || 1 });
+    const cfgTxt = cleanCfg(cfg, {});
     const members = (bk.members || []).filter((m) => !m.del);
     if (members.length > lim.members) return j({ ok: false, error: "member_limit", limit: lim.members }, 400);
     if (!org) await env.DB.prepare("INSERT INTO assoc_org (pid, cfg, rev, rc_next, created_at, updated_at) VALUES (?,?,0,?,?,?)").bind(pid, cfgTxt, Math.max(1, parseInt(cfg.nextRc, 10) || 1), nowIso(), nowIso()).run();
@@ -198,7 +205,7 @@ export async function onRequestPost({ request, env }) {
       const list = Array.isArray(bk[KEY[kind]]) ? bk[KEY[kind]] : [];
       for (const r of list.slice(0, 50000)) {
         if (!ID_RE.test(String(r.id || ""))) continue;
-        const txt = JSON.stringify(r); if (txt.length > 4000) continue;
+        const txt = JSON.stringify(r); if (txt.length > (kind === "min" ? 60000 : 4000)) continue;
         const rev = await bump(env, pid, "rev");
         await env.DB.prepare("INSERT OR IGNORE INTO assoc_rec (pid, kind, id, data, ph, rev, del, by_mobile, at) VALUES (?,?,?,?,?,?,?,?,?)")
           .bind(pid, kind, r.id, txt, kind === "member" ? phone10(r.ph) || null : null, rev, r.del ? 1 : 0, me, nowIso()).run();
@@ -230,7 +237,7 @@ export async function onRequestPost({ request, env }) {
       if (kind === "cfg") {
         if (A.acc !== "admin" && A.acc !== "edit") { results.push({ kind, ok: false, error: "no_access" }); continue; }
         const c = op.data || {}, old = JSON.parse(org.cfg || "{}");
-        const cfgTxt = JSON.stringify({ org: clean(c.org, 80), amt: +c.amt || 0, per: c.per === "y" ? "y" : "m", start: clean(c.start, 7), areas: (Array.isArray(c.areas) ? c.areas : []).slice(0, 60).map((x) => clean(x, 40)), prefix: clean(c.prefix || old.prefix || "R", 8), openCash: +c.openCash || 0, openBank: +c.openBank || 0, nextNo: +c.nextNo || old.nextNo || 1 });
+        const cfgTxt = cleanCfg(c, old);
         const rev = await bump(env, pid, "rev");
         await env.DB.prepare("UPDATE assoc_org SET cfg=? WHERE pid=?").bind(cfgTxt, pid).run();
         org.cfg = cfgTxt;
