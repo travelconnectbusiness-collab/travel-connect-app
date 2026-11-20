@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS = {
   price_platinum_year: "2999",   /* Platinum: always yearly, for every kind of business (taxi / travel too) */
   upi_id: "",
   upi_name: "Travel Connect",
+  assoc_free_members: "25",   /* Association book (tc-assoc.js): free up to this many members, above that Premium / Platinum (2026-11-20) */
 };
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -202,6 +203,7 @@ export async function onRequestGet({ request, env }) {
       platinum_ok: true,
       prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
+      assoc_free: Number.isFinite(parseInt(settings.assoc_free_members, 10)) ? parseInt(settings.assoc_free_members, 10) : 25,
       email_ready: !!env.RESEND_API_KEY,
       verify: vr ? { id: vr.id, status: vr.status, admin_note: vr.admin_note, created_at: vr.created_at } : null,
       upgrade: ur ? { id: ur.id, plan: ur.plan, period: ur.period, amount: ur.amount, utr: ur.utr, status: ur.status, admin_note: ur.admin_note, created_at: ur.created_at } : null,
@@ -484,6 +486,8 @@ export async function onRequestPost({ request, env }) {
       let v = (incoming[k] ?? "").toString().trim();
       if (k.startsWith("price_")) {
         if (!/^\d{1,6}$/.test(v)) return j({ ok: false, error: "bad_price", key: k }, 400);
+      } else if (k === "assoc_free_members") {
+        if (!/^\d{1,5}$/.test(v)) return j({ ok: false, error: "bad_number", key: k }, 400);
       } else if (k === "upi_id") {
         if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) return j({ ok: false, error: "bad_upi" }, 400);
         v = v.slice(0, 100);
