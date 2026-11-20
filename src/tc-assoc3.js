@@ -66,7 +66,7 @@
    if(!r) return;
    if(r.ok&&r.cloud!==false){
     merge(a,r.recs||[]); a.rev=r.rev; a.acc=r.access; a.title=r.title||""; a.limits=r.limits; a.level=r.level; a.synced=new Date().toISOString();
-    var nc=r.cfg||{}; ["org","amt","per","start","areas","prefix","openCash","openBank","nextNo","nextRc"].forEach(function(k){ if(nc[k]!=null) a.cfg[k]=nc[k]; });
+    var nc=r.cfg||{}; ["org","type","amt","per","start","areas","prefix","openCash","openBank","nextNo","nextRc","inclVeh","extraVeh"].forEach(function(k){ if(nc[k]!=null) a.cfg[k]=nc[k]; });
     X.sv(); if(X.isOpen()) X.render();
     if(r.more) setTimeout(sync,100);
    }else if(r.error==="no_access"){
@@ -200,12 +200,8 @@
   if(c&&!force&&Date.now()-c.t<6*3600000){ mine=c.d; place(); return; }
   api("mine",{}).then(function(r){ if(!r||!r.ok) return; mine={orgs:r.orgs||[],member:r.member||[]}; try{ localStorage.setItem(key,JSON.stringify({t:Date.now(),d:mine})); }catch(e){} place(); });
  }
- function memberDues(x){
-  var c=x.cfg||{}, m=x.member||{}; if(!(+c.amt>0)||m.status==="l") return [];
-  var per=c.per==="y"?"y":"m", cur=X.perOf(X.today(),per), st=c.start||X.perOf(m.joined||X.today(),per); if(per==="m"&&st.length===4) st+="-01"; if(per==="y") st=st.slice(0,4);
-  var j=X.perOf(m.joined||st,per), from=j>st?j:st, paid={}; (x.pays||[]).forEach(function(p){ (p.periods||[]).forEach(function(q){ paid[q]=1; }); });
-  return X.perList(from,cur).filter(function(q){ return !paid[q]; });
- }
+ function memberDues(x){ var paid={}; (x.pays||[]).forEach(function(p){ (p.periods||[]).forEach(function(q){ paid[q]=1; }); }); return X.duesC(x.cfg||{},x.member||{},paid); }
+ function memberAmt(x){ return X.memAmtC(x.cfg||{},x.member||{}); }
  function place(){
   var c=$("tcAsMine"); if(!mine||(!mine.orgs.length&&!mine.member.length)){ if(c) c.remove(); return; }
   var anchor=$("tcPersCard"); if(!anchor||!anchor.parentNode){ if(c) c.remove(); return; }
@@ -214,7 +210,7 @@
   if(!c){ c=document.createElement("div"); c.id="tcAsMine"; c.style.cssText="background:#fff;border-radius:16px;padding:10px 12px;margin:0 0 12px;box-shadow:0 1px 4px rgba(0,0,0,.08)"; }
   var h='';
   if(orgs.length) h+='<div style="font-weight:800;color:#0b4f5a;margin-bottom:4px">&#128101; '+E(T("എന്റെ സംഘടനകൾ","My organisations"))+'</div>'+orgs.map(function(o){ return '<div onclick="tcAssocOpenOrg('+(+o.pid)+')" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #eef2f3;cursor:pointer"><div style="flex:1;min-width:0"><b>'+E(o.name)+'</b><div style="font-size:12px;color:#6b7c85">'+E(o.title||"")+'</div></div><span style="font-size:20px;color:#0b6f7d">&#8250;</span></div>'; }).join("");
-  if(mine.member.length) h+='<div style="font-weight:800;color:#0b4f5a;margin:'+(orgs.length?'8px':'0')+' 0 4px">&#127915; '+E(T("എന്റെ അംഗത്വം","My membership"))+'</div>'+mine.member.map(function(x,i){ var d=memberDues(x); return '<div onclick="tcAsMyMember('+i+')" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #eef2f3;cursor:pointer"><div style="flex:1;min-width:0"><b>'+E(x.org)+'</b><div style="font-size:12px;color:'+(d.length?"#a12d2d":"#1c6b2c")+'">'+E((x.member.no?T("നമ്പർ","No.")+" "+x.member.no+" · ":"")+(d.length?d.length+" "+T("ബാക്കി","due")+" · "+money(d.length*(+x.cfg.amt||0)):T("ബാക്കിയില്ല ✓","no dues ✓")))+'</div></div><span style="font-size:20px;color:#0b6f7d">&#8250;</span></div>'; }).join("");
+  if(mine.member.length) h+='<div style="font-weight:800;color:#0b4f5a;margin:'+(orgs.length?'8px':'0')+' 0 4px">&#127915; '+E(T("എന്റെ അംഗത്വം","My membership"))+'</div>'+mine.member.map(function(x,i){ var d=memberDues(x); return '<div onclick="tcAsMyMember('+i+')" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #eef2f3;cursor:pointer"><div style="flex:1;min-width:0"><b>'+E(x.org)+'</b><div style="font-size:12px;color:'+(d.length?"#a12d2d":"#1c6b2c")+'">'+E((x.member.no?T("നമ്പർ","No.")+" "+x.member.no+" · ":"")+(d.length?d.length+" "+T("ബാക്കി","due")+" · "+money(d.length*memberAmt(x)):T("ബാക്കിയില്ല ✓","no dues ✓")))+'</div></div><span style="font-size:20px;color:#0b6f7d">&#8250;</span></div>'; }).join("");
   if(c.getAttribute("data-h")!==h){ c.innerHTML=h; c.setAttribute("data-h",h); }
   if(c.previousElementSibling!==anchor) anchor.parentNode.insertBefore(c,anchor.nextSibling);
  }
@@ -228,7 +224,7 @@
   o.style.cssText="position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,.45);display:flex;align-items:flex-end";
   o.innerHTML='<div style="background:#fff;width:100%;max-height:85vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px"><div style="display:flex;align-items:center"><b style="flex:1;font-size:17px">'+E(x.org)+'</b><button type="button" onclick="document.getElementById(\'tcAsMy\').remove()" style="border:0;background:#eef2f3;border-radius:10px;padding:6px 10px;margin:0;min-height:0">&#10005;</button></div>'+
    '<div style="color:#6b7c85;font-size:13px">'+E(x.member.name+(x.member.no?" · "+T("നമ്പർ","No.")+" "+x.member.no:"")+(x.member.area?" · "+x.member.area:""))+'</div>'+
-   '<div style="margin:10px 0;padding:10px;border-radius:12px;background:'+(d.length?"#fdecec":"#eef8f0")+'"><b>'+E(d.length?T("വരിസംഖ്യ ബാക്കി","Subscription due")+": "+d.length+" × "+money(x.cfg.amt)+" = "+money(d.length*(+x.cfg.amt||0)):T("ബാക്കിയില്ല ✓","No dues ✓"))+'</b>'+(d.length?'<div style="font-size:12.5px;margin-top:3px">'+E(d.map(X.perLabel).join(", "))+'</div>':'')+'</div>'+
+   '<div style="margin:10px 0;padding:10px;border-radius:12px;background:'+(d.length?"#fdecec":"#eef8f0")+'"><b>'+E(d.length?T(X.TYc(x.cfg).sub[0]+" ബാക്കി",X.TYc(x.cfg).sub[1]+" due")+": "+d.length+" × "+money(memberAmt(x))+" = "+money(d.length*memberAmt(x)):T("ബാക്കിയില്ല ✓","No dues ✓"))+'</b>'+(d.length?'<div style="font-size:12.5px;margin-top:3px">'+E(d.map(X.perLabel).join(", "))+'</div>':'')+'</div>'+
    '<div style="font-weight:700;margin:6px 0">'+E(T("എന്റെ രസീതുകൾ","My receipts"))+'</div>'+((x.pays||[]).map(function(p){ return '<div style="display:flex;padding:6px 0;border-top:1px solid #eef2f3"><div style="flex:1">'+E((p.rc||"")+" · "+dmy(p.date))+'<div style="font-size:12px;color:#6b7c85">'+E((p.periods||[]).map(X.perLabel).join(", "))+'</div></div><b>'+money(p.amt)+'</b></div>'; }).join("")||'<div style="color:#6b7c85">'+E(T("ഇല്ല","None"))+'</div>')+'</div>';
   o.onclick=function(e){ if(e.target===o) o.remove(); };
   document.body.appendChild(o);
