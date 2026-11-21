@@ -398,6 +398,7 @@ const MARKERS = [
   ["src/tc-upgrade.js", "tc_assoc_lims", "Association plan cards and member limits per plan"],
   ["src/tc-assoc.js", "function planLimit(", "Association book: member limit per plan on the phone"],
   ["src/tc-assoc.js", "function addTypeOpt(", "Association kind in the login / registration business-type list"],
+  ["src/tc-assoc3.js", "Date.now()-c.t<20*60000", "My organisations / My membership card refreshes soon after a person is added"],
   ["worker.js", "/api/perscloud", "worker.js routes /api/perscloud (My Accounts cloud backup)"],
   ["worker.js", "/api/roadkm", "worker.js routes /api/roadkm (Google road km)"],
   ["worker.js", "/api/ai", "worker.js routes /api/ai (in-app AI)"],
