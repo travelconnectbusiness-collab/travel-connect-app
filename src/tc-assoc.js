@@ -18,6 +18,13 @@
  var TYPE="association";
  try{ if(typeof TC_BUSINESS_TYPES!=="undefined"&&!TC_BUSINESS_TYPES[TYPE]) TC_BUSINESS_TYPES[TYPE]="Association / Union / Kudumbashree / Club"; }catch(e){}
  try{ if(typeof TC_BUSINESS_TYPES_ML!=="undefined"&&!TC_BUSINESS_TYPES_ML[TYPE]) TC_BUSINESS_TYPES_ML[TYPE]="സംഘടന / യൂണിയൻ / കുടുംബശ്രീ / ക്ലബ്"; }catch(e){}
+ /* the login / registration form may already be on the page before this file loads: add the kind to every business-type list there (owner 2026-11-21) */
+ function addTypeOpt(){ try{ [].forEach.call(document.querySelectorAll("select"),function(sel){
+   if(!sel.querySelector('option[value="taxi_travel"]')||sel.querySelector('option[value="'+TYPE+'"]')) return;
+   var o=document.createElement("option"); o.value=TYPE; o.textContent=(typeof TC_BUSINESS_TYPES!=="undefined"&&TC_BUSINESS_TYPES[TYPE])||"Association / Union / Kudumbashree / Club";
+   var oth=sel.querySelector('option[value="other"]'); sel.insertBefore(o,oth||null); }); }catch(e){} }
+ addTypeOpt(); [500,2000,5000].forEach(function(t){ setTimeout(addTypeOpt,t); });
+ try{ document.addEventListener("click",function(){ setTimeout(addTypeOpt,60); },true); }catch(e){}
 
  /* ---------- data ---------- */
  function DB(){ try{ return (typeof db!=="undefined")?db:null; }catch(e){ return null; } }
