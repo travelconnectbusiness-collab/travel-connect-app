@@ -206,7 +206,8 @@
  function loadMine(force){
   var m=me(); if(!m) return;
   var key="tc_assoc_mine:"+m, c=null; try{ c=JSON.parse(localStorage.getItem(key)||"null"); }catch(e){}
-  if(c&&!force&&Date.now()-c.t<6*3600000){ mine=c.d; place(); return; }
+  /* show what we have at once; ask again after 20 minutes, so a newly named office bearer / member sees the card soon (owner 2026-11-21) */
+  if(c){ mine=c.d; place(); if(!force&&Date.now()-c.t<20*60000) return; }
   api("mine",{}).then(function(r){ if(!r||!r.ok) return; mine={orgs:r.orgs||[],member:r.member||[]}; try{ localStorage.setItem(key,JSON.stringify({t:Date.now(),d:mine})); }catch(e){} place(); });
  }
  function memberDues(x){ var paid={}; (x.pays||[]).forEach(function(p){ (p.periods||[]).forEach(function(q){ paid[q]=1; }); }); return X.duesC(x.cfg||{},x.member||{},paid); }
