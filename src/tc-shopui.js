@@ -41,7 +41,7 @@
   "#tcShop .tsChip.on{background:#0b6b78;border-color:#0b6b78;color:#fff}"+
   "#tcShop .tsPkL{background:#fff;border:1.5px solid #cdd8e0;border-radius:12px;margin-top:4px;max-height:46vh;overflow:auto}"+
   "#tcShop .tsPkL div{padding:12px;border-bottom:1px solid #e3eef3;font-size:17px;display:flex;justify-content:space-between;gap:8px}"+
-  "#tcShop .tsPkL div small{color:#5b7787;white-space:nowrap}#tcShop .tsPkL div.n{color:#0b6b78;font-weight:800}"+
+  "#tcShop .tsPkL div small{color:#5b7787;white-space:nowrap}#tcShop .tsPkL div span em.pr{display:block;font-style:normal;font-size:15px;font-weight:800;color:#0b6b78;margin-top:2px}#tcShop .tsPkL div.n{color:#0b6b78;font-weight:800}"+
   "#tcShop .tsRow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e3eef3;font-size:16px}"+
   "#tcShop .tsM{color:#5b7787;font-size:13px}#tcShop .tsLow{background:#fde8e6;color:#a12d2d;border-radius:8px;padding:2px 7px;font-size:12px;font-weight:800}"+
   "#tcShop .tsTot{font-size:32px;font-weight:900;color:#082b49;letter-spacing:-.5px}"+
@@ -225,7 +225,9 @@
   var q=i.value.trim(), o=PK[id]||{};
   var L=SH.search(q,{t:o.t,noRc:o.noRc}); if(o.skip) L=L.filter(function(p){ return !o.skip(p); }); L=L.slice(0,q?8:0);
   if(!q&&o.recent) L=o.recent();
-  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+(SH.isStaff()?'':' <b style="padding:4px 8px;margin-left:6px;border-radius:8px;background:#e9eff4" onclick="event.stopPropagation();tsPkEdit(\''+id+'\',\''+p.id+'\')">✏</b>')+'</small></div>'; }).join("");
+  /* the price under each name: items with the same name (Filter motor 600 / 700 ...) are told apart at once (owner 2026-11-22) */
+  var prT=function(p){ return +p.pr>0?'<em class="pr">'+E(rt(p.pr)+(p.u?" / "+p.u:""))+'</em>':""; };
+  var h=L.map(function(p){ return '<div onclick="tsPkSel(\''+id+'\',\''+p.id+'\')"><span>'+E(p.n)+prT(p)+'</span><small>'+E(p.comp?(p.can!=null?qty(p.can):""):(p.stock!=null?qty(p.stock):""))+(p.low?' ⚠':'')+(SH.isStaff()?'':' <b style="padding:4px 8px;margin-left:6px;border-radius:8px;background:#e9eff4" onclick="event.stopPropagation();tsPkEdit(\''+id+'\',\''+p.id+'\')">✏</b>')+'</small></div>'; }).join("");
   if(q&&o.allowNew!==false&&!SH.findName(q)) h+='<div class="n" onclick="tsPkNew(\''+id+'\')">➕ "'+E(q)+'" '+E(T("പുതിയ ഇനമായി ചേർക്കുക","add as new item"))+'</div>';
   if(!h&&q) h='<div><span class="tsM">'+E(T("ഒന്നുമില്ല","Nothing found"))+'</span></div>';
   l.innerHTML=h; l.classList.toggle("hidden",!h);
