@@ -266,6 +266,7 @@ const MARKERS = [
   ["src/tc-regdocs.js", "tc-capack.js", "tc-regdocs.js loads tc-capack.js"],
   ["src/tc-shopui.js", "tsPsGh", "GST: item price can be 'with GST' or 'without GST' - base + rate + tax shown"],
   ["src/tc-shopui.js", "em class=\"pr\"", "Item search: the price under each name (same-name items told apart)"],
+  ["src/tc-persgift.js", "window.tpgKind=", "Ceremony covers: gold / furniture / other thing with its value, not only cash"],
   ["src/tc-shopui.js", "tsPuGxSet", "GST: purchase rate can be entered without GST (converted at the item's rate)"],
   ["src/tc-shopui.js", "saGstRow", "GST: sale cart shows base + GST per line and the GST in the total"],
   ["src/tc-shop.js", "gx:+p.gx?1:0", "GST: items remember 'price without GST' (gx)"],
