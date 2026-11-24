@@ -394,9 +394,45 @@
   /* keep the cursor in the text box while the button is tapped */
   fab.addEventListener("pointerdown",function(e){ e.preventDefault(); });
   fab.addEventListener("mousedown",function(e){ e.preventDefault(); });
-  fab.addEventListener("click",function(){ tap(); });
+  fab.addEventListener("click",function(e){ if(dragged){ dragged=false; e.preventDefault(); return; } tap(); });
+  /* 2026-11-24 owner: 'a button I need is sometimes under the mic' - press and slide the mic anywhere; it stays there (this phone) */
+  fab.style.touchAction="none";
+  fab.addEventListener("pointerdown",function(e){
+   var r=fab.getBoundingClientRect(); drag={x:e.clientX,y:e.clientY,l:r.left,t:r.top,id:e.pointerId,moved:false};
+   try{ fab.setPointerCapture(e.pointerId); }catch(er){}
+  });
+  fab.addEventListener("pointermove",function(e){
+   if(!drag||e.pointerId!==drag.id) return;
+   var dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+   if(!drag.moved&&Math.abs(dx)+Math.abs(dy)<10) return;
+   drag.moved=true; placeFab(drag.l+dx,drag.t+dy,false);
+  });
+  var endDrag=function(e){
+   if(!drag||(e&&e.pointerId!==drag.id)) return;
+   var d=drag; drag=null; if(!d.moved) return;
+   dragged=true; setTimeout(function(){ dragged=false; },400);
+   var r=fab.getBoundingClientRect(), W=window.innerWidth, side=(r.left+r.width/2)<W/2?"l":"r";
+   var pos={s:side,y:Math.round(r.top/Math.max(1,window.innerHeight)*1000)/1000};
+   try{ localStorage.setItem("tc_vo_pos",JSON.stringify(pos)); }catch(er){}
+   applyPos(pos);
+  };
+  fab.addEventListener("pointerup",endDrag); fab.addEventListener("pointercancel",endDrag);
+  window.addEventListener("resize",function(){ applyPos(savedPos()); });
   document.body.appendChild(fab);
+  applyPos(savedPos());
   setFab();
+ }
+ var drag=null, dragged=false;
+ function savedPos(){ try{ var p=JSON.parse(localStorage.getItem("tc_vo_pos")||"null"); return p&&(p.s==="l"||p.s==="r")&&+p.y>=0?p:null; }catch(e){ return null; } }
+ function placeFab(x,y,snap){
+  if(!fab) return; var W=window.innerWidth, H=window.innerHeight, w=fab.offsetWidth||42;
+  x=Math.max(6,Math.min(W-w-6,x)); y=Math.max(60,Math.min(H-w-70,y));
+  fab.style.right="auto"; fab.style.bottom="auto"; fab.style.left=x+"px"; fab.style.top=y+"px";
+ }
+ function applyPos(p){   /* saved place: left or right edge, at the same height (share of the screen) */
+  if(!fab) return;
+  if(!p){ fab.style.left="auto"; fab.style.top="auto"; fab.style.right="14px"; fab.style.bottom="84px"; return; }
+  var W=window.innerWidth, w=fab.offsetWidth||42; placeFab(p.s==="l"?10:W-w-10,p.y*window.innerHeight,true);
  }
  function tap(){
   var f=textField();
@@ -424,8 +460,10 @@
    '<textarea id="tcVoTx" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #bbb;border-radius:10px;padding:8px;font-size:15px" placeholder="'+E(tr("what you said appears here - you can also type","പറഞ്ഞത് ഇവിടെ വരും - ടൈപ്പ് ചെയ്യുകയും ആവാം"))+'"></textarea>'+
    '<div style="display:flex;gap:6px;margin-top:6px"><button type="button" id="tcVoGo" style="flex:1;padding:10px;border:0;border-radius:10px;background:#0b6b78;color:#fff;font-size:15px">'+E(tr("Do it","ചെയ്യൂ"))+'</button><button type="button" id="tcVoX" style="padding:10px 14px;border:1px solid #bbb;border-radius:10px;background:#fff;font-size:15px">'+E(tr("Close","അടയ്ക്കുക"))+'</button></div>'+
    '<div id="tcVoOut" style="margin-top:8px"></div>'+
+   (tipShow()?'<div style="margin-top:6px;font-size:12px;color:#0b6b78;font-weight:600">'+E(tr("Tip: press and slide the mic button to move it anywhere on the screen.","ടിപ്പ്: മൈക്ക് ബട്ടൺ അമർത്തി നീക്കിയാൽ (drag) സ്ക്രീനിൽ ഇഷ്ടമുള്ള സ്ഥലത്തേക്ക് മാറ്റാം."))+'</div>':'')+
    '<div style="margin-top:6px;font-size:11.5px;color:#666;line-height:1.35">'+E(tr("Examples: \"500 rupees diesel expense today\", \"profit this month\", \"who owes me money\". Ask how to do anything in the app: \"where is the CA pack\". Chrome sends the voice to Google to turn it into text.","ഉദാ: \"ഇന്ന് 500 രൂപ ഡീസൽ ചെലവ്\", \"ഈ മാസം ലാഭം എത്ര\", \"ആരൊക്കെ പണം തരാനുണ്ട്\". ആപ്പിൽ എന്തും എങ്ങനെ ചെയ്യാം എന്ന് ചോദിക്കാം: \"CA പാക്ക് എവിടെ\". ശബ്ദം എഴുത്താക്കാൻ Chrome അത് Google-ലേക്ക് അയയ്ക്കും."))+'</div>';
  }
+ function tipShow(){ try{ if(savedPos()) return false; var n=+localStorage.getItem("tc_vo_tip")||0; if(n>=3) return false; localStorage.setItem("tc_vo_tip",String(n+1)); return true; }catch(e){ return false; } }
  var aiFollow=false;   /* after "Ask the next question" the next help / not-understood answer goes to the AI by itself, with the conversation so far */
  function openSheet(){
   closeSheet();
