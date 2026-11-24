@@ -2,6 +2,36 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+/* 2026-11-24: on a phone where Chrome's "On-device site data" (older Chrome: "Cookies") is switched off, or inside an app's own browser that
+   blocks storage, the app cannot keep anything and every file failed with a cryptic "LOAD ERROR ... localStorage ... Access is denied".
+   Check once here, before the app loads, and show plain steps instead. */
+(function(){
+ var ok=true; try{ var k="__tc_t"; window.localStorage.setItem(k,"1"); window.localStorage.removeItem(k); }catch(e){ ok=false; }
+ if(ok) return;
+ window.__tcNoStore=1;
+ var show=function(){
+  if(document.getElementById("tcNoStore")) return;
+  var d=document.createElement("div"); d.id="tcNoStore";
+  d.setAttribute("style","position:fixed;inset:0;z-index:2147483647;overflow:auto;background:#f2f5f8;color:#132436;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:22px 18px");
+  d.innerHTML='<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 6px 18px rgba(8,43,73,.08)">'+
+   '<div style="font-size:21px;font-weight:800;color:#082b49">Travel Connect</div>'+
+   '<p style="font-size:17px;font-weight:700;margin:14px 0 6px">ഈ ഫോണിൽ ആപ്പിന് വിവരങ്ങൾ സൂക്ഷിക്കാനുള്ള അനുമതി ഓഫ് ആണ്.</p>'+
+   '<p style="font-size:15px;line-height:1.55;margin:0 0 10px">ഇത് ഓൺ ആക്കിയാൽ മാത്രമേ ആപ്പ് പ്രവർത്തിക്കൂ:</p>'+
+   '<ol style="font-size:15px;line-height:1.6;padding-left:20px;margin:0">'+
+   '<li><b>Chrome</b> തുറന്ന് മുകളിലെ <b>⋮</b> › <b>Settings</b> › <b>Site settings</b>.</li>'+
+   '<li><b>"On-device site data"</b> (പഴയ Chrome-ൽ <b>"Cookies"</b>) തുറന്ന് <b>ഓൺ / Allow</b> ആക്കുക.</li>'+
+   '<li>അതേ പേജിലെ <b>All sites</b> › <b>travelconnect.dev</b> തുറന്ന് അവിടെയും Allow ആണെന്ന് ഉറപ്പാക്കുക.</li>'+
+   '<li>ആപ്പ് പൂർണ്ണമായും അടച്ച് (recent apps-ൽ നിന്ന് മാറ്റി) വീണ്ടും തുറക്കുക.</li></ol>'+
+   '<p style="font-size:14px;line-height:1.5;color:#657888;margin:12px 0 0">Instagram / Facebook / WhatsApp-നുള്ളിൽ നിന്ന് തുറന്നതാണെങ്കിൽ ലിങ്ക് Chrome-ൽ തുറക്കുക. Incognito ടാബിലും പ്രവർത്തിക്കില്ല.</p>'+
+   '<hr style="border:0;border-top:1px solid #e2e9ef;margin:16px 0">'+
+   '<p style="font-size:14px;line-height:1.55;margin:0"><b>Storage is blocked on this phone.</b> Chrome › ⋮ › Settings › Site settings › <b>On-device site data</b> (older Chrome: <b>Cookies</b>) › Allow; also All sites › travelconnect.dev › Allow. Then close the app fully and open it again. Not inside Instagram / Facebook / WhatsApp, not in Incognito.</p>'+
+   '<button onclick="location.reload()" style="margin-top:16px;width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:800;color:#fff;background:#0b6b78">വീണ്ടും ശ്രമിക്കുക / Try again</button></div>';
+  (document.body||document.documentElement).appendChild(d);
+ };
+ if(document.body) show(); document.addEventListener("DOMContentLoaded",show);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Travel Connect - Local Taxi, Auto, Shops &amp; Services Directory | Valayam, Kerala</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -197,7 +227,7 @@ body{ background:var(--tcBg); color:var(--tcInk); -webkit-font-smoothing:antiali
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-<script>window.addEventListener('error',function(e){alert('LOAD ERROR: '+e.message+' | file: '+e.filename+' | line: '+e.lineno+' col: '+e.colno);});</script>
+<script>window.addEventListener('error',function(e){if(window.__tcNoStore)return;alert('LOAD ERROR: '+e.message+' | file: '+e.filename+' | line: '+e.lineno+' col: '+e.colno);});</script>
 
 <script>
 window.addEventListener('pageshow',function(e){ if(e.persisted) location.reload(); });
