@@ -1,6 +1,6 @@
-/* ---------- CLOUD BACKUP (Premium) - phone side ----------
+/* ---------- CLOUD BACKUP (Plus and above; was Premium only, owner 2026-11-24) - phone side ----------
    Menu > "Cloud Backup": shows the date of the last backup, a Backup Now
-   button and a Restore button. For Premium accounts a backup is also made
+   button and a Restore button. For Plus / Premium accounts a backup is also made
    automatically about 25 seconds after the last change (never more often
    than every 90 seconds, and never if nothing changed).
    Restore MERGES: records that are missing on this phone are added, nothing
@@ -18,8 +18,8 @@ function tcBkEligible(){
   const u=getCurrentUser();
   if(!u||!u.mobile) return false;
   const p=db.settings&&db.settings.myPlan;
-  if(p==="owner_free") return true;
-  if(p!=="premium") return false;
+  if(p==="owner_free"||p==="owner_plus") return true;
+  if(p!=="premium"&&p!=="paid"&&p!=="platinum") return false;
   if(!db.settings.myPlanExpiresAt) return true;
   return new Date(db.settings.myPlanExpiresAt).getTime()>Date.now();
  }catch(e){ return false; }
@@ -61,7 +61,7 @@ function tcBkHash(s){
    server copy only after the person confirms. */
 async function tcBackupNow(manual){
  if(tcBkBusy) return;
- if(!tcBkEligible()){ if(manual) toast(tcBkTxt("Cloud backup is a Premium feature","ക്ലൗഡ് ബാക്കപ്പ് Premium സൗകര്യമാണ്")); return; }
+ if(!tcBkEligible()){ if(manual) toast(tcBkTxt("Cloud backup comes with Plus / Premium","ക്ലൗഡ് ബാക്കപ്പ് Plus / Premium പ്ലാനിൽ ഉണ്ട്")); return; }
  if(!navigator.onLine){ if(manual) toast(tcBkTxt("No internet","ഇന്റർനെറ്റ് ഇല്ല")); return; }
  tcBkBusy=true;
  try{
@@ -86,7 +86,7 @@ async function tcBackupNow(manual){
    tcBkWarned=false;
    if(manual) toast(tcBkTxt("Backup saved","ബാക്കപ്പ് സേവ് ചെയ്തു"));
   }else if(manual){
-   toast(r.error==="not_premium"?tcBkTxt("Not a Premium account","Premium അക്കൗണ്ട് അല്ല"):r.error==="too_big"?tcBkTxt("Data is too big to back up","ഡാറ്റ ബാക്കപ്പ് ചെയ്യാൻ കഴിയാത്തത്ര വലുതാണ്"):tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക")+" ["+(r.error||"?")+"]");
+   toast(r.error==="not_premium"?tcBkTxt("Cloud backup comes with Plus / Premium","ക്ലൗഡ് ബാക്കപ്പ് Plus / Premium പ്ലാനിൽ ഉണ്ട്"):r.error==="too_big"?tcBkTxt("Data is too big to back up","ഡാറ്റ ബാക്കപ്പ് ചെയ്യാൻ കഴിയാത്തത്ര വലുതാണ്"):tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക")+" ["+(r.error||"?")+"]");
   }
  }catch(e){
   if(manual) toast(tcBkTxt("Backup failed - try again","ബാക്കപ്പ് പരാജയപ്പെട്ടു - വീണ്ടും ശ്രമിക്കുക")+" ["+(e&&e.message?e.message:"error")+"]");
@@ -144,7 +144,7 @@ async function tcOpenBackupPage(){
   <button class="primary" onclick="tcBackupNow(true).then(tcBkRefreshStatus)" style="width:100%;margin-bottom:8px">${tcBkTxt("Backup Now","ഇപ്പോൾ ബാക്കപ്പ് എടുക്കുക")}</button>
   <button onclick="tcRestoreBackup()" style="width:100%;margin-bottom:8px">${tcBkTxt("Restore from backup","ബാക്കപ്പിൽ നിന്ന് തിരികെ ചേർക്കുക")}</button>
   <p class="muted" style="font-size:11.5px">${tcBkTxt("Automatic backup runs shortly after you make changes.","മാറ്റങ്ങൾ വരുത്തിയ ശേഷം ബാക്കപ്പ് സ്വയം എടുക്കും.")}</p>`
-  :`<p style="color:#a12d2d;font-size:13.5px">${tcBkTxt("Cloud backup is available on the Premium plan.","ക്ലൗഡ് ബാക്കപ്പ് Premium പ്ലാനിൽ ലഭ്യമാണ്.")}</p>`}
+  :`<p style="color:#a12d2d;font-size:13.5px">${tcBkTxt("Cloud backup comes with Plus (taxi / auto: Rs 499 a year) and Premium - Menu › Verification & Plan.","ക്ലൗഡ് ബാക്കപ്പ് Plus (ടാക്സി / ഓട്ടോ: വർഷം ₹499), Premium പ്ലാനുകളിൽ ഉണ്ട് - Menu › Verification & Plan.")}</p>`}
   <button onclick="closeModal()" style="width:100%;margin-top:6px">${tcBkTxt("Close","അടയ്ക്കുക")}</button>
  `);
  if(elig) tcBkRefreshStatus();
