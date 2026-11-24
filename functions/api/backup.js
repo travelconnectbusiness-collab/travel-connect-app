@@ -1,4 +1,4 @@
-/* ---------- CLOUD BACKUP (Premium) ----------
+/* ---------- CLOUD BACKUP (Plus and above; was Premium only) ----------
    Stores one backup of a Premium owner's bills, quotations, trips, customers,
    etc. in R2 (env.FILES) under backups/<mobile>/. The data otherwise lives
    only in the phone's browser storage, which is separate for every web
@@ -9,8 +9,9 @@
    POST ?action=info  { mobile, device }               -> date + counts only
 
    Every call checks the DEVICE TOKEN recorded at login (same rule as the
-   blood-donor actions), and the mobile must belong to a Premium (or
-   owner_free) partner. A new backup that holds FEWER records than the one
+   blood-donor actions), and the mobile must belong to a Plus / Premium / Platinum (or
+   owner_free / owner_plus) partner - owner 2026-11-24: taxi / auto who need no Google Maps take Plus for a year
+   (Rs 499) for the directory badge and this cloud backup of their accounts. A new backup that holds FEWER records than the one
    already stored is refused unless force=true - so a freshly installed,
    empty app can never wipe a good backup by accident. The previous backup
    is always kept as prev.json.
@@ -53,8 +54,8 @@ async function isPremium(env, mobile) {
     .all();
   const now = Date.now();
   return (rows.results || []).some((r) => {
-    if (r.plan === "owner_free") return true;
-    if (r.plan !== "premium") return false;
+    if (r.plan === "owner_free" || r.plan === "owner_plus") return true;
+    if (r.plan !== "premium" && r.plan !== "paid" && r.plan !== "platinum") return false;
     if (!r.plan_expires_at) return true;
     return new Date(r.plan_expires_at).getTime() > now;
   });
