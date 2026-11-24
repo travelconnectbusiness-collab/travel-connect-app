@@ -268,6 +268,7 @@ const MARKERS = [
   ["src/tc-shopui.js", "em class=\"pr\"", "Item search: the price under each name (same-name items told apart)"],
   ["src/tc-persgift.js", "window.tpgKind=", "Ceremony covers: gold / furniture / other thing with its value, not only cash"],
   ["index.html", "window.__tcNoStore=1", "Storage blocked on the phone: plain steps instead of a LOAD ERROR"],
+  ["src/tc-voice.js", "tc_vo_pos", "Mic button can be moved anywhere (press and slide) and stays there"],
   ["src/tc-shopui.js", "tsPuGxSet", "GST: purchase rate can be entered without GST (converted at the item's rate)"],
   ["src/tc-shopui.js", "saGstRow", "GST: sale cart shows base + GST per line and the GST in the total"],
   ["src/tc-shop.js", "gx:+p.gx?1:0", "GST: items remember 'price without GST' (gx)"],
