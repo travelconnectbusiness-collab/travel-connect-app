@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   price_plus_month: "99",
   price_premium_month: "299",
   price_plus_year: "99",
+  price_plus_year_vehicle: "499",       /* owner 2026-11-24: taxi / auto / pickup who need no Google Maps - Plus for a whole year: directory badge + cloud backup of their accounts */
   price_premium_year: "999",
   price_platinum_year: "2999",   /* Platinum: always yearly, for every kind of business (taxi / travel too) */
   upi_id: "",
@@ -96,7 +97,8 @@ function periodFor(businessType, plan) {
   if (plan === "platinum") return "year";
   return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";
 }
-function priceFor(settings, businessType, plan) {
+function priceFor(settings, businessType, plan, per) {
+  if (plan === "paid" && per === "year" && VEHICLE_TYPES.includes(businessType || "taxi_travel")) return parseInt(settings.price_plus_year_vehicle, 10) || 0;
   if (businessType === "association" && plan === "paid") return parseInt(settings.price_assoc_plus_year, 10) || 0;
   if (businessType === "association" && plan === "premium") return parseInt(settings.price_assoc_premium_year, 10) || 0;
   if (businessType === "association" && plan === "platinum") return parseInt(settings.price_assoc_platinum_year, 10) || 0;
@@ -211,7 +213,7 @@ export async function onRequestGet({ request, env }) {
       },
       period: periodFor(p.business_type),
       platinum_ok: true,
-      prices: { paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
+      prices: { paid_year: VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? priceFor(settings, p.business_type, "paid", "year") : 0, paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
       assoc_limits: { paid: parseInt(settings.assoc_limit_plus, 10) || 100, premium: parseInt(settings.assoc_limit_premium, 10) || 10000, platinum: parseInt(settings.assoc_limit_platinum, 10) || 100000 },
       assoc_free: Number.isFinite(parseInt(settings.assoc_free_members, 10)) ? parseInt(settings.assoc_free_members, 10) : 25,
@@ -368,7 +370,9 @@ export async function onRequestPost({ request, env }) {
     if (dup) return j({ ok: false, error: "utr_used" }, 409);
     const settings = await getSettings(env);
     if (!settings.upi_id) return j({ ok: false, error: "payment_not_set" }, 503);
-    const amount = priceFor(settings, p.business_type, plan);
+    /* a vehicle business may take Plus for a whole year (Rs 499, no Google Maps tools) instead of month by month */
+    const per = plan === "paid" && field("period") === "year" && VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? "year" : periodFor(p.business_type, plan);
+    const amount = priceFor(settings, p.business_type, plan, per);
     if (amount <= 0) return j({ ok: false, error: "price_not_set" }, 503);
 
     /* Documents: needed once, if this business is not verified yet and has no
@@ -382,7 +386,7 @@ export async function onRequestPost({ request, env }) {
     }
     const ins = await env.DB
       .prepare("INSERT INTO upgrade_requests (partner_id, plan, period, amount, utr, status, created_at) VALUES (?,?,?,?,?, 'pending', ?)")
-      .bind(p.id, plan, periodFor(p.business_type, plan), amount, utr, new Date().toISOString())
+      .bind(p.id, plan, per, amount, utr, new Date().toISOString())
       .run();
     return j({ ok: true, id: ins.meta.last_row_id, amount });
   }
