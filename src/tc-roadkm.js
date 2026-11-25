@@ -34,12 +34,13 @@
 
  /* ---------- Google road km through our server ---------- */
  var memo={}, off="";   /* off: a reason Google is not used again in this session (limit reached / not set up) */
- var STOP={day_limit:1,month_limit:1,no_key:1,google_denied:1,plan:1,unauthorized:1};
+ var STOP={day_limit:1,month_limit:1,no_key:1,google_denied:1,plan:1,nomaps:1,unauthorized:1};
  window.tcRoadKm=function(list){
   var pts=(list||[]).map(norm);
   if(pts.length<2||pts.some(function(p){ return !p; })) return Promise.reject({error:"bad_points"});
   if(pts.length>11) return Promise.reject({error:"too_many_points"});
   if(!premium()) return Promise.reject({error:"plan"});
+  try{ if(localStorage.getItem("tc_nomaps")==="1") return Promise.reject({error:"nomaps"}); }catch(e){}   /* yearly vehicle plan: no Google Maps (owner 2026-11-25) */
   if(off) return Promise.reject({error:off});
   var k=JSON.stringify(pts); if(memo[k]) return Promise.resolve(memo[k]);
   var ctl=(typeof AbortController==="function")?new AbortController():null, tm=ctl?setTimeout(function(){ try{ ctl.abort(); }catch(e){} },20000):0;
@@ -58,6 +59,7 @@
   if(er==="place_not_found") return B("Google could not find a place - write it with the town name (e.g. Kuttiady, Kozhikode).","ഒരു സ്ഥലം Google-ന് കണ്ടെത്താനായില്ല - ടൗണിന്റെ പേര് കൂടി എഴുതുക (ഉദാ: കുറ്റ്യാടി, കോഴിക്കോട്).");
   if(er==="too_many_points") return B("Up to 11 places (start, 9 stops, end) can be sent to Google at once.","ഒരേസമയം 11 സ്ഥലം വരെ (പുറപ്പാട്, 9 സ്റ്റോപ്പ്, അവസാനം) മാത്രം.");
   if(er==="plan") return B("Road km from Google is a Premium feature.","Google റോഡ് KM പ്രീമിയം സൗകര്യമാണ്.");
+  if(er==="nomaps") return B("Your yearly plan has no Google Maps - Google road km comes with the monthly Premium / Platinum. The free map is used.","നിങ്ങളുടെ വർഷ പ്ലാനിൽ Google Maps ഇല്ല - Google റോഡ് KM മാസ Premium / Platinum-ൽ ആണ്. സൗജന്യ മാപ്പ് ഉപയോഗിക്കുന്നു.");
   if(er==="offline") return B("No internet - try again.","ഇന്റർനെറ്റ് ഇല്ല - വീണ്ടും ശ്രമിക്കുക.");
   return B("Google could not give the distance now.","Google-ൽ നിന്ന് ഇപ്പോൾ ദൂരം കിട്ടിയില്ല.");
  };
