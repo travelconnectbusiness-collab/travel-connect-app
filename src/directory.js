@@ -655,10 +655,10 @@ async function loadMyVehicles(partnerId){
    ${v.driver_name?`Driver: ${esc(v.driver_name)}${v.driver_mobile1?` (${esc(v.driver_mobile1)})`:""}<br>`:""}
    ${vehicleExpiryWarnings(v)}
    <div class="actions" style="margin-top:4px"><button onclick="tcOpenEditVehicle(${v.id})">Edit Vehicle / Documents</button></div>
-   ${tcActiveToggleHtml("vActive_"+v.id,!!v.active,`toggleVehicleActive(${v.id},checked)`,"mark_vehicle_active")}
+   ${tcNoMapsPlan()?tcNoMapsVehicleNote():`${tcActiveToggleHtml("vActive_"+v.id,!!v.active,`toggleVehicleActive(${v.id},checked)`,"mark_vehicle_active")}
    <div style="margin-top:6px">
     <input id="vTempLoc_${v.id}" placeholder="Current location, if different from your registered garage (optional)" value="${esc(v.temp_location||"")}" style="width:100%;box-sizing:border-box">
-   </div>
+   </div>`}
    <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#0b6b78">Set this vehicle's own active hours (optional)</summary>
     <div style="margin-top:6px">${tcBusinessHoursFieldsHtml("vh_"+v.id,hours)}
      <button type="button" onclick="tcSaveVehicleHours(${v.id})" style="margin-top:4px">Save Hours</button></div>
@@ -757,12 +757,25 @@ async function tcSubmitEditVehicle(vehicleId){
   loadMyVehicles(window._myPartner?.id);
  }catch(e){errBox.textContent="Network error - check your connection and try again.";saveBtn.disabled=false;saveBtn.textContent="Save Changes";}
 }
+/* 2026-11-25 (owner): a vehicle business on a YEARLY plan (no Google Maps) is shown in the local directory only - its vehicles
+   cannot go "Active Now" in Find nearby vehicles (the server refuses too). The business's own Available switch still works. */
+function tcNoMapsPlan(){ try{ return localStorage.getItem("tc_nomaps")==="1"; }catch(e){ return false; } }
+function tcNoMapsVehicleNote(){
+ return `<div style="margin-top:6px;padding:8px 10px;border-radius:10px;background:#fff6df;color:#7a4f00;font-size:12.5px;font-weight:600">${tcBl("Yearly plan: this vehicle shows in the local directory only, not in Find nearby vehicles. For Active Now take a monthly plan (Menu › Verification & Plan).","വർഷ പ്ലാൻ: ഈ വണ്ടി ലോക്കൽ ഡയറക്ടറിയിൽ മാത്രം കാണിക്കും, Find nearby vehicles-ൽ ഇല്ല. Active Now വേണമെങ്കിൽ മാസ പ്ലാൻ എടുക്കുക (Menu › Verification & Plan).")}</div>`;
+}
 async function toggleVehicleActive(vehicleId,active){
  const user=getCurrentUser();
  const locEl=document.querySelector("#vTempLoc_"+vehicleId);
  const location=locEl?locEl.value.trim():"";
  try{
-  await fetch("/api/vehicles?action=toggle_active",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:vehicleId,mobile:user.mobile,active,location})});
+  const res=await fetch("/api/vehicles?action=toggle_active",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({vehicle_id:vehicleId,mobile:user.mobile,active,location})});
+  let d=null; try{ d=await res.json(); }catch(e){}
+  if(d&&!d.ok){
+   if(d.error==="nomaps"){ try{ localStorage.setItem("tc_nomaps","1"); }catch(e){} toast(tcBl("Yearly plan: vehicles are not shown in Find nearby vehicles - take a monthly plan for Active Now.","വർഷ പ്ലാൻ: വണ്ടികൾ Find nearby vehicles-ൽ കാണിക്കില്ല - Active Now വേണമെങ്കിൽ മാസ പ്ലാൻ എടുക്കുക.")); }
+   else toast(tcBl("Could not change - try again.","മാറ്റാൻ കഴിഞ്ഞില്ല - വീണ്ടും ശ്രമിക്കുക."));
+   if(window._myPartner&&window._myPartner.id) loadMyVehicles(window._myPartner.id);   /* the switch goes back to how it really is */
+   return;
+  }
   toast(active?(location?"Marked active near "+location:"Marked Active Now"):"Marked inactive");
  }catch(e){toast("Network error");}
 }
