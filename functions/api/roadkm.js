@@ -61,11 +61,14 @@ async function sha(t) {
 async function cacheKey(pts) {
   return sha("rk1|" + pts.map((p) => (p.q != null ? "q:" + p.q.toLowerCase() : p.lat.toFixed(4) + "," + p.lon.toFixed(4))).join("|"));
 }
+/* owner 2026-11-25: a vehicle business on a YEARLY plan has no Google Maps (nomaps=1) - that business counts 0 here */
 async function premiumOf(env, mobile) {
-  try {
-    const rows = (await env.DB.prepare("SELECT plan, plan_expires_at, platinum FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || [];
-    return rows.reduce((m, p) => Math.max(m, planLevel(p)), 0);
-  } catch (e) { return 0; }
+  let rows = [];
+  try { rows = (await env.DB.prepare("SELECT plan, plan_expires_at, platinum, nomaps FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || []; }
+  catch (e) { try { rows = (await env.DB.prepare("SELECT plan, plan_expires_at, platinum FROM travel_partners WHERE mobile1=? OR mobile2=?").bind(mobile, mobile).all()).results || []; } catch (e2) { return 0; } }
+  const lvl = rows.reduce((m, p) => Math.max(m, p.nomaps ? 0 : planLevel(p)), 0);
+  if (!lvl && rows.some((p) => p.nomaps && planLevel(p) >= 2)) return -1;   /* paid, but on a yearly plan without Google Maps */
+  return lvl;
 }
 /* counts the call only while under the limit (one conditional UPDATE, so two phones at once cannot overshoot) */
 async function takeDay(env, mobile, limit) {
@@ -150,7 +153,7 @@ export async function onRequestPost({ request, env }) {
   if (pts.length < 2 || pts.some((p) => !p)) return j({ ok: false, error: "bad_points" }, 400);
 
   const lvl = await premiumOf(env, mobile);
-  if (lvl < 2) return j({ ok: false, error: "plan" }, 403);
+  if (lvl < 2) return j({ ok: false, error: lvl === -1 ? "nomaps" : "plan" }, 403);
   if (!env.GOOGLE_MAPS_API_KEY) return j({ ok: false, error: "no_key" }, 503);
 
   const k = await cacheKey(pts);
