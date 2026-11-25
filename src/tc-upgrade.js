@@ -132,6 +132,7 @@ function rememberPlan(d){
   /* Platinum that is really running on THIS business (bought, or given by the admin; the owner plan too) - never the free period. Used for "my name only" bills (tc-ownbrand.js). */
   localStorage.setItem("tc_pp:"+d.partner.id,(d.partner.platinum&&(d.partner.plan==="premium"||d.partner.plan==="owner_free"))?"1":"0");
   if(d.assoc_free!=null) localStorage.setItem("tc_assoc_free",String(d.assoc_free));
+  localStorage.setItem("tc_nomaps",d.nomaps?"1":"0");   /* yearly vehicle plan: no Google road km on this phone (tc-roadkm.js) */
   if(d.assoc_limits) localStorage.setItem("tc_assoc_lims",JSON.stringify(d.assoc_limits));   /* members per plan (Plus 100 / Premium 10,000 / Platinum 1,00,000) */   /* Association book: free member limit set by the admin (tc-assoc.js) */
  }catch(e){}
 }
@@ -276,7 +277,8 @@ window.tcUpSubmitVerify=async function(){
 };
 
 /* ---------------- upgrade modal ---------------- */
-let upPlan="paid";
+let upPlan="paid", upPer="month";   /* upPer: vehicle businesses choose monthly (with Google Maps) or yearly (without Google Maps, local directory only) - owner 2026-11-25 */
+window.tcUpPer=function(p){ upPer=p==="year"?"year":"month"; try{ tcUpOpenUpgrade(); }catch(e){} };   /* vehicle businesses: monthly (Google Maps) / yearly (no Google Maps, local directory only) */
 window.tcUpOpenUpgrade=function(){
  if(!upState) return;
  if(!upState.partner.email_verified){ say(bl("Verify your email first","ആദ്യം ഇമെയിൽ വെരിഫൈ ചെയ്യുക")); tcUpOpenEmail(tcUpOpenUpgrade); return; }
@@ -287,16 +289,24 @@ window.tcUpOpenUpgrade=function(){
  const isAs=d.partner.business_type==="association", asL=Object.assign({paid:100,premium:10000,platinum:100000},d.assoc_limits||{});   /* association book plans (owner 2026-11-20) */
  const planCard=(key,title,price,points,perX)=>'<label id="tcUpPlan_'+key+'" style="display:block;border:2px solid #ccc;border-radius:10px;padding:8px 10px;margin:6px 0;cursor:pointer"><input type="radio" name="tcUpPlan" value="'+key+'" onchange="tcUpPickPlan(\''+key+'\')" style="width:auto;margin-right:6px"><b>'+title+'</b> - Rs '+price+' / '+(perX||per)+'<div class="muted" style="font-size:12px;margin-top:3px">'+points+'</div></label>';
  modal('<h2>&#11088; '+bl("Get Plus / Premium","Plus / Premium എടുക്കുക")+'</h2>'+
-  '<p class="muted">'+(isAs?bl("Associations pay yearly. Free: up to "+(d.assoc_free!=null?d.assoc_free:25)+" members on one phone, without the cloud.","സംഘടനകൾക്ക് വർഷം തോറും. ഫ്രീ: "+(d.assoc_free!=null?d.assoc_free:25)+" മെമ്പർ വരെ, ഒരു ഫോണിൽ മാത്രം, ക്ലൗഡ് ഇല്ല."):d.period==="month"?bl("Vehicle businesses pay monthly"+(d.prices.paid_year>0?" - or Plus for a whole year at once":"")+".","വാഹന ബിസിനസുകൾക്ക് മാസം തോറും"+(d.prices.paid_year>0?" - അല്ലെങ്കിൽ Plus ഒരു വർഷത്തേക്ക് ഒന്നിച്ച്":"")+"."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
+  '<p class="muted">'+(isAs?bl("Associations pay yearly. Free: up to "+(d.assoc_free!=null?d.assoc_free:25)+" members on one phone, without the cloud.","സംഘടനകൾക്ക് വർഷം തോറും. ഫ്രീ: "+(d.assoc_free!=null?d.assoc_free:25)+" മെമ്പർ വരെ, ഒരു ഫോണിൽ മാത്രം, ക്ലൗഡ് ഇല്ല."):d.period==="month"?bl("Vehicle businesses: monthly with Google Maps, or yearly without.","വാഹന ബിസിനസുകൾക്ക്: മാസം തോറും Google Maps സഹിതം, അല്ലെങ്കിൽ വർഷത്തേക്ക് Maps ഇല്ലാതെ."):bl("Shops, hotels and other businesses pay yearly.","കട, ഹോട്ടൽ തുടങ്ങിയ ബിസിനസുകൾക്ക് വർഷം തോറും."))+'</p>'+
   (isAs?
    planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Small groups: up to "+asL.paid+" members. The book is kept safely in the cloud (nothing is lost if a phone is lost), office bearers on their own phones, committees.","ചെറിയ കൂട്ടായ്മകൾക്ക്: "+asL.paid+" മെമ്പർ വരെ. പുസ്തകം ക്ലൗഡിൽ സുരക്ഷിതം (ഫോൺ നഷ്ടപ്പെട്ടാലും കണക്ക് പോകില്ല), ഭാരവാഹികൾക്ക് സ്വന്തം ഫോണിൽ, കമ്മിറ്റികൾ."))+
    planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus, up to "+asL.premium.toLocaleString("en-IN")+" members. As many office bearers and committees as you have.","Plus-ലെ എല്ലാം, "+asL.premium.toLocaleString("en-IN")+" മെമ്പർ വരെ. എത്ര ഭാരവാഹികളെയും കമ്മിറ്റികളെയും ചേർക്കാം."))+
    ((d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium, up to "+asL.platinum.toLocaleString("en-IN")+" members + every member sees his own payments and dues on his own phone. Bigger organisations: talk to us.","Premium-ലെ എല്ലാം, "+asL.platinum.toLocaleString("en-IN")+" മെമ്പർ വരെ + ഓരോ മെമ്പർക്കും സ്വന്തം ഫോണിൽ അടച്ചതും ബാക്കിയും കാണാം. ഇതിലും വലിയ സംഘടനകൾ ബന്ധപ്പെടുക.")):"")
-  :  (d.prices.paid_year>0?planCard("paidy",'<span style="color:#1d9bf0">&#10003;</span> Plus - '+bl("one year","ഒരു വർഷം"),d.prices.paid_year,bl("For those who need no Google Maps: blue tick badge, listed above Free, your name & UPI QR on bills, and cloud backup of your bills, quotations, trips and accounts (nothing lost if the phone is lost). Google road km is in Premium.","Google Maps വേണ്ടാത്തവർക്ക്: നീല ടിക്ക് ബാഡ്ജ്, ഡയറക്ടറിയിൽ ഫ്രീയേക്കാൾ മുകളിൽ, ബില്ലിൽ സ്വന്തം പേരും UPI QR-ഉം, ബിൽ / ക്വട്ടേഷൻ / ട്രിപ്പ് / കണക്കുകളുടെ ക്ലൗഡ് ബാക്കപ്പ് (ഫോൺ പോയാലും നഷ്ടപ്പെടില്ല). Google റോഡ് KM Premium-ൽ."),bl("year","വർഷം")):"")+
+  :  (d.prices_year&&d.prices_year.premium>0?'<div style="display:flex;gap:6px;margin:4px 0 10px">'+
+      '<button type="button" onclick="tcUpPer(\'month\')" style="flex:1;padding:9px 6px;border-radius:10px;font-weight:700;'+(upPer!=="year"?'background:#0b6b78;color:#fff;border:0':'background:#fff;color:#0b6b78;border:1.5px solid #0b6b78')+'">'+bl("Monthly - with Google Maps","മാസം തോറും - Google Maps സഹിതം")+'</button>'+
+      '<button type="button" onclick="tcUpPer(\'year\')" style="flex:1;padding:9px 6px;border-radius:10px;font-weight:700;'+(upPer==="year"?'background:#0b6b78;color:#fff;border:0':'background:#fff;color:#0b6b78;border:1.5px solid #0b6b78')+'">'+bl("Yearly - without Google Maps","വർഷത്തേക്ക് - Google Maps ഇല്ലാതെ")+'</button></div>':"")+
+  (upPer==="year"&&d.prices_year?
+   '<p class="muted" style="font-size:12.5px;margin:0 0 8px">'+bl("For travel agencies and others who only keep accounts, bills and quotations: no Google road km, and you show only in the local directory (customers searching your kind of business), not in Find nearby vehicles.","അക്കൗണ്ട്, ബിൽ, ക്വട്ടേഷൻ മാത്രം വേണ്ട ട്രാവൽ ഏജൻസികൾക്കും മറ്റും: Google റോഡ് KM ഇല്ല; ലോക്കൽ ഡയറക്ടറിയിൽ മാത്രം (നിങ്ങളുടെ തരം ബിസിനസ് തിരയുന്നവർക്ക്), \"Find nearby vehicles\"-ൽ കാണിക്കില്ല.")+'</p>'+
+   planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices_year.paid,bl("Blue tick badge, listed above Free, your name & UPI QR on bills, and cloud backup of your bills, quotations, trips and accounts.","നീല ടിക്ക് ബാഡ്ജ്, ഡയറക്ടറിയിൽ ഫ്രീയേക്കാൾ മുകളിൽ, ബില്ലിൽ സ്വന്തം പേരും UPI QR-ഉം, ബിൽ / ക്വട്ടേഷൻ / ട്രിപ്പ് / കണക്കുകളുടെ ക്ലൗഡ് ബാക്കപ്പ്."),bl("year","വർഷം"))+
+   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices_year.premium,bl("Everything in Plus + gold Premium badge, your logo, colours & fonts on bills and quotations, top of the list. No Google Maps.","Plus-ലെ എല്ലാം + സ്വർണ Premium ബാഡ്ജ്, ബില്ലിലും ക്വട്ടേഷനിലും നിങ്ങളുടെ ലോഗോ, നിറം, ഫോണ്ട്, ലിസ്റ്റിൽ മുകളിൽ. Google Maps ഇല്ല."),bl("year","വർഷം"))+
+   (d.platinum_ok&&d.prices_year.platinum>0?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices_year.platinum,bl("Everything in yearly Premium + AI insights on your trips and profit + voice (ask and add by speaking) + bills and quotations under your own name only (no Travel Connect strip). No Google Maps.","വർഷ Premium-ലെ എല്ലാം + ട്രിപ്പിനെയും ലാഭത്തെയും കുറിച്ച് AI ഇൻസൈറ്റ് + വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിലും ക്വട്ടേഷനിലും നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ). Google Maps ഇല്ല."),bl("year","വർഷം")):"")
+  :
   planCard("paid",'<span style="color:#1d9bf0">&#10003;</span> Plus',d.prices.paid,bl("Blue tick badge, your own business name & UPI QR on bills, tagline in the directory, listed above Free. Shops & workshops: shop photo, 2 ad posts, social links.","നീല ടിക്ക് ബാഡ്ജ്, ബില്ലിൽ സ്വന്തം ബിസിനസ് പേരും UPI QR-ഉം, ഡയറക്ടറിയിൽ ടാഗ്‌ലൈൻ, ഫ്രീയേക്കാൾ മുകളിൽ ലിസ്റ്റിങ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: ഷോപ്പ് ഫോട്ടോ, 2 പരസ്യ പോസ്റ്റ്, സോഷ്യൽ ലിങ്കുകൾ."))+
   planCard("premium",'<span style="color:#e0a100">&#9812;</span> Premium',d.prices.premium,bl("Everything in Plus + gold Premium badge, your logo, colours & fonts, top of the list, cloud backup. Shops & workshops: stock, sales & purchases, bills / quotations, job cards, reports. Other businesses: ad posts & social links.","Plus-ലെ എല്ലാം + സ്വർണ്ണ Premium ബാഡ്ജ്, സ്വന്തം ലോഗോ, നിറങ്ങൾ, ഫോണ്ടുകൾ, ലിസ്റ്റിൽ ഏറ്റവും മുകളിൽ, ക്ലൗഡ് ബാക്കപ്പ്. ഷോപ്പ് / വർക്ക്ഷോപ്പ്: സ്റ്റോക്ക്, വിൽപ്പന / വാങ്ങൽ, ബിൽ / ക്വട്ടേഷൻ, ജോബ് കാർഡ്, റിപ്പോർട്ടുകൾ. മറ്റ് ബിസിനസുകൾ: പരസ്യ പോസ്റ്റുകളും സോഷ്യൽ ലിങ്കുകളും."))+
   ((d.platinum_ok&&d.prices.platinum>0&&d.period==="month")?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + twice the Google road km lookups every day + AI insights on your trips and profit + voice (ask and add by speaking) + bills and quotations under your own name only (no Travel Connect strip). Monthly.","Premium-ലെ എല്ലാം + Google റോഡ് KM ദിവസവും ഇരട്ടി + ട്രിപ്പിനെയും ലാഭത്തെയും കുറിച്ച് AI ഇൻസൈറ്റ് + വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിലും ക്വട്ടേഷനിലും നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ). മാസം തോറും.")):
-  (d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + AI insights and voice (ask and add by speaking) + bills under your own name only (no Travel Connect strip) + for shops: up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + AI ഇൻസൈറ്റ്, വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിൽ നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ) + ഷോപ്പിന്: 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ."),bl("year","വർഷം")):""))+
+  (d.platinum_ok&&d.prices.platinum>0)?planCard("platinum",'<span style="color:#7b61ff">&#9830;</span> Platinum',d.prices.platinum,bl("Everything in Premium + AI insights and voice (ask and add by speaking) + bills under your own name only (no Travel Connect strip) + for shops: up to 10 staff phones (each can only sell - no profit, cost or delete), up to 11 of your own phones, monthly CA Excel with GST + profit-loss + dues. Yearly.","Premium-ലെ എല്ലാം + AI ഇൻസൈറ്റ്, വോയിസ് (പറഞ്ഞ് ചോദിക്കാം / ചേർക്കാം) + ബില്ലിൽ നിങ്ങളുടെ പേര് മാത്രം (Travel Connect ഇല്ലാതെ) + ഷോപ്പിന്: 10 സ്റ്റാഫ് ഫോൺ വരെ (വിൽപ്പന മാത്രം - ലാഭം, വാങ്ങൽ വില, ഡിലീറ്റ് കാണില്ല), നിങ്ങളുടെ 11 ഫോൺ വരെ, മാസം തോറും CA Excel (GST + ലാഭ-നഷ്ടം + കടം). വർഷത്തിൽ."),bl("year","വർഷം")):"")))+
   (payReady?
    '<div id="tcUpPay" style="margin-top:10px"></div>'+
    (needDocs?'<hr><p><b>'+bl("Your documents (first time only)","നിങ്ങളുടെ രേഖകൾ (ആദ്യതവണ മാത്രം)")+'</b></p>'+docFieldsHtml():"")+
@@ -309,13 +319,13 @@ window.tcUpOpenUpgrade=function(){
 };
 window.tcUpPickPlan=function(key){
  upPlan=key;
- ["paidy","paid","premium","platinum"].forEach(k=>{
+ ["paid","premium","platinum"].forEach(k=>{
   const el=document.querySelector("#tcUpPlan_"+k); if(!el) return;
   el.style.borderColor=(k===key)?"#0f5a55":"#ccc"; el.style.background=(k===key)?"#eef7f6":"";
   const r=el.querySelector("input"); if(r) r.checked=(k===key);
  });
- const d=upState, amt=key==="paidy"?d.prices.paid_year:d.prices[key];
- const note="Travel Connect "+(key==="platinum"?"Platinum":key==="premium"?"Premium":key==="paidy"?"Plus year":"Plus")+" "+d.partner.id;
+ const d=upState, yr=upPer==="year"&&d.prices_year, amt=yr?d.prices_year[key]:d.prices[key];
+ const note="Travel Connect "+(key==="platinum"?"Platinum":key==="premium"?"Premium":"Plus")+(yr?" year":"")+" "+d.partner.id;
  const link="upi://pay?pa="+encodeURIComponent(d.upi.id)+"&pn="+encodeURIComponent(d.upi.name||"Travel Connect")+"&am="+encodeURIComponent(amt)+"&cu=INR&tn="+encodeURIComponent(note);
  const pay=document.querySelector("#tcUpPay"); if(!pay) return;
  pay.innerHTML='<p><b>'+bl("Pay Rs ","പണമടയ്ക്കുക Rs ")+E(amt)+'</b> '+bl("to","ഇതിലേക്ക്")+' <b>'+E(d.upi.id)+'</b></p>'+
@@ -331,7 +341,7 @@ window.tcUpSubmitUpgrade=async function(){
  const utr=(document.querySelector("#tcUpUtr").value||"").replace(/\s+/g,"");
  if(!/^[A-Za-z0-9]{8,30}$/.test(utr)){ msg.textContent=errText({error:"bad_utr"}); return; }
  btn.disabled=true; btn.textContent=bl("Sending...","അയയ്ക്കുന്നു...");
- const fd=baseForm(c); fd.set("plan",upPlan==="paidy"?"paid":upPlan); fd.set("utr",utr); if(upPlan==="paidy") fd.set("period","year");   /* Plus for a whole year (vehicle businesses) */
+ const fd=baseForm(c); fd.set("plan",upPlan); fd.set("utr",utr); if(upPer==="year"&&upState&&upState.prices_year) fd.set("period","year");   /* vehicle business, yearly = without Google Maps */
  await appendDocs(fd);
  const d=await postForm("upgrade_request",fd);
  btn.disabled=false; btn.textContent=label;
@@ -443,7 +453,7 @@ window.tcAdLoadPriceBox=async function(){
  const s=d.settings;
  box.innerHTML='<div class="card"><h3>Prices & UPI</h3>'+
   '<p class="muted" style="font-size:12.5px">What owners see when they press "Get Plus / Premium". Vehicles (Taxi, Auto, Pickup) pay per MONTH; every other business pays per YEAR.</p>'+
-  '<div class="grid"><label>Vehicles: Plus (Rs / month)<input id="tcAdP1" type="number" min="0" value="'+E(s.price_plus_month)+'">'+'</label><label>Taxi / auto: Plus for a year, no Google Maps (Rs)<input id="tcAdP1y" type="number" min="0" value="'+E(s.price_plus_year_vehicle||"499")+'"></label>'+
+  '<div class="grid"><label>Vehicles: Plus (Rs / month)<input id="tcAdP1" type="number" min="0" value="'+E(s.price_plus_month)+'">'+'</label><label>Taxi / auto: Plus for a year, no Google Maps (Rs)<input id="tcAdP1y" type="number" min="0" value="'+E(s.price_plus_year_vehicle||"499")+'">'+'</label><label>Taxi / auto: Premium for a year, no Google Maps (Rs)<input id="tcAdP2y" type="number" min="0" value="'+E(s.price_premium_year_vehicle||"999")+'">'+'</label><label>Taxi / auto: Platinum for a year, no Google Maps (Rs)<input id="tcAdP3y" type="number" min="0" value="'+E(s.price_platinum_year_vehicle||"2999")+'"></label>'+
   '<label>Vehicles: Premium (Rs / month)<input id="tcAdP2" type="number" min="0" value="'+E(s.price_premium_month)+'"></label>'+
   '<label>Vehicles: Platinum (Rs / month)<input id="tcAdP3m" type="number" min="0" value="'+E(s.price_platinum_month||"499")+'"></label>'+
   '<label>Shops, hotels, others: Plus (Rs / year)<input id="tcAdP3" type="number" min="0" value="'+E(s.price_plus_year)+'"></label>'+
@@ -473,7 +483,7 @@ window.tcAdPlat=async function(on){
 };
 window.tcAdSavePrices=async function(){
  const g=(i)=>document.querySelector(i).value.trim();
- const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_platinum_month:g("#tcAdP3m"),price_plus_year_vehicle:g("#tcAdP1y"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF"),price_assoc_plus_year:g("#tcAdAsPp"),assoc_limit_plus:g("#tcAdAsLps"),price_assoc_premium_year:g("#tcAdAsP"),price_assoc_platinum_year:g("#tcAdAsPl"),assoc_limit_premium:g("#tcAdAsLp"),assoc_limit_platinum:g("#tcAdAsLpl")}});
+ const d=await postJson("save_settings",{token:adminToken(),settings:{price_plus_month:g("#tcAdP1"),price_platinum_month:g("#tcAdP3m"),price_plus_year_vehicle:g("#tcAdP1y"),price_premium_year_vehicle:g("#tcAdP2y"),price_platinum_year_vehicle:g("#tcAdP3y"),price_premium_month:g("#tcAdP2"),price_plus_year:g("#tcAdP3"),price_premium_year:g("#tcAdP4"),price_platinum_year:g("#tcAdP5"),upi_id:g("#tcAdUpi"),upi_name:g("#tcAdUpiName"),assoc_free_members:g("#tcAdAsF"),price_assoc_plus_year:g("#tcAdAsPp"),assoc_limit_plus:g("#tcAdAsLps"),price_assoc_premium_year:g("#tcAdAsP"),price_assoc_platinum_year:g("#tcAdAsPl"),assoc_limit_premium:g("#tcAdAsLp"),assoc_limit_platinum:g("#tcAdAsLpl")}});
  say(d.ok?"Saved":(d.error==="bad_upi"?"UPI ID looks wrong (name@bank)":"Could not save - prices must be whole numbers"));
 };
 if(typeof window.tcRenderPartnerPlans==="function"){
