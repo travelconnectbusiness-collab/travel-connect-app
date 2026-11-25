@@ -40,6 +40,8 @@ const DEFAULT_SETTINGS = {
   price_plus_year_vehicle: "499",       /* owner 2026-11-24: taxi / auto / pickup who need no Google Maps - Plus for a whole year: directory badge + cloud backup of their accounts */
   price_premium_year: "999",
   price_platinum_year: "2999",   /* Platinum for shops / workshops / other businesses: yearly */
+  price_premium_year_vehicle: "999",    /* owner 2026-11-25: taxi / travel agencies who need no Google Maps (tickets, visa, accounts, bills, quotations): */
+  price_platinum_year_vehicle: "2999",  /* Premium / Platinum for a year WITHOUT Google Maps, shown only in the local directory (not in Find nearby vehicles) */
   price_platinum_month: "499",   /* owner 2026-11-25: taxi / auto / pickup Platinum goes month by month like Premium (Google Maps only on monthly plans), above Premium 299 */
   upi_id: "",
   upi_name: "Travel Connect",
@@ -76,6 +78,7 @@ async function ensureTables(env) {
     "ALTER TABLE travel_partners ADD COLUMN email_verified INTEGER DEFAULT 0",
     "ALTER TABLE travel_partners ADD COLUMN plan_expires_at TEXT",
     "ALTER TABLE travel_partners ADD COLUMN platinum INTEGER DEFAULT 0",
+    "ALTER TABLE travel_partners ADD COLUMN nomaps INTEGER DEFAULT 0",   /* 1 = a vehicle business on a YEARLY plan: no Google Maps, not in Find nearby vehicles */
   ]) {
     try { await env.DB.prepare(s).run(); } catch (e) { /* column already exists */ }
   }
@@ -98,7 +101,10 @@ function periodFor(businessType, plan) {
   return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";   /* vehicle businesses: Premium / Platinum monthly (Google Maps), Plus also for a year */
 }
 function priceFor(settings, businessType, plan, per) {
-  if (plan === "paid" && per === "year" && VEHICLE_TYPES.includes(businessType || "taxi_travel")) return parseInt(settings.price_plus_year_vehicle, 10) || 0;
+  if (per === "year" && VEHICLE_TYPES.includes(businessType || "taxi_travel")) {   /* vehicle business, yearly = without Google Maps */
+    const k = plan === "paid" ? "price_plus_year_vehicle" : plan === "premium" ? "price_premium_year_vehicle" : plan === "platinum" ? "price_platinum_year_vehicle" : "";
+    if (k) return parseInt(settings[k], 10) || 0;
+  }
   if (businessType === "association" && plan === "paid") return parseInt(settings.price_assoc_plus_year, 10) || 0;
   if (businessType === "association" && plan === "premium") return parseInt(settings.price_assoc_premium_year, 10) || 0;
   if (businessType === "association" && plan === "platinum") return parseInt(settings.price_assoc_platinum_year, 10) || 0;
@@ -213,6 +219,8 @@ export async function onRequestGet({ request, env }) {
       },
       period: periodFor(p.business_type),
       platinum_ok: true,
+      nomaps: p.nomaps ? 1 : 0,
+      prices_year: VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? { paid: priceFor(settings, p.business_type, "paid", "year"), premium: priceFor(settings, p.business_type, "premium", "year"), platinum: priceFor(settings, p.business_type, "platinum", "year") } : null,
       prices: { paid_year: VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? priceFor(settings, p.business_type, "paid", "year") : 0, paid: priceFor(settings, p.business_type, "paid"), premium: priceFor(settings, p.business_type, "premium"), platinum: priceFor(settings, p.business_type, "platinum") },
       upi: { id: settings.upi_id, name: settings.upi_name },
       assoc_limits: { paid: parseInt(settings.assoc_limit_plus, 10) || 100, premium: parseInt(settings.assoc_limit_premium, 10) || 10000, platinum: parseInt(settings.assoc_limit_platinum, 10) || 100000 },
@@ -371,7 +379,7 @@ export async function onRequestPost({ request, env }) {
     const settings = await getSettings(env);
     if (!settings.upi_id) return j({ ok: false, error: "payment_not_set" }, 503);
     /* a vehicle business may take Plus for a whole year (Rs 499, no Google Maps tools) instead of month by month */
-    const per = plan === "paid" && field("period") === "year" && VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? "year" : periodFor(p.business_type, plan);
+    const per = field("period") === "year" && VEHICLE_TYPES.includes(p.business_type || "taxi_travel") ? "year" : periodFor(p.business_type, plan);   /* vehicle business: yearly = without Google Maps */
     const amount = priceFor(settings, p.business_type, plan, per);
     if (amount <= 0) return j({ ok: false, error: "price_not_set" }, 503);
 
@@ -418,7 +426,7 @@ export async function onRequestPost({ request, env }) {
     const r = await env.DB.prepare("SELECT * FROM upgrade_requests WHERE id=?").bind(id).first();
     if (!r) return j({ ok: false, error: "not_found" }, 404);
     if (decision === "approve") {
-      const p = await env.DB.prepare("SELECT plan, plan_expires_at FROM travel_partners WHERE id=?").bind(r.partner_id).first();
+      const p = await env.DB.prepare("SELECT plan, plan_expires_at, business_type FROM travel_partners WHERE id=?").bind(r.partner_id).first();
       if (!p) return j({ ok: false, error: "not_found" }, 404);
       if (p.plan === "owner_free" || p.plan === "owner_plus") return j({ ok: false, error: "owner_plan" }, 409);
       const days = parseInt(field("days"), 10) || (r.period === "month" ? 30 : 365);
@@ -430,6 +438,12 @@ export async function onRequestPost({ request, env }) {
       const base = p.plan === newPlan && cur > now ? cur : now;
       const expiresAt = new Date(base + days * 86400000).toISOString();
       await env.DB.prepare("UPDATE travel_partners SET plan=?, plan_expires_at=?, platinum=? WHERE id=?").bind(newPlan, expiresAt, r.plan === "platinum" ? 1 : 0, r.partner_id).run();
+      /* a vehicle business on a yearly plan: no Google Maps, and its vehicles leave "Find nearby vehicles" (local directory only); a monthly plan brings both back */
+      const nomaps = VEHICLE_TYPES.includes(p.business_type || "taxi_travel") && r.period === "year" ? 1 : 0;
+      try {
+        await env.DB.prepare("UPDATE travel_partners SET nomaps=? WHERE id=?").bind(nomaps, r.partner_id).run();
+        if (nomaps) await env.DB.prepare("UPDATE vehicles SET active=0, temp_location=NULL WHERE partner_id=?").bind(r.partner_id).run();
+      } catch (e) {}
       await env.DB.prepare("UPDATE upgrade_requests SET status='approved', admin_note=?, decided_at=? WHERE id=?").bind(adminNote, new Date().toISOString(), id).run();
       return j({ ok: true, plan_expires_at: expiresAt });
     } else if (decision === "reject") {
