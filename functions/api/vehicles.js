@@ -115,9 +115,14 @@ export async function onRequestGet({ request, env }) {
                 (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified,
                 p.email_verified AS email_verified
          FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id
-         WHERE v.active=1`
+         WHERE v.active=1 AND COALESCE(p.nomaps,0)=0`   /* yearly vehicle plans (no Google Maps) are in the local directory only, owner 2026-11-25 */
       )
-      .all();
+      .all()
+      .catch(() => env.DB.prepare(`SELECT v.insurance_expiry, v.permit_expiry, v.rc_photo_key, v.insurance_photo_key, v.permit_photo_key, v.verified AS vverified, 3 AS tier,
+                v.id, v.vehicle_number, v.category, v.rate_cat_name, v.seats, v.temp_location, v.business_hours, v.front_photo_key, p.business_name, p.mobile1, p.mobile2,
+                p.location, p.pincode, p.business_type, p.id AS partner_id, p.plan, p.plan_expires_at, p.brand_color, p.brand_font_family, p.logo_key, p.tagline,
+                (CASE WHEN v.verified=1 AND p.verified=1 THEN 1 ELSE 0 END) AS verified, p.email_verified AS email_verified
+         FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.active=1`).all());
     /* Verified is decided live (expired / incomplete documents never show as Verified), then the board is
        ordered: plan tier first, verified before unverified, newest first - same order as before. */
     const today = istToday(), ed = await getEnforceDate(env);
@@ -382,6 +387,10 @@ export async function onRequestPost({ request, env }) {
     if (!row) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
     if (row.mobile1 !== mobile && row.mobile2 !== mobile) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    if (active) {   /* a yearly vehicle plan (no Google Maps) is not in Find nearby vehicles, owner 2026-11-25 */
+      let nm = null; try { nm = await env.DB.prepare("SELECT p.nomaps FROM vehicles v JOIN travel_partners p ON v.partner_id = p.id WHERE v.id=?").bind(vehicle_id).first(); } catch (e) {}
+      if (nm && nm.nomaps) return Response.json({ ok: false, error: "nomaps", message: "Yearly plan: shown in the local directory only, not in Find nearby vehicles. Take a monthly plan for Active Now." }, { status: 403 });
     }
     const tempLocation = active && location ? String(location).trim() : null;
     await env.DB
