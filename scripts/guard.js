@@ -271,6 +271,7 @@ const MARKERS = [
   ["src/tc-voice.js", "tc_vo_pos", "Mic button can be moved anywhere (press and slide) and stays there"],
   ["functions/api/backup.js", "r.plan !== \"paid\"", "Cloud backup from Plus (taxi / auto Plus for a year, no Google Maps)"],
   ["functions/api/upgrade.js", "price_plus_year_vehicle", "Taxi / auto / pickup: Plus for a whole year (no Google Maps)"],
+  ["functions/api/upgrade.js", "price_platinum_month", "Taxi / auto / pickup: Platinum month by month, above Premium (Google Maps only on monthly plans)"],
   ["src/tc-upgrade.js", "tcUpPlan_\"+k", "Plan pop-up highlights the chosen plan"],
   ["src/tc-upgrade.js", "planCard(\"paidy\"", "Plan pop-up: Plus for a year for vehicle businesses"],
   ["src/tc-backup.js", "p!==\"paid\"", "Cloud backup button for Plus too"],
