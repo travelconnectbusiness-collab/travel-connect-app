@@ -39,7 +39,8 @@ const DEFAULT_SETTINGS = {
   price_plus_year: "99",
   price_plus_year_vehicle: "499",       /* owner 2026-11-24: taxi / auto / pickup who need no Google Maps - Plus for a whole year: directory badge + cloud backup of their accounts */
   price_premium_year: "999",
-  price_platinum_year: "2999",   /* Platinum: always yearly, for every kind of business (taxi / travel too) */
+  price_platinum_year: "2999",   /* Platinum for shops / workshops / other businesses: yearly */
+  price_platinum_month: "499",   /* owner 2026-11-25: taxi / auto / pickup Platinum goes month by month like Premium (Google Maps only on monthly plans), above Premium 299 */
   upi_id: "",
   upi_name: "Travel Connect",
   assoc_free_members: "25",   /* Association book (tc-assoc.js): free up to this many members, above that Premium / Platinum (2026-11-20) */
@@ -94,15 +95,14 @@ async function getSettings(env) {
 }
 
 function periodFor(businessType, plan) {
-  if (plan === "platinum") return "year";
-  return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";
+  return VEHICLE_TYPES.includes(businessType || "taxi_travel") ? "month" : "year";   /* vehicle businesses: Premium / Platinum monthly (Google Maps), Plus also for a year */
 }
 function priceFor(settings, businessType, plan, per) {
   if (plan === "paid" && per === "year" && VEHICLE_TYPES.includes(businessType || "taxi_travel")) return parseInt(settings.price_plus_year_vehicle, 10) || 0;
   if (businessType === "association" && plan === "paid") return parseInt(settings.price_assoc_plus_year, 10) || 0;
   if (businessType === "association" && plan === "premium") return parseInt(settings.price_assoc_premium_year, 10) || 0;
   if (businessType === "association" && plan === "platinum") return parseInt(settings.price_assoc_platinum_year, 10) || 0;
-  if (plan === "platinum") return parseInt(settings.price_platinum_year, 10) || 0;
+  if (plan === "platinum") return parseInt(VEHICLE_TYPES.includes(businessType || "taxi_travel") ? settings.price_platinum_month : settings.price_platinum_year, 10) || 0;
   const period = periodFor(businessType);
   const key = "price_" + (plan === "premium" ? "premium" : "plus") + "_" + period;
   return parseInt(settings[key], 10) || 0;
