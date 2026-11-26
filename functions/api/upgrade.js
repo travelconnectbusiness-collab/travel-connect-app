@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS = {
   assoc_limit_premium: "10000",         /* members in the cloud book on Premium (assoc.js) - owner 2026-11-20: up to 10,000 for Rs 1000 */
   assoc_limit_platinum: "100000",       /* members on Platinum (10,000 - 1,00,000 for Rs 3000); above that: talk, then admin sets their own limit */
   assoc_roles_premium: "0",             /* not used any more: every organisation adds as many office bearers / executives as it has */
+  twa_sha256: "",                       /* Play Store app (owner 2026-11-26): SHA-256 key fingerprints, comma separated (upload key + Google's app signing key) - worker.js serves them at /.well-known/assetlinks.json */
 };
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -517,6 +518,10 @@ export async function onRequestPost({ request, env }) {
         if (!/^\d{1,6}$/.test(v)) return j({ ok: false, error: "bad_price", key: k }, 400);
       } else if (k === "assoc_free_members" || k === "assoc_limit_plus" || k === "assoc_limit_premium" || k === "assoc_limit_platinum" || k === "assoc_roles_premium") {
         if (!/^\d{1,7}$/.test(v)) return j({ ok: false, error: "bad_number", key: k }, 400);
+      } else if (k === "twa_sha256") {
+        const list = v.toUpperCase().split(/[\s,;]+/).filter(Boolean).map((f) => (/^[0-9A-F]{64}$/.test(f) ? f.match(/../g).join(":") : f));
+        if (list.length > 4 || list.some((f) => !/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(f))) return j({ ok: false, error: "bad_fingerprint" }, 400);
+        v = Array.from(new Set(list)).join(",");
       } else if (k === "upi_id") {
         if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) return j({ ok: false, error: "bad_upi" }, 400);
         v = v.slice(0, 100);
