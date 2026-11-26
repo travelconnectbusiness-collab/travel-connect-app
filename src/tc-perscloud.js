@@ -89,6 +89,7 @@
 
  /* ---------- ask for a plan ---------- */
  window.tpPcBuy=function(kind){
+  if(typeof window.tcInPlayApp==="function"&&window.tcInPlayApp()){ say(B("Plans cannot be bought in the Play Store app.","Play Store ആപ്പിൽ പ്ലാൻ വാങ്ങാൻ സൗകര്യമില്ല.")); return; }   /* Play Store app */
   var s=ST||{}, pr=(s.prices||{})[kind]||(kind==="year"?"99":"10"), upi=(s.upi||{}).id||"", nm=(s.upi||{}).name||"Travel Connect";
   var link=upi?"upi://pay?pa="+encodeURIComponent(upi)+"&pn="+encodeURIComponent(nm)+"&am="+encodeURIComponent(pr)+"&cu=INR&tn="+encodeURIComponent("TC cloud "+me()):"";
   var box=$("tpPcBuyBox"); if(!box) return;
@@ -133,7 +134,10 @@
   else{
    if(rq&&rq.status==="rejected") h+='<div class="tpNote" style="margin:8px 0 0">'+E(B("Last request was not accepted","അവസാന അപേക്ഷ സ്വീകരിച്ചില്ല"))+(rq.admin_note?": "+E(rq.admin_note):"")+'</div>';
    var pr=s.prices||{};
-   if(!act||pl.kind==="move"){
+   if((!act||pl.kind==="move")&&typeof window.tcInPlayApp==="function"&&window.tcInPlayApp()){
+    h+='<div class="tpM" style="margin-top:8px">'+E(B("Plans cannot be bought in the Play Store app.","Play Store ആപ്പിൽ പ്ലാൻ വാങ്ങാൻ സൗകര്യമില്ല."))+'</div>';   /* Google Play billing rule (owner 2026-11-26) */
+   }
+   else if(!act||pl.kind==="move"){
     h+='<div class="tpM" style="margin-top:8px;line-height:1.5">'+E(B("Keeps a locked copy of all your accounts in the cloud. If the phone is lost or changed, bring it back on the new phone.","നിങ്ങളുടെ എല്ലാ കണക്കുകളുടെയും ലോക്ക് ചെയ്ത കോപ്പി ക്ലൗഡിൽ സൂക്ഷിക്കും. ഫോൺ നഷ്ടപ്പെട്ടാലോ മാറ്റിയാലോ പുതിയ ഫോണിൽ തിരികെ കൊണ്ടുവരാം."))+'</div>'+
      '<div style="display:flex;gap:8px;margin-top:8px"><button class="tpBtn s" style="flex:1;margin-top:0" onclick="tpPcBuy(\'year\')">₹'+E(pr.year||"99")+' / '+E(B("year","വർഷം"))+'</button>'+
      (act?'':'<button class="tpBtn g s" style="flex:1;margin-top:0" onclick="tpPcBuy(\'move\')">₹'+E(pr.move||"10")+' · '+E(B("phone change, 30 days","ഫോൺ മാറ്റം, 30 ദിവസം"))+'</button>')+'</div>';
