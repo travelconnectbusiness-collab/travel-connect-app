@@ -27,6 +27,9 @@ import { onRequestPost as roadKmPost } from "./functions/api/roadkm.js";        
 import { onRequestPost as aiPost } from "./functions/api/ai.js";                /* in-app AI, Workers AI binding "AI" (2026-11-19) */
 import { onRequestPost as assocPost } from "./functions/api/assoc.js";          /* association book in the cloud (2026-11-20) */
 
+/* Package name of the Play Store app (Trusted Web Activity) - fixed for ever once it is on Play. */
+const TWA_PACKAGE = "dev.travelconnect.app";
+
 /* All /api/* routing lives here, separate from the top-level fetch handler,
    so the CORS wrapper in fetch() can capture whatever Response this
    produces and attach the Access-Control-Allow-Origin header to it in one
@@ -212,6 +215,20 @@ export default {
        re-check with the origin before using a cached copy - the standard
        fix for "I deployed a new version but people still see the old one"
        caused by CDN-level caching. */
+    /* Play Store app (Trusted Web Activity, owner 2026-11-26): Android checks this file to open
+       travelconnect.dev full-screen inside the Play app (no address bar). The SHA-256 key
+       fingerprints are typed by the admin (Partner Plans -> Prices & UPI -> Play Store app),
+       saved by upgrade.js as upgrade_settings.twa_sha256 - no file in the repo to keep in step. */
+    if (url.pathname === "/.well-known/assetlinks.json") {
+      let fps = [];
+      try {
+        const r = await env.DB.prepare("SELECT value FROM upgrade_settings WHERE key='twa_sha256'").first();
+        fps = String((r && r.value) || "").split(",").map((s) => s.trim()).filter((s) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(s)).slice(0, 4);
+      } catch (e) { fps = []; }
+      const links = fps.length ? [{ relation: ["delegate_permission/common.handle_all_urls"], target: { namespace: "android_app", package_name: TWA_PACKAGE, sha256_cert_fingerprints: fps } }] : [];
+      return new Response(JSON.stringify(links), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*" } });
+    }
+
     const res = await env.ASSETS.fetch(request);
     if (/\.(js|css|html)$/.test(url.pathname) || url.pathname === "/") {
       const newRes = new Response(res.body, res);
