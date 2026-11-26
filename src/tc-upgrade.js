@@ -20,6 +20,24 @@ const bl=(en,ml)=>(typeof tcBl==="function"?tcBl(en,ml):en);
 const E=(v)=>(typeof esc==="function"?esc(v):String(v==null?"":v));
 const say=(m)=>{ try{ toast(m); }catch(e){ alert(m); } };
 
+/* Play Store app (Trusted Web Activity, owner 2026-11-26). Google Play allows app features to be
+   paid inside a Play app only through Google Play billing, so in the Play app the plan purchase
+   is hidden (a plan already bought keeps working there). The Play app opens /?src=twa; the flag
+   is kept for the installed app window only (display-mode standalone), never for a Chrome tab. */
+const inPlay=(function(){
+ let v=false;
+ try{
+  const q=/[?&]src=twa(&|$)/.test(location.search), r=String(document.referrer||"").indexOf("android-app://dev.travelconnect.app")===0;
+  const sa=!!(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches);
+  if(q||r){ v=true; try{ localStorage.setItem("tc_twa","1"); }catch(e){} }
+  else{ let s=null; try{ s=localStorage.getItem("tc_twa"); }catch(e){} v=(s==="1"&&sa); }
+  if(q){ try{ const sp=new URLSearchParams(location.search); sp.delete("src"); const qs=sp.toString(); history.replaceState(history.state,"",location.pathname+(qs?"?"+qs:"")+location.hash); }catch(e){} }
+ }catch(e){}
+ return v;
+})();
+window.tcInPlayApp=function(){ return inPlay; };
+const PLAY_NO_BUY=()=>bl("Plans cannot be bought in the Play Store app.","Play Store ആപ്പിൽ പ്ലാൻ വാങ്ങാൻ സൗകര്യമില്ല.");
+
 /* ------------------------------------------------------------------ utils */
 function ownerCreds(){
  let u=null; try{ u=getCurrentUser(); }catch(e){}
@@ -191,7 +209,7 @@ function renderOwnerCard(){
  let b="";
  if(!p.email_verified) b+='<button class="primary" onclick="tcUpOpenEmail()">&#9993; '+bl("Verify email","ഇമെയിൽ വെരിഫൈ ചെയ്യുക")+'</button>';
  if(!p.verified&&!(vr&&vr.status==="pending")) b+='<button onclick="tcUpOpenVerify()">&#128737; '+bl("Request verification","വെരിഫിക്കേഷന് അപേക്ഷിക്കുക")+'</button>';
- if(!isOwnerPlan&&!(ur&&ur.status==="pending")) b+='<button onclick="tcUpOpenUpgrade()" style="background:#e0a100;color:#fff;border-color:#e0a100">&#11088; '+bl((p.plan==="paid"||p.plan==="premium")?"Renew / Upgrade":"Get Plus / Premium",(p.plan==="paid"||p.plan==="premium")?"പുതുക്കുക / അപ്ഗ്രേഡ്":"Plus / Premium എടുക്കുക")+'</button>';
+ if(!isOwnerPlan&&!(ur&&ur.status==="pending")&&!inPlay) b+='<button onclick="tcUpOpenUpgrade()" style="background:#e0a100;color:#fff;border-color:#e0a100">&#11088; '+bl((p.plan==="paid"||p.plan==="premium")?"Renew / Upgrade":"Get Plus / Premium",(p.plan==="paid"||p.plan==="premium")?"പുതുക്കുക / അപ്ഗ്രേഡ്":"Plus / Premium എടുക്കുക")+'</button>';
  if(b) h+='<div class="actions" style="margin-top:8px;flex-wrap:wrap">'+b+'</div>';
  box.innerHTML=h;
 }
@@ -281,6 +299,7 @@ let upPlan="paid", upPer="month";   /* upPer: vehicle businesses choose monthly 
 window.tcUpPer=function(p){ upPer=p==="year"?"year":"month"; try{ tcUpOpenUpgrade(); }catch(e){} };   /* vehicle businesses: monthly (Google Maps) / yearly (no Google Maps, local directory only) */
 window.tcUpOpenUpgrade=function(){
  if(!upState) return;
+ if(inPlay){ say(PLAY_NO_BUY()); return; }   /* Play Store app: no purchase inside (Google Play billing rule) */
  if(!upState.partner.email_verified){ say(bl("Verify your email first","ആദ്യം ഇമെയിൽ വെരിഫൈ ചെയ്യുക")); tcUpOpenEmail(tcUpOpenUpgrade); return; }
  const d=upState, per=d.period==="month"?bl("month","മാസം"):bl("year","വർഷം");
  const payReady=d.upi&&d.upi.id&&d.prices.paid>0&&d.prices.premium>0;
@@ -472,7 +491,16 @@ window.tcAdLoadPriceBox=async function(){
   '<hr><b>Platinum by hand</b><p class="muted" style="font-size:12px">Give or take away Platinum for the business with this number (any kind of business). Giving it makes the plan Premium + Platinum for the days below (an Owner Premium shop just gets the Platinum tools, no expiry).</p>'+
   '<div class="grid"><label>Shop number<input id="tcAdPlM" type="tel" inputmode="numeric" maxlength="13" placeholder="10-digit number"></label><label>Days<input id="tcAdPlD" type="number" min="1" value="365"></label></div>'+
   '<div class="actions"><button class="primary" onclick="tcAdPlat(1)">Give Platinum</button><button onclick="tcAdPlat(0)">Remove Platinum</button></div>'+
+  '<hr><b>Play Store app</b><p class="muted" style="font-size:12px">SHA-256 key fingerprints of the Play app (dev.travelconnect.app), separated by commas: the upload key (shown at the end of the GitHub build) and Google\'s app signing key (Play Console &rsaquo; Test and release &rsaquo; App integrity). Without them the Play app opens with an address bar. Check: travelconnect.dev/.well-known/assetlinks.json</p>'+
+  '<label>SHA-256 fingerprints<textarea id="tcAdTwa" rows="3" style="font-family:monospace;font-size:11px" placeholder="AB:CD:...">'+E(s.twa_sha256||"")+'</textarea></label>'+
+  '<div class="actions"><button class="primary" onclick="tcAdSaveTwa()">Save fingerprints</button></div>'+
   '<p class="muted" style="font-size:12px">Email service: '+(d.email_ready?'<span class="ok">connected</span>':'<span class="danger">not set up (RESEND_API_KEY missing) - email codes cannot be sent</span>')+'</p></div>';
+};
+window.tcAdSaveTwa=async function(){
+ const v=(document.querySelector("#tcAdTwa").value||"").trim();
+ const d=await postJson("save_settings",{token:adminToken(),settings:{twa_sha256:v}});
+ if(d.ok&&d.settings) document.querySelector("#tcAdTwa").value=d.settings.twa_sha256||"";
+ say(d.ok?"Saved - Android checks it again within a few minutes":(d.error==="bad_fingerprint"?"Fingerprint looks wrong (32 pairs like AB:CD:..., at most 4)":"Could not save"));
 };
 window.tcAdPlat=async function(on){
  const m=(document.querySelector("#tcAdPlM").value||"").replace(/\D/g,""), days=document.querySelector("#tcAdPlD").value||"365";
