@@ -1,0 +1,189 @@
+# ============================================================================
+#  Travel Connect - Play Store app (Trusted Web Activity), built by GitHub.
+#  Owner 2026-11-26. No laptop needed: Actions tab -> "Play Store app" -> Run workflow.
+#
+#  The Play app opens https://travelconnect.dev/ full-screen inside Chrome, so every
+#  change committed to the website reaches the Play app at once - a new build is needed
+#  ONLY when the app's name / icon / colours change, or when Google asks for a newer
+#  Android version (targetSdk).
+#
+#  ONE secret is needed (Settings -> Secrets and variables -> Actions -> New repository secret):
+#     TWA_PASS = a password of at least 16 letters / digits, kept safely (Google password manager).
+#  The first run makes the upload key, locks it with TWA_PASS (AES-256) and saves only the locked
+#  copy in the repo (.github/play/upload-key.enc). Every later run unlocks the same key.
+#  Never change or lose TWA_PASS after the first run.
+#
+#  Result: a GitHub Release "play-N" with
+#     app-release-bundle.aab  -> upload this to Play Console
+#     app-release-signed.apk  -> install directly on a phone to try it
+#  and the upload key's SHA-256 fingerprint at the end of the run (Summary), to type into
+#  the app: Admin -> Partner Plans -> Prices & UPI -> Play Store app.
+# ============================================================================
+name: Play Store app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: play-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TWA_PASS: ${{ secrets.TWA_PASS }}
+      PKG: dev.travelconnect.app
+      HOST: travelconnect.dev
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Check the TWA_PASS secret
+        run: |
+          if [ "${#TWA_PASS}" -lt 16 ]; then
+            echo "::error::Add the repository secret TWA_PASS (at least 16 letters / digits) and run again."
+            exit 1
+          fi
+
+      - name: Set up Java 17 (Bubblewrap accepts only JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Android build tools and platform (licences accepted, so nothing asks a question)
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "build-tools;36.1.0" "platforms;android-36" "platform-tools" > /dev/null
+
+      - name: Upload key - make it once, then always unlock the same one
+        run: |
+          mkdir -p android .github/play
+          if [ -f .github/play/upload-key.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:TWA_PASS -in .github/play/upload-key.enc -out android/upload.jks \
+              || { echo "::error::Could not unlock the upload key - TWA_PASS is not the password used on the first run."; exit 1; }
+          else
+            keytool -genkeypair -keystore android/upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$TWA_PASS" -keypass "$TWA_PASS" -dname "CN=Travel Connect, O=Travel Connect, L=Valayam, ST=Kerala, C=IN"
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -pass env:TWA_PASS -in android/upload.jks -out .github/play/upload-key.enc
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/play/upload-key.enc
+            git commit -m "Play app: locked upload key (made by the Play Store app workflow)"
+            git push || { echo "::error::Could not save the locked upload key in the repo - nothing was built, run again."; exit 1; }
+          fi
+          FP=$(keytool -list -v -keystore android/upload.jks -alias upload -storepass "$TWA_PASS" | grep -m1 "SHA256:" | sed 's/.*SHA256: *//')
+          echo "UPLOAD_FP=$FP" >> "$GITHUB_ENV"
+
+      - name: Write the app description (twa-manifest.json)
+        working-directory: android
+        run: |
+          N=${{ github.run_number }}
+          cat > twa-manifest.json <<JSON
+          {
+            "packageId": "$PKG",
+            "host": "$HOST",
+            "name": "Travel Connect",
+            "launcherName": "Travel Connect",
+            "display": "standalone",
+            "themeColor": "#082b49",
+            "themeColorDark": "#082b49",
+            "navigationColor": "#082b49",
+            "navigationColorDark": "#082b49",
+            "navigationDividerColor": "#082b49",
+            "navigationDividerColorDark": "#082b49",
+            "backgroundColor": "#ffffff",
+            "enableNotifications": true,
+            "startUrl": "/?src=twa",
+            "iconUrl": "https://$HOST/tc-icon-512.png",
+            "splashScreenFadeOutDuration": 300,
+            "signingKey": { "path": "./upload.jks", "alias": "upload" },
+            "appVersionName": "1.0.$N",
+            "appVersionCode": $N,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://$HOST/manifest.webmanifest",
+            "fallbackType": "customtabs",
+            "features": { "locationDelegation": { "enabled": true } },
+            "alphaDependencies": { "enabled": false },
+            "enableSiteSettingsShortcut": true,
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "fullScopeUrl": "https://$HOST/",
+            "minSdkVersion": 21,
+            "orientation": "default",
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "retainedBundles": [],
+            "appVersion": "1.0.$N"
+          }
+          JSON
+          cat twa-manifest.json
+
+      - name: Bubblewrap - make the Android project
+        working-directory: android
+        run: |
+          npm i -g @bubblewrap/cli@1.27.0
+          mkdir -p ~/.bubblewrap
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > ~/.bubblewrap/config.json
+          bubblewrap update --skipVersionUpgrade < /dev/null
+          # Google Play: new apps and updates must target Android 16 (API 36) from 31 Aug 2026.
+          sed -i -E 's/targetSdkVersion [0-9]+/targetSdkVersion 36/; s/compileSdkVersion [0-9]+/compileSdkVersion 36/' app/build.gradle
+          grep -E "compileSdkVersion|targetSdkVersion|minSdkVersion|versionCode|versionName" app/build.gradle
+
+      - name: Bubblewrap - build the signed app
+        working-directory: android
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.TWA_PASS }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.TWA_PASS }}
+        run: |
+          bubblewrap build --skipPwaValidation < /dev/null
+          ls -la *.aab *.apk
+
+      - name: Remove the unlocked key from the machine
+        if: always()
+        run: rm -f android/upload.jks
+
+      - name: Publish the files (GitHub Release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N=${{ github.run_number }}
+          gh release create "play-$N" android/app-release-bundle.aab android/app-release-signed.apk \
+            --title "Play Store app 1.0.$N" \
+            --notes "Version code $N. Upload app-release-bundle.aab to Play Console. Upload key SHA-256: $UPLOAD_FP"
+
+      - name: Keep a copy as a build artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-app-${{ github.run_number }}
+          path: |
+            android/app-release-bundle.aab
+            android/app-release-signed.apk
+
+      - name: Summary - what to do next
+        run: |
+          {
+            echo "## Play Store app 1.0.${{ github.run_number }} is ready"
+            echo ""
+            echo "Files: Releases -> **play-${{ github.run_number }}** (aab for Play Console, apk to try on a phone)."
+            echo ""
+            echo "Upload key SHA-256 (type it in the app: Admin -> Partner Plans -> Prices & UPI -> Play Store app):"
+            echo ""
+            echo "\`$UPLOAD_FP\`"
+            echo ""
+            echo "After the first upload, also add Google's app signing key SHA-256 (Play Console -> Test and release -> App integrity) in the same box, separated by a comma."
+          } >> "$GITHUB_STEP_SUMMARY"
