@@ -800,6 +800,17 @@ const MARKERS = [
   ["src/tc-nav.js", "goBase", "Navigation: Back to Dashboard / Dashboard tab drops the page steps instead of adding new ones"],
   ["src/tc-nav.js", "cleanStale", "Navigation: a closed pop-up leaves no extra Back step"],
   ["src/tc-regdocs.js", "tc-nav.js", "tc-regdocs.js loads tc-nav.js"],
+  /* Play Store app - Trusted Web Activity (2026-11-26) */
+  ["worker.js", "/.well-known/assetlinks.json", "Play Store app: worker.js serves the Android asset links (no address bar in the Play app)"],
+  ["worker.js", "dev.travelconnect.app", "Play Store app: package name in the asset links"],
+  ["functions/api/upgrade.js", "twa_sha256", "Play Store app: admin saves the SHA-256 key fingerprints"],
+  ["functions/api/upgrade.js", "bad_fingerprint", "Play Store app: wrong fingerprints are refused"],
+  ["src/tc-upgrade.js", "window.tcInPlayApp=", "Play Store app: plan purchase hidden inside the Play app (Google Play billing rule)"],
+  ["src/tc-upgrade.js", "if(inPlay){ say(PLAY_NO_BUY())", "Play Store app: the plan pop-up does not open inside the Play app"],
+  ["src/tc-upgrade.js", "tcAdSaveTwa", "Play Store app: admin box for the key fingerprints"],
+  ["src/tc-perscloud.js", "tcInPlayApp", "Play Store app: cloud backup purchase hidden inside the Play app"],
+  [".github/workflows/play-app.yml", "bubblewrap update --skipVersionUpgrade", "Play Store app: GitHub builds the app (Bubblewrap)"],
+  [".github/workflows/play-app.yml", "targetSdkVersion 36", "Play Store app: targets Android 16 as Google Play requires"],
 ];
 
 /* ---------- helpers ---------- */
