@@ -61,13 +61,21 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Set up the Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Android build tools and platform (licences accepted, so nothing asks a question)
+      # The GitHub machine already has the Android SDK (ANDROID_HOME). The setup-android action is not
+      # used: its own licence step stopped at a (y/N) question on the first run (2026-11-28).
+      - name: Android SDK already on the GitHub machine - licences, build tools and platform
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "build-tools;36.1.0" "platforms;android-36" "platform-tools" > /dev/null
+          set +o pipefail   # "yes" stops with a pipe signal when sdkmanager finishes - not an error
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          echo "sdkmanager: $SM"
+          yes | "$SM" --licenses > /dev/null || true
+          yes | "$SM" "build-tools;36.1.0" "platforms;android-36" "platform-tools" > /dev/null
+          test -d "$SDK/build-tools/36.1.0" && test -d "$SDK/platforms/android-36" \
+            || { echo "::error::Android build-tools 36.1.0 / android-36 could not be installed"; exit 1; }
 
       - name: Upload key - make it once, then always unlock the same one
         run: |
@@ -138,7 +146,7 @@ jobs:
         run: |
           npm i -g @bubblewrap/cli@1.27.0
           mkdir -p ~/.bubblewrap
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > ~/.bubblewrap/config.json
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
           bubblewrap update --skipVersionUpgrade < /dev/null
           # Google Play: new apps and updates must target Android 16 (API 36) from 31 Aug 2026.
           sed -i -E 's/targetSdkVersion [0-9]+/targetSdkVersion 36/; s/compileSdkVersion [0-9]+/compileSdkVersion 36/' app/build.gradle
