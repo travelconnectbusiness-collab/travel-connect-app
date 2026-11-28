@@ -139,7 +139,7 @@ jobs:
             "isChromeOSOnly": false,
             "isMetaQuest": false,
             "fullScopeUrl": "https://$HOST/",
-            "minSdkVersion": 21,
+            "minSdkVersion": 24,
             "orientation": "default",
             "fingerprints": [],
             "additionalTrustedOrigins": [],
@@ -157,7 +157,8 @@ jobs:
           printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
           bubblewrap update --skipVersionUpgrade < /dev/null
           # Google Play: new apps and updates must target Android 16 (API 36) from 31 Aug 2026.
-          sed -i -E 's/targetSdkVersion [0-9]+/targetSdkVersion 36/; s/compileSdkVersion [0-9]+/compileSdkVersion 36/' app/build.gradle
+          # androidbrowserhelper 2.8 needs Android 7.0+ (minSdk 24) - run #3 stopped on minSdk 21 (2026-11-28).
+          sed -i -E 's/targetSdkVersion [0-9]+/targetSdkVersion 36/; s/compileSdkVersion [0-9]+/compileSdkVersion 36/; s/minSdkVersion [0-9]+/minSdkVersion 24/' app/build.gradle
           grep -E "compileSdkVersion|targetSdkVersion|minSdkVersion|versionCode|versionName" app/build.gradle
 
       - name: Bubblewrap - build the signed app
