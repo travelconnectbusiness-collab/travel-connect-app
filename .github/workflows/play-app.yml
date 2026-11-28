@@ -76,6 +76,14 @@ jobs:
           yes | "$SM" "build-tools;36.1.0" "platforms;android-36" "platform-tools" > /dev/null
           test -d "$SDK/build-tools/36.1.0" && test -d "$SDK/platforms/android-36" \
             || { echo "::error::Android build-tools 36.1.0 / android-36 could not be installed"; exit 1; }
+          # Bubblewrap expects the old SDK layout <sdk>/tools/bin/sdkmanager (its own installer makes it);
+          # the GitHub machine only has cmdline-tools/latest, so "build" said "androidSdk isn't correct"
+          # on run #2 (2026-11-28). Point <sdk>/tools at the command-line tools.
+          if [ ! -x "$SDK/tools/bin/sdkmanager" ]; then
+            rm -rf "$SDK/tools"
+            ln -s "$(dirname "$(dirname "$SM")")" "$SDK/tools"
+          fi
+          ls -la "$SDK" "$SDK/tools/bin"
 
       - name: Upload key - make it once, then always unlock the same one
         run: |
@@ -158,6 +166,7 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.TWA_PASS }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.TWA_PASS }}
         run: |
+          bubblewrap doctor < /dev/null || true   # prints what Bubblewrap thinks of the JDK / SDK (helps if build stops)
           bubblewrap build --skipPwaValidation < /dev/null
           ls -la *.aab *.apk
 
